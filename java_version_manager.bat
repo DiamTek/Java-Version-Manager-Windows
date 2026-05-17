@@ -11,14 +11,16 @@ set "cBLUE=%ESC%[96m"
 set "cRESET=%ESC%[0m"
 
 :: Check if the script is running as Administrator
-openfiles >nul 2>nul
+net session >nul 2>&1
 if %errorlevel% NEQ 0 (
-    echo This script requires administrator privileges.
-    echo Attempting to restart with elevated privileges...
-    :: Relaunch the script as administrator
-    powershell -Command "Start-Process cmd -ArgumentList '/c, %~s0' -Verb runAs"
+    echo [ INFO ] Requesting administrative privileges...
+    :: Relaunch the script perfectly, bypassing PowerShell profile bloat
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
     exit /B
 )
+
+:: CRITICAL: Set the working directory to the script's location
+cd /d "%~dp0"
 
 :MAIN_LOOP
 :: Clear the variable before calling the menu to ensure a clean state
