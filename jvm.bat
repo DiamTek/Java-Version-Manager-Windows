@@ -16,7 +16,6 @@ set "cRESET=%ESC%[0m"
 net session >nul 2>&1
 if %errorlevel% NEQ 0 (
     echo %cBLUE%[ INFO ]%cRESET% Requesting administrative privileges...
-    :: Relaunch the script perfectly, bypassing PowerShell profile bloat
     powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
     exit /B
 )
@@ -53,15 +52,31 @@ echo.
 echo %cBLUE%[ ACTION ]%cRESET% Updating system PATH to use %%JAVA_HOME%%\bin...
 call :UpdateSystemPath
 
-:: Update local JAVA_HOME for current session
+
+:: Clean the current session PATH dynamically to prevent duplicates
+:: We use a block to safely evaluate and export the clean path over the endlocal boundary
+setlocal enabledelayedexpansion
+set "CLEAN_PATH=!PATH!"
+
+:: Strip the OLD Java Home if it exists
+if defined JAVA_HOME (
+    set "CLEAN_PATH=!CLEAN_PATH:%JAVA_HOME%\bin;=!"
+    set "CLEAN_PATH=!CLEAN_PATH:;%JAVA_HOME%\bin=!"
+)
+:: Strip the NEW Java Home just in case to prevent doubling up
+set "CLEAN_PATH=!CLEAN_PATH:%CURRENT_JDK_PATH%\bin;=!"
+set "CLEAN_PATH=!CLEAN_PATH:;%CURRENT_JDK_PATH%\bin=!"
+:: Remove double semicolons
+set "CLEAN_PATH=!CLEAN_PATH:;;=;!"
+
+:: Export the clean path back to the main session and apply the new JDK at the front
+for /f "delims=" %%A in ("!CLEAN_PATH!") do (
+    endlocal & set "PATH=%CURRENT_JDK_PATH%\bin;%%A"
+)
+
+:: Finally update the local JAVA_HOME
 set "JAVA_HOME=%CURRENT_JDK_PATH%"
 
-:: Clean the current session PATH of previous JDKs to prevent duplicates in the active window
-set "PATH=!PATH:%CURRENT_JDK_PATH%\bin;=!"
-set "PATH=!PATH:;%CURRENT_JDK_PATH%\bin=!"
-
-:: Update local PATH for current session
-set "PATH=%CURRENT_JDK_PATH%\bin;%PATH%"
 
 :: Verify the changes
 echo.
@@ -82,7 +97,7 @@ if errorlevel 1 (
 )
 echo.
 echo %cBLUE%[  INFO  ]%cRESET% System PATH has been updated with %%JAVA_HOME%%\bin
-echo            Open a new command prompt for changes to take full effect.
+echo            Open a new command prompt for changes to take full effect globally.
 echo.
 echo ============================================================
 
@@ -216,7 +231,7 @@ if !JDK_COUNT! GTR 0 (
 
 set /a CURRENT_OPT+=1
 set "EXIT_OPT=!CURRENT_OPT!"
-echo !EXIT_OPT!. Exit without changes
+echo !EXIT_OPT!. Exit
 echo.
 
 :GET_CHOICE_DYN
