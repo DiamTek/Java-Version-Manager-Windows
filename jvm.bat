@@ -13,7 +13,7 @@ set "cRESET=%ESC%[0m"
 :: Check if the script is running as Administrator
 net session >nul 2>&1
 if %errorlevel% NEQ 0 (
-    echo [ INFO ] Requesting administrative privileges...
+    echo %cBLUE%[ INFO ]%cRESET% Requesting administrative privileges...
     :: Relaunch the script perfectly, bypassing PowerShell profile bloat
     powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
     exit /B
