@@ -1,4 +1,6 @@
 @echo off
+:: Java Version Manager (JVM) - Copyright (c) 2026 DiamTek
+:: Licensed under the MIT License. See the LICENSE file for details.
 title Java Version Manager
 
 :: Generate ESC character for ANSI color codes
