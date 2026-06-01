@@ -8,7 +8,6 @@ for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do 
 set "cRED=%ESC%[91m"
 set "cGREEN=%ESC%[92m"
 set "cYELLOW=%ESC%[93m"
-:: Using Bright Cyan (96m) because standard Blue (94m) is unreadable on black backgrounds
 set "cBLUE=%ESC%[96m"
 set "cRESET=%ESC%[0m"
 
@@ -54,7 +53,6 @@ call :UpdateSystemPath
 
 
 :: Clean the current session PATH dynamically to prevent duplicates
-:: We use a block to safely evaluate and export the clean path over the endlocal boundary
 setlocal enabledelayedexpansion
 set "CLEAN_PATH=!PATH!"
 
@@ -97,7 +95,7 @@ if errorlevel 1 (
 )
 echo.
 echo %cBLUE%[  INFO  ]%cRESET% System PATH has been updated with %%JAVA_HOME%%\bin
-echo            Open a new command prompt for changes to take full effect globally.
+echo             Open a new command prompt for changes to take full effect globally.
 echo.
 echo ============================================================
 
@@ -118,7 +116,7 @@ setlocal enabledelayedexpansion
 :RESCAN_MENU
 cls
 echo ============================================================
-echo                    Java Version Manager
+echo                     Java Version Manager
 echo ============================================================
 echo.
 
@@ -193,7 +191,7 @@ for /l %%i in (0,1,2) do (
 
 if !JDK_COUNT!==0 (
     echo %cYELLOW%[ WARNING]%cRESET% No Java installations found in common locations.
-    echo            You can use the download option below to install one.
+    echo             You can use the download option below to install one.
     echo.
 ) else (
     echo Please choose an option:
@@ -216,6 +214,15 @@ if !JDK_COUNT! GTR 1 (
 )
 
 set /a CURRENT_OPT+=1
+set "UPDATE_OPT=!CURRENT_OPT!"
+if !JDK_COUNT! GTR 0 (
+    echo !UPDATE_OPT!. Check for Updates for installed JDKs
+) else (
+    set "UPDATE_OPT=0"
+    set /a CURRENT_OPT-=1
+)
+
+set /a CURRENT_OPT+=1
 set "DL_OPT=!CURRENT_OPT!"
 echo !DL_OPT!. Download and Install a new JDK version (Oracle)
 
@@ -224,7 +231,6 @@ set "UNINSTALL_OPT=!CURRENT_OPT!"
 if !JDK_COUNT! GTR 0 (
     echo !UNINSTALL_OPT!. Uninstall a JDK and clean environment variables
 ) else (
-    :: If no JDKs, don't show uninstall option. Shift exit option down.
     set "UNINSTALL_OPT=0"
     set /a CURRENT_OPT-=1
 )
@@ -262,9 +268,9 @@ if !choice! LSS 1 goto GET_CHOICE_MANUAL
 if !choice! GTR !EXIT_OPT! goto GET_CHOICE_MANUAL
 
 :PROCESS_CHOICE
-:: Flat logic flow completely bypasses block-crash bugs
 if !choice!==!EXIT_OPT! goto DO_EXIT
 if !choice!==!DL_OPT! goto DO_DL
+if "!UPDATE_OPT!" NEQ "0" if !choice!==!UPDATE_OPT! goto DO_UPDATE
 if "!UNINSTALL_OPT!" NEQ "0" if !choice!==!UNINSTALL_OPT! goto DO_UNINSTALL
 if "!LATEST_OPT!" NEQ "0" if !choice!==!LATEST_OPT! goto DO_LATEST
 
@@ -284,6 +290,10 @@ goto :eof
 call :DownloadJDK
 goto RESCAN_MENU
 
+:DO_UPDATE
+call :UpdateJDKs
+goto RESCAN_MENU
+
 :DO_UNINSTALL
 call :UninstallJDK
 goto RESCAN_MENU
@@ -297,6 +307,153 @@ goto APPLY_SELECTION
 for /f "delims=" %%A in ("!SEL_PATH!") do (
     endlocal & set "CURRENT_JDK_PATH=%%A"
 )
+goto :eof
+
+
+:: ============================================================
+:: JDK UPDATER 
+:: ============================================================
+:UpdateJDKs
+cls
+echo ============================================================
+echo                     JDK Update Checker
+echo ============================================================
+echo.
+echo Please select a JDK to check for updates:
+for /l %%k in (1,1,!JDK_COUNT!) do (
+    set "ACTIVE_TAG="
+    if /i "!JDK_PATH_%%k!"=="!JAVA_HOME!" set "ACTIVE_TAG= %cGREEN%[ACTIVE]%cRESET%"
+    echo %%k. Check JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^) !ACTIVE_TAG!
+)
+set /a UP_CANCEL=!JDK_COUNT! + 1
+echo.
+echo !UP_CANCEL!. Cancel and return to menu
+echo.
+
+:GET_UP_CHOICE
+set up_choice=
+set /p up_choice="Enter your choice (1-!UP_CANCEL!): "
+if "!up_choice!"=="" goto GET_UP_CHOICE
+echo !up_choice!| findstr /r "^[0-9]*$" >nul
+if errorlevel 1 goto GET_UP_CHOICE
+if !up_choice! LSS 1 goto GET_UP_CHOICE
+if !up_choice! GTR !UP_CANCEL! goto GET_UP_CHOICE
+
+if !up_choice!==!UP_CANCEL! goto :eof
+
+set "UP_PATH=!JDK_PATH_%up_choice%!"
+set "UP_MAJOR=!JDK_MAJOR_%up_choice%!"
+set "UP_NAME=!JDK_NAME_%up_choice%!"
+
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Analyzing !UP_NAME!...
+
+:: Extract local minor version from the release file
+set "LOCAL_VER=UNKNOWN"
+if exist "!UP_PATH!\release" (
+    for /f "tokens=2 delims==" %%A in ('findstr "JAVA_VERSION" "!UP_PATH!\release"') do (
+        set "LOCAL_VER=%%~A"
+    )
+)
+
+echo %cBLUE%[  INFO  ]%cRESET% Local Version  : !LOCAL_VER!
+echo %cBLUE%[ ACTION ]%cRESET% Reaching out to Oracle for latest version info...
+
+:: Use PowerShell to scrape the exact minor version from Oracle's site
+set "PS_CMD=$html=(Invoke-WebRequest -Uri 'https://www.oracle.com/java/technologies/downloads/' -UseBasicParsing -ErrorAction SilentlyContinue).Content; if($html -match 'Java SE (?<ver>!UP_MAJOR!\.\d+(\.\d+)?)'){$matches.ver}else{'UNKNOWN'}"
+for /f "delims=" %%I in ('powershell -NoProfile -Command "!PS_CMD!"') do set "REMOTE_VER=%%I"
+
+echo %cBLUE%[  INFO  ]%cRESET% Remote Version : !REMOTE_VER!
+
+if "!REMOTE_VER!"=="UNKNOWN" (
+    echo %cRED%[ ERROR  ]%cRESET% Could not determine the latest remote version. Oracle API may have changed.
+    pause
+    goto :eof
+)
+
+if "!LOCAL_VER!"=="!REMOTE_VER!" (
+    echo.
+    echo %cGREEN%[   OK   ]%cRESET% You are already running the latest version of JDK !UP_MAJOR!!
+    pause
+    goto :eof
+)
+
+echo.
+echo %cYELLOW%[ UPDATE ]%cRESET% An update is available: !LOCAL_VER! -^> !REMOTE_VER!
+choice /C yn /N /M "Would you like to download and install this update? (y/N): "
+if !errorlevel! NEQ 1 goto :eof
+
+:: Proceed with Update Pipeline
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Connecting to Oracle servers for JDK !UP_MAJOR!...
+set "API_URL=https://download.oracle.com/java/!UP_MAJOR!/latest/jdk-!UP_MAJOR!_windows-x64_bin.zip"
+set "ZIP_PATH=%TEMP%\jdk_!UP_MAJOR!_update.zip"
+set "EXTRACT_DIR=%TEMP%\jdk_!UP_MAJOR!_extract"
+
+if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!"
+
+:: Run PowerShell Download and Extract
+set "PS_SCRIPT=%TEMP%\up_jdk_!RANDOM!.ps1"
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    echo try {
+    echo     Write-Host '[  INFO  ] Downloading latest zip... ^(This may take a minute^)' -ForegroundColor Cyan
+    echo     Invoke-WebRequest -Uri '!API_URL!' -OutFile '!ZIP_PATH!'
+    echo     Write-Host '[  INFO  ] Extracting update files...' -ForegroundColor Cyan
+    echo     Expand-Archive -Path '!ZIP_PATH!' -DestinationPath '!EXTRACT_DIR!' -Force
+    echo     Remove-Item '!ZIP_PATH!'
+    echo } catch {
+    echo     Write-Host '[ ERROR  ] Update download failed!' -ForegroundColor Red
+    echo     exit 1
+    echo }
+) > "!PS_SCRIPT!"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
+set PS_EXIT_CODE=!errorlevel!
+if exist "!PS_SCRIPT!" del "!PS_SCRIPT!"
+
+if !PS_EXIT_CODE! NEQ 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Aborting update due to download failure.
+    pause
+    goto :eof
+)
+
+echo %cBLUE%[ ACTION ]%cRESET% Terminating active Java processes to prevent locked files...
+taskkill /f /im java.exe >nul 2>&1
+taskkill /f /im javaw.exe >nul 2>&1
+
+:: Find the newly extracted folder name (e.g. jdk-21.0.3)
+set "NEW_FOLDER="
+for /d %%D in ("!EXTRACT_DIR!\jdk*") do set "NEW_FOLDER=%%~nxD"
+
+if not defined NEW_FOLDER (
+    echo %cRED%[ ERROR  ]%cRESET% Could not locate the extracted JDK folder.
+    pause
+    goto :eof
+)
+
+set "DEST_ROOT=C:\Program Files\Java"
+set "NEW_FULL_PATH=!DEST_ROOT!\!NEW_FOLDER!"
+
+echo %cBLUE%[ ACTION ]%cRESET% Removing old installation: !UP_NAME!...
+rmdir /s /q "!UP_PATH!"
+
+echo %cBLUE%[ ACTION ]%cRESET% Installing new version: !NEW_FOLDER!...
+move /y "!EXTRACT_DIR!\!NEW_FOLDER!" "!DEST_ROOT!\" >nul
+rmdir /s /q "!EXTRACT_DIR!"
+
+:: If the updated JDK was currently the active one, update JAVA_HOME
+if /i "!JAVA_HOME!"=="!UP_PATH!" (
+    echo %cBLUE%[ ACTION ]%cRESET% Patching registry to point to new directory...
+    setx JAVA_HOME "!NEW_FULL_PATH!" /M >nul
+    set "CURRENT_JDK_PATH=!NEW_FULL_PATH!"
+    call :UpdateSystemPath
+)
+
+echo.
+echo %cGREEN%[   OK   ]%cRESET% JDK successfully updated to !REMOTE_VER!!
+pause >nul
 goto :eof
 
 
@@ -329,7 +486,6 @@ for /l %%k in (1,1,!U_CANCEL!) do set "U_CHOICE_KEYS=!U_CHOICE_KEYS!%%k"
 choice /C !U_CHOICE_KEYS! /N /M "Enter your choice (1-!U_CANCEL!): "
 set "u_choice=!errorlevel!"
 
-:: If user presses Ctrl+C and tells Windows 'N', quietly loop back
 if !u_choice!==0 (
     echo.
     goto GET_U_CHOICE
@@ -356,7 +512,6 @@ echo %cYELLOW%[ WARNING ]%cRESET% You are about to permanently delete:
 echo             !DEL_PATH!
 echo             This action cannot be undone.
 
-:: choice /C yn makes y=1, n=2. If they type n (2) or press Ctrl+C (0), it cancels safely.
 choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
 if !errorlevel! NEQ 1 goto CANCEL_UNINSTALL
 
@@ -369,21 +524,19 @@ echo %cBLUE%[ ACTION ]%cRESET% Deleting directory !DEL_PATH!...
 rmdir /s /q "!DEL_PATH!"
 if exist "!DEL_PATH!" (
     echo %cRED%[ ERROR  ]%cRESET% Failed to completely delete directory. 
-    echo            A file might be locked or in use by another program.
+    echo             A file might be locked or in use by another program.
     pause
     goto :eof
 )
 echo %cGREEN%[   OK   ]%cRESET% Directory deleted successfully.
 
 echo %cBLUE%[ ACTION ]%cRESET% Scrubbing environment variables...
-:: Check if the deleted JDK was the active JAVA_HOME
 if /i "!JAVA_HOME!"=="!DEL_PATH!" (
     echo %cBLUE%[  INFO  ]%cRESET% Target was set as JAVA_HOME. Removing from registry...
     reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME /f >nul 2>&1
     set "JAVA_HOME="
 )
 
-:: Scrub it from the SYSTEM PATH
 set "SYS_PATH="
 for /f "tokens=2 delims==" %%A in ('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^>nul') do set "SYS_PATH=%%A"
 if defined SYS_PATH (
@@ -394,7 +547,6 @@ if defined SYS_PATH (
     echo %cGREEN%[   OK   ]%cRESET% Cleaned target from SYSTEM PATH.
 )
 
-:: Scrub it from the USER PATH
 set "USR_PATH="
 for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USR_PATH=%%B"
 if defined USR_PATH (
@@ -427,7 +579,7 @@ echo ============================================================
 echo                   Oracle JDK Downloader
 echo ============================================================
 echo %cBLUE%[  INFO  ]%cRESET% This will fetch the official Oracle JDK.
-echo            Works with versions: 17, 21, 25, 26
+echo             Works with versions: 17, 21, 25, 26
 echo.
 set /p DL_VERSION="Enter the major version number to download (e.g., 21): "
 
@@ -445,10 +597,8 @@ set "API_URL=https://download.oracle.com/java/!DL_VERSION!/latest/jdk-!DL_VERSIO
 set "ZIP_PATH=%TEMP%\jdk_!DL_VERSION!_download.zip"
 set "DEST_DIR=C:\Program Files\Java"
 
-:: Ensure the base directory exists
 if not exist "!DEST_DIR!" mkdir "!DEST_DIR!"
 
-:: Create a temporary PowerShell script to bypass CMD parsing bugs
 set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
 (
     echo $ErrorActionPreference = 'Stop'
@@ -468,11 +618,9 @@ set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
     echo }
 ) > "!PS_SCRIPT!"
 
-:: Run the script
 powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
 set PS_EXIT_CODE=!errorlevel!
 
-:: Cleanup the temp file
 if exist "!PS_SCRIPT!" del "!PS_SCRIPT!"
 
 if !PS_EXIT_CODE! NEQ 0 (
@@ -495,7 +643,6 @@ goto :eof
 setlocal enabledelayedexpansion
 echo %cBLUE%[ ACTION ]%cRESET% Reading current system PATH...
 
-:: Try to get PATH using multiple methods
 set "ORIGINAL_PATH="
 
 for /f "tokens=2 delims==" %%A in ('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^>nul') do (
@@ -517,7 +664,6 @@ if not defined ORIGINAL_PATH (
 
 echo %cBLUE%[ ACTION ]%cRESET% De-bloating Phantom Oracle paths...
 
-:: Strip out common Oracle hijacked paths
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\Program Files\Common Files\Oracle\Java\javapath;=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\Program Files\Common Files\Oracle\Java\javapath=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\Program Files (x86)\Common Files\Oracle\Java\javapath;=!"
@@ -525,14 +671,11 @@ set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\Program Files (x86)\Common Files\Oracle\Jav
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\ProgramData\Oracle\Java\javapath;=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\ProgramData\Oracle\Java\javapath=!"
 
-:: Strip out any existing dynamic JDK paths so we don't pile them up
 set "ORIGINAL_PATH=!ORIGINAL_PATH:%CURRENT_JDK_PATH%\bin;=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:;%CURRENT_JDK_PATH%\bin=!"
 
-:: Clean up any double semicolons caused by stripping
 set "ORIGINAL_PATH=!ORIGINAL_PATH:;;=;!"
 
-:: THE FIX: Use 'set' instead of 'echo' so CMD doesn't evaluate the literal % characters
 set ORIGINAL_PATH | findstr /i "%%JAVA_HOME%%\bin" >nul
 if errorlevel 1 (
     echo %cBLUE%[  INFO  ]%cRESET% Adding %%JAVA_HOME%%\bin to the front of system PATH...
@@ -542,7 +685,6 @@ if errorlevel 1 (
     set "NEW_PATH=!ORIGINAL_PATH!"
 )
 
-:: Update SYSTEM PATH
 echo %cBLUE%[ ACTION ]%cRESET% Updating SYSTEM PATH...
 setx Path "!NEW_PATH!" /M >nul
 if errorlevel 1 (
@@ -556,7 +698,6 @@ if errorlevel 1 (
     echo %cGREEN%[   OK   ]%cRESET% SYSTEM PATH updated successfully
 )
 
-:: Also update USER PATH for consistency
 echo %cBLUE%[ ACTION ]%cRESET% Also updating USER PATH...
 setx Path "!NEW_PATH!" >nul
 if errorlevel 1 (
