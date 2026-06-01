@@ -319,13 +319,16 @@ echo ============================================================
 echo                     JDK Update Checker
 echo ============================================================
 echo.
-echo Please select a JDK to check for updates:
+echo Please select an option:
+echo 1. Check ALL installed JDKs for updates
+
 for /l %%k in (1,1,!JDK_COUNT!) do (
+    set /a DISP_NUM=%%k + 1
     set "ACTIVE_TAG="
     if /i "!JDK_PATH_%%k!"=="!JAVA_HOME!" set "ACTIVE_TAG= %cGREEN%[ACTIVE]%cRESET%"
-    echo %%k. Check JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^) !ACTIVE_TAG!
+    echo !DISP_NUM!. Check JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^) !ACTIVE_TAG!
 )
-set /a UP_CANCEL=!JDK_COUNT! + 1
+set /a UP_CANCEL=!JDK_COUNT! + 2
 echo.
 echo !UP_CANCEL!. Cancel and return to menu
 echo.
@@ -341,45 +344,71 @@ if !up_choice! GTR !UP_CANCEL! goto GET_UP_CHOICE
 
 if !up_choice!==!UP_CANCEL! goto :eof
 
-set "UP_PATH=!JDK_PATH_%up_choice%!"
-set "UP_MAJOR=!JDK_MAJOR_%up_choice%!"
-set "UP_NAME=!JDK_NAME_%up_choice%!"
+if !up_choice!==1 (
+    echo.
+    echo %cBLUE%[ ACTION ]%cRESET% Checking ALL JDKs for updates...
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        call :ProcessSingleUpdate %%k
+    )
+    echo.
+    echo ------------------------------------------------------------
+    echo %cGREEN%[   OK   ]%cRESET% All update checks complete!
+    echo.
+    echo Press any key to return to the menu...
+    pause >nul
+    goto :eof
+) else (
+    set /a REAL_IDX=!up_choice! - 1
+    call :ProcessSingleUpdate !REAL_IDX!
+    echo.
+    pause >nul
+    goto :eof
+)
+
+:ProcessSingleUpdate
+set "UP_IDX=%1"
+set "UP_PATH=!JDK_PATH_%UP_IDX%!"
+set "UP_MAJOR=!JDK_MAJOR_%UP_IDX%!"
+set "UP_NAME=!JDK_NAME_%UP_IDX%!"
 
 echo.
+echo ------------------------------------------------------------
 echo %cBLUE%[ ACTION ]%cRESET% Analyzing !UP_NAME!...
+echo %cBLUE%[  INFO  ]%cRESET% Checking server for updates...
 
-:: Extract local minor version from the release file
-set "LOCAL_VER=UNKNOWN"
+:: Use PowerShell to get the Last-Modified header from the direct download URL
+set "PS_CMD=$req = [Net.HttpWebRequest]::Create('https://download.oracle.com/java/!UP_MAJOR!/latest/jdk-!UP_MAJOR!_windows-x64_bin.zip'); $req.Method = 'HEAD'; try { $res = $req.GetResponse(); $res.LastModified.ToString('yyyy-MM-dd') } catch { 'UNKNOWN' }"
+for /f "delims=" %%I in ('powershell -NoProfile -Command "!PS_CMD!"') do set "REMOTE_DATE=%%I"
+
+:: Extract date from local release file
+set "LOCAL_DATE=UNKNOWN"
 if exist "!UP_PATH!\release" (
-    for /f "tokens=2 delims==" %%A in ('findstr "JAVA_VERSION" "!UP_PATH!\release"') do (
-        set "LOCAL_VER=%%~A"
+    for /f "tokens=2 delims==" %%A in ('findstr "JAVA_VERSION_DATE" "!UP_PATH!\release"') do (
+        set "LOCAL_DATE=%%~A"
     )
 )
 
-echo %cBLUE%[  INFO  ]%cRESET% Local Version  : !LOCAL_VER!
-echo %cBLUE%[ ACTION ]%cRESET% Reaching out to Oracle for latest version info...
+echo %cBLUE%[  INFO  ]%cRESET% Local Build Date : !LOCAL_DATE!
+echo %cBLUE%[  INFO  ]%cRESET% Remote Build Date: !REMOTE_DATE!
 
-:: Use PowerShell to scrape the exact minor version from Oracle's site
-set "PS_CMD=$html=(Invoke-WebRequest -Uri 'https://www.oracle.com/java/technologies/downloads/' -UseBasicParsing -ErrorAction SilentlyContinue).Content; if($html -match 'Java SE (?<ver>!UP_MAJOR!\.\d+(\.\d+)?)'){$matches.ver}else{'UNKNOWN'}"
-for /f "delims=" %%I in ('powershell -NoProfile -Command "!PS_CMD!"') do set "REMOTE_VER=%%I"
-
-echo %cBLUE%[  INFO  ]%cRESET% Remote Version : !REMOTE_VER!
-
-if "!REMOTE_VER!"=="UNKNOWN" (
-    echo %cRED%[ ERROR  ]%cRESET% Could not determine the latest remote version. Oracle API may have changed.
-    pause
+if "!REMOTE_DATE!"=="UNKNOWN" (
+    echo %cRED%[ ERROR  ]%cRESET% Could not connect to Oracle servers.
     goto :eof
 )
 
-if "!LOCAL_VER!"=="!REMOTE_VER!" (
-    echo.
-    echo %cGREEN%[   OK   ]%cRESET% You are already running the latest version of JDK !UP_MAJOR!!
-    pause
+if "!LOCAL_DATE!"=="!REMOTE_DATE!" (
+    echo %cGREEN%[   OK   ]%cRESET% You are already running the latest build of JDK !UP_MAJOR!!
     goto :eof
 )
 
-echo.
-echo %cYELLOW%[ UPDATE ]%cRESET% An update is available: !LOCAL_VER! -^> !REMOTE_VER!
+if "!LOCAL_DATE!" NEQ "UNKNOWN" (
+    if "!LOCAL_DATE!" GTR "!REMOTE_DATE!" (
+        echo %cGREEN%[   OK   ]%cRESET% Your local build is newer than the current Oracle release!
+        goto :eof
+    )
+)
+
+echo %cYELLOW%[ UPDATE ]%cRESET% A newer build is available!
 choice /C yn /N /M "Would you like to download and install this update? (y/N): "
 if !errorlevel! NEQ 1 goto :eof
 
@@ -415,7 +444,6 @@ if exist "!PS_SCRIPT!" del "!PS_SCRIPT!"
 
 if !PS_EXIT_CODE! NEQ 0 (
     echo %cRED%[ ERROR  ]%cRESET% Aborting update due to download failure.
-    pause
     goto :eof
 )
 
@@ -429,7 +457,6 @@ for /d %%D in ("!EXTRACT_DIR!\jdk*") do set "NEW_FOLDER=%%~nxD"
 
 if not defined NEW_FOLDER (
     echo %cRED%[ ERROR  ]%cRESET% Could not locate the extracted JDK folder.
-    pause
     goto :eof
 )
 
@@ -451,9 +478,7 @@ if /i "!JAVA_HOME!"=="!UP_PATH!" (
     call :UpdateSystemPath
 )
 
-echo.
-echo %cGREEN%[   OK   ]%cRESET% JDK successfully updated to !REMOTE_VER!!
-pause >nul
+echo %cGREEN%[   OK   ]%cRESET% JDK !UP_MAJOR! successfully updated to the latest build ^(!REMOTE_DATE!^)!
 goto :eof
 
 
