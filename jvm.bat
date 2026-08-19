@@ -22,6 +22,7 @@ set "cRED=%ESC%[91m"
 set "cGREEN=%ESC%[92m"
 set "cYELLOW=%ESC%[93m"
 set "cBLUE=%ESC%[96m"
+set "cGRAY=%ESC%[90m"
 set "cRESET=%ESC%[0m"
 
 :: Check if the script is running as Administrator
@@ -312,7 +313,7 @@ for /l %%k in (1,1,!JDK_COUNT!) do (
     set /a DISP_NUM=%%k + 1
     set "ACTIVE_TAG="
     if /i "!JDK_PATH_%%k!"=="!JAVA_HOME!" set "ACTIVE_TAG= %cGREEN%[ACTIVE]%cRESET%"
-    echo !DISP_NUM!. Check JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^) !ACTIVE_TAG!
+    echo !DISP_NUM!. Check %cBLUE%JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^)%cRESET%  %cGRAY%[!JDK_PATH_%%k!]%cRESET%!ACTIVE_TAG!
 )
 set /a UP_CANCEL=!JDK_COUNT! + 2
 echo.
@@ -504,7 +505,7 @@ echo Please select a JDK to PERMANENTLY remove from your system:
 for /l %%k in (1,1,!JDK_COUNT!) do (
     set "ACTIVE_TAG="
     if /i "!JDK_PATH_%%k!"=="!JAVA_HOME!" set "ACTIVE_TAG= %cGREEN%[ACTIVE]%cRESET%"
-    echo %%k. Remove JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^)  [!JDK_PATH_%%k!]!ACTIVE_TAG!
+    echo %%k. Remove %cBLUE%JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^)%cRESET%  %cGRAY%[!JDK_PATH_%%k!]%cRESET%!ACTIVE_TAG!
 )
 set /a U_CANCEL=!JDK_COUNT! + 1
 echo.
@@ -907,7 +908,7 @@ if !JDK_COUNT! GTR 0 (
     for /l %%k in (1,1,!JDK_COUNT!) do (
         set "ACTIVE_TAG="
         if /i "!JDK_PATH_%%k!"=="!JAVA_HOME!" set "ACTIVE_TAG= %cGREEN%[ACTIVE]%cRESET%"
-        echo %%k. Set Java to JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^)  [!JDK_PATH_%%k!]!ACTIVE_TAG!
+        echo %%k. Set Java to %cBLUE%JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^)%cRESET%  %cGRAY%[!JDK_PATH_%%k!]%cRESET%!ACTIVE_TAG!
     )
 ) else (
     echo %cYELLOW%[ WARNING]%cRESET% No Java installations found.
@@ -925,7 +926,7 @@ if !JDK_COUNT! GTR 1 (
     set "OPT_LATEST=!SUB_OPT!"
     set "LATEST_ACTIVE_TAG="
     if /i "!LATEST_JDK_PATH!"=="!JAVA_HOME!" set "LATEST_ACTIVE_TAG= %cGREEN%[ACTIVE]%cRESET%"
-    echo !OPT_LATEST!. Switch to the latest JDK ^(JDK !LATEST_VER_NUM!^)!LATEST_ACTIVE_TAG!
+    echo !OPT_LATEST!. Switch to the latest %cBLUE%JDK ^(JDK !LATEST_VER_NUM!^)%cRESET%!LATEST_ACTIVE_TAG!
 )
 
 set /a SUB_OPT+=1
