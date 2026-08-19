@@ -45,10 +45,14 @@ To prevent catastrophic accidental deletions on local filesystems, all critical 
 
 ## 📜 Version History
 
-* **v0.2.0 (Latest):** Added intelligent update checker (via HTTP `HEAD` requests), "Update All" bulk-patching, and automated directory hot-swapping.
+* **v0.3.0 (Latest):** Relicensed the project to the GNU Affero General Public License v3.0 (AGPL-3.0).
+* **v0.2.0:** Added intelligent update checker (via HTTP `HEAD` requests), "Update All" bulk-patching, and automated directory hot-swapping.
 * **v0.1.1:** Patched `PATH` variable corruption bugs and improved delayed-expansion safety protocols during active session switching.
 * **v0.1.0:** Initial Release (Dynamic scanning, Oracle downloader, Phantom Path cleaner, and surgical uninstaller).
 
 ## 📄 License
+Copyright © 2026 DiamTek / Alexéy Shishkin.
 
-This tool is provided as open-source infrastructure under the **MIT License**. Oracle JDK downloads are subject to the *Oracle No-Fee Terms and Conditions (NFTC)*.
+This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html). See the LICENSE file for details.
+
+*Note: Oracle JDK downloads triggered by this tool are subject to the [Oracle No-Fee Terms and Conditions (NFTC)](https://www.oracle.com/downloads/licenses/no-fee-license.html).*
