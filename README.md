@@ -45,7 +45,8 @@ To prevent catastrophic accidental deletions on local filesystems, all critical 
 
 ## 📜 Version History
 
-* **v0.3.0 (Latest):** Relicensed the project to the GNU Affero General Public License v3.0 (AGPL-3.0).
+* **v0.4.0 (Latest):** Re-engineered dynamic auto-scanner supporting developer toolkits (Scoop, Gradle, IntelliJ), fast release-file parsing, and a massive architectural UI overhaul for robust sub-menu navigation.
+* **v0.3.0:** Relicensed the project to the GNU Affero General Public License v3.0 (AGPL-3.0).
 * **v0.2.0:** Added intelligent update checker (via HTTP `HEAD` requests), "Update All" bulk-patching, and automated directory hot-swapping.
 * **v0.1.1:** Patched `PATH` variable corruption bugs and improved delayed-expansion safety protocols during active session switching.
 * **v0.1.0:** Initial Release (Dynamic scanning, Oracle downloader, Phantom Path cleaner, and surgical uninstaller).
