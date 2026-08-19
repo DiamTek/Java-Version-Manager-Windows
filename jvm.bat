@@ -257,19 +257,25 @@ echo Please choose an option:
 echo.
 echo 1. Path ^& Environment Management
 echo 2. Version Management
-echo 3. Exit
+echo 3. Settings (Global Command ^& Setup)
+echo 4. Exit
 echo.
 
-choice /C 123 /N /M "Enter your choice (1-3): "
+choice /C 1234 /N /M "Enter your choice (1-4): "
 set "choice=!errorlevel!"
 
-if !choice!==3 (
+if !choice!==4 (
     echo.
     echo %cBLUE%[  INFO  ]%cRESET% Exiting Java Version Manager...
     timeout /t 1 >nul
     endlocal
     set "CURRENT_JDK_PATH="
     goto :eof
+)
+
+if !choice!==3 (
+    call :SettingsMenu
+    goto RESCAN_MENU
 )
 
 if !choice!==1 (
@@ -1000,3 +1006,162 @@ if !sub_choice!==3 (
     call :UninstallJDK
     goto VersionMenu
 )
+
+:: ============================================================
+:: SETTINGS MENU
+:: ============================================================
+:SettingsMenu
+cls
+echo ============================================================
+echo                         Settings
+echo ============================================================
+echo.
+
+set "SCRIPT_DIR=%~dp0"
+if "!SCRIPT_DIR:~-1!"=="\" set "SCRIPT_DIR=!SCRIPT_DIR:~0,-1!"
+
+set "IN_PATH=0"
+set "USER_PATH="
+for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
+    set "USER_PATH=%%B"
+)
+
+echo ;!USER_PATH!; | findstr /i /c:";!SCRIPT_DIR!;" >nul
+if not errorlevel 1 set "IN_PATH=1"
+
+echo Please choose an option:
+echo.
+
+if "!IN_PATH!"=="1" (
+    echo 1. Remove JVM from User PATH ^(Global Command^) %cGREEN%[INSTALLED]%cRESET%
+) else (
+    echo 1. Install JVM to User PATH ^(Global Command^)
+)
+echo 2. Back to Main Menu
+echo.
+
+choice /C 12 /N /M "Enter your choice (1-2): "
+set "sub_choice=!errorlevel!"
+
+if !sub_choice!==2 goto :eof
+if !sub_choice!==1 (
+    if "!IN_PATH!"=="1" (
+        call :RemoveGlobalCommand
+    ) else (
+        call :InstallGlobalCommand
+    )
+    goto SettingsMenu
+)
+
+:: ============================================================
+:: GLOBAL COMMAND REMOVER
+:: ============================================================
+:RemoveGlobalCommand
+cls
+echo ============================================================
+echo               Global Command Removal
+echo ============================================================
+echo.
+echo %cBLUE%[  INFO  ]%cRESET% Target: !SCRIPT_DIR!
+echo %cYELLOW%[ WARNING]%cRESET% Removing JVM directory from your User PATH.
+choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
+if errorlevel 2 goto :eof
+
+echo.
+
+set "NEW_PATH=!USER_PATH!"
+for %%D in ("!SCRIPT_DIR!") do (
+    set "NEW_PATH=!NEW_PATH:;%%~D=!"
+    set "NEW_PATH=!NEW_PATH:%%~D;=!"
+    set "NEW_PATH=!NEW_PATH:%%~D=!"
+)
+
+setx Path "!NEW_PATH!" >nul
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to update User PATH via setx. Attempting registry fallback...
+    reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Registry fallback failed. Run as Admin.
+    ) else (
+        echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated via registry.
+    )
+) else (
+    echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated.
+)
+
+echo.
+echo ============================================================
+echo %cGREEN%[   OK   ]%cRESET% Removal Complete!
+echo %cBLUE%[  INFO  ]%cRESET% You will no longer be able to launch 'jvm' globally.
+echo ============================================================
+echo.
+echo Press any key to return...
+pause >nul
+goto :eof
+
+
+:: ============================================================
+:: GLOBAL COMMAND INSTALLER
+:: ============================================================
+:InstallGlobalCommand
+cls
+echo ============================================================
+echo               Global Command Installation
+echo ============================================================
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Scanning User PATH for JVM directory...
+
+set "USER_PATH="
+for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
+    set "USER_PATH=%%B"
+)
+
+echo ;!USER_PATH!; | findstr /i /c:";!SCRIPT_DIR!;" >nul
+if not errorlevel 1 (
+    echo.
+    echo %cGREEN%[   OK   ]%cRESET% The Java Version Manager is already installed in your system PATH!
+    echo             You can run 'jvm' from any terminal.
+    echo.
+    echo Press any key to return...
+    pause >nul
+    goto :eof
+)
+
+echo.
+echo %cBLUE%[  INFO  ]%cRESET% Target: !SCRIPT_DIR!
+echo %cBLUE%[  INFO  ]%cRESET% Adding JVM directory to your User PATH.
+choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
+if errorlevel 2 goto :eof
+
+echo.
+
+if not defined USER_PATH (
+    set "NEW_PATH=!SCRIPT_DIR!"
+) else (
+    :: Remove trailing semicolon from USER_PATH if it exists
+    if "!USER_PATH:~-1!"==";" set "USER_PATH=!USER_PATH:~0,-1!"
+    set "NEW_PATH=!USER_PATH!;!SCRIPT_DIR!"
+)
+
+setx Path "!NEW_PATH!" >nul
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to update User PATH via setx. Attempting registry fallback...
+    reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Registry fallback failed. Run as Admin.
+    ) else (
+        echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated via registry.
+    )
+) else (
+    echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated.
+)
+
+echo.
+echo ============================================================
+echo %cGREEN%[   OK   ]%cRESET% Installation Complete!
+echo %cBLUE%[  INFO  ]%cRESET% You can now type 'jvm' from any new command prompt or the Windows Run dialog.
+echo ============================================================
+echo.
+echo Press any key to return...
+pause >nul
+goto :eof
