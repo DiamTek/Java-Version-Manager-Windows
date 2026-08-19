@@ -267,8 +267,17 @@ set "choice=!errorlevel!"
 
 if !choice!==4 (
     echo.
-    echo %cBLUE%[  INFO  ]%cRESET% Exiting Java Version Manager...
-    timeout /t 1 >nul
+    echo %cBLUE%[  INFO  ]%cRESET% Exiting Java Version Manager... ^(Press any key to cancel^)
+    <nul set /p "=%cBLUE%[  INFO  ]%cRESET% "
+    for %%i in (3 2 1) do (
+        <nul set /p "=%%i... "
+        choice /C 123456789abcdefghijklmnopqrstuvwxyz0 /T 1 /D 0 /N >nul
+        if !errorlevel! LSS 36 (
+            echo.
+            goto RESCAN_MENU
+        )
+    )
+    echo.
     endlocal
     set "CURRENT_JDK_PATH="
     goto :eof
