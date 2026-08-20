@@ -4,52 +4,61 @@ A lightweight, high-performance, color-coded Windows Batch utility designed to d
 
 ## 🚀 Features
 
-* **Dynamic JDK Scanning:** Automatically discovers installed JDK instances across multiple common system directories (`C:\Program Files\Java`, `C:\Java`, etc.) and builds a smart menu on the fly. No hardcoded versions.
+* **Dynamic JDK Scanning:** Automatically discovers installed JDK instances across multiple common system directories (`C:\Program Files\Java`, `scoop`, `.jdks`, `.gradle\jdks`, etc.) and builds a smart menu on the fly. No hardcoded versions.
+* **Global Command Installer:** Features a built-in Settings menu that can dynamically inject the script into your Windows User PATH, allowing you to run `jvm` from any terminal, anywhere on your computer.
+* **CLI Quick-Switching:** Supports argument parsing (e.g., `jvm 21`) to completely bypass the UI. It silently elevates, background-swaps your global environment variables, and reports success without flashing windows.
 * **Oracle JDK Auto-Downloader:** Connects directly to official Oracle infrastructure via a transparent, isolated PowerShell instance to pull down and extract any modern major JDK version (17, 21, 25, 26, etc.).
 * **Intelligent Update Checker:** Queries official Oracle servers via high-speed HTTP `HEAD` requests to compare remote build dates against your local `release` file metadata. Automatically downloads, hot-swaps directories, and patches environment variables in-place if a newer build is found.
 * **Dynamic Environment Switching:** Atomically updates `JAVA_HOME` and your user/system `PATH` globally while cleanly updating the environment variables of your active terminal session without spawning double paths.
 * **The "Phantom Path" Killer:** Actively hunts down and scrubs rogue, hardcoded Oracle shortcuts (e.g., `Common Files\Oracle\Java\javapath`) that installers forcefully inject into the front of your `PATH`, ensuring `JAVA_HOME` is always respected.
 * **Surgical Uninstaller:** Safely terminates lingering background `java.exe`/`javaw.exe` processes, deletes the target directory, and scrubs any traces of that specific version from your registry and environment tables.
-* **Optimized Elevation & Interface:** Features an instantaneous, high-reliability `net session` Admin privilege check with zero UAC folder drift. Built using high-performance, instant-response key interception (`choice.exe`) and ANSI color coding.
+* **Optimized Elevation & Interface:** Features an instantaneous, high-reliability `net session` Admin privilege check (immune to PATH corruption). Built using high-performance, instant-response key interception (`choice.exe`), interruptible visual auto-close countdowns, and a strict ANSI color hierarchy.
 
 ## 📋 Prerequisites
 
 * **OS:** Windows 10 or Windows 11
-* **Privileges:** Administrator rights are required to modify system-level environment variables and registry strings. (The script will automatically request elevation via a optimized UAC pop-up if launched unprivileged).
+* **Privileges:** Administrator rights are required to modify system-level environment variables and registry strings. (The script will automatically request elevation via an optimized UAC pop-up if launched unprivileged).
 
 ## 🛠️ Usage
 
-1. Copy the script code into a file named `jvm.bat` or `manager.bat`.
-2. Right-click the file and select **Run as administrator** (or simply launch it normally and accept the UAC prompt).
-3. Interact with the menu using your number keys:
-   * **Numbers `1` through `X`:** Instantly sets your active `JAVA_HOME` to that directory.
-   * **Latest JDK Shortcut:** Quickly fast-forwards your system configuration to the highest version number found on your machine.
-   * **Check for Updates:** Bulk-scans all installed JDKs (or an individual version) against Oracle's servers to automatically fetch and install the latest security patches and minor builds.
-   * **Download/Install:** Installs a brand new major version directly from Oracle to `C:\Program Files\Java`.
-   * **Uninstall:** Safely and completely removes a JDK environment and scrubs lingering system paths.
+1. Launch `jvm.bat` to open the interactive menu, or run it from any terminal.
+2. Navigate to **Settings (Global Command & Setup)** to install the `jvm` global command.
+3. Once installed globally, you can use the following commands from anywhere:
+
+* **Interactive Mode:**
+  Type `jvm` in any terminal to open the UI.
+  * **Numbers `1` through `X`:** Instantly sets your active `JAVA_HOME` to that directory.
+  * **Check for Updates:** Bulk-scans all installed JDKs against Oracle's servers to automatically fetch and install patches.
+  * **Download/Install:** Installs a brand new major version directly from Oracle.
+  * **Uninstall:** Safely and completely removes a JDK environment.
+
+* **CLI Quick-Switch Mode:**
+  Type `jvm <version>` (e.g., `jvm 21` or `jvm 26`) to silently switch your global Java version in the background without launching the menu.
 
 ## 🎨 Interface Guide
 
 The utility uses native ANSI terminal color formatting to protect system stability:
-* 🔹 **Cyan `[ ACTION ]` / `[  INFO  ]`** — Indicates system operations, network lookups, and diagnostic information.
+* 🔹 **Cyan `[ ACTION ]` / `[  INFO  ]`** — Indicates system operations, network lookups, and diagnostic information. Version numbers are highlighted in cyan for rapid scanning.
 * 🔸 **Yellow `[ WARNING ]` / `[ UPDATE ]`** — Points out non-critical issues, available patches, or destructive prompts.
 * 🔺 **Red `[ ERROR  ]`** — Warns of network failures, blocked file permissions, or locked folders.
 * 🔹 **Green `[ACTIVE]` / `[   OK   ]`** — Highlights the JDK entry currently actively powering your terminal environment, or signifies a successful operation.
+* ◽ **Gray** — Mutes absolute file paths to reduce terminal clutter.
 
 ## 🛡️ Safety Defaults
 
 To prevent catastrophic accidental deletions on local filesystems, all critical prompts obey standard developer conventions:
 * The uninstaller and update prompts use a strict `(y/N)` validation. 
 * Pressing **Enter** or typing anything other than an explicit `Y`/`y` acts as an immediate safe abort.
-* Custom loops trap premature `Ctrl+C` commands gracefully without throwing broken system syntax messages or dropping terminal sessions.
+* Custom loops trap premature `Ctrl+C` commands gracefully, and auto-close countdowns can be interrupted with any keystroke.
 
 ## 📜 Version History
 
-* **v0.4.0 (Latest):** Re-engineered dynamic auto-scanner supporting developer toolkits (Scoop, Gradle, IntelliJ), fast release-file parsing, and a massive architectural UI overhaul for robust sub-menu navigation.
+* **v0.5.0 (Latest):** Introduced CLI Quick-Switching (`jvm <version>`) for silent background execution. Added Global Command Installer (Settings menu). Overhauled UI with strict ANSI color hierarchy, path muting, and interruptible auto-close countdowns. Hardened UAC elevation and menu scanning against Windows PATH corruption bugs.
+* **v0.4.0:** Re-engineered dynamic auto-scanner supporting developer toolkits (Scoop, Gradle, IntelliJ), fast release-file parsing, and a massive architectural UI overhaul for robust sub-menu navigation.
 * **v0.3.0:** Relicensed the project to the GNU Affero General Public License v3.0 (AGPL-3.0).
 * **v0.2.0:** Added intelligent update checker (via HTTP `HEAD` requests), "Update All" bulk-patching, and automated directory hot-swapping.
 * **v0.1.1:** Patched `PATH` variable corruption bugs and improved delayed-expansion safety protocols during active session switching.
-* **v0.1.0:** Initial Release (Dynamic scanning, Oracle downloader, Phantom Path cleaner, and surgical uninstaller).
+* **v0.1.0:** Initial Release.
 
 ## 📄 License
 Copyright © 2026 DiamTek / Alexéy Shishkin.
