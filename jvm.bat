@@ -184,6 +184,7 @@ echo.
 
 set JDK_COUNT=0
 set "LATEST_VER_NUM=0"
+set "LATEST_LTS_NUM=0"
 set "LATEST_JDK_PATH="
 set "LATEST_JDK_NAME="
 
@@ -259,6 +260,21 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                             set "LATEST_JDK_PATH=!LOCATIONS[%%i]!\%%j"
                             set "LATEST_JDK_NAME=!LATEST_JDK_NAME_CANDIDATE!"
                         )
+                        
+                        :: Track highest LTS version
+                        if !NUM_VER!==8 set "IS_LTS=1"
+                        if !NUM_VER!==11 set "IS_LTS=1"
+                        if !NUM_VER!==17 set "IS_LTS=1"
+                        if !NUM_VER!==21 set "IS_LTS=1"
+                        if !NUM_VER!==25 set "IS_LTS=1"
+                        if !NUM_VER!==29 set "IS_LTS=1"
+                        
+                        if defined IS_LTS (
+                            if !NUM_VER! GTR !LATEST_LTS_NUM! (
+                                set "LATEST_LTS_NUM=!NUM_VER!"
+                            )
+                        )
+                        set "IS_LTS="
                     )
                 )
             )
@@ -269,6 +285,14 @@ for /l %%i in (0,1,!MAX_LOC!) do (
 
 if "%~1" NEQ "" (
     set "CLI_TARGET=%~1"
+    
+    :: Resolve Semantic Aliases
+    if /i "!CLI_TARGET!"=="latest" (
+        if !LATEST_VER_NUM! GTR 0 set "CLI_TARGET=!LATEST_VER_NUM!"
+    ) else if /i "!CLI_TARGET!"=="lts" (
+        if !LATEST_LTS_NUM! GTR 0 set "CLI_TARGET=!LATEST_LTS_NUM!"
+    )
+    
     for /l %%k in (1,1,!JDK_COUNT!) do (
         if "!JDK_MAJOR_%%k!"=="!CLI_TARGET!" (
             echo.
