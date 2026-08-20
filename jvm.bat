@@ -28,8 +28,14 @@ set "cRESET=%ESC%[0m"
 :: Check if the script is running as Administrator
 net session >nul 2>&1
 if %errorlevel% NEQ 0 (
-    echo %cBLUE%[ INFO ]%cRESET% Requesting administrative privileges...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    if "%~1"=="" (
+        echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges for Menu...
+        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    ) else (
+        echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges for Quick-Switch...
+        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -ArgumentList '%*' -Verb RunAs -WindowStyle Hidden -Wait"
+        echo %cGREEN%[   OK   ]%cRESET% Operation completed successfully.
+    )
     exit /B
 )
 
@@ -40,8 +46,11 @@ cd /d "%~dp0"
 :: Clear the variable before calling the menu to ensure a clean state
 set "CURRENT_JDK_PATH="
 
+set "CLI_MODE=0"
+if "%~1" NEQ "" set "CLI_MODE=1"
+
 :: Jump straight to the menu function to prevent screen clearing issues
-call :ShowDynamicMenu
+call :ShowDynamicMenu %*
 
 :: If CURRENT_JDK_PATH is not set, the user chose the Exit option
 if not defined CURRENT_JDK_PATH (
@@ -124,6 +133,11 @@ echo.
 echo ============================================================
 
 echo.
+if "%CLI_MODE%"=="1" (
+    echo %cBLUE%[  INFO  ]%cRESET% Quick-Switch complete. Exiting in 3 seconds...
+    timeout /t 3 >nul
+    goto :eof
+)
 echo Press any key to return to the menu...
 pause >nul
 goto MAIN_LOOP
@@ -253,6 +267,26 @@ for /l %%i in (0,1,!MAX_LOC!) do (
     )
 )
 
+if "%~1" NEQ "" (
+    set "CLI_TARGET=%~1"
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        if "!JDK_MAJOR_%%k!"=="!CLI_TARGET!" (
+            echo.
+            echo %cBLUE%[ ACTION ]%cRESET% Quick-Switching to JDK !JDK_MAJOR_%%k!...
+            for /f "delims=" %%P in ("!JDK_PATH_%%k!") do (
+                endlocal & set "CURRENT_JDK_PATH=%%P"
+            )
+            goto :eof
+        )
+    )
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found!
+    echo             Please ensure it is installed and try again.
+    timeout /t 3 >nul
+    endlocal & set "CURRENT_JDK_PATH="
+    goto :eof
+)
+
 :: Show main menu
 echo Please choose an option:
 echo.
@@ -304,6 +338,9 @@ if !choice!==2 (
     call :VersionMenu
     goto RESCAN_MENU
 )
+
+:: Catch-all to prevent falling through if choice errors out
+goto RESCAN_MENU
 
 
 :: ============================================================
@@ -714,6 +751,8 @@ set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\Program Files (x86)\Common Files\Oracle\Jav
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\Program Files (x86)\Common Files\Oracle\Java\javapath=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\ProgramData\Oracle\Java\javapath;=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\ProgramData\Oracle\Java\javapath=!"
+
+
 
 set "ORIGINAL_PATH=!ORIGINAL_PATH:%CURRENT_JDK_PATH%\bin;=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:;%CURRENT_JDK_PATH%\bin=!"
