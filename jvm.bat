@@ -70,23 +70,14 @@ if /i "%~1"=="--session" (
 )
 if /i "%~1"=="install" (
     set "CLI_COMMAND=install"
-    set "CLI_TARGET=%~2"
-    set "SILENT_MODE=1"
-    shift
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="uninstall" (
     set "CLI_COMMAND=uninstall"
-    set "CLI_TARGET=%~2"
-    set "SILENT_MODE=1"
-    shift
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="update" (
     set "CLI_COMMAND=update"
-    set "CLI_TARGET=%~2"
-    set "SILENT_MODE=1"
-    shift
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="clear" (
@@ -95,7 +86,7 @@ if /i "%~1"=="install" (
     shift
     goto :PARSE_CLI_ARGS
 ) else (
-    if not defined CLI_COMMAND (
+    if not defined CLI_TARGET (
         set "CLI_TARGET=%~1"
         set "SILENT_MODE=1"
     )
@@ -105,17 +96,20 @@ if /i "%~1"=="install" (
 
 :PARSE_DONE
 
-:: If a target was provided via CLI, enable silent mode
+:: If a target was provided via CLI, set variables
+set "SKIP_HEADER=0"
+
 if defined CLI_TARGET (
-    set "SILENT_MODE=1"
+    set "SKIP_HEADER=1"
 ) else if exist ".java-version" (
     for /f "tokens=1" %%V in ('type ".java-version" 2^>nul ^| findstr /r "[0-9]"') do (
         set "CLI_TARGET=%%V"
         set "SILENT_MODE=1"
+        set "SKIP_HEADER=1"
     )
 )
 
-:PARSE_DONE
+if /i "!CLI_COMMAND!"=="clear" set "SKIP_HEADER=1"
 
 :: Check if the script is running as Administrator
 if "%SESSION_MODE%"=="1" goto :SKIP_ADMIN_CHECK
@@ -124,8 +118,8 @@ if defined CLI_COMMAND goto :SKIP_ADMIN_CHECK
 net session >nul 2>&1
 if %errorlevel% NEQ 0 (
     if "%SILENT_MODE%"=="0" (
-        echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges for Menu...
-        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%SCRIPT_PATH%' -WorkingDirectory '%cd%' -Verb RunAs"
+        echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges...
+        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%SCRIPT_PATH%' -WorkingDirectory '%cd%' -ArgumentList '--admin-run %ORIGINAL_ARGS%' -Verb RunAs"
     ) else (
         echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges for CLI Command...
         "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%SCRIPT_PATH%' -WorkingDirectory '%cd%' -ArgumentList '--admin-run %ORIGINAL_ARGS%' -Verb RunAs -WindowStyle Hidden -Wait"
@@ -261,33 +255,35 @@ goto MAIN_LOOP
 setlocal enabledelayedexpansion
 
 :RESCAN_MENU
-cls
-echo ============================================================
-echo                     Java Version Manager
-echo ============================================================
-echo.
-
-:: Display current Java info HERE so it survives the 'cls'
-if not defined JAVA_HOME (
-    echo %cBLUE%[  INFO  ]%cRESET% JAVA_HOME is not currently set.
-) else (
-    echo %cBLUE%[  INFO  ]%cRESET% Current JAVA_HOME: !JAVA_HOME!
-)
-echo.
-
-echo Current Java information:
-echo ============================================================
-java -version 2>nul
-if errorlevel 1 (
-    echo %cYELLOW%[ WARNING]%cRESET% Java is NOT in PATH or not installed
-    echo %cBLUE%[  INFO  ]%cRESET% This is normal if Java was just removed from PATH
-) else (
-    echo %cGREEN%[   OK   ]%cRESET% Java is in PATH
+if "!SKIP_HEADER!"=="0" (
+    cls
+    echo ============================================================
+    echo                     Java Version Manager
+    echo ============================================================
     echo.
-    java -version 2>&1
+
+    :: Display current Java info HERE so it survives the 'cls'
+    if not defined JAVA_HOME (
+        echo %cBLUE%[  INFO  ]%cRESET% JAVA_HOME is not currently set.
+    ) else (
+        echo %cBLUE%[  INFO  ]%cRESET% Current JAVA_HOME: !JAVA_HOME!
+    )
+    echo.
+
+    echo Current Java information:
+    echo ============================================================
+    java -version 2>nul
+    if errorlevel 1 (
+        echo %cYELLOW%[ WARNING]%cRESET% Java is NOT in PATH or not installed
+        echo %cBLUE%[  INFO  ]%cRESET% This is normal if Java was just removed from PATH
+    ) else (
+        echo %cGREEN%[   OK   ]%cRESET% Java is in PATH
+        echo.
+        java -version 2>&1
+    )
+    echo ============================================================
+    echo.
 )
-echo ============================================================
-echo.
 
 
 
@@ -569,11 +565,34 @@ if defined CLI_COMMAND (
     
     if /i "!CLI_COMMAND!"=="update" (
         if not defined CLI_TARGET (
-            call :UpdateJDKs
+            if defined CLI_VENDOR (
+                echo %cBLUE%[ ACTION ]%cRESET% Automatically updating all !CLI_VENDOR! JDKs...
+                echo.
+                for /l %%k in (1,1,!JDK_COUNT!) do (
+                    if /i "!JDK_VENDOR_%%k!"=="!CLI_VENDOR!" call :ProcessSingleUpdate %%k
+                )
+                echo ------------------------------------------------------------
+                echo.
+                echo %cGREEN%[   OK   ]%cRESET% All updates applied successfully!
+                echo.
+            ) else (
+                call :UpdateJDKs
+            )
         ) else if /i "!CLI_TARGET!"=="--all" (
-            echo %cBLUE%[ ACTION ]%cRESET% Automatically updating ALL JDKs...
-            for /l %%k in (1,1,!JDK_COUNT!) do call :ProcessSingleUpdate %%k
+            if defined CLI_VENDOR (
+                echo %cBLUE%[ ACTION ]%cRESET% Automatically updating all !CLI_VENDOR! JDKs...
+                echo.
+                for /l %%k in (1,1,!JDK_COUNT!) do (
+                    if /i "!JDK_VENDOR_%%k!"=="!CLI_VENDOR!" call :ProcessSingleUpdate %%k
+                )
+            ) else (
+                echo %cBLUE%[ ACTION ]%cRESET% Automatically updating ALL JDKs...
+                for /l %%k in (1,1,!JDK_COUNT!) do call :ProcessSingleUpdate %%k
+            )
+            echo ------------------------------------------------------------
+            echo.
             echo %cGREEN%[   OK   ]%cRESET% All updates applied successfully!
+            echo.
         ) else (
             if "!TARGET_IDX!"=="0" (
                 echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found!
@@ -860,7 +879,6 @@ set "UP_PATH=!JDK_PATH_%UP_IDX%!"
 set "UP_MAJOR=!JDK_MAJOR_%UP_IDX%!"
 set "UP_NAME=!JDK_NAME_%UP_IDX%!"
 
-echo.
 echo ------------------------------------------------------------
 echo %cBLUE%[ ACTION ]%cRESET% Analyzing !UP_NAME!...
 echo %cBLUE%[  INFO  ]%cRESET% Checking server for updates...
