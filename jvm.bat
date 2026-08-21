@@ -25,10 +25,19 @@ set "cBLUE=%ESC%[96m"
 set "cGRAY=%ESC%[90m"
 set "cRESET=%ESC%[0m"
 
-
+:: Parse .java-version and establish mode BEFORE changing directories or checking UAC!
 set "SILENT_MODE=0"
 set "CLI_TARGET="
 set "SESSION_MODE=0"
+
+if /i "%~1"=="link" (
+    call :HANDLE_LINKS %*
+    exit /b %errorlevel%
+)
+if /i "%~1"=="unlink" (
+    call :HANDLE_LINKS %*
+    exit /b %errorlevel%
+)
 
 :: Check first and second arguments for session flag and target
 if /i "%~1"=="--session" (
@@ -235,8 +244,9 @@ set "LOCATIONS[1]=C:\Program Files (x86)\Java"
 set "LOCATIONS[2]=C:\Java"
 set "LOCATIONS[3]=%USERPROFILE%\.jdks"
 set "LOCATIONS[4]=%USERPROFILE%\.gradle\jdks"
+set "LOCATIONS[5]=%LOCALAPPDATA%\JavaVersionManager\links"
 
-set LOC_IDX=5
+set LOC_IDX=6
 if exist "%USERPROFILE%\scoop\apps" (
     for /d %%A in ("%USERPROFILE%\scoop\apps\*") do (
         if exist "%%A\current\bin\java.exe" (
@@ -335,9 +345,13 @@ if defined CLI_TARGET (
     )
     
     for /l %%k in (1,1,!JDK_COUNT!) do (
-        if "!JDK_MAJOR_%%k!"=="!CLI_TARGET!" (
+        set "MATCH_FOUND=0"
+        if "!JDK_MAJOR_%%k!"=="!CLI_TARGET!" set "MATCH_FOUND=1"
+        if /i "!JDK_NAME_%%k!"=="!CLI_TARGET!" set "MATCH_FOUND=1"
+        
+        if "!MATCH_FOUND!"=="1" (
             echo.
-            echo %cBLUE%[ ACTION ]%cRESET% Quick-Switching to JDK !JDK_MAJOR_%%k!...
+            echo %cBLUE%[ ACTION ]%cRESET% Quick-Switching to JDK !JDK_NAME_%%k! ^(!JDK_MAJOR_%%k!^)...
             set "CURRENT_JDK_PATH=!JDK_PATH_%%k!"
             :: Return to MAIN_LOOP to apply the changes
             for /f "delims=" %%P in ("!CURRENT_JDK_PATH!") do (
@@ -1278,4 +1292,88 @@ echo ============================================================
 echo.
 echo Press any key to return...
 pause >nul
+goto :eof
+:HANDLE_LINKS
+setlocal enabledelayedexpansion
+set "LINK_DIR=%LOCALAPPDATA%\JavaVersionManager\links"
+if not exist "%LINK_DIR%" mkdir "%LINK_DIR%"
+
+if /i "%~1"=="link" (
+    if "%~2"=="" (
+        echo.
+        echo %cBLUE%[  INFO  ]%cRESET% Linked JDKs:
+        echo ============================================================
+        dir /ad /b "%LINK_DIR%" 2>nul | findstr "^" >nul
+        if errorlevel 1 (
+            echo                  No custom JDKs linked yet.
+        ) else (
+            for /d %%d in ("%LINK_DIR%\*") do (
+                set "LINK_TARGET="
+                for /f "tokens=2* delims=:" %%P in ('fsutil reparsepoint query "%%d" 2^>nul ^| findstr /c:"Print Name:"') do (
+                    set "RAW_TARGET=%%P:%%Q"
+                    for /f "tokens=* delims= " %%A in ("!RAW_TARGET!") do set "LINK_TARGET=%%A"
+                )
+                if not exist "%%d\bin\java.exe" (
+                    echo %%~nxd -^> !LINK_TARGET! %cRED%[BROKEN]%cRESET%
+                ) else if defined LINK_TARGET (
+                    echo %%~nxd -^> !LINK_TARGET!
+                ) else (
+                    echo %%~nxd
+                )
+            )
+        )
+        echo ============================================================
+        echo.
+        echo Use "jvm link <path> [name]" to add a link.
+        echo.
+        exit /b 0
+    )
+
+    :: Resolve absolute path
+    pushd "%~2" 2>nul
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% The directory "%~2" does not exist!
+        exit /b 1
+    )
+    set "TARGET_PATH=!CD!"
+    popd
+
+    if not exist "!TARGET_PATH!\bin\java.exe" (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid JDK path. Could not find bin\java.exe inside !TARGET_PATH!
+        exit /b 1
+    )
+
+    set "LINK_NAME=%~nx2"
+    if "%~3" NEQ "" set "LINK_NAME=%~3"
+
+    if exist "%LINK_DIR%\!LINK_NAME!" (
+        echo %cRED%[ ERROR  ]%cRESET% A link named '!LINK_NAME!' already exists.
+        exit /b 1
+    )
+
+    echo %cBLUE%[ ACTION ]%cRESET% Creating link '!LINK_NAME!' -^> !TARGET_PATH!
+    mklink /J "%LINK_DIR%\!LINK_NAME!" "!TARGET_PATH!" >nul
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Failed to create junction point.
+        exit /b 1
+    )
+    echo %cGREEN%[   OK   ]%cRESET% Custom JDK linked successfully.
+    exit /b 0
+)
+
+if /i "%~1"=="unlink" (
+    if "%~2"=="" (
+        echo %cRED%[ ERROR  ]%cRESET% Please specify a link name to remove.
+        echo Usage: jvm unlink ^<name^>
+        exit /b 1
+    )
+    if not exist "%LINK_DIR%\%~2" (
+        echo %cRED%[ ERROR  ]%cRESET% Link '%~2' not found.
+        exit /b 1
+    )
+    echo %cBLUE%[ ACTION ]%cRESET% Removing link '%~2'...
+    rmdir "%LINK_DIR%\%~2"
+    echo %cGREEN%[   OK   ]%cRESET% Link removed.
+    exit /b 0
+)
 goto :eof
