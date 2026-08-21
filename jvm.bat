@@ -25,15 +25,29 @@ set "cBLUE=%ESC%[96m"
 set "cGRAY=%ESC%[90m"
 set "cRESET=%ESC%[0m"
 
+
+:: Parse .java-version and establish mode BEFORE changing directories or checking UAC!
+set "SILENT_MODE=0"
+set "CLI_TARGET="
+if "%~1" NEQ "" (
+    set "SILENT_MODE=1"
+    set "CLI_TARGET=%~1"
+) else if exist ".java-version" (
+    for /f "tokens=1" %%V in ('type ".java-version" 2^>nul ^| findstr /r "[0-9]"') do (
+        set "CLI_TARGET=%%V"
+        set "SILENT_MODE=1"
+    )
+)
+
 :: Check if the script is running as Administrator
 net session >nul 2>&1
 if %errorlevel% NEQ 0 (
-    if "%~1"=="" (
+    if "%SILENT_MODE%"=="0" (
         echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges for Menu...
-        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -WorkingDirectory '%cd%' -Verb RunAs"
     ) else (
         echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges for Quick-Switch...
-        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -ArgumentList '%*' -Verb RunAs -WindowStyle Hidden -Wait"
+        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -WorkingDirectory '%cd%' -ArgumentList '%CLI_TARGET%' -Verb RunAs -WindowStyle Hidden -Wait"
         echo %cGREEN%[   OK   ]%cRESET% Operation completed successfully.
     )
     exit /B
@@ -41,13 +55,9 @@ if %errorlevel% NEQ 0 (
 
 :: CRITICAL: Set the working directory to the script's location
 cd /d "%~dp0"
-
 :MAIN_LOOP
 :: Clear the variable before calling the menu to ensure a clean state
 set "CURRENT_JDK_PATH="
-
-set "CLI_MODE=0"
-if "%~1" NEQ "" set "CLI_MODE=1"
 
 :: Jump straight to the menu function to prevent screen clearing issues
 call :ShowDynamicMenu %*
@@ -133,10 +143,8 @@ echo.
 echo ============================================================
 
 echo.
-if "%CLI_MODE%"=="1" (
-    echo %cBLUE%[  INFO  ]%cRESET% Quick-Switch complete. Exiting in 3 seconds...
-    timeout /t 3 >nul
-    goto :eof
+if "%SILENT_MODE%"=="1" (
+    exit /b 0
 )
 echo Press any key to return to the menu...
 pause >nul
@@ -283,9 +291,8 @@ for /l %%i in (0,1,!MAX_LOC!) do (
     )
 )
 
-if "%~1" NEQ "" (
-    set "CLI_TARGET=%~1"
-    
+if defined CLI_TARGET (
+    echo %cBLUE%[ INFO ]%cRESET% Target JDK !CLI_TARGET! detected...
     :: Resolve Semantic Aliases
     if /i "!CLI_TARGET!"=="latest" (
         if !LATEST_VER_NUM! GTR 0 set "CLI_TARGET=!LATEST_VER_NUM!"
@@ -297,7 +304,9 @@ if "%~1" NEQ "" (
         if "!JDK_MAJOR_%%k!"=="!CLI_TARGET!" (
             echo.
             echo %cBLUE%[ ACTION ]%cRESET% Quick-Switching to JDK !JDK_MAJOR_%%k!...
-            for /f "delims=" %%P in ("!JDK_PATH_%%k!") do (
+            set "CURRENT_JDK_PATH=!JDK_PATH_%%k!"
+            :: Return to MAIN_LOOP to apply the changes
+            for /f "delims=" %%P in ("!CURRENT_JDK_PATH!") do (
                 endlocal & set "CURRENT_JDK_PATH=%%P"
             )
             goto :eof
@@ -306,8 +315,12 @@ if "%~1" NEQ "" (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found!
     echo             Please ensure it is installed and try again.
-    timeout /t 3 >nul
-    endlocal & set "CURRENT_JDK_PATH="
+    if "!SILENT_MODE!"=="0" timeout /t 3 >nul
+    goto :eof
+)
+
+if "!SILENT_MODE!"=="1" (
+    :: Safety catch: If we are hidden and CLI_TARGET was empty, abort so we don't hang!
     goto :eof
 )
 
@@ -750,13 +763,8 @@ echo           - Reading current system PATH...
 
 set "ORIGINAL_PATH="
 
-for /f "tokens=2 delims==" %%A in ('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^>nul') do (
-    set "ORIGINAL_PATH=%%A"
-)
-if not defined ORIGINAL_PATH (
-    for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do (
-        set "ORIGINAL_PATH=%%B"
-    )
+for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do (
+    set "ORIGINAL_PATH=%%B"
 )
 if not defined ORIGINAL_PATH (
     for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
@@ -806,19 +814,7 @@ if errorlevel 1 (
     echo %cGREEN%[   OK   ]%cRESET% SYSTEM PATH updated successfully
 )
 
-echo.
-echo %cBLUE%[ ACTION ]%cRESET% Also updating USER PATH...
-setx Path "!NEW_PATH!" >nul
-if errorlevel 1 (
-    reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
-    if errorlevel 1 (
-        echo %cRED%[ ERROR  ]%cRESET% Failed to update USER PATH!
-    ) else (
-        echo %cGREEN%[   OK   ]%cRESET% USER PATH updated via registry
-    )
-) else (
-    echo %cGREEN%[   OK   ]%cRESET% USER PATH updated successfully
-)
+
 
 echo.
 echo %cGREEN%[   OK   ]%cRESET% PATH update complete!
@@ -1208,6 +1204,10 @@ if errorlevel 2 goto :eof
 
 echo.
 
+:: Ensure no rogue double quotes corrupt the string!
+set "USER_PATH=!USER_PATH:"=!"
+set "SCRIPT_DIR=!SCRIPT_DIR:"=!"
+
 if not defined USER_PATH (
     set "NEW_PATH=!SCRIPT_DIR!"
 ) else (
@@ -1215,6 +1215,9 @@ if not defined USER_PATH (
     if "!USER_PATH:~-1!"==";" set "USER_PATH=!USER_PATH:~0,-1!"
     set "NEW_PATH=!USER_PATH!;!SCRIPT_DIR!"
 )
+
+:: Strip the trailing backslash from SCRIPT_DIR in NEW_PATH to prevent escaping the closing quote
+if "!NEW_PATH:~-1!"=="\" set "NEW_PATH=!NEW_PATH:~0,-1!"
 
 setx Path "!NEW_PATH!" >nul
 if errorlevel 1 (
@@ -1228,6 +1231,12 @@ if errorlevel 1 (
 ) else (
     echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated.
 )
+
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Configuring PowerShell Profile Hook...
+set "B64_PAYLOAD=JABqAHYAbQBCAGEAdAAgAD0AIAAoAEcAZQB0AC0AQwBvAG0AbQBhAG4AZAAgAGoAdgBtAC4AYgBhAHQAIAAtAEUAcgByAG8AcgBBAGMAdABpAG8AbgAgAFMAaQBsAGUAbgB0AGwAeQBDAG8AbgB0AGkAbgB1AGUAKQAuAFMAbwB1AHIAYwBlAAoAaQBmACAAKAAkAGoAdgBtAEIAYQB0ACkAIAB7AAoAIAAgACAAIAAkAGMAbwBkAGUAIAA9ACAAIgBgAG4AZgB1AG4AYwB0AGkAbwBuACAAagB2AG0AIAB7ACAAJgAgACcAJABqAHYAbQBCAGEAdAAnACAAYAAkAGEAcgBnAHMAOwAgAGAAJABlAG4AdgA6AEoAQQBWAEEAXwBIAE8ATQBFACAAPQAgAFsAUwB5AHMAdABlAG0ALgBFAG4AdgBpAHIAbwBuAG0AZQBuAHQAXQA6ADoARwBlAHQARQBuAHYAaQByAG8AbgBtAGUAbgB0AFYAYQByAGkAYQBiAGwAZQAoACcASgBBAFYAQQBfAEgATwBNAEUAJwAsACAAJwBNAGEAYwBoAGkAbgBlACcAKQA7ACAAYAAkAGUAbgB2ADoAUABhAHQAaAAgAD0AIABbAFMAeQBzAHQAZQBtAC4ARQBuAHYAaQByAG8AbgBtAGUAbgB0AF0AOgA6AEcAZQB0AEUAbgB2AGkAcgBvAG4AbQBlAG4AdABWAGEAcgBpAGEAYgBsAGUAKAAnAFAAYQB0AGgAJwAsACAAJwBNAGEAYwBoAGkAbgBlACcAKQAgACsAIAAnADsAJwAgACsAIABbAFMAeQBzAHQAZQBtAC4ARQBuAHYAaQByAG8AbgBtAGUAbgB0AF0AOgA6AEcAZQB0AEUAbgB2AGkAcgBvAG4AbQBlAG4AdABWAGEAcgBpAGEAYgBsAGUAKAAnAFAAYQB0AGgAJwAsACAAJwBVAHMAZQByACcAKQAgAH0AIgAKACAAIAAgACAAJABwACAAPQAgACQAUABSAE8ARgBJAEwARQAKACAAIAAgACAAaQBmACAAKAAhACgAVABlAHMAdAAtAFAAYQB0AGgAIAAkAHAAKQApACAAewAgAE4AZQB3AC0ASQB0AGUAbQAgAC0AVAB5AHAAZQAgAEYAaQBsAGUAIAAtAFAAYQB0AGgAIAAkAHAAIAAtAEYAbwByAGMAZQAgAD4AIAAkAG4AdQBsAGwAIAB9AAoAIAAgACAAIABpAGYAIAAoACEAKABHAGUAdAAtAEMAbwBuAHQAZQBuAHQAIAAkAHAAIAAtAEUAcgByAG8AcgBBAGMAdABpAG8AbgAgAFMAaQBsAGUAbgB0AGwAeQBDAG8AbgB0AGkAbgB1AGUAIAB8ACAAUwBlAGwAZQBjAHQALQBTAHQAcgBpAG4AZwAgAC0AUABhAHQAdABlAHIAbgAgACcAZgB1AG4AYwB0AGkAbwBuACAAagB2AG0AIABcAHsAJwAgAC0AUQB1AGkAZQB0ACkAKQAgAHsACgAgACAAIAAgACAAIAAgACAAQQBkAGQALQBDAG8AbgB0AGUAbgB0ACAALQBQAGEAdABoACAAJABwACAALQBWAGEAbAB1AGUAIAAkAGMAbwBkAGUACgAgACAAIAAgAH0ACgB9AA=="
+powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand "!B64_PAYLOAD!"
+pwsh -NoProfile -ExecutionPolicy Bypass -EncodedCommand "!B64_PAYLOAD!" 2>nul
 
 echo.
 echo ============================================================
