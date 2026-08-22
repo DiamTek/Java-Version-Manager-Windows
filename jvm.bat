@@ -87,6 +87,11 @@ if /i "%~1"=="--session" (
     shift
     goto :PARSE_CLI_ARGS
 )
+if /i "%~1"=="--global" (
+    set "GLOBAL_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
 if /i "%~1"=="install" (
     set "CLI_COMMAND=install"
     shift
@@ -123,12 +128,13 @@ if defined CLI_TARGET (
 ) else if exist ".java-version" (
     for /f "tokens=1" %%V in ('type ".java-version" 2^>nul ^| findstr /r "[0-9]"') do (
         set "CLI_TARGET=%%V"
+        if not "%GLOBAL_MODE%"=="1" set "SESSION_MODE=1"
         set "SILENT_MODE=1"
         set "SKIP_HEADER=1"
     )
 )
 
-if /i "!CLI_COMMAND!"=="clear" set "SKIP_HEADER=1"
+if /i "%CLI_COMMAND%"=="clear" set "SKIP_HEADER=1"
 
 :: Check if the script is running as Administrator
 if "%SESSION_MODE%"=="1" goto :SKIP_ADMIN_CHECK
@@ -138,10 +144,10 @@ net session >nul 2>&1
 if %errorlevel% NEQ 0 (
     if "%SILENT_MODE%"=="0" (
         echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges...
-        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%SCRIPT_PATH%' -WorkingDirectory '%cd%' -ArgumentList '--admin-run %ORIGINAL_ARGS%' -Verb RunAs"
+        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%SCRIPT_PATH%' -WorkingDirectory '%cd%' -ArgumentList '--admin-run %CLI_TARGET% %ORIGINAL_ARGS%' -Verb RunAs"
     ) else (
         echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges for CLI Command...
-        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%SCRIPT_PATH%' -WorkingDirectory '%cd%' -ArgumentList '--admin-run %ORIGINAL_ARGS%' -Verb RunAs -WindowStyle Hidden -Wait"
+        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%SCRIPT_PATH%' -WorkingDirectory '%cd%' -ArgumentList '--admin-run %CLI_TARGET% %ORIGINAL_ARGS%' -Verb RunAs -Wait"
         echo %cGREEN%[   OK   ]%cRESET% Operation completed successfully.
     )
     exit /B
@@ -186,6 +192,9 @@ if "%SESSION_MODE%"=="1" (
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Setting Java to %CURRENT_JDK_PATH%...
 echo %cBLUE%[  INFO  ]%cRESET% Setting JAVA_HOME to: %CURRENT_JDK_PATH%
+
+:: Output session target so the parent PowerShell window can sync immediately
+echo %CURRENT_JDK_PATH%> "%TEMP%\.jvm_session_target"
 
 :: Silenced the native Windows SUCCESS message to keep the UI clean
 setx JAVA_HOME "%CURRENT_JDK_PATH%" /M >nul
@@ -238,7 +247,7 @@ echo %JAVA_HOME%
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Testing Java command...
 echo ------------------------------------------------------------
-java -version 2>&1
+for /f "delims=" %%A in ('java -version 2^>^&1') do echo %%A
 echo.
 if errorlevel 1 (
     echo %cBLUE%[  INFO  ]%cRESET% Java may not work until you restart command prompt.
@@ -291,14 +300,14 @@ if "!SKIP_HEADER!"=="0" (
 
     echo Current Java information:
     echo ============================================================
-    java -version 2>nul
+    where java >nul 2>nul
     if errorlevel 1 (
         echo %cYELLOW%[ WARNING]%cRESET% Java is NOT in PATH or not installed
         echo %cBLUE%[  INFO  ]%cRESET% This is normal if Java was just removed from PATH
     ) else (
         echo %cGREEN%[   OK   ]%cRESET% Java is in PATH
         echo.
-        java -version 2>&1
+        for /f "delims=" %%A in ('java -version 2^>^&1') do echo %%A
     )
     echo ============================================================
     echo.
@@ -1889,14 +1898,14 @@ if not defined JAVA_HOME (
 echo.
 echo Current Java information:
 echo ============================================================
-java -version 2>nul
+where java >nul 2>nul
 if errorlevel 1 (
     echo %cYELLOW%[ WARNING]%cRESET% Java is NOT in PATH or not installed
     echo %cBLUE%[  INFO  ]%cRESET% This is normal if Java was just removed from PATH
 ) else (
     echo %cGREEN%[   OK   ]%cRESET% Java is in PATH
     echo.
-    java -version 2>&1
+    for /f "delims=" %%A in ('java -version 2^>^&1') do echo %%A
 )
 echo ============================================================
 echo.

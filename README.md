@@ -8,7 +8,7 @@ A lightweight, high-performance, color-coded Windows Batch utility designed to d
 * **Intelligent Background Sorting:** Features a built-in, stable bubble-sort algorithm that organizes all discovered JDKs by their major version in descending order, ensuring your newest installations are always at the top of the list.
 * **Semantic Target Routing:** Speak to the tool in human terms. Automatically jump to or install the latest available JDK using targets like `jvm latest` or `jvm lts`.
 * **Directory-based Auto-Switching:** Instantly switch to a project's required JDK version by simply running `jvm` inside any directory containing a `.java-version` file. The tool parses the file and seamlessly swaps your environment in the background.
-* **Global Command Installer:** Features a built-in Settings menu that can dynamically inject the script into your Windows User PATH, allowing you to run `jvm` from any terminal, anywhere on your computer.
+* **Global Command & Shell Hooks:** Features a built-in Settings menu that dynamically injects the `jvm` command into your system PATH, and can optionally install a native PowerShell Profile Hook to enable true, isolated `--session` support across multiple terminal tabs.
 * **Advanced CLI Quick-Switching:** Supports intelligent argument parsing to bypass the UI entirely. Quick-switching implicitly prioritizes Oracle > Adoptium > GraalVM for conflict resolution, which can be overridden on the fly with the `--vendor` flag.
 * **Oracle JDK Auto-Downloader:** Connects directly to official Oracle infrastructure via a transparent, isolated PowerShell instance to pull down and extract modern JDK versions (17, 21, 25, 26, etc.).
 * **Intelligent Update Checker:** Queries official Oracle servers via high-speed HTTP `HEAD` requests to compare remote build dates against your local `release` file metadata. Automatically downloads, hot-swaps directories, and patches environment variables in-place if a newer build is found.
@@ -29,11 +29,13 @@ A lightweight, high-performance, color-coded Windows Batch utility designed to d
 
 ### ⚡ Quick-Switching (CLI)
 Instantly update your `JAVA_HOME` and system PATH without opening menus. Priority defaults to Oracle > Adoptium > GraalVM for duplicate versions.
-* `jvm 21` — Switch to JDK 21.
+* `jvm 21` — Switch to JDK 21 (Globally).
+* `jvm 21 --session` — Switch to JDK 21 *locally* for the current terminal only (requires the PowerShell Profile hook to be installed).
 * `jvm 21 --vendor adoptium` — Override priority and explicitly switch to Adoptium's JDK 21.
 * `jvm latest` — Dynamically switch to the absolute highest installed JDK version.
 * `jvm lts` — Dynamically switch to the highest installed LTS version.
-* `jvm` — If run with no arguments inside a directory containing a `.java-version` file, it will silently parse the file and auto-switch to that version.
+* `jvm` — If run inside a directory containing a `.java-version` file, it will silently parse it and auto-switch to that version locally for the current terminal only.
+* `jvm --global` — Parses the `.java-version` file and forces the version switch to apply globally to your system registry.
 
 ### 📥 Installations
 * `jvm install` — Opens the fully interactive Installation Wizard UI.
