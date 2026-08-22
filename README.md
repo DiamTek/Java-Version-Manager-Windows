@@ -7,6 +7,7 @@ A lightweight, high-performance, color-coded Windows Batch utility designed to d
 * **Dynamic Vendor Architecture:** Menus are dynamically grouped and filtered by vendor (Oracle, Adoptium, GraalVM) to keep your workspace clean and organized.
 * **Intelligent Background Sorting:** Features a built-in, stable bubble-sort algorithm that organizes all discovered JDKs by their major version in descending order, ensuring your newest installations are always at the top of the list.
 * **Semantic Target Routing:** Speak to the tool in human terms. Automatically jump to or install the latest available JDK using targets like `jvm latest` or `jvm lts`.
+* **Directory-based Auto-Switching:** Instantly switch to a project's required JDK version by simply running `jvm` inside any directory containing a `.java-version` file. The tool parses the file and seamlessly swaps your environment in the background.
 * **Global Command Installer:** Features a built-in Settings menu that can dynamically inject the script into your Windows User PATH, allowing you to run `jvm` from any terminal, anywhere on your computer.
 * **Advanced CLI Quick-Switching:** Supports intelligent argument parsing to bypass the UI entirely. Quick-switching implicitly prioritizes Oracle > Adoptium > GraalVM for conflict resolution, which can be overridden on the fly with the `--vendor` flag.
 * **Oracle JDK Auto-Downloader:** Connects directly to official Oracle infrastructure via a transparent, isolated PowerShell instance to pull down and extract modern JDK versions (17, 21, 25, 26, etc.).
@@ -32,6 +33,7 @@ Instantly update your `JAVA_HOME` and system PATH without opening menus. Priorit
 * `jvm 21 --vendor adoptium` — Override priority and explicitly switch to Adoptium's JDK 21.
 * `jvm latest` — Dynamically switch to the absolute highest installed JDK version.
 * `jvm lts` — Dynamically switch to the highest installed LTS version.
+* `jvm` — If run with no arguments inside a directory containing a `.java-version` file, it will silently parse the file and auto-switch to that version.
 
 ### 📥 Installations
 * `jvm install` — Opens the fully interactive Installation Wizard UI.
@@ -70,7 +72,7 @@ To prevent catastrophic accidental deletions on local filesystems, all critical 
 
 ## 📜 Version History
 
-* **v0.6.0 (Latest):** Massive architecture overhaul. Introduced dynamic Vendor grouping (Oracle, Adoptium, GraalVM) across all menus. Built a background Bubble Sort algorithm to organize JDKs by version (newest first). Added semantic CLI routing (`jvm latest`, `jvm lts`) and flag overrides (`--vendor`, `--latest`). Ripped out legacy CLI prompts in favor of instant interactive menu handoffs. Improved navigation speed via a smart caching `NEEDS_RESCAN` architecture. Fixed critical argument-parsing UAC bugs.
+* **v0.6.0 (Latest):** Massive architecture overhaul. Introduced dynamic Vendor grouping (Oracle, Adoptium, GraalVM) across all menus. Built an optimized, strictly in-memory Bubble Sort algorithm (bypassing `cmd.exe` GOTO disk-scanning limits) to organize JDKs by newest version. Added semantic CLI routing (`jvm latest`, `jvm lts`) and flag overrides (`--vendor`, `--latest`). Ripped out legacy CLI prompts in favor of instant interactive menu handoffs. Improved navigation speed via a smart caching `NEEDS_RESCAN` architecture. Fixed a critical engine parsing bug that corrupted paths containing exclamation marks (`!`) during delayed expansion, and resolved argument-parsing UAC elevation bugs.
 * **v0.5.0:** Introduced CLI Quick-Switching (`jvm <version>`) for silent background execution. Added Global Command Installer (Settings menu). Overhauled UI with strict ANSI color hierarchy, path muting, and interruptible auto-close countdowns. Hardened UAC elevation and menu scanning against Windows PATH corruption bugs.
 * **v0.4.0:** Re-engineered dynamic auto-scanner supporting developer toolkits (Scoop, Gradle, IntelliJ), fast release-file parsing, and a massive architectural UI overhaul for robust sub-menu navigation.
 * **v0.3.0:** Relicensed the project to the GNU Affero General Public License v3.0 (AGPL-3.0).

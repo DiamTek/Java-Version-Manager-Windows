@@ -25,6 +25,25 @@ set "cBLUE=%ESC%[96m"
 set "cGRAY=%ESC%[90m"
 set "cRESET=%ESC%[0m"
 
+:: Define base JDK search locations BEFORE delayed expansion to prevent exclamation mark corruption
+set "LOCATIONS[0]=C:\Program Files\Java"
+set "LOCATIONS[1]=C:\Program Files (x86)\Java"
+set "LOCATIONS[2]=C:\Java"
+set "LOCATIONS[3]=%USERPROFILE%\.jdks"
+set "LOCATIONS[4]=%USERPROFILE%\.gradle\jdks"
+set "LOCATIONS[5]=%LOCALAPPDATA%\JavaVersionManager\links"
+
+set LOC_IDX=6
+if exist "%USERPROFILE%\scoop\apps" (
+    for /d %%A in ("%USERPROFILE%\scoop\apps\*") do (
+        if exist "%%A\current\bin\java.exe" (
+            call set "LOCATIONS[%%LOC_IDX%%]=%%A"
+            set /a LOC_IDX+=1
+        )
+    )
+)
+set /a MAX_LOC=LOC_IDX-1
+
 :: Parse .java-version and establish mode BEFORE changing directories or checking UAC!
 set "SILENT_MODE=0"
 set "CLI_TARGET="
@@ -295,23 +314,7 @@ set "LATEST_JDK_NAME="
 set "ORACLE_LATEST_FEATURE=26"
 set "ORACLE_LATEST_LTS=25"
 
-set "LOCATIONS[0]=C:\Program Files\Java"
-set "LOCATIONS[1]=C:\Program Files (x86)\Java"
-set "LOCATIONS[2]=C:\Java"
-set "LOCATIONS[3]=%USERPROFILE%\.jdks"
-set "LOCATIONS[4]=%USERPROFILE%\.gradle\jdks"
-set "LOCATIONS[5]=%LOCALAPPDATA%\JavaVersionManager\links"
-
-set LOC_IDX=6
-if exist "%USERPROFILE%\scoop\apps" (
-    for /d %%A in ("%USERPROFILE%\scoop\apps\*") do (
-        if exist "%%A\current\bin\java.exe" (
-            set "LOCATIONS[!LOC_IDX!]=%%A"
-            set /a LOC_IDX+=1
-        )
-    )
-)
-set /a MAX_LOC=!LOC_IDX!-1
+:: The LOCATIONS array is populated at the top of the script to prevent delayed expansion corruption
 
 :: Find all JDK folders
 for /l %%i in (0,1,!MAX_LOC!) do (
