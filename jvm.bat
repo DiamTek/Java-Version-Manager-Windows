@@ -983,6 +983,21 @@ set "PS_SCRIPT=%TEMP%\up_jdk_!RANDOM!.ps1"
     echo     $fileStream.Close^(^)
     echo     $stream.Close^(^)
     echo     Write-Host "`n"
+    echo     Write-Host '[  INFO  ] Verifying SHA256 checksum...' -ForegroundColor Cyan
+    echo     $sha_url = $url + '.sha256'
+    echo     $expectedHash = ^(Invoke-WebRequest -Uri $sha_url -UseBasicParsing^).Content.Trim^(^)
+    echo     $sha256 = [System.Security.Cryptography.SHA256]::Create^(^)
+    echo     $fs2 = [System.IO.File]::OpenRead^($out^)
+    echo     $hashBytes = $sha256.ComputeHash^($fs2^)
+    echo     $fs2.Close^(^)
+    echo     $actualHash = [System.BitConverter]::ToString^($hashBytes^).Replace^('-', ''^).ToLower^(^)
+    echo     if ^($actualHash -ne $expectedHash^) {
+    echo         Write-Host '[ ERROR  ] Checksum mismatch! Download corrupted or compromised.' -ForegroundColor Red
+    echo         Write-Host "           Expected: $expectedHash" -ForegroundColor Red
+    echo         Write-Host "           Actual:   $actualHash" -ForegroundColor Red
+    echo         exit 1
+    echo     }
+    echo     Write-Host '[   OK   ] Checksum verified successfully.' -ForegroundColor Green
     echo     Write-Host '[  INFO  ] Extracting update files...' -ForegroundColor Cyan
     echo     Add-Type -AssemblyName System.IO.Compression.FileSystem
     echo     $zip = [System.IO.Compression.ZipFile]::OpenRead^('!ZIP_PATH!'^)
@@ -1410,6 +1425,21 @@ set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
     echo     $fileStream.Close^(^)
     echo     $stream.Close^(^)
     echo     Write-Host "`n"
+    echo     Write-Host '[  INFO  ] Verifying SHA256 checksum...' -ForegroundColor Cyan
+    echo     $sha_url = $url + '.sha256'
+    echo     $expectedHash = ^(Invoke-WebRequest -Uri $sha_url -UseBasicParsing^).Content.Trim^(^)
+    echo     $sha256 = [System.Security.Cryptography.SHA256]::Create^(^)
+    echo     $fs2 = [System.IO.File]::OpenRead^($out^)
+    echo     $hashBytes = $sha256.ComputeHash^($fs2^)
+    echo     $fs2.Close^(^)
+    echo     $actualHash = [System.BitConverter]::ToString^($hashBytes^).Replace^('-', ''^).ToLower^(^)
+    echo     if ^($actualHash -ne $expectedHash^) {
+    echo         Write-Host '[ ERROR  ] Checksum mismatch! Download corrupted or compromised.' -ForegroundColor Red
+    echo         Write-Host "           Expected: $expectedHash" -ForegroundColor Red
+    echo         Write-Host "           Actual:   $actualHash" -ForegroundColor Red
+    echo         exit 1
+    echo     }
+    echo     Write-Host '[   OK   ] Checksum verified successfully.' -ForegroundColor Green
     echo     Write-Host '[  INFO  ] Extracting files locally...' -ForegroundColor Cyan
     echo     Add-Type -AssemblyName System.IO.Compression.FileSystem
     echo     $zip = [System.IO.Compression.ZipFile]::OpenRead^('!ZIP_PATH!'^)
@@ -1638,6 +1668,21 @@ set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
     echo     $fileStream.Close^(^)
     echo     $stream.Close^(^)
     echo     Write-Host "`n"
+    echo     Write-Host '[  INFO  ] Verifying SHA256 checksum...' -ForegroundColor Cyan
+    echo     $sha_url = $url + '.sha256'
+    echo     $expectedHash = ^(Invoke-WebRequest -Uri $sha_url -UseBasicParsing^).Content.Trim^(^)
+    echo     $sha256 = [System.Security.Cryptography.SHA256]::Create^(^)
+    echo     $fs2 = [System.IO.File]::OpenRead^($out^)
+    echo     $hashBytes = $sha256.ComputeHash^($fs2^)
+    echo     $fs2.Close^(^)
+    echo     $actualHash = [System.BitConverter]::ToString^($hashBytes^).Replace^('-', ''^).ToLower^(^)
+    echo     if ^($actualHash -ne $expectedHash^) {
+    echo         Write-Host '[ ERROR  ] Checksum mismatch! Download corrupted or compromised.' -ForegroundColor Red
+    echo         Write-Host "           Expected: $expectedHash" -ForegroundColor Red
+    echo         Write-Host "           Actual:   $actualHash" -ForegroundColor Red
+    echo         exit 1
+    echo     }
+    echo     Write-Host '[   OK   ] Checksum verified successfully.' -ForegroundColor Green
     echo     Write-Host '[  INFO  ] Extracting files to !DEST_DIR!...' -ForegroundColor Cyan
     echo     Add-Type -AssemblyName System.IO.Compression.FileSystem
     echo     $zip = [System.IO.Compression.ZipFile]::OpenRead^('!ZIP_PATH!'^)
