@@ -562,6 +562,7 @@ if defined CLI_COMMAND (
     )
     
     set "TARGET_IDX=0"
+    set "MATCH_COUNT=0"
     if defined CLI_TARGET (
         if /i "!CLI_TARGET!" NEQ "--all" (
             for /l %%k in (1,1,!JDK_COUNT!) do (
@@ -569,7 +570,13 @@ if defined CLI_COMMAND (
                 if "!JDK_MAJOR_%%k!"=="!CLI_TARGET!" set "MATCH_FOUND=1"
                 if /i "!JDK_NAME_%%k!"=="!CLI_TARGET!" set "MATCH_FOUND=1"
                 if "!MATCH_FOUND!"=="1" (
-                    set "TARGET_IDX=%%k"
+                    if defined CLI_VENDOR (
+                        if /i "!JDK_VENDOR_%%k!" NEQ "!CLI_VENDOR!" set "MATCH_FOUND=0"
+                    )
+                )
+                if "!MATCH_FOUND!"=="1" (
+                    set /a MATCH_COUNT+=1
+                    if "!TARGET_IDX!"=="0" set "TARGET_IDX=%%k"
                 )
             )
         )
@@ -616,6 +623,39 @@ if defined CLI_COMMAND (
     )
     
     if /i "!CLI_COMMAND!"=="uninstall" (
+        if !MATCH_COUNT! GTR 1 (
+            echo %cYELLOW%[ WARNING]%cRESET% Multiple JDKs found for '!CLI_TARGET!'.
+            echo.
+            set "RESOLVE_COUNT=0"
+            for /l %%k in (1,1,!JDK_COUNT!) do (
+                set "MATCH_FOUND=0"
+                if "!JDK_MAJOR_%%k!"=="!CLI_TARGET!" set "MATCH_FOUND=1"
+                if /i "!JDK_NAME_%%k!"=="!CLI_TARGET!" set "MATCH_FOUND=1"
+                if "!MATCH_FOUND!"=="1" (
+                    if defined CLI_VENDOR (
+                        if /i "!JDK_VENDOR_%%k!" NEQ "!CLI_VENDOR!" set "MATCH_FOUND=0"
+                    )
+                )
+                if "!MATCH_FOUND!"=="1" (
+                    set /a RESOLVE_COUNT+=1
+                    set "RES_IDX_!RESOLVE_COUNT!=%%k"
+                    echo   !RESOLVE_COUNT!. !JDK_VENDOR_%%k!
+                )
+            )
+            set /a RESOLVE_COUNT+=1
+            echo   !RESOLVE_COUNT!. Cancel
+            echo.
+            
+            set "U_KEYS="
+            for /l %%k in (1,1,!RESOLVE_COUNT!) do set "U_KEYS=!U_KEYS!%%k"
+            choice /C !U_KEYS! /N /M "Select vendor to uninstall (1-!RESOLVE_COUNT!): "
+            if !errorlevel! EQU !RESOLVE_COUNT! goto :eof
+            
+            set "CHOICE_VAL=!errorlevel!"
+            for %%C in (!CHOICE_VAL!) do set "TARGET_IDX=!RES_IDX_%%C!"
+            echo.
+        )
+
         if "!TARGET_IDX!"=="0" (
             echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found!
         ) else (

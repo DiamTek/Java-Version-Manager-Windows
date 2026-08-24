@@ -35,7 +35,7 @@ Instantly update your `JAVA_HOME` and system PATH without opening menus. Priorit
 * `jvm 21 --vendor adoptium` — Override priority and explicitly switch to Adoptium's JDK 21.
 * `jvm latest` — Dynamically switch to the absolute highest installed JDK version.
 * `jvm lts` — Dynamically switch to the highest installed LTS version.
-* `jvm` — If run inside a directory containing a `.java-version` file, it will silently parse it and auto-switch to that version locally for the current terminal only.
+* `jvm` — If run inside a directory containing a `.java-version` file, it will silently parse it and auto-switch to that version locally for the current terminal only. If no `.java-version` file exists, it opens the main interactive terminal UI menu.
 * `jvm --global` — Parses the `.java-version` file and forces the version switch to apply globally to your system registry.
 
 ### 📥 Installations
@@ -51,7 +51,8 @@ Instantly update your `JAVA_HOME` and system PATH without opening menus. Priorit
 * `jvm update --all` — Silently checks and automatically patches all installed JDKs across all vendors.
 * `jvm update --all --vendor oracle` — Silently checks and automatically patches *only* your installed Oracle JDKs (the `--all` flag is optional here).
 * `jvm uninstall` — Opens the dynamic, vendor-sorted Uninstaller menu UI.
-* `jvm uninstall 21` — Headless uninstallation (permanently deletes JDK 21 and scrubs it from your environment variables).
+* `jvm uninstall 21` — Headless uninstallation for JDK 21. If multiple vendors are found for the same version, it safely pauses to ask you which vendor you want to remove.
+* `jvm uninstall 21 --vendor oracle` — 100% headless uninstallation specifically targeting the Oracle vendor (bypasses all prompts).
 
 ### 🧹 Global Environment Management
 * `jvm clear` — Instantly wipes `JAVA_HOME` and purges Java from your PATH.
