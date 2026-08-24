@@ -45,6 +45,7 @@ Instantly update your `JAVA_HOME` and system PATH without opening menus. Priorit
 * `jvm install lts` — Prompts you to pick an LTS version (e.g., 17, 21, 25) and then prompts you for your preferred Vendor before installing.
 * `jvm install lts --latest` — Skips the version prompt (locks onto the highest available LTS) but still pauses to prompt you for a Vendor.
 * `jvm install lts --latest --vendor oracle` — 100% automated headless installation of the absolute newest Oracle LTS version (bypasses all menus).
+* `jvm install 17 --vendor oracle -y` — (or `--yes`) Aggressively bypasses any remaining interactive safety warnings (like Oracle's legacy version caps) for 100% uninterrupted CI/CD automation.
 
 ### 🔄 Updates & Uninstalls
 * `jvm update` — Opens the dynamic, vendor-sorted Updater menu UI.
@@ -76,7 +77,7 @@ To prevent catastrophic accidental deletions on local filesystems, all critical 
 
 ## 📜 Version History
 
-* **v0.6.0 (Latest):** Massive architecture overhaul. Introduced dynamic Vendor grouping (Oracle, Adoptium, GraalVM) across all menus. Built an optimized, strictly in-memory Bubble Sort algorithm to organize JDKs by newest version. Added `.java-version` directory-based auto-switching (defaults to session-mode isolation) with an explicit `--global` CLI override flag. Implemented enterprise-grade SHA256 checksum verification for all JDK downloads using native `.NET` Cryptography APIs to protect against corrupted payloads. Added semantic CLI routing (`jvm latest`, `jvm lts`) and flag overrides (`--vendor`, `--latest`). Improved navigation speed via a smart caching `NEEDS_RESCAN` architecture. Fixed UAC elevation deadlocks, character-encoding path bugs for user profiles, and critical engine parsing bugs that corrupted paths containing exclamation marks (`!`).
+* **v0.6.0 (Latest):** Massive architecture overhaul. Introduced dynamic Vendor grouping (Oracle, Adoptium, GraalVM) across all menus. Built an optimized, strictly in-memory Bubble Sort algorithm to organize JDKs by newest version. Added `.java-version` directory-based auto-switching (defaults to session-mode isolation) with an explicit `--global` CLI override flag. Implemented enterprise-grade SHA256 checksum verification for all JDK downloads using native `.NET` Cryptography APIs to protect against corrupted payloads. Added semantic CLI routing (`jvm latest`, `jvm lts`) and flag overrides (`--vendor`, `--latest`, `-y`). Improved navigation speed via a smart caching `NEEDS_RESCAN` architecture. Fixed UAC elevation deadlocks, character-encoding path bugs for user profiles, and critical engine parsing bugs that corrupted paths containing exclamation marks (`!`).
 * **v0.5.0:** Introduced CLI Quick-Switching (`jvm <version>`) for silent background execution. Added Global Command Installer (Settings menu). Overhauled UI with strict ANSI color hierarchy, path muting, and interruptible auto-close countdowns. Hardened UAC elevation and menu scanning against Windows PATH corruption bugs.
 * **v0.4.0:** Re-engineered dynamic auto-scanner supporting developer toolkits (Scoop, Gradle, IntelliJ), fast release-file parsing, and a massive architectural UI overhaul for robust sub-menu navigation.
 * **v0.3.0:** Relicensed the project to the GNU Affero General Public License v3.0 (AGPL-3.0).
