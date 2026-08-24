@@ -77,6 +77,16 @@ if /i "%~1"=="--vendor" (
     shift
     goto :PARSE_CLI_ARGS
 )
+if /i "%~1"=="--yes" (
+    set "FORCE_YES=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="-y" (
+    set "FORCE_YES=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
 if /i "%~1"=="--latest" (
     set "FLAG_LATEST=1"
     shift
@@ -1322,8 +1332,10 @@ goto PROCESS_U_CHOICE
 set u_choice=
 set /p u_choice="Enter your choice (1-!U_CANCEL!): "
 if "!u_choice!"=="" goto GET_U_CHOICE_MANUAL
-echo !u_choice!| findstr /r "^[0-9]*$" >nul
-if errorlevel 1 goto GET_U_CHOICE_MANUAL
+set "u_choice=!u_choice: =!"
+set "NUM_TEST="
+for /f "delims=0123456789" %%A in ("!u_choice!") do set "NUM_TEST=%%A"
+if defined NUM_TEST goto GET_U_CHOICE_MANUAL
 if !u_choice! LSS 1 goto GET_U_CHOICE_MANUAL
 if !u_choice! GTR !U_CANCEL! goto GET_U_CHOICE_MANUAL
 
@@ -1414,8 +1426,12 @@ if "!DL_VERSION!"=="17" (
     echo            This will install 17.0.12. For newer security patches, download
     echo            manually from Oracle or install from Adoptium/GraalVM instead.
     echo.
-    choice /C yn /N /M "Proceed with installing 17.0.12? (y/N): "
-    if errorlevel 2 goto :eof
+    if "!FORCE_YES!"=="1" (
+        echo Proceed with installing 17.0.12? ^(y/N^): Y [AUTO-YES]
+    ) else (
+        choice /C yn /N /M "Proceed with installing 17.0.12? (y/N): "
+        if errorlevel 2 goto :eof
+    )
 )
 
 set "API_URL=https://download.oracle.com/java/!DL_VERSION!/latest/jdk-!DL_VERSION!_windows-x64_bin.zip"
@@ -1603,7 +1619,7 @@ echo ============================================================
 echo                   Oracle JDK Downloader
 echo ============================================================
 echo %cBLUE%[  INFO  ]%cRESET% This will fetch the official Oracle JDK.
-echo             Works with versions: 17, 21, 25, 26
+echo.
 echo Select Release Type:
 echo 1. Latest Feature Release ^(JDK !ORACLE_LATEST_FEATURE!^)
 echo 2. LTS Releases
@@ -1634,8 +1650,15 @@ if !dl_choice!==3 (
     echo            If you need an older version, use Adoptium/GraalVM instead!
     echo.
     set /p DL_VERSION="Enter the major version number to download (e.g., 21): "
-    echo !DL_VERSION!^| findstr /r "^[0-9]*$" >nul
-    if errorlevel 1 (
+    set "DL_VERSION=!DL_VERSION: =!"
+    set "NUM_TEST="
+    for /f "delims=0123456789" %%A in ("!DL_VERSION!") do set "NUM_TEST=%%A"
+    if defined NUM_TEST (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid version number. Must be numeric.
+        pause
+        goto :eof
+    )
+    if "!DL_VERSION!"=="" (
         echo %cRED%[ ERROR  ]%cRESET% Invalid version number. Must be numeric.
         pause
         goto :eof
@@ -1658,8 +1681,12 @@ if "!DL_VERSION!"=="17" (
     echo            This will attempt to install 17.0.12. For newer security patches,
     echo            download manually from Oracle or install from Adoptium/GraalVM instead.
     echo.
-    choice /C yn /N /M "Proceed with installing 17.0.12? (y/N): "
-    if errorlevel 2 goto :eof
+    if "!FORCE_YES!"=="1" (
+        echo Proceed with installing 17.0.12? ^(y/N^): Y [AUTO-YES]
+    ) else (
+        choice /C yn /N /M "Proceed with installing 17.0.12? (y/N): "
+        if errorlevel 2 goto :eof
+    )
 )
 
 set "API_URL=https://download.oracle.com/java/!DL_VERSION!/latest/jdk-!DL_VERSION!_windows-x64_bin.zip"
@@ -2119,8 +2146,10 @@ goto PROCESS_P_CHOICE
 set p_choice=
 set /p p_choice="Enter your choice (1-!P_CANCEL!): "
 if "!p_choice!"=="" goto GET_P_CHOICE_MANUAL
-echo !p_choice!| findstr /r "^[0-9]*$" >nul
-if errorlevel 1 goto GET_P_CHOICE_MANUAL
+set "p_choice=!p_choice: =!"
+set "NUM_TEST="
+for /f "delims=0123456789" %%A in ("!p_choice!") do set "NUM_TEST=%%A"
+if defined NUM_TEST goto GET_P_CHOICE_MANUAL
 if !p_choice! LSS 1 goto GET_P_CHOICE_MANUAL
 if !p_choice! GTR !P_CANCEL! goto GET_P_CHOICE_MANUAL
 
