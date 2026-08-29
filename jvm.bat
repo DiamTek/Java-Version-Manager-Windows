@@ -102,16 +102,34 @@ if /i "%~1"=="--global" (
     shift
     goto :PARSE_CLI_ARGS
 )
-if /i "%~1"=="install" (
+if /i "%~1"=="--admin-run" (
+    set "IS_ADMIN_RUN=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="list" (
+    set "CLI_COMMAND=list"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="env" (
+    set "CLI_COMMAND=env"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="install" (
     set "CLI_COMMAND=install"
+    set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="uninstall" (
     set "CLI_COMMAND=uninstall"
+    set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="update" (
     set "CLI_COMMAND=update"
+    set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="clear" (
@@ -133,6 +151,11 @@ if /i "%~1"=="install" (
 :: If a target was provided via CLI, set variables
 set "SKIP_HEADER=0"
 
+if defined CLI_COMMAND (
+    if /i "%CLI_COMMAND%"=="list" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
+)
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
 ) else if exist ".java-version" (
@@ -148,20 +171,17 @@ if /i "%CLI_COMMAND%"=="clear" set "SKIP_HEADER=1"
 
 :: Check if the script is running as Administrator
 if "%SESSION_MODE%"=="1" goto :SKIP_ADMIN_CHECK
-if defined CLI_COMMAND goto :SKIP_ADMIN_CHECK
-
-net session >nul 2>&1
-if %errorlevel% NEQ 0 (
-    if "%SILENT_MODE%"=="0" (
-        echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges...
-        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%SCRIPT_PATH%' -WorkingDirectory '%cd%' -ArgumentList '--admin-run %CLI_TARGET% %ORIGINAL_ARGS%' -Verb RunAs"
-    ) else (
-        echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges for CLI Command...
-        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%SCRIPT_PATH%' -WorkingDirectory '%cd%' -ArgumentList '--admin-run %CLI_TARGET% %ORIGINAL_ARGS%' -Verb RunAs -Wait"
-        echo %cGREEN%[   OK   ]%cRESET% Operation completed successfully.
-    )
-    exit /B
+if defined CLI_COMMAND (
+    if /i "%CLI_COMMAND%"=="list" goto :SKIP_ADMIN_CHECK
+    if /i "%CLI_COMMAND%"=="env" goto :SKIP_ADMIN_CHECK
 )
+if defined CLI_COMMAND (
+    if /i "%CLI_COMMAND%"=="list" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
+)
+:: By default, run everything inline without Admin. We only elevate for specific file/registry operations.
+goto :SKIP_ADMIN_CHECK
 
 :SKIP_ADMIN_CHECK
 
@@ -367,8 +387,12 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                             for /f "tokens=2 delims==" %%R in ('findstr /b "IMPLEMENTOR=" "%%j\release" 2^>nul') do (
                                 set "VENDOR_RAW=%%~R"
                                 set "VENDOR_RAW=!VENDOR_RAW:"=!"
-                                if /i "!VENDOR_RAW!"=="Oracle Corporation" set "VENDOR_STR=Oracle"
-                                if /i "!VENDOR_RAW!"=="Eclipse Adoptium" set "VENDOR_STR=Adoptium"
+                                echo !VENDOR_RAW! | find /i "Oracle" >nul && set "VENDOR_STR=Oracle"
+                                echo !VENDOR_RAW! | find /i "Adoptium" >nul && set "VENDOR_STR=Adoptium"
+                                echo !VENDOR_RAW! | find /i "GraalVM" >nul && set "VENDOR_STR=GraalVM"
+                                echo !VENDOR_RAW! | find /i "Amazon" >nul && set "VENDOR_STR=Corretto"
+                                echo !VENDOR_RAW! | find /i "Azul" >nul && set "VENDOR_STR=Zulu"
+                                echo !VENDOR_RAW! | find /i "Microsoft" >nul && set "VENDOR_STR=Microsoft"
                             )
                         )
                         if not defined VER (
@@ -448,121 +472,45 @@ if !JDK_COUNT! GTR 1 (
 )
 
 if defined CLI_COMMAND (
+    if /i "!CLI_COMMAND!"=="list" (
+        echo. 
+        echo %cBLUE%[  INFO  ]%cRESET% Installed JDKs:
+        echo ============================================================
+        for /l %%k in (1,1,!JDK_COUNT!) do (
+            set "ACTIVE_TAG="
+            if /i "!JDK_PATH_%%k!"=="!JAVA_HOME!" set "ACTIVE_TAG= %cGREEN%[ACTIVE]%cRESET%"
+            echo  %%k. JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^) - !JDK_VENDOR_%%k!!ACTIVE_TAG!
+            echo     Path: !JDK_PATH_%%k!
+            echo.
+        )
+        echo ============================================================
+        goto :eof
+    )
+    if /i "!CLI_COMMAND!"=="env" (
+        echo.
+        echo %cBLUE%[  INFO  ]%cRESET% Java Environment Variables:
+        echo ============================================================
+        if defined JAVA_HOME (
+            echo JAVA_HOME = !JAVA_HOME!
+        ) else (
+            echo JAVA_HOME is NOT SET
+        )
+        echo ============================================================
+        goto :eof
+    )
     if /i "!CLI_COMMAND!"=="install" (
         if not defined CLI_TARGET (
             call :InstallWizard
-            goto :eof
+            goto :CLI_DONE
         )
-    )
-    if /i "!CLI_COMMAND!"=="uninstall" (
-        if not defined CLI_TARGET (
-            call :UninstallJDK
-            goto :eof
-        )
-    )
-
-    if /i "!CLI_COMMAND!"=="clear" (
-        if "!IS_ADMIN_RUN!"=="1" (
-            reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME /f >nul 2>&1
-            reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
-            
-            set "SYS_PATH="
-            for /f "tokens=2 delims==" %%A in ('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^^^>nul') do set "SYS_PATH=%%A"
-            if not defined SYS_PATH (
-                for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^^^>nul') do set "SYS_PATH=%%B"
-            )
-            if defined SYS_PATH (
-                for /l %%k in (1,1,!JDK_COUNT!) do (
-                    for /f "delims=" %%V in ("!JDK_PATH_%%k!\bin") do (
-                        set "SYS_PATH=!SYS_PATH:%%V;=!"
-                        set "SYS_PATH=!SYS_PATH:;%%V=!"
-                    )
-                )
-                set "SYS_PATH=!SYS_PATH:C:\Program Files\Common Files\Oracle\Java\javapath;=!"
-                set "SYS_PATH=!SYS_PATH:C:\Program Files\Common Files\Oracle\Java\javapath=!"
-                set "SYS_PATH=!SYS_PATH:C:\Program Files (x86)\Common Files\Oracle\Java\javapath;=!"
-                set "SYS_PATH=!SYS_PATH:C:\Program Files (x86)\Common Files\Oracle\Java\javapath=!"
-                set "SYS_PATH=!SYS_PATH:C:\ProgramData\Oracle\Java\javapath;=!"
-                set "SYS_PATH=!SYS_PATH:C:\ProgramData\Oracle\Java\javapath=!"
-                set "SYS_PATH=!SYS_PATH:;;=;!"
-                setx Path "!SYS_PATH!" /M >nul
-            )
-            
-            set "USR_PATH="
-            for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^^^>nul') do set "USR_PATH=%%B"
-            if defined USR_PATH (
-                for /l %%k in (1,1,!JDK_COUNT!) do (
-                    for /f "delims=" %%V in ("!JDK_PATH_%%k!\bin") do (
-                        set "USR_PATH=!USR_PATH:%%V;=!"
-                        set "USR_PATH=!USR_PATH:;%%V=!"
-                    )
-                )
-                set "USR_PATH=!USR_PATH:C:\Program Files\Common Files\Oracle\Java\javapath;=!"
-                set "USR_PATH=!USR_PATH:C:\Program Files\Common Files\Oracle\Java\javapath=!"
-                set "USR_PATH=!USR_PATH:C:\Program Files (x86)\Common Files\Oracle\Java\javapath;=!"
-                set "USR_PATH=!USR_PATH:C:\Program Files (x86)\Common Files\Oracle\Java\javapath=!"
-                set "USR_PATH=!USR_PATH:;;=;!"
-                setx Path "!USR_PATH!" >nul
-            )
-            exit /b 0
-        ) else (
-            echo.
-            echo %cBLUE%[ ACTION ]%cRESET% Removing JAVA_HOME from registry...
-            echo %cBLUE%[ ACTION ]%cRESET% Cleaning SYSTEM PATH...
-            echo %cBLUE%[ ACTION ]%cRESET% Cleaning USER PATH...
-            
-            echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%SCRIPT_PATH%' -WorkingDirectory '%cd%' -ArgumentList '--admin-run clear' -Verb RunAs -WindowStyle Hidden -Wait"
-            
-            echo.
-            echo %cGREEN%[   OK   ]%cRESET% Java Environment completely cleared!
-            goto :eof
-        )
-    )
-    
-    if /i "!CLI_COMMAND!"=="install" (
-        if not defined CLI_VENDOR (
-            echo.
-            echo %cBLUE%[ ACTION ]%cRESET% Select JDK Vendor for installation:
-            echo 1. Oracle
-            echo 2. Adoptium %cGRAY%[Coming Soon]%cRESET%
-            echo 3. GraalVM  %cGRAY%[Coming Soon]%cRESET%
-            choice /C 123 /N /M "Select provider (1-3): "
-            if !errorlevel! EQU 1 set "CLI_VENDOR=Oracle"
-            if !errorlevel! EQU 2 (
-                echo %cYELLOW%[  INFO  ]%cRESET% Adoptium API integration coming in Phase 6.
-                goto :eof
-            )
-            if !errorlevel! EQU 3 (
-                echo %cYELLOW%[  INFO  ]%cRESET% GraalVM API integration coming in Phase 6.
-                goto :eof
-            )
-        )
-
         if /i "!CLI_TARGET!"=="latest" (
             set "CLI_TARGET=!ORACLE_LATEST_FEATURE!"
         ) else if /i "!CLI_TARGET!"=="lts" (
-            if "!FLAG_LATEST!"=="1" (
-                set "CLI_TARGET=!ORACLE_LATEST_LTS!"
-            ) else (
-                echo.
-                echo %cBLUE%[ ACTION ]%cRESET% Select LTS Release to Install:
-                echo 1. JDK !ORACLE_LATEST_LTS! ^(Latest^)
-                echo 2. JDK 21
-                echo 3. JDK 17 ^(Legacy^)
-                choice /C 123 /N /M "Select version (1-3): "
-                if !errorlevel! EQU 1 set "CLI_TARGET=!ORACLE_LATEST_LTS!"
-                if !errorlevel! EQU 2 set "CLI_TARGET=21"
-                if !errorlevel! EQU 3 set "CLI_TARGET=17"
-            )
+            set "CLI_TARGET=!ORACLE_LATEST_LTS!"
         )
         set "DL_VERSION=!CLI_TARGET!"
-        if /i "!CLI_VENDOR!"=="oracle" (
-            call :DownloadJDK_Headless
-        ) else (
-            echo %cRED%[ ERROR  ]%cRESET% Unknown vendor '!CLI_VENDOR!'. Supported: Oracle
-        )
-        goto :eof
+        call :DownloadJDK_Headless
+        goto :CLI_DONE
     )
     
     if /i "!CLI_TARGET!"=="latest" (
@@ -573,7 +521,12 @@ if defined CLI_COMMAND (
     
     set "TARGET_IDX=0"
     set "MATCH_COUNT=0"
-    if defined CLI_TARGET (
+    if defined CLI_COMMAND (
+    if /i "%CLI_COMMAND%"=="list" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
+)
+if defined CLI_TARGET (
         if /i "!CLI_TARGET!" NEQ "--all" (
             for /l %%k in (1,1,!JDK_COUNT!) do (
                 set "MATCH_FOUND=0"
@@ -605,7 +558,9 @@ if defined CLI_COMMAND (
                 echo %cGREEN%[   OK   ]%cRESET% All updates applied successfully!
                 echo.
             ) else (
-                call :UpdateJDKs
+                echo %cRED%[ ERROR  ]%cRESET% Missing required version argument.
+                echo             Usage: jvm update ^<version_number^>
+                echo             Usage: jvm update --all [--vendor ^<name^>]
             )
         ) else if /i "!CLI_TARGET!"=="--all" (
             if defined CLI_VENDOR (
@@ -629,10 +584,15 @@ if defined CLI_COMMAND (
                 call :ProcessSingleUpdate !TARGET_IDX!
             )
         )
-        goto :eof
+        goto :CLI_DONE
     )
     
     if /i "!CLI_COMMAND!"=="uninstall" (
+        if not defined CLI_TARGET (
+            echo %cRED%[ ERROR  ]%cRESET% Missing required version argument.
+            echo             Usage: jvm uninstall ^<version_number^>
+            goto :CLI_DONE
+        )
         if !MATCH_COUNT! GTR 1 (
             echo %cYELLOW%[ WARNING]%cRESET% Multiple JDKs found for '!CLI_TARGET!'.
             echo.
@@ -705,7 +665,9 @@ if defined CLI_COMMAND (
                 echo %cBLUE%[ ACTION ]%cRESET% Scrubbing environment variables...
                 
                 echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
-                powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%SCRIPT_PATH%' -WorkingDirectory '%cd%' -ArgumentList '--admin-run uninstall !CLI_TARGET!' -Verb RunAs -WindowStyle Hidden -Wait"
+                set "WORK_DIR=%cd%"
+                set "UAC_ARGS=%ORIGINAL_ARGS%"
+                powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath \"$env:SCRIPT_PATH\" -WorkingDirectory \"$env:WORK_DIR\" -ArgumentList '--admin-run', \"$env:UAC_ARGS\" -Verb RunAs -WindowStyle Hidden -Wait"
                 
                 if exist "!DEL_PATH!" (
                     echo %cRED%[ ERROR  ]%cRESET% Failed to completely delete directory. 
@@ -719,6 +681,11 @@ if defined CLI_COMMAND (
     )
 )
 
+if defined CLI_COMMAND (
+    if /i "%CLI_COMMAND%"=="list" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
+)
 if defined CLI_TARGET (
     echo %cBLUE%[ INFO ]%cRESET% Target JDK !CLI_TARGET! detected...
     :: Resolve Semantic Aliases
@@ -852,15 +819,24 @@ set "OPT_ALL="
 set "OPT_U_ORACLE="
 set "OPT_U_ADOPTIUM="
 set "OPT_U_GRAALVM="
+set "OPT_U_CORRETTO="
+set "OPT_U_ZULU="
+set "OPT_U_MICROSOFT="
 
 set "HAS_ORACLE=0"
 set "HAS_ADOPTIUM=0"
 set "HAS_GRAALVM=0"
+set "HAS_CORRETTO=0"
+set "HAS_ZULU=0"
+set "HAS_MICROSOFT=0"
 
 for /l %%k in (1,1,!JDK_COUNT!) do (
     if /i "!JDK_VENDOR_%%k!"=="Oracle" set "HAS_ORACLE=1"
     if /i "!JDK_VENDOR_%%k!"=="Adoptium" set "HAS_ADOPTIUM=1"
     if /i "!JDK_VENDOR_%%k!"=="GraalVM" set "HAS_GRAALVM=1"
+    if /i "!JDK_VENDOR_%%k!"=="Corretto" set "HAS_CORRETTO=1"
+    if /i "!JDK_VENDOR_%%k!"=="Zulu" set "HAS_ZULU=1"
+    if /i "!JDK_VENDOR_%%k!"=="Microsoft" set "HAS_MICROSOFT=1"
 )
 
 set /a U_OPT+=1
@@ -881,6 +857,21 @@ if "!HAS_GRAALVM!"=="1" (
     set /a U_OPT+=1
     set "OPT_U_GRAALVM=!U_OPT!"
     echo !OPT_U_GRAALVM!. GraalVM
+)
+if "!HAS_CORRETTO!"=="1" (
+    set /a U_OPT+=1
+    set "OPT_U_CORRETTO=!U_OPT!"
+    echo !OPT_U_CORRETTO!. Corretto
+)
+if "!HAS_ZULU!"=="1" (
+    set /a U_OPT+=1
+    set "OPT_U_ZULU=!U_OPT!"
+    echo !OPT_U_ZULU!. Zulu
+)
+if "!HAS_MICROSOFT!"=="1" (
+    set /a U_OPT+=1
+    set "OPT_U_MICROSOFT=!U_OPT!"
+    echo !OPT_U_MICROSOFT!. Microsoft
 )
 
 set /a U_OPT+=1
@@ -913,26 +904,51 @@ if defined OPT_U_ORACLE if !v_choice!==!OPT_U_ORACLE! (
 )
 if defined OPT_U_ADOPTIUM if !v_choice!==!OPT_U_ADOPTIUM! (
     echo.
-    echo %cYELLOW%[  INFO  ]%cRESET% Adoptium updates coming soon!
-    echo.
-    pause
-    goto :eof
+    echo %cBLUE%[ ACTION ]%cRESET% Checking Adoptium JDKs for updates...
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        if /i "!JDK_VENDOR_%%k!"=="Adoptium" call :ProcessSingleUpdate %%k
+    )
+    goto FINISH_UPDATE
 )
 if defined OPT_U_GRAALVM if !v_choice!==!OPT_U_GRAALVM! (
     echo.
-    echo %cYELLOW%[  INFO  ]%cRESET% GraalVM updates coming soon!
+    echo %cBLUE%[ ACTION ]%cRESET% Checking GraalVM JDKs for updates...
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        if /i "!JDK_VENDOR_%%k!"=="GraalVM" call :ProcessSingleUpdate %%k
+    )
+    goto FINISH_UPDATE
+)
+if defined OPT_U_CORRETTO if !v_choice!==!OPT_U_CORRETTO! (
     echo.
-    pause
-    goto :eof
+    echo %cBLUE%[ ACTION ]%cRESET% Checking Corretto JDKs for updates...
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        if /i "!JDK_VENDOR_%%k!"=="Corretto" call :ProcessSingleUpdate %%k
+    )
+    goto FINISH_UPDATE
+)
+if defined OPT_U_ZULU if !v_choice!==!OPT_U_ZULU! (
+    echo.
+    echo %cBLUE%[ ACTION ]%cRESET% Checking Zulu JDKs for updates...
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        if /i "!JDK_VENDOR_%%k!"=="Zulu" call :ProcessSingleUpdate %%k
+    )
+    goto FINISH_UPDATE
+)
+if defined OPT_U_MICROSOFT if !v_choice!==!OPT_U_MICROSOFT! (
+    echo.
+    echo %cBLUE%[ ACTION ]%cRESET% Checking Microsoft JDKs for updates...
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        if /i "!JDK_VENDOR_%%k!"=="Microsoft" call :ProcessSingleUpdate %%k
+    )
+    goto FINISH_UPDATE
 )
 
 :FINISH_UPDATE
-echo.
 echo ------------------------------------------------------------
+echo.
 echo %cGREEN%[   OK   ]%cRESET% All update checks complete!
 echo.
-echo Press any key to return to the menu...
-pause >nul
+pause
 goto :eof
 
 :ProcessSingleUpdate
@@ -940,23 +956,53 @@ set "UP_IDX=%1"
 set "UP_PATH=!JDK_PATH_%UP_IDX%!"
 set "UP_MAJOR=!JDK_MAJOR_%UP_IDX%!"
 set "UP_NAME=!JDK_NAME_%UP_IDX%!"
+set "UP_VENDOR=!JDK_VENDOR_%UP_IDX%!"
 
 echo ------------------------------------------------------------
-echo %cBLUE%[ ACTION ]%cRESET% Analyzing !UP_NAME!...
-echo %cBLUE%[  INFO  ]%cRESET% Checking server for updates...
+echo %cBLUE%[ ACTION ]%cRESET% Analyzing !UP_NAME! ^(!UP_VENDOR!^)...
+echo %cBLUE%[  INFO  ]%cRESET% Checking vendor API for updates...
 
-:: Use PowerShell to get the Last-Modified header from the direct download URL
+set "UPDATE_RESULT="
+set "LOCAL_VER="
+set "REMOTE_VER="
+
+for /f "tokens=1,* delims=|" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\.gemini\antigravity\brain\1d94625a-4bc1-4f01-8d91-aa2a8ccf6e22\scratch\UpdateChecker.ps1" -Vendor "!UP_VENDOR!" -Major "!UP_MAJOR!" -LocalPath "!UP_PATH!"') do (
+    if "%%A"=="ORACLE_LEGACY" goto :Update_OracleLegacy
+    if "%%A"=="LOCAL" set "LOCAL_VER=%%B"
+    if "%%A"=="REMOTE" set "REMOTE_VER=%%B"
+    if "%%A"=="RESULT" set "UPDATE_RESULT=%%B"
+)
+
+echo %cBLUE%[  INFO  ]%cRESET% Local Build Version : !LOCAL_VER!
+echo %cBLUE%[  INFO  ]%cRESET% Remote API Version  : !REMOTE_VER!
+
+if "!UPDATE_RESULT!"=="UNKNOWN" (
+    echo %cRED%[ ERROR  ]%cRESET% Could not fetch update data from !UP_VENDOR!.
+    goto :eof
+)
+if "!UPDATE_RESULT!"=="UP_TO_DATE" (
+    echo %cGREEN%[   OK   ]%cRESET% You are already running the latest build of JDK !UP_MAJOR!!
+    goto :eof
+)
+
+echo %cYELLOW%[ UPDATE ]%cRESET% A newer build is available!
+
+if not defined CLI_COMMAND (
+    choice /C yn /N /M "Would you like to download and install this update? (y/N): "
+    if !errorlevel! NEQ 1 goto :eof
+)
+
+goto :TriggerUpdateDownload
+
+:Update_OracleLegacy
 set "PS_CMD=$req = [Net.HttpWebRequest]::Create('https://download.oracle.com/java/!UP_MAJOR!/latest/jdk-!UP_MAJOR!_windows-x64_bin.zip'); $req.Method = 'HEAD'; try { $res = $req.GetResponse(); $res.LastModified.ToString('yyyy-MM-dd') } catch { 'UNKNOWN' }"
 for /f "delims=" %%I in ('powershell -NoProfile -Command "!PS_CMD!"') do set "REMOTE_DATE=%%I"
-
-:: Extract date from local release file
 set "LOCAL_DATE=UNKNOWN"
 if exist "!UP_PATH!\release" (
     for /f "tokens=2 delims==" %%A in ('findstr "JAVA_VERSION_DATE" "!UP_PATH!\release"') do (
         set "LOCAL_DATE=%%~A"
     )
 )
-
 echo %cBLUE%[  INFO  ]%cRESET% Local Build Date : !LOCAL_DATE!
 echo %cBLUE%[  INFO  ]%cRESET% Remote Build Date: !REMOTE_DATE!
 
@@ -964,273 +1010,35 @@ if "!REMOTE_DATE!"=="UNKNOWN" (
     echo %cRED%[ ERROR  ]%cRESET% Could not connect to Oracle servers.
     goto :eof
 )
-
 if "!LOCAL_DATE!"=="!REMOTE_DATE!" (
     echo %cGREEN%[   OK   ]%cRESET% You are already running the latest build of JDK !UP_MAJOR!!
     goto :eof
 )
-
 if "!LOCAL_DATE!" NEQ "UNKNOWN" (
     if "!LOCAL_DATE!" GTR "!REMOTE_DATE!" (
         echo %cGREEN%[   OK   ]%cRESET% Your local build is newer than the current Oracle release!
         goto :eof
     )
 )
-
 if defined CLI_COMMAND (
     if /i "!CLI_TARGET!"=="" (
         echo %cYELLOW%[ UPDATE ]%cRESET% A newer build is available! Run 'jvm update !UP_MAJOR!' to install.
         goto :eof
     )
     echo %cYELLOW%[ UPDATE ]%cRESET% A newer build is available!
-    echo %cBLUE%[ ACTION ]%cRESET% Proceeding with update for !UP_MAJOR!...
 ) else (
     echo %cYELLOW%[ UPDATE ]%cRESET% A newer build is available!
     choice /C yn /N /M "Would you like to download and install this update? (y/N): "
     if !errorlevel! NEQ 1 goto :eof
 )
 
-:: Proceed with Update Pipeline
+:TriggerUpdateDownload
 echo.
-echo %cBLUE%[ ACTION ]%cRESET% Connecting to Oracle servers for JDK !UP_MAJOR!...
-set "API_URL=https://download.oracle.com/java/!UP_MAJOR!/latest/jdk-!UP_MAJOR!_windows-x64_bin.zip"
-set "ZIP_PATH=%TEMP%\jdk_!UP_MAJOR!_update.zip"
-set "EXTRACT_DIR=%TEMP%\jdk_!UP_MAJOR!_extract"
-
-if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!"
-
-:: Run PowerShell Download and Extract
-set "PS_SCRIPT=%TEMP%\up_jdk_!RANDOM!.ps1"
-(
-    echo $ErrorActionPreference = 'Stop'
-    echo [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    echo try {
-    echo     Write-Host '[  INFO  ] Downloading latest zip... ^(This may take a minute^)' -ForegroundColor Cyan
-    echo     $url = '!API_URL!'
-    echo     $out = '!ZIP_PATH!'
-    echo     $request = [System.Net.WebRequest]::Create^($url^)
-    echo     $response = $request.GetResponse^(^)
-    echo     $totalLength = $response.ContentLength
-    echo     $stream = $response.GetResponseStream^(^)
-    echo     $fileStream = New-Object System.IO.FileStream^($out, [System.IO.FileMode]::Create^)
-    echo     $buffer = New-Object byte[] 65536
-    echo     $downloaded = 0
-    echo     $lastPercent = -1
-    echo     while ^( ^( $read = $stream.Read^($buffer, 0, $buffer.Length^) ^) -gt 0 ^) {
-    echo         $fileStream.Write^($buffer, 0, $read^)
-    echo         $downloaded += $read
-    echo         if ^($totalLength -gt 0^) {
-    echo             $percent = [math]::Round^( ^($downloaded / $totalLength^) * 100 ^)
-    echo             if ^($percent -ne $lastPercent^) {
-    echo                 $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
-    echo                 $dMB = [math]::Round^($downloaded / 1MB, 1^)
-    echo                 $tMB = [math]::Round^($totalLength / 1MB, 1^)
-    echo                 Write-Host "`r[ ACTION ] Downloading: $bar $percent%% ($dMB / $tMB MB) " -NoNewline -ForegroundColor Cyan
-    echo                 $lastPercent = $percent
-    echo             }
-    echo         }
-    echo     }
-    echo     $fileStream.Close^(^)
-    echo     $stream.Close^(^)
-    echo     Write-Host "`n"
-    echo     Write-Host '[  INFO  ] Verifying SHA256 checksum...' -ForegroundColor Cyan
-    echo     $sha_url = $url + '.sha256'
-    echo     $expectedHash = ^(Invoke-WebRequest -Uri $sha_url -UseBasicParsing^).Content.Trim^(^)
-    echo     $sha256 = [System.Security.Cryptography.SHA256]::Create^(^)
-    echo     $fs2 = [System.IO.File]::OpenRead^($out^)
-    echo     $hashBytes = $sha256.ComputeHash^($fs2^)
-    echo     $fs2.Close^(^)
-    echo     $actualHash = [System.BitConverter]::ToString^($hashBytes^).Replace^('-', ''^).ToLower^(^)
-    echo     if ^($actualHash -ne $expectedHash^) {
-    echo         Write-Host '[ ERROR  ] Checksum mismatch! Download corrupted or compromised.' -ForegroundColor Red
-    echo         Write-Host "           Expected: $expectedHash" -ForegroundColor Red
-    echo         Write-Host "           Actual:   $actualHash" -ForegroundColor Red
-    echo         exit 1
-    echo     }
-    echo     Write-Host '[   OK   ] Checksum verified successfully.' -ForegroundColor Green
-    echo     Write-Host '[  INFO  ] Extracting update files...' -ForegroundColor Cyan
-    echo     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    echo     $zip = [System.IO.Compression.ZipFile]::OpenRead^('!ZIP_PATH!'^)
-    echo     $entries = $zip.Entries
-    echo     $totalEntries = $entries.Count
-    echo     $extracted = 0
-    echo     $lastPercent = -1
-    echo     foreach ^($entry in $entries^) {
-    echo         $destinationPath = [System.IO.Path]::GetFullPath^([System.IO.Path]::Combine^('!EXTRACT_DIR!', $entry.FullName^)^)
-    echo         if ^([string]::IsNullOrEmpty^($entry.Name^)^) {
-    echo             [System.IO.Directory]::CreateDirectory^($destinationPath^) ^| Out-Null
-    echo         } else {
-    echo             [System.IO.Directory]::CreateDirectory^([System.IO.Path]::GetDirectoryName^($destinationPath^)^) ^| Out-Null
-    echo             [System.IO.Compression.ZipFileExtensions]::ExtractToFile^($entry, $destinationPath, $true^)
-    echo         }
-    echo         $extracted++
-    echo         $percent = [math]::Round^(^($extracted / $totalEntries^) * 100^)
-    echo         if ^($percent -ne $lastPercent^) {
-    echo             $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
-    echo             Write-Host "`r[ ACTION ] Extracting: $bar $percent%% ($extracted / $totalEntries) " -NoNewline -ForegroundColor Cyan
-    echo             $lastPercent = $percent
-    echo         }
-    echo     }
-    echo     $zip.Dispose^(^)
-    echo     Write-Host "`n"
-    echo     Remove-Item '!ZIP_PATH!'
-    echo } catch {
-    echo     Write-Host '[ ERROR  ] Update download failed!' -ForegroundColor Red
-    echo     exit 1
-    echo }
-) > "!PS_SCRIPT!"
-
-powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
-set PS_EXIT_CODE=!errorlevel!
-if exist "!PS_SCRIPT!" del "!PS_SCRIPT!"
-
-if !PS_EXIT_CODE! NEQ 0 (
-    echo %cRED%[ ERROR  ]%cRESET% Aborting update due to download failure.
-    goto :eof
-)
-
-:: Find the newly extracted folder name (e.g. jdk-21.0.3)
-set "NEW_FOLDER="
-for /d %%D in ("!EXTRACT_DIR!\jdk*") do set "NEW_FOLDER=%%~nxD"
-
-if not defined NEW_FOLDER (
-    echo %cRED%[ ERROR  ]%cRESET% Could not locate the extracted JDK folder.
-    goto :eof
-)
-
-set "DEST_ROOT=C:\Program Files\Java"
-set "NEW_FULL_PATH=!DEST_ROOT!\!NEW_FOLDER!"
-
-if "!IS_ADMIN_RUN!"=="1" (
-    :: We already have admin rights via CLI elevation
-    echo %cBLUE%[ ACTION ]%cRESET% Removing old installation: !UP_NAME!...
-    rmdir /s /q "!UP_PATH!"
-    
-    echo %cBLUE%[ ACTION ]%cRESET% Installing new version: !NEW_FOLDER!...
-    move /y "!EXTRACT_DIR!\!NEW_FOLDER!" "!DEST_ROOT!\" >nul
-    rmdir /s /q "!EXTRACT_DIR!"
-    
-    set "SYS_PATH="
-    for /f "tokens=2 delims==" %%A in ('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^^^>nul') do set "SYS_PATH=%%A"
-    if not defined SYS_PATH (
-        for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^^^>nul') do set "SYS_PATH=%%B"
-    )
-    if defined SYS_PATH (
-        set "SYS_PATH=!SYS_PATH:%UP_PATH%\bin;=!"
-        set "SYS_PATH=!SYS_PATH:;%UP_PATH%\bin=!"
-        set "SYS_PATH=!SYS_PATH:;;=;!"
-        setx Path "!SYS_PATH!" /M >nul
-    )
-    
-    set "USR_PATH="
-    for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^^^>nul') do set "USR_PATH=%%B"
-    if defined USR_PATH (
-        set "USR_PATH=!USR_PATH:%UP_PATH%\bin;=!"
-        set "USR_PATH=!USR_PATH:;%UP_PATH%\bin=!"
-        set "USR_PATH=!USR_PATH:;;=;!"
-        setx Path "!USR_PATH!" >nul
-    )
-    
-    if /i "!JAVA_HOME!"=="!UP_PATH!" (
-        echo %cBLUE%[ ACTION ]%cRESET% Patching registry to point to new directory...
-        setx JAVA_HOME "!NEW_FULL_PATH!" /M >nul
-    )
-    exit /b 0
-) else if "%SESSION_MODE%"=="1" (
-    :: We already have admin rights in the GUI
-    echo %cBLUE%[ ACTION ]%cRESET% Terminating active Java processes to prevent locked files...
-    taskkill /f /im java.exe >nul 2^>^&1
-    taskkill /f /im javaw.exe >nul 2^>^&1
-    
-    echo %cBLUE%[ ACTION ]%cRESET% Removing old installation: !UP_NAME!...
-    rmdir /s /q "!UP_PATH!"
-    
-    echo %cBLUE%[ ACTION ]%cRESET% Installing new version: !NEW_FOLDER!...
-    move /y "!EXTRACT_DIR!\!NEW_FOLDER!" "!DEST_ROOT!\" >nul
-    rmdir /s /q "!EXTRACT_DIR!"
-    
-    set "SYS_PATH="
-    for /f "tokens=2 delims==" %%A in ('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^^^>nul') do set "SYS_PATH=%%A"
-    if not defined SYS_PATH (
-        for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^^^>nul') do set "SYS_PATH=%%B"
-    )
-    if defined SYS_PATH (
-        set "SYS_PATH=!SYS_PATH:%UP_PATH%\bin;=!"
-        set "SYS_PATH=!SYS_PATH:;%UP_PATH%\bin=!"
-        set "SYS_PATH=!SYS_PATH:;;=;!"
-        setx Path "!SYS_PATH!" /M >nul
-    )
-    
-    set "USR_PATH="
-    for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^^^>nul') do set "USR_PATH=%%B"
-    if defined USR_PATH (
-        set "USR_PATH=!USR_PATH:%UP_PATH%\bin;=!"
-        set "USR_PATH=!USR_PATH:;%UP_PATH%\bin=!"
-        set "USR_PATH=!USR_PATH:;;=;!"
-        setx Path "!USR_PATH!" >nul
-    )
-    
-    if /i "!JAVA_HOME!"=="!UP_PATH!" (
-        echo %cBLUE%[ ACTION ]%cRESET% Patching registry to point to new directory...
-        setx JAVA_HOME "!NEW_FULL_PATH!" /M >nul
-        set "CURRENT_JDK_PATH=!NEW_FULL_PATH!"
-        call :UpdateSystemPath
-    )
-) else (
-    :: Run inline with ADMIN_BAT for CLI
-    echo %cBLUE%[ ACTION ]%cRESET% Terminating active Java processes to prevent locked files...
-    echo %cBLUE%[ ACTION ]%cRESET% Removing old installation: !UP_NAME!...
-    echo %cBLUE%[ ACTION ]%cRESET% Installing new version: !NEW_FOLDER!...
-    
-    set "ADMIN_BAT=%TEMP%\jvm_admin_!RANDOM!.bat"
-    (
-        echo @echo off
-        echo taskkill /f /im java.exe ^>nul 2^>^&1
-        echo taskkill /f /im javaw.exe ^>nul 2^>^&1
-        echo rmdir /s /q "!UP_PATH!"
-        echo move /y "!EXTRACT_DIR!\!NEW_FOLDER!" "!DEST_ROOT!\" ^>nul
-        echo rmdir /s /q "!EXTRACT_DIR!"
-        
-        echo set "SYS_PATH="
-        echo for /f "tokens=2 delims==" %%%%A in ^('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^^^>nul'^) do set "SYS_PATH=%%%%A"
-        echo if not defined SYS_PATH ^(
-        echo     for /f "tokens=2*" %%%%A in ^('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^^^>nul'^) do set "SYS_PATH=%%%%B"
-        echo ^)
-        echo if defined SYS_PATH ^(
-        echo     set "SYS_PATH=^!SYS_PATH:%UP_PATH%\bin;=^!"
-        echo     set "SYS_PATH=^!SYS_PATH;%UP_PATH%\bin=^!"
-        echo     set "SYS_PATH=^!SYS_PATH:;;=;^!"
-        echo     setx Path "^!SYS_PATH!^"" /M ^>nul
-        echo ^)
-        
-        echo set "USR_PATH="
-        echo for /f "tokens=2*" %%%%A in ^('reg query "HKCU\Environment" /v Path 2^^^>nul'^) do set "USR_PATH=%%%%B"
-        echo if defined USR_PATH ^(
-        echo     set "USR_PATH=^!USR_PATH:%UP_PATH%\bin;=^!"
-        echo     set "USR_PATH=^!USR_PATH:;%UP_PATH%\bin=^!"
-        echo     echo set "USR_PATH=^!USR_PATH:;;=;^!"
-        echo     setx Path "^!USR_PATH!^"" ^>nul
-        echo ^)
-        
-        if /i "!JAVA_HOME!"=="!UP_PATH!" (
-            echo setx JAVA_HOME "!NEW_FULL_PATH!" /M ^>nul
-        )
-    ) > "!ADMIN_BAT!"
-    
-    echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply update...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c \"!ADMIN_BAT!\"' -Verb RunAs -WindowStyle Hidden -Wait"
-    del "!ADMIN_BAT!"
-)
-
-echo %cGREEN%[   OK   ]%cRESET% JDK !UP_MAJOR! successfully updated to the latest build ^(!REMOTE_DATE!^)!
-set "NEEDS_RESCAN=1"
-goto :eof
-
-
-:: ============================================================
-:: JDK UNINSTALLER
-:: ============================================================
-:UninstallJDK
+echo %cGREEN%[ DOWNLOAD ]%cRESET% Fetching newest JDK !UP_MAJOR! from !UP_VENDOR!...
+set "CLI_VENDOR=!UP_VENDOR!"
+set "DL_VERSION=!UP_MAJOR!"
+set "IS_UPDATER=1"
+goto :Resolve_!UP_VENDOR!
 :UninstallJDK
 cls
 echo ============================================================
@@ -1243,15 +1051,24 @@ set /a U_OPT=0
 set "OPT_U_ORACLE="
 set "OPT_U_ADOPTIUM="
 set "OPT_U_GRAALVM="
+set "OPT_U_CORRETTO="
+set "OPT_U_ZULU="
+set "OPT_U_MICROSOFT="
 
 set "HAS_ORACLE=0"
 set "HAS_ADOPTIUM=0"
 set "HAS_GRAALVM=0"
+set "HAS_CORRETTO=0"
+set "HAS_ZULU=0"
+set "HAS_MICROSOFT=0"
 
 for /l %%k in (1,1,!JDK_COUNT!) do (
     if /i "!JDK_VENDOR_%%k!"=="Oracle" set "HAS_ORACLE=1"
     if /i "!JDK_VENDOR_%%k!"=="Adoptium" set "HAS_ADOPTIUM=1"
     if /i "!JDK_VENDOR_%%k!"=="GraalVM" set "HAS_GRAALVM=1"
+    if /i "!JDK_VENDOR_%%k!"=="Corretto" set "HAS_CORRETTO=1"
+    if /i "!JDK_VENDOR_%%k!"=="Zulu" set "HAS_ZULU=1"
+    if /i "!JDK_VENDOR_%%k!"=="Microsoft" set "HAS_MICROSOFT=1"
 )
 
 if "!HAS_ORACLE!"=="1" (
@@ -1268,6 +1085,21 @@ if "!HAS_GRAALVM!"=="1" (
     set /a U_OPT+=1
     set "OPT_U_GRAALVM=!U_OPT!"
     echo !OPT_U_GRAALVM!. GraalVM
+)
+if "!HAS_CORRETTO!"=="1" (
+    set /a U_OPT+=1
+    set "OPT_U_CORRETTO=!U_OPT!"
+    echo !OPT_U_CORRETTO!. Corretto
+)
+if "!HAS_ZULU!"=="1" (
+    set /a U_OPT+=1
+    set "OPT_U_ZULU=!U_OPT!"
+    echo !OPT_U_ZULU!. Zulu
+)
+if "!HAS_MICROSOFT!"=="1" (
+    set /a U_OPT+=1
+    set "OPT_U_MICROSOFT=!U_OPT!"
+    echo !OPT_U_MICROSOFT!. Microsoft
 )
 
 set /a U_OPT+=1
@@ -1286,6 +1118,9 @@ if !v_choice!==!OPT_U_CANCEL! goto :eof
 if defined OPT_U_ORACLE if !v_choice!==!OPT_U_ORACLE! set "TARGET_VENDOR=Oracle"
 if defined OPT_U_ADOPTIUM if !v_choice!==!OPT_U_ADOPTIUM! set "TARGET_VENDOR=Adoptium"
 if defined OPT_U_GRAALVM if !v_choice!==!OPT_U_GRAALVM! set "TARGET_VENDOR=GraalVM"
+if defined OPT_U_CORRETTO if !v_choice!==!OPT_U_CORRETTO! set "TARGET_VENDOR=Corretto"
+if defined OPT_U_ZULU if !v_choice!==!OPT_U_ZULU! set "TARGET_VENDOR=Zulu"
+if defined OPT_U_MICROSOFT if !v_choice!==!OPT_U_MICROSOFT! set "TARGET_VENDOR=Microsoft"
 
 :UninstallJDK_Vendor
 cls
@@ -1360,45 +1195,40 @@ echo %cBLUE%[ ACTION ]%cRESET% Terminating any active Java processes...
 taskkill /f /im java.exe >nul 2>&1
 taskkill /f /im javaw.exe >nul 2>&1
 
-echo %cBLUE%[ ACTION ]%cRESET% Deleting directory !DEL_PATH!...
-rmdir /s /q "!DEL_PATH!"
+echo %cBLUE%[ ACTION ]%cRESET% Deleting directory and scrubbing environment variables...
+set "ADMIN_BAT=%TEMP%\jvm_admin_!RANDOM!.bat"
+(
+    echo @echo off
+    echo taskkill /f /im java.exe ^>nul 2^>^&1
+    echo taskkill /f /im javaw.exe ^>nul 2^>^&1
+    echo rmdir /s /q "!DEL_PATH!"
+    echo if /i "%%JAVA_HOME%%"=="!DEL_PATH!" ^(
+    echo     reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME /f ^>nul 2^>^&1
+    echo ^)
+    echo set "SYS_PATH="
+    echo for /f "tokens=2 delims==" %%%%A in ^('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^^^>nul'^) do set "SYS_PATH=%%%%A"
+    echo if defined SYS_PATH ^(
+    echo     set "SYS_PATH=^^!SYS_PATH:!DEL_PATH!\bin;=^^!"
+    echo     set "SYS_PATH=^^!SYS_PATH:;!DEL_PATH!\bin=^^!"
+    echo     set "SYS_PATH=^^!SYS_PATH:;;=;^^!"
+    echo     setx Path "^^!SYS_PATH^^!" /M ^>nul
+    echo ^)
+) > "!ADMIN_BAT!"
+
+echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/v:on /c \"!ADMIN_BAT!\"' -Verb RunAs -WindowStyle Hidden -Wait"
+del "!ADMIN_BAT!"
+
 if exist "!DEL_PATH!" (
     echo %cRED%[ ERROR  ]%cRESET% Failed to completely delete directory. 
     echo             A file might be locked or in use by another program.
     pause
     goto :eof
 )
-echo %cGREEN%[   OK   ]%cRESET% Directory deleted successfully.
-
-echo %cBLUE%[ ACTION ]%cRESET% Scrubbing environment variables...
-if /i "!JAVA_HOME!"=="!DEL_PATH!" (
-    echo %cBLUE%[  INFO  ]%cRESET% Target was set as JAVA_HOME. Removing from registry...
-    reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME /f >nul 2>&1
-    set "JAVA_HOME="
-)
-
-set "SYS_PATH="
-for /f "tokens=2 delims==" %%A in ('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^>nul') do set "SYS_PATH=%%A"
-if defined SYS_PATH (
-    set "SYS_PATH=!SYS_PATH:%DEL_PATH%\bin;=!"
-    set "SYS_PATH=!SYS_PATH:;%DEL_PATH%\bin=!"
-    set "SYS_PATH=!SYS_PATH:;;=;!"
-    setx Path "!SYS_PATH!" /M >nul
-    echo %cGREEN%[   OK   ]%cRESET% Cleaned target from SYSTEM PATH.
-)
-
-set "USR_PATH="
-for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USR_PATH=%%B"
-if defined USR_PATH (
-    set "USR_PATH=!USR_PATH:%DEL_PATH%\bin;=!"
-    set "USR_PATH=!USR_PATH:;%DEL_PATH%\bin=!"
-    set "USR_PATH=!USR_PATH:;;=;!"
-    setx Path "!USR_PATH!" >nul
-    echo %cGREEN%[   OK   ]%cRESET% Cleaned target from USER PATH.
-)
 
 echo.
 echo %cGREEN%[   OK   ]%cRESET% !DEL_NAME! was successfully uninstalled!
+set "NEEDS_RESCAN=1"
 echo Press any key to return to the menu...
 pause >nul
 goto :eof
@@ -1409,31 +1239,129 @@ echo %cBLUE%[  INFO  ]%cRESET% Uninstallation cancelled. Returning to menu...
 timeout /t 2 >nul
 goto :eof
 
-:DownloadJDK_Headless
+
+
+
+:: ============================================================
+:: JDK DOWNLOADER
+:: ============================================================
+:: ============================================================
+:: JDK INSTALLATION ROUTER (Interactive)
+:: ============================================================
+:InstallWizard
 echo.
-echo %cBLUE%[ ACTION ]%cRESET% Connecting to Oracle servers for JDK !DL_VERSION!...
+echo ============================================================
+echo                   JDK Installation Wizard
+echo ============================================================
+echo %cBLUE%[ ACTION ]%cRESET% Select JDK Distribution Vendor:
+echo.
+echo 1. Oracle ^(Standard^)
+echo 2. Adoptium ^(Eclipse Temurin^)
+echo 3. GraalVM ^(Community Edition^)
+echo 4. Amazon Corretto
+echo 5. Azul Zulu
+echo 6. Microsoft Build of OpenJDK
+echo 7. Cancel
+echo.
+choice /C 1234567 /N /M "Select vendor (1-7): "
+set "v_choice=!errorlevel!"
 
-if !DL_VERSION! LEQ 16 (
-    echo %cRED%[ ERROR  ]%cRESET% Oracle Java 16 and below are locked behind an authentication wall.
-    echo            Please use Adoptium/GraalVM for these versions.
-    if "!CLI_COMMAND!"=="" pause
-    goto :eof
+if !v_choice!==7 goto :eof
+if !v_choice!==1 set "CLI_VENDOR=Oracle"
+if !v_choice!==2 set "CLI_VENDOR=Adoptium"
+if !v_choice!==3 set "CLI_VENDOR=GraalVM"
+if !v_choice!==4 set "CLI_VENDOR=Corretto"
+if !v_choice!==5 set "CLI_VENDOR=Zulu"
+if !v_choice!==6 set "CLI_VENDOR=Microsoft"
+
+echo.
+echo ============================================================
+echo                   !CLI_VENDOR! Downloader
+echo ============================================================
+echo Select Release Type:
+echo 1. Latest Feature Release
+echo 2. LTS Releases
+echo 3. Specific Version
+echo 4. Cancel
+echo.
+choice /C 1234 /N /M "Enter your choice (1-4): "
+set "dl_choice=!errorlevel!"
+
+if !dl_choice!==4 goto :eof
+if !dl_choice!==1 set "DL_VERSION=!ORACLE_LATEST_FEATURE!"
+if !dl_choice!==2 (
+    echo.
+    echo %cBLUE%[ ACTION ]%cRESET% Select LTS Release to Install:
+    echo 1. JDK !ORACLE_LATEST_LTS! ^(Latest^)
+    echo 2. JDK 21
+    echo 3. JDK 17 ^(Legacy^)
+    choice /C 123 /N /M "Select version (1-3): "
+    if !errorlevel! EQU 1 set "DL_VERSION=!ORACLE_LATEST_LTS!"
+    if !errorlevel! EQU 2 set "DL_VERSION=21"
+    if !errorlevel! EQU 3 set "DL_VERSION=17"
 )
-
-if "!DL_VERSION!"=="17" (
+if !dl_choice!==3 (
     echo.
-    echo %cYELLOW%[ WARNING]%cRESET% Oracle restricts headless downloads for JDK 17 newer than 17.0.12.
-    echo            This will install 17.0.12. For newer security patches, download
-    echo            manually from Oracle or install from Adoptium/GraalVM instead.
-    echo.
-    if "!FORCE_YES!"=="1" (
-        echo Proceed with installing 17.0.12? ^(y/N^): Y [AUTO-YES]
-    ) else (
-        choice /C yn /N /M "Proceed with installing 17.0.12? (y/N): "
-        if errorlevel 2 goto :eof
+    set /p DL_VERSION="Enter the major version number to download (e.g., 21): "
+    set "DL_VERSION=!DL_VERSION: =!"
+    set "NUM_TEST="
+    for /f "delims=0123456789" %%A in ("!DL_VERSION!") do set "NUM_TEST=%%A"
+    if defined NUM_TEST (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid version number. Must be numeric.
+        pause
+        goto :eof
+    )
+    if "!DL_VERSION!"=="" (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid version number. Must be numeric.
+        pause
+        goto :eof
     )
 )
 
+:DownloadJDK_Headless
+if "!CLI_VENDOR!"=="" set "CLI_VENDOR=oracle"
+
+if !DL_VERSION! LEQ 16 (
+    if /i "!CLI_VENDOR!"=="oracle" (
+        echo.
+        echo %cRED%[ ERROR  ]%cRESET% Oracle Java 16 and below are locked behind an authentication wall.
+        echo            Please use Adoptium/GraalVM for these versions.
+        if "!CLI_COMMAND!"=="" pause
+        goto :eof
+    )
+)
+
+if "!DL_VERSION!"=="17" (
+    if /i "!CLI_VENDOR!"=="oracle" (
+        echo.
+        echo %cYELLOW%[ WARNING]%cRESET% Oracle restricts headless downloads for JDK 17 newer than 17.0.12.
+        echo            This will attempt to install 17.0.12. For newer security patches,
+        echo            download manually from Oracle or install from Adoptium/GraalVM instead.
+        echo.
+        if "!FORCE_YES!"=="1" (
+            echo Proceed with installing 17.0.12? ^(y/N^): Y [AUTO-YES]
+        ) else (
+            choice /C yn /N /M "Proceed with installing 17.0.12? (y/N): "
+            if errorlevel 2 goto :eof
+        )
+    )
+)
+
+if /i "!CLI_VENDOR!"=="oracle" goto :Resolve_Oracle
+if /i "!CLI_VENDOR!"=="adoptium" goto :Resolve_Adoptium
+if /i "!CLI_VENDOR!"=="graalvm" goto :Resolve_GraalVM
+if /i "!CLI_VENDOR!"=="corretto" goto :Resolve_Corretto
+if /i "!CLI_VENDOR!"=="zulu" goto :Resolve_Zulu
+if /i "!CLI_VENDOR!"=="microsoft" goto :Resolve_Microsoft
+if "!API_URL!"=="" (
+    echo %cRED%[ ERROR  ]%cRESET% Unknown or unsupported vendor: !CLI_VENDOR!
+    if "!CLI_COMMAND!"=="" pause
+    goto :eof
+)
+goto :FetchAndExtract
+
+:Resolve_Oracle
+set "DL_VENDOR=Oracle"
 set "API_URL=https://download.oracle.com/java/!DL_VERSION!/latest/jdk-!DL_VERSION!_windows-x64_bin.zip"
 if "!DL_VERSION!"=="17" set "API_URL=https://download.oracle.com/java/17/archive/jdk-17.0.12_windows-x64_bin.zip"
 if "!DL_VERSION!"=="18" set "API_URL=https://download.oracle.com/java/18/archive/jdk-18.0.2.1_windows-x64_bin.zip"
@@ -1442,9 +1370,118 @@ if "!DL_VERSION!"=="20" set "API_URL=https://download.oracle.com/java/20/archive
 if "!DL_VERSION!"=="22" set "API_URL=https://download.oracle.com/java/22/archive/jdk-22.0.2_windows-x64_bin.zip"
 if "!DL_VERSION!"=="23" set "API_URL=https://download.oracle.com/java/23/archive/jdk-23.0.2_windows-x64_bin.zip"
 if "!DL_VERSION!"=="24" set "API_URL=https://download.oracle.com/java/24/archive/jdk-24.0.2_windows-x64_bin.zip"
-set "ZIP_PATH=%TEMP%\jdk_!DL_VERSION!_download.zip"
-set "EXTRACT_DIR=%TEMP%\jdk_!DL_VERSION!_extract"
-set "DEST_ROOT=C:\Program Files\Java"
+set "API_SHA256_URL=!API_URL!.sha256"
+set "API_SHA256="
+goto :FetchAndExtract
+
+:Resolve_Adoptium
+set "DL_VENDOR=Adoptium"
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Querying Adoptium API for latest JDK !DL_VERSION! release...
+set "PS_API_SCRIPT=%TEMP%\api_query_!RANDOM!.ps1"
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo try {
+    echo     $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/assets/feature_releases/!DL_VERSION!/ga?architecture=x64^&image_type=jdk^&jvm_impl=hotspot^&os=windows^&page=0^&page_size=1' -UseBasicParsing
+    echo     $url = $res[0].binaries[0].package.link
+    echo     $sha = $res[0].binaries[0].package.checksum
+    echo     if ^($url -and $sha^) {
+    echo         Write-Output "API_URL=$url"
+    echo         Write-Output "API_SHA256=$sha"
+    echo     } else { exit 1 }
+    echo } catch { exit 1 }
+) > "!PS_API_SCRIPT!"
+goto Run_API_Query
+
+:Resolve_GraalVM
+set "DL_VENDOR=GraalVM"
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Querying GraalVM GitHub API for latest JDK !DL_VERSION! release...
+set "PS_API_SCRIPT=%TEMP%\api_query_!RANDOM!.ps1"
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo try {
+    echo     $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/graalvm/graalvm-ce-builds/releases' -UseBasicParsing
+    echo     $targetTag = $null
+    echo     foreach ^($release in $res^) {
+    echo         if ^($release.tag_name -like "jdk-!DL_VERSION!*"^) {
+    echo             $targetTag = $release
+    echo             break
+    echo         }
+    echo     }
+    echo     if ^(-not $targetTag^) { exit 1 }
+    echo     $url = $null
+    echo     $sha_url = $null
+    echo     foreach ^($asset in $targetTag.assets^) {
+    echo         if ^($asset.name -match 'windows-(x64^|amd64^)_bin\.zip$'^) { $url = $asset.browser_download_url }
+    echo         if ^($asset.name -match 'windows-(x64^|amd64^)_bin\.zip\.sha256$'^) { $sha_url = $asset.browser_download_url }
+    echo     }
+    echo     if ^($url -and $sha_url^) {
+    echo         Write-Output "API_URL=$url"
+    echo         Write-Output "API_SHA256_URL=$sha_url"
+    echo     } else { exit 1 }
+    echo } catch { exit 1 }
+) > "!PS_API_SCRIPT!"
+goto Run_API_Query
+
+:Resolve_Corretto
+set "DL_VENDOR=Corretto"
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Resolving Amazon Corretto JDK !DL_VERSION! URLs...
+set "API_URL=https://corretto.aws/downloads/latest/amazon-corretto-!DL_VERSION!-x64-windows-jdk.zip"
+set "API_SHA256_URL=https://corretto.aws/downloads/latest_sha256/amazon-corretto-!DL_VERSION!-x64-windows-jdk.zip"
+set "API_SHA256="
+goto :FetchAndExtract
+
+:Resolve_Zulu
+set "DL_VENDOR=Zulu"
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Querying Azul Zulu API for latest JDK !DL_VERSION! release...
+set "PS_API_SCRIPT=%TEMP%\api_query_!RANDOM!.ps1"
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo try {
+    echo     $res = Invoke-RestMethod -Uri 'https://api.azul.com/zulu/download/community/v1.0/bundles/latest/?java_version=!DL_VERSION!^&os=windows^&arch=x86^&hw_bitness=64^&ext=zip' -UseBasicParsing
+    echo     if ^($res.url -and $res.sha256_hash^) {
+    echo         Write-Output "API_URL=$($res.url)"
+    echo         Write-Output "API_SHA256=$($res.sha256_hash)"
+    echo     } else { exit 1 }
+    echo } catch { exit 1 }
+) > "!PS_API_SCRIPT!"
+goto Run_API_Query
+
+:Resolve_Microsoft
+set "DL_VENDOR=Microsoft"
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Resolving Microsoft Build of OpenJDK !DL_VERSION! URLs...
+set "API_URL=https://aka.ms/download-jdk/microsoft-jdk-!DL_VERSION!-windows-x64.zip"
+set "API_SHA256_URL=https://aka.ms/download-jdk/microsoft-jdk-!DL_VERSION!-windows-x64.zip.sha256sum.txt"
+set "API_SHA256="
+goto :FetchAndExtract
+
+:Run_API_Query
+set "API_URL="
+set "API_SHA256="
+set "API_SHA256_URL="
+for /f "tokens=1,* delims==" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_API_SCRIPT!"') do (
+    if "%%A"=="API_URL" set "API_URL=%%B"
+    if "%%A"=="API_SHA256" set "API_SHA256=%%B"
+    if "%%A"=="API_SHA256_URL" set "API_SHA256_URL=%%B"
+)
+if exist "!PS_API_SCRIPT!" del "!PS_API_SCRIPT!"
+
+if "!API_URL!"=="" (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to find !DL_VENDOR! JDK !DL_VERSION!. The version might not exist.
+    if "!CLI_COMMAND!"=="" pause
+    goto :eof
+)
+goto :FetchAndExtract
+
+:FetchAndExtract
+setlocal enabledelayedexpansion
+set "ZIP_PATH=%TEMP%\jdk_!DL_VENDOR!_!DL_VERSION!_download.zip"
+set "EXTRACT_DIR=%TEMP%\jdk_!DL_VENDOR!_!DL_VERSION!_extract"
+set "DEST_DIR=C:\Program Files\Java"
 
 if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!"
 
@@ -1453,7 +1490,7 @@ set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
     echo $ErrorActionPreference = 'Stop'
     echo [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     echo try {
-    echo     Write-Host '[  INFO  ] Requesting download from Oracle... ^(This may take a minute^)' -ForegroundColor Cyan
+    echo     Write-Host '[  INFO  ] Requesting download from !DL_VENDOR!... ^(This may take a minute^)' -ForegroundColor Cyan
     echo     $url = '!API_URL!'
     echo     $out = '!ZIP_PATH!'
     echo     $request = [System.Net.WebRequest]::Create^($url^)
@@ -1482,8 +1519,12 @@ set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
     echo     $stream.Close^(^)
     echo     Write-Host "`n"
     echo     Write-Host '[  INFO  ] Verifying SHA256 checksum...' -ForegroundColor Cyan
-    echo     $sha_url = $url + '.sha256'
-    echo     $expectedHash = ^(Invoke-WebRequest -Uri $sha_url -UseBasicParsing^).Content.Trim^(^)
+    echo     if ^('!API_SHA256_URL!' -ne ''^) {
+    echo         $expectedHash = ^(Invoke-RestMethod -Uri '!API_SHA256_URL!' -UseBasicParsing^).Trim^(^)
+    echo         $expectedHash = ^($expectedHash -split ' '^)[0]
+    echo     } elseif ^('!API_SHA256!' -ne ''^) {
+    echo         $expectedHash = '!API_SHA256!'
+    echo     }
     echo     $sha256 = [System.Security.Cryptography.SHA256]::Create^(^)
     echo     $fs2 = [System.IO.File]::OpenRead^($out^)
     echo     $hashBytes = $sha256.ComputeHash^($fs2^)
@@ -1496,6 +1537,7 @@ set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
     echo         exit 1
     echo     }
     echo     Write-Host '[   OK   ] Checksum verified successfully.' -ForegroundColor Green
+    echo     Write-Host ""
     echo     Write-Host '[  INFO  ] Extracting files locally...' -ForegroundColor Cyan
     echo     Add-Type -AssemblyName System.IO.Compression.FileSystem
     echo     $zip = [System.IO.Compression.ZipFile]::OpenRead^('!ZIP_PATH!'^)
@@ -1520,265 +1562,10 @@ set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
     echo         }
     echo     }
     echo     $zip.Dispose^(^)
-    echo     Write-Host "`n"
+    echo     Write-Host ""
     echo     Remove-Item '!ZIP_PATH!'
     echo } catch {
-    echo     Write-Host '[ ERROR  ] Download failed! Oracle might not offer a direct link for this version.' -ForegroundColor Red
-    echo     Write-Host '[ DETAIL ] ' $_^.Exception^.Message -ForegroundColor Yellow
-    echo     if ^(Test-Path '!ZIP_PATH!'^) { Remove-Item '!ZIP_PATH!' -ErrorAction SilentlyContinue }
-    echo     exit 1
-    echo }
-) > "!PS_SCRIPT!"
-
-powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
-set PS_EXIT_CODE=!errorlevel!
-
-if exist "!PS_SCRIPT!" del "!PS_SCRIPT!"
-
-if !PS_EXIT_CODE! NEQ 0 (
-    echo.
-    echo %cRED%[ ERROR  ]%cRESET% The installation failed.
-    goto :eof
-)
-
-set "NEW_FOLDER="
-for /d %%D in ("!EXTRACT_DIR!\jdk*") do set "NEW_FOLDER=%%~nxD"
-
-if not defined NEW_FOLDER (
-    echo %cRED%[ ERROR  ]%cRESET% Could not locate the extracted JDK folder.
-    goto :eof
-)
-
-echo %cBLUE%[ ACTION ]%cRESET% Installing !NEW_FOLDER! to system directory...
-set "ADMIN_BAT=%TEMP%\jvm_admin_!RANDOM!.bat"
-(
-    echo @echo off
-    echo if not exist "!DEST_ROOT!" mkdir "!DEST_ROOT!"
-    echo move /y "!EXTRACT_DIR!\!NEW_FOLDER!" "!DEST_ROOT!\" ^>nul
-    echo rmdir /s /q "!EXTRACT_DIR!"
-) > "!ADMIN_BAT!"
-
-echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to move files...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c \"!ADMIN_BAT!\"' -Verb RunAs -WindowStyle Hidden -Wait"
-del "!ADMIN_BAT!"
-
-if exist "!DEST_ROOT!\!NEW_FOLDER!\bin\java.exe" (
-    echo.
-    echo %cGREEN%[   OK   ]%cRESET% Oracle JDK !DL_VERSION! successfully installed!
-    set "NEEDS_RESCAN=1"
-) else (
-    echo.
-    echo %cRED%[ ERROR  ]%cRESET% The installation failed during the move operation.
-)
-goto :eof
-
-
-:: ============================================================
-:: JDK DOWNLOADER
-:: ============================================================
-:InstallWizard
-cls
-echo ============================================================
-echo                   JDK Installation Wizard
-echo ============================================================
-echo.
-echo %cBLUE%[ ACTION ]%cRESET% Select JDK Vendor for installation:
-echo.
-echo 1. Oracle
-echo 2. Adoptium %cGRAY%[Coming Soon]%cRESET%
-echo 3. GraalVM  %cGRAY%[Coming Soon]%cRESET%
-echo 4. Cancel
-echo.
-choice /C 1234 /N /M "Select provider (1-4): "
-set "vendor_choice=!errorlevel!"
-
-if !vendor_choice!==4 goto :eof
-if !vendor_choice!==1 (
-    call :DownloadJDK_Oracle
-    goto :eof
-)
-if !vendor_choice!==2 (
-    echo.
-    echo %cYELLOW%[  INFO  ]%cRESET% Adoptium API integration coming in Phase 6.
-    pause
-    goto :eof
-)
-if !vendor_choice!==3 (
-    echo.
-    echo %cYELLOW%[  INFO  ]%cRESET% GraalVM API integration coming in Phase 6.
-    pause
-    goto :eof
-)
-
-:: ============================================================
-:: ORACLE JDK DOWNLOADER (Interactive)
-:: ============================================================
-:DownloadJDK_Oracle
-echo.
-echo ============================================================
-echo                   Oracle JDK Downloader
-echo ============================================================
-echo %cBLUE%[  INFO  ]%cRESET% This will fetch the official Oracle JDK.
-echo.
-echo Select Release Type:
-echo 1. Latest Feature Release ^(JDK !ORACLE_LATEST_FEATURE!^)
-echo 2. LTS Releases
-echo 3. Specific or Archived Version
-echo 4. Cancel
-echo.
-choice /C 1234 /N /M "Enter your choice (1-4): "
-set "dl_choice=!errorlevel!"
-
-if !dl_choice!==4 goto :eof
-if !dl_choice!==1 set "DL_VERSION=!ORACLE_LATEST_FEATURE!"
-if !dl_choice!==2 (
-    echo.
-    echo %cBLUE%[ ACTION ]%cRESET% Select LTS Release to Install:
-    echo 1. JDK !ORACLE_LATEST_LTS! ^(Latest^)
-    echo 2. JDK 21
-    echo 3. JDK 17 ^(Legacy^)
-    choice /C 123 /N /M "Select version (1-3): "
-    if !errorlevel! EQU 1 set "DL_VERSION=!ORACLE_LATEST_LTS!"
-    if !errorlevel! EQU 2 set "DL_VERSION=21"
-    if !errorlevel! EQU 3 set "DL_VERSION=17"
-)
-if !dl_choice!==3 (
-    echo.
-    echo %cYELLOW%[ WARNING]%cRESET% Oracle restricts headless downloads for older archived versions.
-    echo            - Versions 16 and below are entirely locked behind an authentication wall.
-    echo            - Version 17 is locked for patches newer than 17.0.12.
-    echo            If you need an older version, use Adoptium/GraalVM instead!
-    echo.
-    set /p DL_VERSION="Enter the major version number to download (e.g., 21): "
-    set "DL_VERSION=!DL_VERSION: =!"
-    set "NUM_TEST="
-    for /f "delims=0123456789" %%A in ("!DL_VERSION!") do set "NUM_TEST=%%A"
-    if defined NUM_TEST (
-        echo %cRED%[ ERROR  ]%cRESET% Invalid version number. Must be numeric.
-        pause
-        goto :eof
-    )
-    if "!DL_VERSION!"=="" (
-        echo %cRED%[ ERROR  ]%cRESET% Invalid version number. Must be numeric.
-        pause
-        goto :eof
-    )
-)
-
-echo.
-echo %cBLUE%[ ACTION ]%cRESET% Connecting to Oracle servers for JDK !DL_VERSION!...
-
-if !DL_VERSION! LEQ 16 (
-    echo %cRED%[ ERROR  ]%cRESET% Oracle Java 16 and below are locked behind an authentication wall.
-    echo            Please use Adoptium/GraalVM for these versions.
-    pause
-    goto :eof
-)
-
-if "!DL_VERSION!"=="17" (
-    echo.
-    echo %cYELLOW%[ WARNING]%cRESET% Oracle restricts headless downloads for JDK 17 newer than 17.0.12.
-    echo            This will attempt to install 17.0.12. For newer security patches,
-    echo            download manually from Oracle or install from Adoptium/GraalVM instead.
-    echo.
-    if "!FORCE_YES!"=="1" (
-        echo Proceed with installing 17.0.12? ^(y/N^): Y [AUTO-YES]
-    ) else (
-        choice /C yn /N /M "Proceed with installing 17.0.12? (y/N): "
-        if errorlevel 2 goto :eof
-    )
-)
-
-set "API_URL=https://download.oracle.com/java/!DL_VERSION!/latest/jdk-!DL_VERSION!_windows-x64_bin.zip"
-if "!DL_VERSION!"=="17" set "API_URL=https://download.oracle.com/java/17/archive/jdk-17.0.12_windows-x64_bin.zip"
-if "!DL_VERSION!"=="18" set "API_URL=https://download.oracle.com/java/18/archive/jdk-18.0.2.1_windows-x64_bin.zip"
-if "!DL_VERSION!"=="19" set "API_URL=https://download.oracle.com/java/19/archive/jdk-19.0.2_windows-x64_bin.zip"
-if "!DL_VERSION!"=="20" set "API_URL=https://download.oracle.com/java/20/archive/jdk-20.0.2_windows-x64_bin.zip"
-if "!DL_VERSION!"=="22" set "API_URL=https://download.oracle.com/java/22/archive/jdk-22.0.2_windows-x64_bin.zip"
-if "!DL_VERSION!"=="23" set "API_URL=https://download.oracle.com/java/23/archive/jdk-23.0.2_windows-x64_bin.zip"
-if "!DL_VERSION!"=="24" set "API_URL=https://download.oracle.com/java/24/archive/jdk-24.0.2_windows-x64_bin.zip"
-set "ZIP_PATH=%TEMP%\jdk_!DL_VERSION!_download.zip"
-set "DEST_DIR=C:\Program Files\Java"
-
-if not exist "!DEST_DIR!" mkdir "!DEST_DIR!"
-
-set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
-(
-    echo $ErrorActionPreference = 'Stop'
-    echo [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    echo try {
-    echo     Write-Host '[  INFO  ] Requesting download from Oracle... ^(This may take a minute^)' -ForegroundColor Cyan
-    echo     $url = '!API_URL!'
-    echo     $out = '!ZIP_PATH!'
-    echo     $request = [System.Net.WebRequest]::Create^($url^)
-    echo     $response = $request.GetResponse^(^)
-    echo     $totalLength = $response.ContentLength
-    echo     $stream = $response.GetResponseStream^(^)
-    echo     $fileStream = New-Object System.IO.FileStream^($out, [System.IO.FileMode]::Create^)
-    echo     $buffer = New-Object byte[] 65536
-    echo     $downloaded = 0
-    echo     $lastPercent = -1
-    echo     while ^( ^( $read = $stream.Read^($buffer, 0, $buffer.Length^) ^) -gt 0 ^) {
-    echo         $fileStream.Write^($buffer, 0, $read^)
-    echo         $downloaded += $read
-    echo         if ^($totalLength -gt 0^) {
-    echo             $percent = [math]::Round^( ^($downloaded / $totalLength^) * 100 ^)
-    echo             if ^($percent -ne $lastPercent^) {
-    echo                 $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
-    echo                 $dMB = [math]::Round^($downloaded / 1MB, 1^)
-    echo                 $tMB = [math]::Round^($totalLength / 1MB, 1^)
-    echo                 Write-Host "`r[ ACTION ] Downloading: $bar $percent%% ($dMB / $tMB MB) " -NoNewline -ForegroundColor Cyan
-    echo                 $lastPercent = $percent
-    echo             }
-    echo         }
-    echo     }
-    echo     $fileStream.Close^(^)
-    echo     $stream.Close^(^)
-    echo     Write-Host "`n"
-    echo     Write-Host '[  INFO  ] Verifying SHA256 checksum...' -ForegroundColor Cyan
-    echo     $sha_url = $url + '.sha256'
-    echo     $expectedHash = ^(Invoke-WebRequest -Uri $sha_url -UseBasicParsing^).Content.Trim^(^)
-    echo     $sha256 = [System.Security.Cryptography.SHA256]::Create^(^)
-    echo     $fs2 = [System.IO.File]::OpenRead^($out^)
-    echo     $hashBytes = $sha256.ComputeHash^($fs2^)
-    echo     $fs2.Close^(^)
-    echo     $actualHash = [System.BitConverter]::ToString^($hashBytes^).Replace^('-', ''^).ToLower^(^)
-    echo     if ^($actualHash -ne $expectedHash^) {
-    echo         Write-Host '[ ERROR  ] Checksum mismatch! Download corrupted or compromised.' -ForegroundColor Red
-    echo         Write-Host "           Expected: $expectedHash" -ForegroundColor Red
-    echo         Write-Host "           Actual:   $actualHash" -ForegroundColor Red
-    echo         exit 1
-    echo     }
-    echo     Write-Host '[   OK   ] Checksum verified successfully.' -ForegroundColor Green
-    echo     Write-Host '[  INFO  ] Extracting files to !DEST_DIR!...' -ForegroundColor Cyan
-    echo     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    echo     $zip = [System.IO.Compression.ZipFile]::OpenRead^('!ZIP_PATH!'^)
-    echo     $entries = $zip.Entries
-    echo     $totalEntries = $entries.Count
-    echo     $extracted = 0
-    echo     $lastPercent = -1
-    echo     foreach ^($entry in $entries^) {
-    echo         $destinationPath = [System.IO.Path]::GetFullPath^([System.IO.Path]::Combine^('!DEST_DIR!', $entry.FullName^)^)
-    echo         if ^([string]::IsNullOrEmpty^($entry.Name^)^) {
-    echo             [System.IO.Directory]::CreateDirectory^($destinationPath^) ^| Out-Null
-    echo         } else {
-    echo             [System.IO.Directory]::CreateDirectory^([System.IO.Path]::GetDirectoryName^($destinationPath^)^) ^| Out-Null
-    echo             [System.IO.Compression.ZipFileExtensions]::ExtractToFile^($entry, $destinationPath, $true^)
-    echo         }
-    echo         $extracted++
-    echo         $percent = [math]::Round^(^($extracted / $totalEntries^) * 100^)
-    echo         if ^($percent -ne $lastPercent^) {
-    echo             $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
-    echo             Write-Host "`r[ ACTION ] Extracting: $bar $percent%% ($extracted / $totalEntries) " -NoNewline -ForegroundColor Cyan
-    echo             $lastPercent = $percent
-    echo         }
-    echo     }
-    echo     $zip.Dispose^(^)
-    echo     Write-Host "`n"
-    echo     Write-Host '[ ACTION ] Cleaning up temp files...' -ForegroundColor Cyan
-    echo     Remove-Item '!ZIP_PATH!'
-    echo } catch {
-    echo     Write-Host '[ ERROR  ] Download failed! Oracle might not offer a direct link for this version.' -ForegroundColor Red
+    echo     Write-Host '[ ERROR  ] Download failed! !DL_VENDOR! API might be unreachable.' -ForegroundColor Red
     echo     Write-Host '[ DETAIL ] ' $_.Exception.Message -ForegroundColor Yellow
     echo     if ^(Test-Path '!ZIP_PATH!'^) { Remove-Item '!ZIP_PATH!' -ErrorAction SilentlyContinue }
     echo     exit 1
@@ -1793,15 +1580,48 @@ if exist "!PS_SCRIPT!" del "!PS_SCRIPT!"
 if !PS_EXIT_CODE! NEQ 0 (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% The installation failed.
-    echo Press any key to return to the menu...
+    if "!CLI_COMMAND!"=="" pause
+    goto :eof
+)
+
+set "NEW_FOLDER="
+for /d %%D in ("!EXTRACT_DIR!\*") do set "NEW_FOLDER=%%~nxD"
+
+if not defined NEW_FOLDER (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Could not locate the extracted JDK folder.
+    if "!CLI_COMMAND!"=="" pause
+    goto :eof
+)
+
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Installing !NEW_FOLDER! to system directory...
+set "ADMIN_BAT=%TEMP%\jvm_admin_!RANDOM!.bat"
+(
+    echo @echo off
+    echo if not exist "!DEST_DIR!" mkdir "!DEST_DIR!"
+    echo if exist "!DEST_DIR!\!NEW_FOLDER!" rmdir /s /q "!DEST_DIR!\!NEW_FOLDER!"
+    echo move /y "!EXTRACT_DIR!\!NEW_FOLDER!" "!DEST_DIR!\" ^>nul
+    echo rmdir /s /q "!EXTRACT_DIR!"
+) > "!ADMIN_BAT!"
+
+echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to move files...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c \"!ADMIN_BAT!\"' -Verb RunAs -WindowStyle Hidden -Wait"
+del "!ADMIN_BAT!"
+
+if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
+    echo.
+    echo %cGREEN%[   OK   ]%cRESET% !DL_VENDOR! JDK !DL_VERSION! successfully installed!
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
+    endlocal & set "NEEDS_RESCAN=1"
+    goto :eof
 ) else (
     echo.
-    echo %cGREEN%[   OK   ]%cRESET% Oracle JDK !DL_VERSION! successfully installed!
-    set "NEEDS_RESCAN=1"
-    echo.
-    echo Press any key to return to the menu...
+    echo %cRED%[ ERROR  ]%cRESET% The installation failed during the move operation.
+    if "!CLI_COMMAND!"=="" pause
+    goto :eof
 )
-pause >nul
+endlocal
 goto :eof
 
 
@@ -1835,8 +1655,6 @@ set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\Program Files (x86)\Common Files\Oracle\Jav
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\ProgramData\Oracle\Java\javapath;=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\ProgramData\Oracle\Java\javapath=!"
 
-
-
 set "ORIGINAL_PATH=!ORIGINAL_PATH:%CURRENT_JDK_PATH%\bin;=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:;%CURRENT_JDK_PATH%\bin=!"
 
@@ -1864,8 +1682,6 @@ if errorlevel 1 (
 ) else (
     echo %cGREEN%[   OK   ]%cRESET% SYSTEM PATH updated successfully
 )
-
-
 
 echo.
 echo %cGREEN%[   OK   ]%cRESET% PATH update complete!
@@ -2036,9 +1852,19 @@ set "OPT_P_GRAALVM="
 set "HAS_ORACLE=0"
 set "HAS_ADOPTIUM=0"
 set "HAS_GRAALVM=0"
+set "HAS_CORRETTO=0"
+set "HAS_ZULU=0"
+set "HAS_MICROSOFT=0"
+set "HAS_ADOPTIUM=0"
+set "HAS_GRAALVM=0"
 
 for /l %%k in (1,1,!JDK_COUNT!) do (
     if /i "!JDK_VENDOR_%%k!"=="Oracle" set "HAS_ORACLE=1"
+    if /i "!JDK_VENDOR_%%k!"=="Adoptium" set "HAS_ADOPTIUM=1"
+    if /i "!JDK_VENDOR_%%k!"=="GraalVM" set "HAS_GRAALVM=1"
+    if /i "!JDK_VENDOR_%%k!"=="Corretto" set "HAS_CORRETTO=1"
+    if /i "!JDK_VENDOR_%%k!"=="Zulu" set "HAS_ZULU=1"
+    if /i "!JDK_VENDOR_%%k!"=="Microsoft" set "HAS_MICROSOFT=1"
     if /i "!JDK_VENDOR_%%k!"=="Adoptium" set "HAS_ADOPTIUM=1"
     if /i "!JDK_VENDOR_%%k!"=="GraalVM" set "HAS_GRAALVM=1"
 )
@@ -2060,6 +1886,21 @@ if "!HAS_GRAALVM!"=="1" (
     set /a P_OPT+=1
     set "OPT_P_GRAALVM=!P_OPT!"
     echo !OPT_P_GRAALVM!. GraalVM
+)
+if "!HAS_CORRETTO!"=="1" (
+    set /a P_OPT+=1
+    set "OPT_P_CORRETTO=!P_OPT!"
+    echo !OPT_P_CORRETTO!. Corretto
+)
+if "!HAS_ZULU!"=="1" (
+    set /a P_OPT+=1
+    set "OPT_P_ZULU=!P_OPT!"
+    echo !OPT_P_ZULU!. Zulu
+)
+if "!HAS_MICROSOFT!"=="1" (
+    set /a P_OPT+=1
+    set "OPT_P_MICROSOFT=!P_OPT!"
+    echo !OPT_P_MICROSOFT!. Microsoft
 )
 
 echo.
@@ -2101,6 +1942,9 @@ if !v_choice!==!OPT_P_LATEST! (
 if defined OPT_P_ORACLE if !v_choice!==!OPT_P_ORACLE! set "TARGET_VENDOR=Oracle"
 if defined OPT_P_ADOPTIUM if !v_choice!==!OPT_P_ADOPTIUM! set "TARGET_VENDOR=Adoptium"
 if defined OPT_P_GRAALVM if !v_choice!==!OPT_P_GRAALVM! set "TARGET_VENDOR=GraalVM"
+if defined OPT_P_CORRETTO if !v_choice!==!OPT_P_CORRETTO! set "TARGET_VENDOR=Corretto"
+if defined OPT_P_ZULU if !v_choice!==!OPT_P_ZULU! set "TARGET_VENDOR=Zulu"
+if defined OPT_P_MICROSOFT if !v_choice!==!OPT_P_MICROSOFT! set "TARGET_VENDOR=Microsoft"
 
 :PathEnvironmentMenu_Vendor
 cls
@@ -2165,6 +2009,10 @@ goto :eof
 :: VERSION MANAGEMENT SUB-MENU
 :: ============================================================
 :VersionMenu
+if "!NEEDS_RESCAN!"=="1" (
+    set "NEEDS_RESCAN=0"
+    goto :eof
+)
 cls
 echo ============================================================
 echo                       Version Management
@@ -2451,5 +2299,12 @@ if /i "%~1"=="unlink" (
     rmdir "%LINK_DIR%\%~2"
     echo %cGREEN%[   OK   ]%cRESET% Link removed.
     exit /b 0
+)
+
+:CLI_DONE
+if "!IS_ADMIN_RUN!"=="1" (
+    echo.
+    echo Press any key to close this window...
+    pause >nul
 )
 goto :eof
