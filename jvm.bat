@@ -180,9 +180,9 @@ if defined CLI_COMMAND (
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
 ) else if exist ".java-version" (
-    for /f "tokens=1" %%V in ('type ".java-version" 2^>nul ^| findstr /r "[0-9]"') do (
-        set "CLI_TARGET=%%V"
-        if not "%GLOBAL_MODE%"=="1" set "SESSION_MODE=1"
+    for /f "delims=" %%L in ('type ".java-version" 2^>nul ^| findstr /r "[0-9]"') do (
+        call :ParseJavaVersion %%L
+        if not "%FORCE_GLOBAL%"=="1" set "SESSION_MODE=1"
         set "SILENT_MODE=1"
         set "SKIP_HEADER=1"
     )
@@ -644,7 +644,7 @@ if defined CLI_TARGET (
             echo.
         ) else (
             if "!TARGET_IDX!"=="0" (
-                echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found!
+                echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found.
             ) else (
                 call :ProcessSingleUpdate !TARGET_IDX!
             )
@@ -692,7 +692,7 @@ if defined CLI_TARGET (
         )
 
         if "!TARGET_IDX!"=="0" (
-            echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found!
+            echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found.
         ) else (
             for %%A in (!TARGET_IDX!) do (
                 set "DEL_PATH=!JDK_PATH_%%A!"
@@ -786,7 +786,7 @@ if defined CLI_TARGET (
         )
     )
     echo.
-    echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found!
+    echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found.
     echo             Please ensure it is installed and try again.
     if "!SILENT_MODE!"=="0" timeout /t 3 >nul
     goto :eof
@@ -1755,6 +1755,9 @@ echo.
 if /i "!SWITCH_MODE!"=="DIRECT" (
     echo %cBLUE%[ ACTION ]%cRESET% Requesting Administrator privileges to update Registry...
     
+    :: Scrub any conflicting User-level JAVA_HOME that might override the Machine-level variable
+    reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
+    
     set "SAFE_JDK_PATH=!CURRENT_JDK_PATH:'=''!"
     set "SAFE_NEW_PATH=!NEW_PATH:'=''!"
     
@@ -2419,3 +2422,35 @@ if "!IS_ADMIN_RUN!"=="1" (
     pause >nul
 )
 goto :eof
+:: ============================================================
+:: Parse contents of .java-version file
+:: ============================================================
+:ParseJavaVersion
+if "%~1"=="" exit /b 0
+set "CLI_TARGET=%~1"
+shift
+:PARSE_JV_LOOP
+if "%~1"=="" exit /b 0
+if /i "%~1"=="--vendor" (
+    set "CLI_VENDOR=%~2"
+    shift
+    shift
+    goto PARSE_JV_LOOP
+)
+if /i "%~1"=="--symlink" (
+    set "SWITCH_MODE_OVERRIDE=SYMLINK"
+    shift
+    goto PARSE_JV_LOOP
+)
+if /i "%~1"=="--legacy" (
+    set "SWITCH_MODE_OVERRIDE=DIRECT"
+    shift
+    goto PARSE_JV_LOOP
+)
+if /i "%~1"=="--registry" (
+    set "SWITCH_MODE_OVERRIDE=DIRECT"
+    shift
+    goto PARSE_JV_LOOP
+)
+shift
+goto PARSE_JV_LOOP
