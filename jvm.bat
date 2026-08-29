@@ -51,6 +51,12 @@ set "SESSION_MODE=0"
 set "ORIGINAL_ARGS=%*"
 set "SCRIPT_PATH=%~f0"
 
+set "SWITCH_MODE=SYMLINK"
+if exist "%USERPROFILE%\.jvm\mode.txt" (
+    set /p SWITCH_MODE=<"%USERPROFILE%\.jvm\mode.txt"
+)
+if "!SWITCH_MODE!"=="" set "SWITCH_MODE=SYMLINK"
+
 if /i "%~1"=="link" (
     call :HANDLE_LINKS %*
     exit /b %errorlevel%
@@ -97,8 +103,23 @@ if /i "%~1"=="--session" (
     shift
     goto :PARSE_CLI_ARGS
 )
+if /i "%~1"=="--symlink" (
+    set "SWITCH_MODE_OVERRIDE=SYMLINK"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--legacy" (
+    set "SWITCH_MODE_OVERRIDE=DIRECT"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--registry" (
+    set "SWITCH_MODE_OVERRIDE=DIRECT"
+    shift
+    goto :PARSE_CLI_ARGS
+)
 if /i "%~1"=="--global" (
-    set "GLOBAL_MODE=1"
+    set "FORCE_GLOBAL=1"
     shift
     goto :PARSE_CLI_ARGS
 )
@@ -191,6 +212,16 @@ cd /d "%~dp0"
 :: Clear the variable before calling the menu to ensure a clean state
 set "CURRENT_JDK_PATH="
 
+:: Reload config in case it was changed inside a setlocal block
+if exist "%USERPROFILE%\.jvm\mode.txt" (
+    set /p SWITCH_MODE=<"%USERPROFILE%\.jvm\mode.txt"
+)
+if "%SWITCH_MODE%"=="" set "SWITCH_MODE=SYMLINK"
+
+if defined SWITCH_MODE_OVERRIDE (
+    set "SWITCH_MODE=%SWITCH_MODE_OVERRIDE%"
+)
+
 :: Jump straight to the menu function to prevent screen clearing issues
 call :ShowDynamicMenu %*
 
@@ -220,24 +251,55 @@ if "%SESSION_MODE%"=="1" (
 )
 
 echo.
-echo %cBLUE%[ ACTION ]%cRESET% Setting Java to %CURRENT_JDK_PATH%...
-echo %cBLUE%[  INFO  ]%cRESET% Setting JAVA_HOME to: %CURRENT_JDK_PATH%
+set "JVM_DIR=%USERPROFILE%\.jvm"
+set "CURRENT_SYMLINK=%USERPROFILE%\.jvm\current"
 
-:: Output session target so the parent PowerShell window can sync immediately
-echo %CURRENT_JDK_PATH%> "%TEMP%\.jvm_session_target"
-
-:: Silenced the native Windows SUCCESS message to keep the UI clean
-setx JAVA_HOME "%CURRENT_JDK_PATH%" /M >nul
-if errorlevel 1 (
-    echo %cRED%[ ERROR  ]%cRESET% Failed to set JAVA_HOME in registry
-    pause
-    goto MAIN_LOOP
+if /i "%SWITCH_MODE%"=="DIRECT" (
+    echo %cBLUE%[ ACTION ]%cRESET% Setting Java to %CURRENT_JDK_PATH%...
+    echo %cBLUE%[  INFO  ]%cRESET% Setting JAVA_HOME to: %CURRENT_JDK_PATH%
+    
+    :: Output session target so the parent PowerShell window can sync immediately
+    echo %CURRENT_JDK_PATH%> "%TEMP%\.jvm_session_target"
+    
+    :: Deferring registry update to UpdateSystemPath to do both in one UAC prompt
+    set "SYMLINK_OR_DIRECT=%CURRENT_JDK_PATH%"
+) else (
+    if not exist "%JVM_DIR%" mkdir "%JVM_DIR%"
+    
+    echo %cBLUE%[ ACTION ]%cRESET% Updating Directory Junction: %JVM_DIR%\current...
+    
+    if exist "%CURRENT_SYMLINK%" rmdir "%CURRENT_SYMLINK%"
+    mklink /J "%CURRENT_SYMLINK%" "%CURRENT_JDK_PATH%" >nul
+    
+    if exist "%CURRENT_SYMLINK%\bin\java.exe" (
+        echo %cGREEN%[   OK   ]%cRESET% Junction successfully updated to point to %CURRENT_JDK_PATH%!
+    ) else (
+        echo %cRED%[ ERROR  ]%cRESET% Failed to update Junction.
+        pause
+        goto MAIN_LOOP
+    )
+    
+    echo %CURRENT_SYMLINK%> "%TEMP%\.jvm_session_target"
+    
+    :: Ensure JAVA_HOME permanently points to the junction in the USER registry (bypasses UAC)
+    if /i not "%JAVA_HOME%"=="%CURRENT_SYMLINK%" (
+        echo.
+        echo %cBLUE%[  INFO  ]%cRESET% Setting JAVA_HOME to: %CURRENT_SYMLINK%
+        setx JAVA_HOME "%CURRENT_SYMLINK%" >nul
+        if errorlevel 1 (
+            echo %cRED%[ ERROR  ]%cRESET% Failed to set JAVA_HOME in registry
+            pause
+            goto MAIN_LOOP
+        )
+        echo %cGREEN%[   OK   ]%cRESET% JAVA_HOME set successfully via Symlink Mode.
+    )
+    
+    set "SYMLINK_OR_DIRECT=%CURRENT_SYMLINK%"
 )
-echo %cGREEN%[   OK   ]%cRESET% JAVA_HOME set successfully.
 
-:: Update system PATH permanently AND current session
+:: Ensure system PATH permanently uses %JAVA_HOME%\bin
 echo.
-echo %cBLUE%[ ACTION ]%cRESET% Updating system PATH to use %%JAVA_HOME%%\bin...
+echo %cBLUE%[ ACTION ]%cRESET% Ensuring system PATH uses %%JAVA_HOME%%\bin...
 call :UpdateSystemPath
 
 
@@ -250,19 +312,22 @@ if defined JAVA_HOME (
     set "CLEAN_PATH=!CLEAN_PATH:%JAVA_HOME%\bin;=!"
     set "CLEAN_PATH=!CLEAN_PATH:;%JAVA_HOME%\bin=!"
 )
-:: Strip the NEW Java Home just in case to prevent doubling up
+:: Strip the NEW path just in case to prevent doubling up
+set "CLEAN_PATH=!CLEAN_PATH:%SYMLINK_OR_DIRECT%\bin;=!"
+set "CLEAN_PATH=!CLEAN_PATH:;%SYMLINK_OR_DIRECT%\bin=!"
+:: Strip the hardcoded JDK path just in case
 set "CLEAN_PATH=!CLEAN_PATH:%CURRENT_JDK_PATH%\bin;=!"
 set "CLEAN_PATH=!CLEAN_PATH:;%CURRENT_JDK_PATH%\bin=!"
 :: Remove double semicolons
 set "CLEAN_PATH=!CLEAN_PATH:;;=;!"
 
-:: Export the clean path back to the main session and apply the new JDK at the front
+:: Export the clean path back to the main session and apply at the front
 for /f "delims=" %%A in ("!CLEAN_PATH!") do (
-    endlocal & set "PATH=%CURRENT_JDK_PATH%\bin;%%A"
+    endlocal & set "PATH=%SYMLINK_OR_DIRECT%\bin;%%A"
 )
 
 :: Finally update the local JAVA_HOME
-set "JAVA_HOME=%CURRENT_JDK_PATH%"
+set "JAVA_HOME=%SYMLINK_OR_DIRECT%"
 
 
 :VERIFICATION
@@ -638,8 +703,9 @@ if defined CLI_TARGET (
                 taskkill /f /im java.exe >nul 2^>^&1
                 taskkill /f /im javaw.exe >nul 2^>^&1
                 rmdir /s /q "!DEL_PATH!"
-                if /i "!JAVA_HOME!"=="!DEL_PATH!" (
-                    reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME /f >nul 2^>^&1
+                if not exist "%USERPROFILE%\.jvm\current\bin\java.exe" (
+                    if exist "%USERPROFILE%\.jvm\current" rmdir "%USERPROFILE%\.jvm\current"
+                    reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2^>^&1
                 )
                 set "SYS_PATH="
                 for /f "tokens=2 delims==" %%A in ('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^^^>nul') do set "SYS_PATH=%%A"
@@ -1202,8 +1268,9 @@ set "ADMIN_BAT=%TEMP%\jvm_admin_!RANDOM!.bat"
     echo taskkill /f /im java.exe ^>nul 2^>^&1
     echo taskkill /f /im javaw.exe ^>nul 2^>^&1
     echo rmdir /s /q "!DEL_PATH!"
-    echo if /i "%%JAVA_HOME%%"=="!DEL_PATH!" ^(
-    echo     reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME /f ^>nul 2^>^&1
+    echo if not exist "%USERPROFILE%\.jvm\current\bin\java.exe" ^(
+    echo     if exist "%USERPROFILE%\.jvm\current" rmdir "%USERPROFILE%\.jvm\current"
+    echo     reg delete "HKCU\Environment" /v JAVA_HOME /f ^>nul 2^>^&1
     echo ^)
     echo set "SYS_PATH="
     echo for /f "tokens=2 delims==" %%%%A in ^('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^^^>nul'^) do set "SYS_PATH=%%%%A"
@@ -1630,18 +1697,26 @@ goto :eof
 :: ============================================================
 :UpdateSystemPath
 setlocal enabledelayedexpansion
-echo           - Reading current system PATH...
 
-set "ORIGINAL_PATH="
-
-for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do (
-    set "ORIGINAL_PATH=%%B"
-)
-if not defined ORIGINAL_PATH (
+if /i "!SWITCH_MODE!"=="DIRECT" (
+    echo           - Reading current system PATH...
+    set "ORIGINAL_PATH="
+    for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do (
+        set "ORIGINAL_PATH=%%B"
+    )
+    if not defined ORIGINAL_PATH (
+        for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
+            set "ORIGINAL_PATH=%%B"
+        )
+    )
+) else (
+    echo           - Reading current USER PATH...
+    set "ORIGINAL_PATH="
     for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
         set "ORIGINAL_PATH=%%B"
     )
 )
+
 if not defined ORIGINAL_PATH (
     set "ORIGINAL_PATH=%PATH%"
 )
@@ -1655,32 +1730,51 @@ set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\Program Files (x86)\Common Files\Oracle\Jav
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\ProgramData\Oracle\Java\javapath;=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:C:\ProgramData\Oracle\Java\javapath=!"
 
+:: Always scrub both junction and exact path from ORIGINAL_PATH to prevent duplicates
+set "ORIGINAL_PATH=!ORIGINAL_PATH:%USERPROFILE%\.jvm\current\bin;=!"
+set "ORIGINAL_PATH=!ORIGINAL_PATH:;%USERPROFILE%\.jvm\current\bin=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:%CURRENT_JDK_PATH%\bin;=!"
 set "ORIGINAL_PATH=!ORIGINAL_PATH:;%CURRENT_JDK_PATH%\bin=!"
 
 set "ORIGINAL_PATH=!ORIGINAL_PATH:;;=;!"
 
-set ORIGINAL_PATH | findstr /i "%%JAVA_HOME%%\bin" >nul
+echo !ORIGINAL_PATH! | findstr /i "%%JAVA_HOME%%\bin" >nul
 if errorlevel 1 (
-    echo           - Adding %%JAVA_HOME%%\bin to the front of system PATH...
-    set "NEW_PATH=%%JAVA_HOME%%\bin;!ORIGINAL_PATH!"
+    echo           - Adding %%JAVA_HOME%%\bin to the front of PATH...
+    if "!ORIGINAL_PATH!"=="" (
+        set "NEW_PATH=%%JAVA_HOME%%\bin"
+    ) else (
+        set "NEW_PATH=%%JAVA_HOME%%\bin;!ORIGINAL_PATH!"
+    )
 ) else (
-    echo           - %%JAVA_HOME%%\bin is already cleanly in system PATH.
+    echo           - %%JAVA_HOME%%\bin is already cleanly in PATH.
     set "NEW_PATH=!ORIGINAL_PATH!"
 )
 
 echo.
-echo %cBLUE%[ ACTION ]%cRESET% Updating SYSTEM PATH...
-setx Path "!NEW_PATH!" /M >nul
-if errorlevel 1 (
-    reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
-    if errorlevel 1 (
-        echo %cRED%[ ERROR  ]%cRESET% Failed to update SYSTEM PATH!
-    ) else (
-        echo %cGREEN%[   OK   ]%cRESET% SYSTEM PATH updated via registry
-    )
+if /i "!SWITCH_MODE!"=="DIRECT" (
+    echo %cBLUE%[ ACTION ]%cRESET% Requesting Administrator privileges to update Registry...
+    
+    set "SAFE_JDK_PATH=!CURRENT_JDK_PATH:'=''!"
+    set "SAFE_NEW_PATH=!NEW_PATH:'=''!"
+    
+    set "ELEVATE_SCRIPT=%TEMP%\jvm_elevate_!RANDOM!.ps1"
+    echo [Environment]::SetEnvironmentVariable^('JAVA_HOME', '!SAFE_JDK_PATH!', 'Machine'^) > "!ELEVATE_SCRIPT!"
+    echo [Environment]::SetEnvironmentVariable^('Path', '!SAFE_NEW_PATH!', 'Machine'^) >> "!ELEVATE_SCRIPT!"
+    
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""!ELEVATE_SCRIPT!""' -Verb RunAs -Wait"
+    
+    if exist "!ELEVATE_SCRIPT!" del "!ELEVATE_SCRIPT!"
+    
+    echo %cGREEN%[   OK   ]%cRESET% JAVA_HOME and SYSTEM PATH updated successfully via UAC
 ) else (
-    echo %cGREEN%[   OK   ]%cRESET% SYSTEM PATH updated successfully
+    echo %cBLUE%[ ACTION ]%cRESET% Updating USER PATH...
+    setx Path "!NEW_PATH!" >nul
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Failed to update USER PATH!
+    ) else (
+        echo %cGREEN%[   OK   ]%cRESET% USER PATH updated successfully
+    )
 )
 
 echo.
@@ -2075,20 +2169,37 @@ if "!IN_PATH!"=="1" (
 ) else (
     echo 1. Install JVM to User PATH ^(Global Command^)
 )
-echo 2. Back to Main Menu
+if /i "!SWITCH_MODE!"=="DIRECT" (
+    echo 2. Architecture: %cRED%[Registry Mode]%cRESET% ^(UAC Required^) - Click to use Symlink
+) else (
+    echo 2. Architecture: %cGREEN%[Symlink Mode]%cRESET% ^(UAC Free^) - Click to use Registry
+)
+echo 3. Back to Main Menu
 echo.
 
-choice /C 12 /N /M "Enter your choice (1-2): "
+choice /C 123 /N /M "Enter your choice (1-3): "
 set "sub_choice=!errorlevel!"
 
-if !sub_choice!==2 goto :eof
+if !sub_choice!==3 goto :eof
+if !sub_choice!==2 (
+    if /i "!SWITCH_MODE!"=="DIRECT" (
+        set "SWITCH_MODE=SYMLINK"
+    ) else (
+        set "SWITCH_MODE=DIRECT"
+    )
+    if not exist "%USERPROFILE%\.jvm" mkdir "%USERPROFILE%\.jvm"
+    echo !SWITCH_MODE!> "%USERPROFILE%\.jvm\mode.txt"
+    echo.
+    echo %cGREEN%[   OK   ]%cRESET% Switched mode to !SWITCH_MODE!.
+    timeout /t 2 >nul
+    goto SettingsMenu
+)
 if !sub_choice!==1 (
     if "!IN_PATH!"=="1" (
         call :RemoveGlobalCommand
     ) else (
         call :InstallGlobalCommand
     )
-    goto SettingsMenu
     goto SettingsMenu
 )
 
