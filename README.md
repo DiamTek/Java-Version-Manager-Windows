@@ -7,6 +7,7 @@ A lightweight, high-performance, color-coded Windows Batch utility designed to d
 * **Dynamic Vendor Architecture:** Menus are dynamically grouped and filtered by vendor (Oracle, Adoptium, GraalVM, Corretto, Zulu, Microsoft) to keep your workspace clean and organized.
 * **Intelligent Background Sorting:** Features a built-in, stable bubble-sort algorithm that organizes all discovered JDKs by their major version in descending order, ensuring your newest installations are always at the top of the list.
 * **Semantic Target Routing:** Speak to the tool in human terms. Automatically jump to or install the latest available JDK using targets like `jvm latest` or `jvm lts`.
+* **Dual-Architecture Core (UAC-Free vs Registry):** Toggle seamlessly between lightning-fast **Symlink Mode** (bypasses UAC completely using a Directory Junction at `%USERPROFILE%\.jvm\current`) and legacy **Registry Mode** (auto-elevating background scripts to update system `HKLM` environment variables) based on your system compatibility needs.
 * **Directory-based Auto-Switching:** Instantly switch to a project's required JDK version by simply running `jvm` inside any directory containing a `.java-version` file. The tool parses the file and seamlessly swaps your environment in the background.
 * **Global Command & Shell Hooks:** Features a built-in Settings menu that dynamically injects the `jvm` command into your system PATH, and can optionally install a native PowerShell Profile Hook to enable true, isolated `--session` support across multiple terminal tabs.
 * **Advanced CLI Quick-Switching:** Supports intelligent argument parsing to bypass the UI entirely. If multiple vendors are installed for the same JDK version, it safely pauses to ask you which vendor you want to switch to, which can be bypassed on the fly with the `--vendor` flag.
@@ -17,10 +18,22 @@ A lightweight, high-performance, color-coded Windows Batch utility designed to d
 * **The "Phantom Path" Killer:** Actively hunts down and scrubs rogue, hardcoded Oracle shortcuts (e.g., `Common Files\Oracle\Java\javapath`) that installers forcefully inject into the front of your `PATH`, ensuring `JAVA_HOME` is always respected.
 * **Instant Menu Navigation:** Uses a smart `NEEDS_RESCAN` caching architecture to guarantee zero-latency navigation when moving back and forth between interactive submenus.
 
+## 🏗️ Dual-Architecture Core (Symlink vs Legacy)
+
+Windows Directory Junctions (Symlinks) provide a massive speed and workflow improvement because they allow the script to instantly swap your Java version without ever needing Administrator privileges (UAC). By routing your User `PATH` to a single junction (`%USERPROFILE%\.jvm\current`), 99% of modern tools (Gradle, Maven, IDEs) can natively resolve the path entirely in the background.
+
+However, some ultra-legacy enterprise Java applications or obscure classloaders perform strict canonical path resolution that can occasionally fail to traverse Windows Directory Junctions. To ensure 100% unbreakable compatibility for all workflows, we built a **Dual-Architecture Core**.
+
+By navigating to the **Settings** menu, users can freely toggle between:
+* **[Symlink Mode]**: The default, blazing-fast, UAC-Free approach that dynamically updates a junction pointer in your user directory.
+* **[Registry Mode]**: The classic, battle-tested legacy approach. The script generates an elevated background wrapper to forcefully update the system's absolute `HKLM` paths in the Windows Registry (requires a UAC prompt on switch).
+
+You can even override your global setting dynamically on a per-command basis using the `--symlink` or `--legacy` CLI flags (e.g., `jvm 21 --legacy`).
+
 ## 📋 Prerequisites
 
 * **OS:** Windows 10 or Windows 11
-* **Privileges:** Administrator rights are required to modify system-level environment variables and registry strings. (The script will automatically request elevation via an optimized UAC pop-up if launched unprivileged).
+* **Privileges:** Standard User (UAC bypass is enabled by default via Symlink Architecture). Administrator rights are only requested if you explicitly switch to legacy Registry Mode, or during global system installations.
 
 ## 🛠️ Usage
 
@@ -32,6 +45,8 @@ A lightweight, high-performance, color-coded Windows Batch utility designed to d
 Instantly update your `JAVA_HOME` and system PATH without opening menus. If there are duplicates, you will be prompted to pick a vendor.
 * `jvm 21` — Switch to JDK 21 (Globally).
 * `jvm 21 --session` — Switch to JDK 21 *locally* for the current terminal only (requires the PowerShell Profile hook to be installed).
+* `jvm 21 --symlink` — Force the switch to use Symlink Mode (UAC-Free) for this command, ignoring your saved defaults.
+* `jvm 21 --legacy` — Force the switch to use legacy Registry Mode (requests UAC) for this command, ignoring your saved defaults.
 * `jvm 21 --vendor adoptium` — Override priority and explicitly switch to Adoptium's JDK 21.
 * `jvm latest` — Dynamically switch to the absolute highest installed JDK version.
 * `jvm lts` — Dynamically switch to the highest installed LTS version.
@@ -77,7 +92,7 @@ To prevent catastrophic accidental deletions on local filesystems, all critical 
 
 ## 📜 Version History
 
-* **v0.6.0 (Latest):** Massive architecture overhaul. Migrated core architecture to use Directory Junctions (`%USERPROFILE%\.jvm\current`), enabling 100% UAC-free, instantaneous version switching that dynamically syncs across all open terminal windows. Introduced dynamic Vendor grouping (Oracle, Adoptium, GraalVM, Corretto, Zulu, Microsoft) across all menus. Built an optimized, strictly in-memory Bubble Sort algorithm to organize JDKs by newest version. Added `.java-version` directory-based auto-switching (defaults to session-mode isolation) with an explicit `--global` CLI override flag. Implemented enterprise-grade SHA256 checksum verification for all JDK downloads using native `.NET` Cryptography APIs to protect against corrupted payloads. Added semantic CLI routing (`jvm latest`, `jvm lts`) and flag overrides (`--vendor`, `--latest`, `-y`). Eliminated hardcoded UI prioritization in favor of interactive vendor-selection prompts. Re-engineered `UpdateChecker` for robust multi-vendor version parsing. Restored native extraction progress bars and stabilized interactive installer UI layout. Improved navigation speed via a smart caching `NEEDS_RESCAN` architecture. Fixed UAC elevation deadlocks, character-encoding path bugs for user profiles, and critical engine parsing bugs that corrupted paths containing exclamation marks (`!`).
+* **v0.6.0 (Latest):** Massive architecture overhaul. Migrated core architecture to use Directory Junctions (`%USERPROFILE%\.jvm\current`), enabling 100% UAC-free, instantaneous version switching that dynamically syncs across all open terminal windows. Built a Dual-Architecture engine, allowing users to seamlessly toggle between the new Symlink Mode and the legacy Registry Mode directly from the Settings Menu. Re-engineered legacy Registry Mode to utilize background PowerShell wrappers, fixing a major historical bug where switching versions would fail silently for non-Admin users. Introduced dynamic Vendor grouping (Oracle, Adoptium, GraalVM, Corretto, Zulu, Microsoft) across all menus. Built an optimized, strictly in-memory Bubble Sort algorithm to organize JDKs by newest version. Added `.java-version` directory-based auto-switching (defaults to session-mode isolation) with an explicit `--global` CLI override flag. Implemented enterprise-grade SHA256 checksum verification for all JDK downloads using native `.NET` Cryptography APIs to protect against corrupted payloads. Added semantic CLI routing (`jvm latest`, `jvm lts`) and flag overrides (`--symlink`, `--legacy`, `--vendor`, `--latest`, `-y`). Eliminated hardcoded UI prioritization in favor of interactive vendor-selection prompts. Re-engineered `UpdateChecker` for robust multi-vendor version parsing. Restored native extraction progress bars and stabilized interactive installer UI layout. Improved navigation speed via a smart caching `NEEDS_RESCAN` architecture. Fixed UAC elevation deadlocks, character-encoding path bugs for user profiles, and critical engine parsing bugs that corrupted paths containing exclamation marks (`!`).
 * **v0.5.0:** Introduced CLI Quick-Switching (`jvm <version>`) for silent background execution. Added Global Command Installer (Settings menu). Overhauled UI with strict ANSI color hierarchy, path muting, and interruptible auto-close countdowns. Hardened UAC elevation and menu scanning against Windows PATH corruption bugs.
 * **v0.4.0:** Re-engineered dynamic auto-scanner supporting developer toolkits (Scoop, Gradle, IntelliJ), fast release-file parsing, and a massive architectural UI overhaul for robust sub-menu navigation.
 * **v0.3.0:** Relicensed the project to the GNU Affero General Public License v3.0 (AGPL-3.0).
