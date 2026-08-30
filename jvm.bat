@@ -15,6 +15,9 @@
 :: You should have received a copy of the GNU Affero General Public License
 :: along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+:: Enable UTF-8 encoding for console output
+chcp 65001 >nul
+
 setlocal enabledelayedexpansion
 
 :: Cleanup self-updater artifact if it exists
@@ -23,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260830.2"
+set "JVM_BUILD=20260830.3"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2218,8 +2221,10 @@ for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
     set "USER_PATH=%%B"
 )
 
-echo ;!USER_PATH!; | findstr /i /c:";!SCRIPT_DIR!;" >nul
-if not errorlevel 1 set "IN_PATH=1"
+set "TEST_PATH=;!USER_PATH!;"
+for %%D in ("!SCRIPT_DIR!") do (
+    if "!TEST_PATH:;%%~D;=!" NEQ "!TEST_PATH!" set "IN_PATH=1"
+)
 
 echo Please choose an option:
 echo.
@@ -2234,7 +2239,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
 ) else (
     echo 2. Architecture: %cGREEN%[Symlink Mode]%cRESET% ^(UAC Free^) - Click to use Registry
 )
-echo 3. JVM Version
+echo 3. About JVM ^& Updates
 echo 4. Back to Main Menu
 echo.
 
@@ -2497,7 +2502,7 @@ echo.
 echo Version: !JVM_VERSION!
 echo Build:   !JVM_BUILD!
 echo.
-echo Developed by DiamTek / Alexey Shishkin
+echo Developed by DiamTek / Alexéy Shishkin
 echo Licensed under the GNU AGPL v3.0
 echo.
 echo ============================================================
