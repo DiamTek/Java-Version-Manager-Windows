@@ -22,6 +22,9 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 title Java Version Manager
 
+set "JVM_VERSION=0.6.0"
+set "JVM_BUILD=20260830.1"
+
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
 set "cRED=%ESC%[91m"
@@ -164,6 +167,21 @@ if /i "%~1"=="list" (
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="version" (
+    set "CLI_COMMAND=version"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="--version" (
+    set "CLI_COMMAND=version"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="-v" (
+    set "CLI_COMMAND=version"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="clear" (
     set "CLI_COMMAND=clear"
     set "SILENT_MODE=1"
@@ -188,6 +206,7 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="self-update" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="version" set "SKIP_HEADER=1"
 )
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
@@ -213,6 +232,7 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="self-update" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="version" set "SKIP_HEADER=1"
 )
 :: By default, run everything inline without Admin. We only elevate for specific file/registry operations.
 goto :SKIP_ADMIN_CHECK
@@ -766,6 +786,11 @@ if defined CLI_TARGET (
 
     if /i "!CLI_COMMAND!"=="self-update" (
         call :SelfUpdate
+        goto :eof
+    )
+    
+    if /i "!CLI_COMMAND!"=="version" (
+        call :AboutMenu
         goto :eof
     )
 )
@@ -2209,7 +2234,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
 ) else (
     echo 2. Architecture: %cGREEN%[Symlink Mode]%cRESET% ^(UAC Free^) - Click to use Registry
 )
-echo 3. Update JVM to Latest Version
+echo 3. JVM Version
 echo 4. Back to Main Menu
 echo.
 
@@ -2218,7 +2243,7 @@ set "sub_choice=!errorlevel!"
 
 if !sub_choice!==4 goto :eof
 if !sub_choice!==3 (
-    call :SelfUpdate
+    call :AboutMenu
     goto :SettingsMenu
 )
 if !sub_choice!==2 (
@@ -2459,6 +2484,80 @@ if "!IS_ADMIN_RUN!"=="1" (
     pause >nul
 )
 goto :eof
+
+:: ============================================================
+:: JVM Version / About Menu
+:: ============================================================
+:AboutMenu
+cls
+echo ============================================================
+echo                     Java Version Manager
+echo ============================================================
+echo.
+echo Version: !JVM_VERSION!
+echo Build:   !JVM_BUILD!
+echo.
+echo Developed by DiamTek / Alexey Shishkin
+echo Licensed under the GNU AGPL v3.0
+echo.
+echo ============================================================
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
+
+:: Fetch latest build number from GitHub main branch and compare using PowerShell [version]
+set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/Diamond-Industries/Java-Version-Manager-Windows/main/jvm.bat'); $req.Method = 'GET'; try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); if ($content -match 'set \x22JVM_BUILD=([^\x22]+)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) } } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) } } else { Write-Output 'UNKNOWN|UNKNOWN' }; $reader.Close(); $res.Close() } catch { Write-Output 'ERROR|ERROR' }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
+set "REMOTE_BUILD=UNKNOWN"
+set "UPDATE_FLAG=ERROR"
+if exist "%TEMP%\jvm_remote_build.txt" (
+    for /f "tokens=1,2 delims=|" %%A in (%TEMP%\jvm_remote_build.txt) do (
+        set "REMOTE_BUILD=%%A"
+        set "UPDATE_FLAG=%%B"
+    )
+    del "%TEMP%\jvm_remote_build.txt" >nul 2>&1
+)
+
+if "!UPDATE_FLAG!"=="ERROR" (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to connect to GitHub. Please check your internet connection.
+    echo.
+    echo Press any key to return...
+    pause >nul
+    goto :eof
+)
+
+if "!UPDATE_FLAG!"=="UNKNOWN" (
+    echo %cYELLOW%[ WARNING]%cRESET% Could not parse remote build version.
+    echo.
+    echo Press any key to return...
+    pause >nul
+    goto :eof
+)
+
+if "!UPDATE_FLAG!"=="INVALID_REMOTE" (
+    echo %cYELLOW%[ WARNING]%cRESET% Remote build '!REMOTE_BUILD!' is not a valid Semantic Version.
+    echo.
+    echo Press any key to return...
+    pause >nul
+    goto :eof
+)
+
+if "!UPDATE_FLAG!"=="UPDATE" (
+    echo %cYELLOW%[ UPDATE ]%cRESET% A newer version of Java Version Manager is available!
+    echo            Local Build:  !JVM_BUILD!
+    echo            Remote Build: !REMOTE_BUILD!
+    echo.
+    choice /C yn /N /M "Would you like to download and install this update? (y/N): "
+    if !errorlevel! EQU 1 (
+        call :SelfUpdate
+    )
+    goto :eof
+) else (
+    echo %cGREEN%[   OK   ]%cRESET% You are running the latest version!
+    echo.
+    echo Press any key to return...
+    pause >nul
+    goto :eof
+)
 
 :: ============================================================
 :: Self-Updater
