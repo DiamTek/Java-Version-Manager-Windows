@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260830.4"
+set "JVM_BUILD=20260830.5"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -67,7 +67,7 @@ set "SWITCH_MODE=SYMLINK"
 if exist "%USERPROFILE%\.jvm\mode.txt" (
     set /p SWITCH_MODE=<"%USERPROFILE%\.jvm\mode.txt"
 )
-if "!SWITCH_MODE!"=="" set "SWITCH_MODE=SYMLINK"
+if /i not "!SWITCH_MODE!"=="DIRECT" set "SWITCH_MODE=SYMLINK"
 
 if /i "%~1"=="link" (
     call :HANDLE_LINKS %*
@@ -252,7 +252,7 @@ set "CURRENT_JDK_PATH="
 if exist "%USERPROFILE%\.jvm\mode.txt" (
     set /p SWITCH_MODE=<"%USERPROFILE%\.jvm\mode.txt"
 )
-if "%SWITCH_MODE%"=="" set "SWITCH_MODE=SYMLINK"
+if /i not "!SWITCH_MODE!"=="DIRECT" set "SWITCH_MODE=SYMLINK"
 
 if defined SWITCH_MODE_OVERRIDE (
     set "SWITCH_MODE=%SWITCH_MODE_OVERRIDE%"
