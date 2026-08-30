@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260830.5"
+set "JVM_BUILD=20260830.6"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -1737,7 +1737,6 @@ if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% The installation failed during the move operation.
     if "!CLI_COMMAND!"=="" pause
-    goto :eof
 )
 endlocal
 goto :eof
