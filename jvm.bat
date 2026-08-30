@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260830.3"
+set "JVM_BUILD=20260830.4"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2254,6 +2254,9 @@ if !sub_choice!==3 (
 if !sub_choice!==2 (
     if /i "!SWITCH_MODE!"=="DIRECT" (
         set "SWITCH_MODE=SYMLINK"
+        echo.
+        echo %cBLUE%[ ACTION ]%cRESET% Scrubbing Machine Registry to prevent Legacy override...
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"[Environment]::SetEnvironmentVariable(''JAVA_HOME'', `$null, ''Machine'')\"' -Verb RunAs -Wait" 2>nul
     ) else (
         set "SWITCH_MODE=DIRECT"
     )
