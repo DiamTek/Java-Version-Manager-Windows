@@ -76,7 +76,13 @@ Instantly update your `JAVA_HOME` and system PATH without opening menus. If ther
 
 ### 🧹 Global Environment Management
 * `jvm clear` — Instantly wipes `JAVA_HOME` and purges Java from your PATH.
-* `jvm link` / `jvm unlink` — Injects or removes the `jvm` global command from your system PATH.
+* `jvm link <path> [name]` — Manually link an existing, custom JDK directory into the manager so you can easily switch to it (e.g., `jvm link C:\my-custom-jdk my-jdk`).
+* `jvm unlink <name>` — Removes a custom linked JDK.
+* `jvm <semantic-alias>` — Switch to a JDK using intelligent aliases instead of exact version numbers. Examples:
+  * `jvm latest` (Switches to the absolute newest JDK installed)
+  * `jvm lts` (Switches to the newest Long-Term Support version installed)
+  * `jvm 21` (Switches to the newest minor build of Java 21)
+  * `jvm lts --vendor corretto` (Switches to the newest Amazon Corretto LTS version)
 
 ## 🎨 Interface Guide
 
