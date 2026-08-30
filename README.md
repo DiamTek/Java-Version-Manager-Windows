@@ -30,7 +30,7 @@ By navigating to the **Settings** menu, users can freely toggle between:
 * **[Registry Mode]**: The classic, battle-tested legacy approach. The script generates an elevated background wrapper to forcefully update the system's absolute `HKLM` paths in the Windows Registry (requires a UAC prompt on switch).
 
 > [!WARNING]
-> **Architecture Conflicts:** Windows evaluates Machine (`HKLM`) paths before User (`HKCU`) paths. If you use Registry Mode (which writes to the Machine level) and later switch back to Symlink Mode (which writes to the User level), the old Machine path will stubbornly override your new Symlink! If Symlink Mode ever stops updating your global Java version, simply run `jvm clear` to scrub the legacy Machine pollution, and Symlink Mode will instantly regain control.
+> **Architecture Conflicts:** Windows evaluates Machine (`HKLM`) paths before User (`HKCU`) paths. If you use Registry Mode (which writes to the Machine level) and later switch back to Symlink Mode (which writes to the User level), the old Machine path would normally stubbornly override your new Symlink! To prevent this, toggling back to Symlink Mode inside the Settings Menu will now automatically scrub the legacy Machine pollution for you. (Note: If you manually bypass the menu using `--legacy` and `--symlink` CLI flags and experience an override, simply run `jvm clear` to wipe the slate).
 
 You can even override your global setting dynamically on a per-command basis using the `--symlink` or `--legacy` CLI flags (e.g., `jvm 21 --legacy`).
 
