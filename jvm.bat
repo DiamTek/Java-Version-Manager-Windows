@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260830.6"
+set "JVM_BUILD=20260830.9"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -504,6 +504,10 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                         )
                         set "NUM_VER=0"
                         set /a "NUM_VER=!VER!" 2>nul
+                        
+                        if "%%i"=="5" (
+                            if "!VENDOR_STR!"=="Unknown" set "VENDOR_STR=Custom"
+                        )
                         set "JDK_VENDOR_!JDK_COUNT!=!VENDOR_STR!"
                         
                         if /i "%%j"=="current" (
@@ -2011,8 +2015,7 @@ set "HAS_GRAALVM=0"
 set "HAS_CORRETTO=0"
 set "HAS_ZULU=0"
 set "HAS_MICROSOFT=0"
-set "HAS_ADOPTIUM=0"
-set "HAS_GRAALVM=0"
+set "HAS_CUSTOM=0"
 
 for /l %%k in (1,1,!JDK_COUNT!) do (
     if /i "!JDK_VENDOR_%%k!"=="Oracle" set "HAS_ORACLE=1"
@@ -2021,8 +2024,7 @@ for /l %%k in (1,1,!JDK_COUNT!) do (
     if /i "!JDK_VENDOR_%%k!"=="Corretto" set "HAS_CORRETTO=1"
     if /i "!JDK_VENDOR_%%k!"=="Zulu" set "HAS_ZULU=1"
     if /i "!JDK_VENDOR_%%k!"=="Microsoft" set "HAS_MICROSOFT=1"
-    if /i "!JDK_VENDOR_%%k!"=="Adoptium" set "HAS_ADOPTIUM=1"
-    if /i "!JDK_VENDOR_%%k!"=="GraalVM" set "HAS_GRAALVM=1"
+    if /i "!JDK_VENDOR_%%k!"=="Custom" set "HAS_CUSTOM=1"
 )
 
 echo Please select an option:
@@ -2057,6 +2059,11 @@ if "!HAS_MICROSOFT!"=="1" (
     set /a P_OPT+=1
     set "OPT_P_MICROSOFT=!P_OPT!"
     echo !OPT_P_MICROSOFT!. Microsoft
+)
+if "!HAS_CUSTOM!"=="1" (
+    set /a P_OPT+=1
+    set "OPT_P_CUSTOM=!P_OPT!"
+    echo !OPT_P_CUSTOM!. Custom (Local Links^)
 )
 
 echo.
@@ -2101,6 +2108,7 @@ if defined OPT_P_GRAALVM if !v_choice!==!OPT_P_GRAALVM! set "TARGET_VENDOR=Graal
 if defined OPT_P_CORRETTO if !v_choice!==!OPT_P_CORRETTO! set "TARGET_VENDOR=Corretto"
 if defined OPT_P_ZULU if !v_choice!==!OPT_P_ZULU! set "TARGET_VENDOR=Zulu"
 if defined OPT_P_MICROSOFT if !v_choice!==!OPT_P_MICROSOFT! set "TARGET_VENDOR=Microsoft"
+if defined OPT_P_CUSTOM if !v_choice!==!OPT_P_CUSTOM! set "TARGET_VENDOR=Custom"
 
 :PathEnvironmentMenu_Vendor
 cls
