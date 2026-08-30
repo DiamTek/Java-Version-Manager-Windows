@@ -14,6 +14,12 @@
 ::
 :: You should have received a copy of the GNU Affero General Public License
 :: along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+setlocal enabledelayedexpansion
+
+:: Cleanup self-updater artifact if it exists
+if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
+
 title Java Version Manager
 
 :: Generate ESC character for ANSI color codes
@@ -153,6 +159,11 @@ if /i "%~1"=="list" (
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="self-update" (
+    set "CLI_COMMAND=self-update"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="clear" (
     set "CLI_COMMAND=clear"
     set "SILENT_MODE=1"
@@ -176,6 +187,7 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="list" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="self-update" set "SKIP_HEADER=1"
 )
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
@@ -200,6 +212,7 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="list" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="self-update" set "SKIP_HEADER=1"
 )
 :: By default, run everything inline without Admin. We only elevate for specific file/registry operations.
 goto :SKIP_ADMIN_CHECK
@@ -743,6 +756,16 @@ if defined CLI_TARGET (
                 )
             )
         )
+        goto :eof
+    )
+
+    if /i "!CLI_COMMAND!"=="clear" (
+        call :ClearJavaEnvironment
+        goto :eof
+    )
+
+    if /i "!CLI_COMMAND!"=="self-update" (
+        call :SelfUpdate
         goto :eof
     )
 )
@@ -1808,7 +1831,6 @@ if !errorlevel! NEQ 1 (
 
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Removing JAVA_HOME from registry...
-reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME /f >nul 2>&1
 reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
 
 :: Clean SYSTEM PATH
@@ -1842,7 +1864,17 @@ if defined SYS_PATH (
     set "SYS_PATH=!SYS_PATH:C:\ProgramData\Oracle\Java\javapath=!"
     
     set "SYS_PATH=!SYS_PATH:;;=;!"
-    setx Path "!SYS_PATH!" /M >nul
+    
+    echo %cBLUE%[ ACTION ]%cRESET% Requesting Administrator privileges to clear Machine Registry...
+    set "SAFE_SYS_PATH=!SYS_PATH:'=''!"
+    
+    set "ELEVATE_SCRIPT=%TEMP%\jvm_elevate_!RANDOM!.ps1"
+    echo [Environment]::SetEnvironmentVariable^('JAVA_HOME', $null, 'Machine'^) > "!ELEVATE_SCRIPT!"
+    echo [Environment]::SetEnvironmentVariable^('Path', '!SAFE_SYS_PATH!', 'Machine'^) >> "!ELEVATE_SCRIPT!"
+    
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""!ELEVATE_SCRIPT!""' -Verb RunAs -Wait" 2>nul
+    
+    if exist "!ELEVATE_SCRIPT!" del "!ELEVATE_SCRIPT!"
 )
 
 :: Clean USER PATH
@@ -1898,8 +1930,8 @@ set "CLEAN_PATH=!CLEAN_PATH:;;=;!"
 for /f "delims=" %%A in ("!CLEAN_PATH!") do (
     endlocal & set "CLEAN_PATH=%%A"
 )
-echo %cGREEN%[   OK   ]%cRESET% Java environment variables cleared!
-echo             Open a new command prompt to see changes take full effect.
+echo %cGREEN%[   OK   ]%cRESET% Java environment variables cleared.
+echo            Open a new command prompt to see changes take full effect.
 echo.
 echo Press any key to return to the menu...
 pause >nul
@@ -2177,13 +2209,18 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
 ) else (
     echo 2. Architecture: %cGREEN%[Symlink Mode]%cRESET% ^(UAC Free^) - Click to use Registry
 )
-echo 3. Back to Main Menu
+echo 3. Update JVM to Latest Version
+echo 4. Back to Main Menu
 echo.
 
-choice /C 123 /N /M "Enter your choice (1-3): "
+choice /C 1234 /N /M "Enter your choice (1-4): "
 set "sub_choice=!errorlevel!"
 
-if !sub_choice!==3 goto :eof
+if !sub_choice!==4 goto :eof
+if !sub_choice!==3 (
+    call :SelfUpdate
+    goto :SettingsMenu
+)
 if !sub_choice!==2 (
     if /i "!SWITCH_MODE!"=="DIRECT" (
         set "SWITCH_MODE=SYMLINK"
@@ -2422,6 +2459,50 @@ if "!IS_ADMIN_RUN!"=="1" (
     pause >nul
 )
 goto :eof
+
+:: ============================================================
+:: Self-Updater
+:: ============================================================
+:SelfUpdate
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
+echo            Fetching latest jvm.bat...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/Diamond-Industries/Java-Version-Manager-Windows/main/jvm.bat' -OutFile '%TEMP%\jvm_new.bat' -UseBasicParsing" 2>nul
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to download the latest update.
+    pause
+    goto :eof
+)
+
+for %%I in ("%TEMP%\jvm_new.bat") do set "NEW_SIZE=%%~zI"
+if !NEW_SIZE! EQU 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Downloaded file is empty.
+    pause
+    goto :eof
+)
+
+echo %cBLUE%[ ACTION ]%cRESET% Generating background updater...
+set "UPDATER_SCRIPT=%TEMP%\jvm_updater.bat"
+(
+echo @echo off
+echo echo.
+echo echo %cBLUE%[ ACTION ]%cRESET% Overwriting main script...
+echo copy /Y "%%TEMP%%\jvm_new.bat" "%~f0" ^>nul
+echo if errorlevel 1 ^(
+echo     echo %cRED%[ ERROR  ]%cRESET% Failed to overwrite jvm.bat!
+echo     pause
+echo     exit /b 1
+echo ^)
+echo del "%%TEMP%%\jvm_new.bat" ^>nul
+echo echo %cGREEN%[   OK   ]%cRESET% Java Version Manager successfully updated!
+echo echo.
+echo timeout /t 2 /nobreak ^>nul
+echo "%~f0"
+) > "!UPDATER_SCRIPT!"
+
+echo %cGREEN%[   OK   ]%cRESET% Update downloaded! Initiating handoff...
+"!UPDATER_SCRIPT!"
+
 :: ============================================================
 :: Parse contents of .java-version file
 :: ============================================================
