@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260831.10"
+set "JVM_BUILD=20260831.11"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -274,23 +274,23 @@ if not defined CURRENT_JDK_PATH (
     exit /B 0
 )
 
-if "%CURRENT_JDK_PATH%"=="CLEAR" (
+if "!CURRENT_JDK_PATH!"=="CLEAR" (
     call :ClearJavaEnvironment
-    set "PATH=%CLEAN_PATH%"
+    set "PATH=!CLEAN_PATH!"
     set "JAVA_HOME="
     set "CURRENT_JDK_PATH="
     goto MAIN_LOOP
 )
 
-if "%SESSION_MODE%"=="1" (
+if "!SESSION_MODE!"=="1" (
     echo.
-    echo %cBLUE%[ ACTION ]%cRESET% Session mode active. Setting Java to %CURRENT_JDK_PATH%...
-    echo %CURRENT_JDK_PATH%> "%TEMP%\.jvm_session_target"
+    echo %cBLUE%[ ACTION ]%cRESET% Session mode active. Setting Java to !CURRENT_JDK_PATH!...
+    echo !CURRENT_JDK_PATH!> "%TEMP%\.jvm_session_target"
     echo %cGREEN%[   OK   ]%cRESET% Session target saved.
     
     :: Update local session for verification
-    set "JAVA_HOME=%CURRENT_JDK_PATH%"
-    set "PATH=%CURRENT_JDK_PATH%\bin;%PATH%"
+    set "JAVA_HOME=!CURRENT_JDK_PATH!"
+    set "PATH=!CURRENT_JDK_PATH!\bin;!PATH!"
     goto :VERIFICATION
 )
 
@@ -759,16 +759,20 @@ if defined CLI_TARGET (
                 set "SYS_PATH="
                 for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
                 if defined SYS_PATH (
-                    set "SYS_PATH=!SYS_PATH:%DEL_PATH%\bin;=!"
-                    set "SYS_PATH=!SYS_PATH:;%DEL_PATH%\bin=!"
+                    for %%P in ("!DEL_PATH!") do (
+                        set "SYS_PATH=!SYS_PATH:%%~P\bin;=!"
+                        set "SYS_PATH=!SYS_PATH:;%%~P\bin=!"
+                    )
                     set "SYS_PATH=!SYS_PATH:;;=;!"
                     setx Path "!SYS_PATH!" /M >nul
                 )
                 set "USR_PATH="
                 for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USR_PATH=%%B"
                 if defined USR_PATH (
-                    set "USR_PATH=!USR_PATH:%DEL_PATH%\bin;=!"
-                    set "USR_PATH=!USR_PATH:;%DEL_PATH%\bin=!"
+                    for %%P in ("!DEL_PATH!") do (
+                        set "USR_PATH=!USR_PATH:%%~P\bin;=!"
+                        set "USR_PATH=!USR_PATH:;%%~P\bin=!"
+                    )
                     set "USR_PATH=!USR_PATH:;;=;!"
                     setx Path "!USR_PATH!" >nul
                 )
@@ -1542,12 +1546,42 @@ if "!CLI_VENDOR!"=="" (
     echo.
     choice /C 1234567 /N /M "Select vendor (1-7): "
     if !errorlevel!==7 goto :eof
-    if !errorlevel!==1 set "CLI_VENDOR=oracle"
-    if !errorlevel!==2 set "CLI_VENDOR=adoptium"
-    if !errorlevel!==3 set "CLI_VENDOR=graalvm"
-    if !errorlevel!==4 set "CLI_VENDOR=corretto"
-    if !errorlevel!==5 set "CLI_VENDOR=zulu"
-    if !errorlevel!==6 set "CLI_VENDOR=microsoft"
+    if !errorlevel!==1 set "CLI_VENDOR=Oracle"
+    if !errorlevel!==2 set "CLI_VENDOR=Adoptium"
+    if !errorlevel!==3 set "CLI_VENDOR=GraalVM"
+    if !errorlevel!==4 set "CLI_VENDOR=Corretto"
+    if !errorlevel!==5 set "CLI_VENDOR=Zulu"
+    if !errorlevel!==6 set "CLI_VENDOR=Microsoft"
+)
+
+:: Check if this vendor and major version combination is already installed
+if "!IS_UPDATER!" NEQ "1" (
+    set "EXISTING_PATH="
+    set "EXISTING_VENDOR="
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        if "!JDK_MAJOR_%%k!"=="!DL_VERSION!" (
+            if /i "!JDK_VENDOR_%%k!"=="!CLI_VENDOR!" (
+                set "EXISTING_PATH=!JDK_PATH_%%k!"
+                set "EXISTING_VENDOR=!JDK_VENDOR_%%k!"
+            )
+        )
+    )
+    if defined EXISTING_PATH (
+        echo.
+        echo %cYELLOW%[ WARNING]%cRESET% !EXISTING_VENDOR! JDK !DL_VERSION! is already installed on your system:
+        echo              !EXISTING_PATH!
+        echo.
+        if "!FORCE_YES!"=="1" (
+            echo %cBLUE%[  INFO  ]%cRESET% Reinstalling/overwriting due to --yes flag...
+        ) else (
+            choice /C yn /N /M "Would you like to reinstall and overwrite it? (y/N): "
+            if !errorlevel! NEQ 1 (
+                echo %cBLUE%[  INFO  ]%cRESET% Installation cancelled.
+                if "!CLI_COMMAND!"=="" pause
+                goto :eof
+            )
+        )
+    )
 )
 
 if !DL_VERSION! LEQ 16 (
@@ -1765,7 +1799,7 @@ set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
     echo         $fileStream.Write^($buffer, 0, $read^)
     echo         $downloaded += $read
     echo         if ^($totalLength -gt 0^) {
-    echo             $percent = [math]::Round^( ^($downloaded / $totalLength^) * 100 ^)
+    echo             $percent = [math]::Floor^( ^($downloaded / $totalLength^) * 100 ^)
     echo             if ^($percent -ne $lastPercent^) {
     echo                 $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
     echo                 $dMB = [math]::Round^($downloaded / 1MB, 1^)
@@ -1777,6 +1811,11 @@ set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
     echo     }
     echo     $fileStream.Close^(^)
     echo     $stream.Close^(^)
+    echo     if ^($totalLength -gt 0^) {
+    echo         $tMB = [math]::Round^($totalLength / 1MB, 1^)
+    echo         $fullBar = '[' + ^('=' * 50^) + ']'
+    echo         Write-Host "`r[ ACTION ] Downloading: $fullBar 100%% ($tMB / $tMB MB) " -NoNewline -ForegroundColor Cyan
+    echo     }
     echo     Write-Host "`n"
     echo     Write-Host '[  INFO  ] Verifying SHA256 checksum...' -ForegroundColor Cyan
     echo     if ^('!API_SHA256_URL!' -ne ''^) {
@@ -1846,11 +1885,23 @@ if !PS_EXIT_CODE! NEQ 0 (
 )
 
 set "NEW_FOLDER="
-for /d %%D in ("!EXTRACT_DIR!\*") do set "NEW_FOLDER=%%~nxD"
+set "ROOT_COUNT=0"
+for /d %%D in ("!EXTRACT_DIR!\*") do (
+    set "NEW_FOLDER=%%~nxD"
+    set /a ROOT_COUNT+=1
+)
 
-if not defined NEW_FOLDER (
+if !ROOT_COUNT! EQU 0 (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% Could not locate the extracted JDK folder.
+    if "!CLI_COMMAND!"=="" pause
+    goto :eof
+)
+
+if !ROOT_COUNT! GTR 1 (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Invalid archive structure: Multiple root folders detected in the ZIP.
+    echo %cYELLOW%[ DETAIL ]%cRESET% Expected exactly 1 root folder, but found !ROOT_COUNT!.
     if "!CLI_COMMAND!"=="" pause
     goto :eof
 )
@@ -2714,6 +2765,40 @@ if "!UPDATE_FLAG!"=="UPDATE" (
 :: Self-Updater
 :: ============================================================
 :SelfUpdate
+if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
+    echo.
+    echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
+    
+    set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/Diamond-Industries/Java-Version-Manager-Windows/main/jvm.bat'); $req.Method = 'GET'; try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) } } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) } } else { Write-Output 'UNKNOWN|UNKNOWN' }; $reader.Close(); $res.Close() } catch { Write-Output 'ERROR|ERROR' }"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
+    set "REMOTE_BUILD=UNKNOWN"
+    set "UPDATE_FLAG=ERROR"
+    if exist "%TEMP%\jvm_remote_build.txt" (
+        for /f "tokens=1,2 delims=|" %%A in (%TEMP%\jvm_remote_build.txt) do (
+            set "REMOTE_BUILD=%%A"
+            set "UPDATE_FLAG=%%B"
+        )
+        del "%TEMP%\jvm_remote_build.txt" >nul 2>&1
+    )
+
+    if "!UPDATE_FLAG!"=="ERROR" (
+        echo %cRED%[ ERROR  ]%cRESET% Failed to connect to GitHub. Please check your internet connection.
+        goto :eof
+    )
+    if "!UPDATE_FLAG!"=="UNKNOWN" (
+        echo %cYELLOW%[ WARNING]%cRESET% Could not parse remote build version.
+        goto :eof
+    )
+    if "!UPDATE_FLAG!"=="INVALID_REMOTE" (
+        echo %cYELLOW%[ WARNING]%cRESET% Remote build '!REMOTE_BUILD!' is not a valid Semantic Version.
+        goto :eof
+    )
+    if "!UPDATE_FLAG!"=="OK" (
+        echo %cGREEN%[   OK   ]%cRESET% You are already running the latest version ^(!JVM_BUILD!^).
+        goto :eof
+    )
+)
+
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
 echo            Fetching latest jvm.bat...
