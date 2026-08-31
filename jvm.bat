@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260830.9"
+set "JVM_BUILD=20260831.10"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -201,6 +201,14 @@ if /i "%~1"=="list" (
 
 :PARSE_DONE
 
+:: Detect Hardware Architecture
+set "SYS_ARCH=x64"
+set "ZULU_ARCH=x86"
+if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" (
+    set "SYS_ARCH=aarch64"
+    set "ZULU_ARCH=arm"
+)
+
 :: If a target was provided via CLI, set variables
 set "SKIP_HEADER=0"
 
@@ -358,8 +366,8 @@ set "CLEAN_PATH=!CLEAN_PATH:;%CURRENT_JDK_PATH%\bin=!"
 set "CLEAN_PATH=!CLEAN_PATH:;;=;!"
 
 :: Export the clean path back to the main session and apply at the front
-for /f "delims=" %%A in ("!CLEAN_PATH!") do (
-    endlocal & set "PATH=%SYMLINK_OR_DIRECT%\bin;%%A"
+for /f "delims=" %%A in (""!CLEAN_PATH!"") do (
+    endlocal & set "PATH=%SYMLINK_OR_DIRECT%\bin;%%~A"
 )
 
 :: Finally update the local JAVA_HOME
@@ -415,13 +423,13 @@ setlocal enabledelayedexpansion
 
 :RESCAN_MENU
 if "!SKIP_HEADER!"=="0" (
-    cls
+    rem rem cls
     echo ============================================================
     echo                     Java Version Manager
     echo ============================================================
     echo.
 
-    :: Display current Java info HERE so it survives the 'cls'
+    :: Display current Java info HERE so it survives the 'rem cls'
     if not defined JAVA_HOME (
         echo %cBLUE%[  INFO  ]%cRESET% JAVA_HOME is not currently set.
     ) else (
@@ -451,8 +459,8 @@ set "LATEST_VER_NUM=0"
 set "LATEST_LTS_NUM=0"
 set "LATEST_JDK_PATH="
 set "LATEST_JDK_NAME="
-set "ORACLE_LATEST_FEATURE=26"
-set "ORACLE_LATEST_LTS=25"
+set "ORACLE_LATEST_FEATURE="
+set "ORACLE_LATEST_LTS="
 
 :: The LOCATIONS array is populated at the top of the script to prevent delayed expansion corruption
 
@@ -604,6 +612,7 @@ if defined CLI_COMMAND (
         goto :eof
     )
     if /i "!CLI_COMMAND!"=="install" (
+        call :FetchLatestVersions
         if not defined CLI_TARGET (
             call :InstallWizard
             goto :CLI_DONE
@@ -664,8 +673,8 @@ if defined CLI_TARGET (
                 echo.
             ) else (
                 echo %cRED%[ ERROR  ]%cRESET% Missing required version argument.
-                echo             Usage: jvm update ^<version_number^>
-                echo             Usage: jvm update --all [--vendor ^<name^>]
+                echo            Usage: jvm update ^<version_number^>
+                echo            Usage: jvm update --all [--vendor ^<name^>]
             )
         ) else if /i "!CLI_TARGET!"=="--all" (
             if defined CLI_VENDOR (
@@ -695,7 +704,7 @@ if defined CLI_TARGET (
     if /i "!CLI_COMMAND!"=="uninstall" (
         if not defined CLI_TARGET (
             echo %cRED%[ ERROR  ]%cRESET% Missing required version argument.
-            echo             Usage: jvm uninstall ^<version_number^>
+            echo            Usage: jvm uninstall ^<version_number^>
             goto :CLI_DONE
         )
         if !MATCH_COUNT! GTR 1 (
@@ -748,7 +757,7 @@ if defined CLI_TARGET (
                     reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2^>^&1
                 )
                 set "SYS_PATH="
-                for /f "tokens=2 delims==" %%A in ('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^^^>nul') do set "SYS_PATH=%%A"
+                for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
                 if defined SYS_PATH (
                     set "SYS_PATH=!SYS_PATH:%DEL_PATH%\bin;=!"
                     set "SYS_PATH=!SYS_PATH:;%DEL_PATH%\bin=!"
@@ -756,7 +765,7 @@ if defined CLI_TARGET (
                     setx Path "!SYS_PATH!" /M >nul
                 )
                 set "USR_PATH="
-                for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^^^>nul') do set "USR_PATH=%%B"
+                for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USR_PATH=%%B"
                 if defined USR_PATH (
                     set "USR_PATH=!USR_PATH:%DEL_PATH%\bin;=!"
                     set "USR_PATH=!USR_PATH:;%DEL_PATH%\bin=!"
@@ -808,7 +817,7 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
 )
 if defined CLI_TARGET (
-    echo %cBLUE%[ INFO ]%cRESET% Target JDK !CLI_TARGET! detected...
+    echo %cBLUE%[  INFO  ]%cRESET% Target JDK !CLI_TARGET! detected...
     :: Resolve Semantic Aliases
     if /i "!CLI_TARGET!"=="latest" (
         if !LATEST_VER_NUM! GTR 0 set "CLI_TARGET=!LATEST_VER_NUM!"
@@ -834,8 +843,8 @@ if defined CLI_TARGET (
             echo %cBLUE%[ ACTION ]%cRESET% Quick-Switching to JDK !JDK_NAME_%%k! ^(!JDK_MAJOR_%%k!^)...
             set "CURRENT_JDK_PATH=!JDK_PATH_%%k!"
             :: Return to MAIN_LOOP to apply the changes
-            for /f "delims=" %%P in ("!CURRENT_JDK_PATH!") do (
-                endlocal & set "CURRENT_JDK_PATH=%%P"
+            for /f "delims=" %%P in (""!CURRENT_JDK_PATH!"") do (
+                endlocal & set "CURRENT_JDK_PATH=%%~P"
             )
             goto :eof
         )
@@ -890,8 +899,8 @@ if !choice!==3 (
 if !choice!==1 (
     call :PathEnvironmentMenu
     if defined CURRENT_JDK_PATH (
-        for /f "delims=" %%P in ("!CURRENT_JDK_PATH!") do (
-            endlocal & set "CURRENT_JDK_PATH=%%P"
+        for /f "delims=" %%P in (""!CURRENT_JDK_PATH!"") do (
+            endlocal & set "CURRENT_JDK_PATH=%%~P"
         )
         goto :eof
     )
@@ -911,7 +920,7 @@ goto RESCAN_MENU
 :: JDK UPDATER 
 :: ============================================================
 :UpdateJDKs
-cls
+rem cls
 echo ============================================================
 echo                     JDK Update Checker
 echo ============================================================
@@ -1087,11 +1096,78 @@ set "UPDATE_RESULT="
 set "LOCAL_VER="
 set "REMOTE_VER="
 
-for /f "tokens=1,* delims=|" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\.gemini\antigravity\brain\1d94625a-4bc1-4f01-8d91-aa2a8ccf6e22\scratch\UpdateChecker.ps1" -Vendor "!UP_VENDOR!" -Major "!UP_MAJOR!" -LocalPath "!UP_PATH!"') do (
+set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!.ps1"
+(
+    echo param^(
+    echo     [Parameter^(Mandatory=$true^)][string]$Vendor,
+    echo     [Parameter^(Mandatory=$true^)][string]$Major,
+    echo     [Parameter^(Mandatory=$true^)][string]$LocalPath
+    echo ^)
+    echo $localVersion = "UNKNOWN"
+    echo $releaseFile = Join-Path $LocalPath "release"
+    echo if ^(Test-Path $releaseFile^) {
+    echo     $content = Get-Content $releaseFile
+    echo     $semVerLine = $content ^| Where-Object { $_ -match "^SEMANTIC_VERSION=" }
+    echo     $javaVerLine = $content ^| Where-Object { $_ -match "^JAVA_VERSION=" }
+    echo     if ^($semVerLine^) { $localVersion = ^($semVerLine -split "="^)[1].Trim^([char]34, ' '^) }
+    echo     elseif ^($javaVerLine^) { $localVersion = ^($javaVerLine -split "="^)[1].Trim^([char]34, ' '^) }
+    echo }
+    echo $remoteVersion = "UNKNOWN"
+    echo try {
+    echo     if ^($Vendor -eq "Oracle"^) {
+    echo         Write-Output "ORACLE_LEGACY"
+    echo         exit 0
+    echo     } elseif ^($Vendor -eq "Adoptium"^) {
+    echo         $res = Invoke-RestMethod -Uri "https://api.adoptium.net/v3/assets/feature_releases/$Major/ga?architecture=!SYS_ARCH!&image_type=jdk&jvm_impl=hotspot&os=windows&page=0&page_size=1" -UseBasicParsing -TimeoutSec 5
+    echo         $remoteVersion = $res[0].version_data.openjdk_version.Replace^('-LTS', ''^)
+    echo     } elseif ^($Vendor -eq "Corretto"^) {
+    echo         $req = [Net.HttpWebRequest]::Create^("https://corretto.aws/downloads/latest/amazon-corretto-$Major-!SYS_ARCH!-windows-jdk.zip"^)
+    echo         $req.AllowAutoRedirect = $false
+    echo         $req.Timeout = 5000
+    echo         $res = $req.GetResponse^(^)
+    echo         if ^($res.Headers["Location"] -match "resources/([^/]+)/"^) { $remoteVersion = $matches[1] }
+    echo     } elseif ^($Vendor -eq "GraalVM"^) {
+    echo         $res = Invoke-RestMethod -Uri "https://api.github.com/repos/graalvm/graalvm-ce-builds/releases/latest" -UseBasicParsing -TimeoutSec 5
+    echo         $remoteVersion = $res.tag_name -replace "^jdk-", ""
+    echo     } elseif ^($Vendor -eq "Zulu"^) {
+    echo         $res = Invoke-RestMethod -Uri "https://api.azul.com/metadata/v1/zulu/packages/?java_version=$Major&os=windows&arch=!ZULU_ARCH!&hw_bitness=64&archive_type=zip&java_package_type=jdk&latest=true" -UseBasicParsing -TimeoutSec 5
+    echo         $remoteVersion = $res[0].java_version.join^("."^)
+    echo     } elseif ^($Vendor -eq "Microsoft"^) {
+    echo         $req = [Net.HttpWebRequest]::Create^("https://aka.ms/download-jdk/microsoft-jdk-$Major-windows-!SYS_ARCH!.zip"^)
+    echo         $req.AllowAutoRedirect = $false
+    echo         $req.Timeout = 5000
+    echo         $res = $req.GetResponse^(^)
+    echo         if ^($res.Headers["Location"] -match "jdk-([^/-]+)-"^) { $remoteVersion = $matches[1] }
+    echo     }
+    echo } catch {
+    echo     Write-Output "ERROR|$($_.Exception.Message)"
+    echo     exit 1
+    echo }
+    echo Write-Output "LOCAL|$localVersion"
+    echo Write-Output "REMOTE|$remoteVersion"
+    echo if ^($localVersion -eq "UNKNOWN" -or $remoteVersion -eq "UNKNOWN"^) {
+    echo     Write-Output "RESULT|UNKNOWN"
+    echo } elseif ^($localVersion -eq $remoteVersion^) {
+    echo     Write-Output "RESULT|UP_TO_DATE"
+    echo } else {
+    echo     Write-Output "RESULT|UPDATE_AVAILABLE"
+    echo }
+) > "!UPDATE_CHECKER_PS1!"
+
+set "API_ERROR="
+for /f "tokens=1,* delims=|" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_CHECKER_PS1!" -Vendor "!UP_VENDOR!" -Major "!UP_MAJOR!" -LocalPath "!UP_PATH!"') do (
     if "%%A"=="ORACLE_LEGACY" goto :Update_OracleLegacy
     if "%%A"=="LOCAL" set "LOCAL_VER=%%B"
     if "%%A"=="REMOTE" set "REMOTE_VER=%%B"
     if "%%A"=="RESULT" set "UPDATE_RESULT=%%B"
+    if "%%A"=="ERROR" set "API_ERROR=%%B"
+)
+if exist "!UPDATE_CHECKER_PS1!" del "!UPDATE_CHECKER_PS1!"
+
+if defined API_ERROR (
+    echo %cRED%[ ERROR  ]%cRESET% Network connection failed. You appear to be offline.
+    echo %cYELLOW%[ DETAIL ]%cRESET% !API_ERROR!
+    goto :eof
 )
 
 echo %cBLUE%[  INFO  ]%cRESET% Local Build Version : !LOCAL_VER!
@@ -1116,8 +1192,23 @@ if not defined CLI_COMMAND (
 goto :TriggerUpdateDownload
 
 :Update_OracleLegacy
-set "PS_CMD=$req = [Net.HttpWebRequest]::Create('https://download.oracle.com/java/!UP_MAJOR!/latest/jdk-!UP_MAJOR!_windows-x64_bin.zip'); $req.Method = 'HEAD'; try { $res = $req.GetResponse(); $res.LastModified.ToString('yyyy-MM-dd') } catch { 'UNKNOWN' }"
-for /f "delims=" %%I in ('powershell -NoProfile -Command "!PS_CMD!"') do set "REMOTE_DATE=%%I"
+set "PS_CMD=$req = [Net.HttpWebRequest]::Create('https://download.oracle.com/java/!UP_MAJOR!/latest/jdk-!UP_MAJOR!_windows-x64_bin.zip'); $req.Method = 'HEAD'; try { $res = $req.GetResponse(); $res.LastModified.ToString('yyyy-MM-dd') } catch { 'ERROR|' + $_.Exception.Message }"
+set "REMOTE_DATE=UNKNOWN"
+set "API_ERROR="
+for /f "tokens=1,* delims=|" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do (
+    if "%%A"=="ERROR" (
+        set "API_ERROR=%%B"
+    ) else (
+        set "REMOTE_DATE=%%A"
+    )
+)
+
+if defined API_ERROR (
+    echo %cRED%[ ERROR  ]%cRESET% Network connection failed. You appear to be offline.
+    echo %cYELLOW%[ DETAIL ]%cRESET% !API_ERROR!
+    goto :eof
+)
+
 set "LOCAL_DATE=UNKNOWN"
 if exist "!UP_PATH!\release" (
     for /f "tokens=2 delims==" %%A in ('findstr "JAVA_VERSION_DATE" "!UP_PATH!\release"') do (
@@ -1155,13 +1246,13 @@ if defined CLI_COMMAND (
 
 :TriggerUpdateDownload
 echo.
-echo %cGREEN%[ DOWNLOAD ]%cRESET% Fetching newest JDK !UP_MAJOR! from !UP_VENDOR!...
+echo %cGREEN%[DOWNLOAD]%cRESET% Fetching newest JDK !UP_MAJOR! from !UP_VENDOR!...
 set "CLI_VENDOR=!UP_VENDOR!"
 set "DL_VERSION=!UP_MAJOR!"
 set "IS_UPDATER=1"
 goto :Resolve_!UP_VENDOR!
 :UninstallJDK
-cls
+rem cls
 echo ============================================================
 echo                     JDK Uninstaller
 echo ============================================================
@@ -1244,7 +1335,7 @@ if defined OPT_U_ZULU if !v_choice!==!OPT_U_ZULU! set "TARGET_VENDOR=Zulu"
 if defined OPT_U_MICROSOFT if !v_choice!==!OPT_U_MICROSOFT! set "TARGET_VENDOR=Microsoft"
 
 :UninstallJDK_Vendor
-cls
+rem cls
 echo ============================================================
 echo                     JDK Uninstaller
 echo ============================================================
@@ -1290,7 +1381,7 @@ set /p u_choice="Enter your choice (1-!U_CANCEL!): "
 if "!u_choice!"=="" goto GET_U_CHOICE_MANUAL
 set "u_choice=!u_choice: =!"
 set "NUM_TEST="
-for /f "delims=0123456789" %%A in ("!u_choice!") do set "NUM_TEST=%%A"
+for /f "delims=0123456789" %%A in (""!u_choice!"") do set "NUM_TEST=%%A"
 if defined NUM_TEST goto GET_U_CHOICE_MANUAL
 if !u_choice! LSS 1 goto GET_U_CHOICE_MANUAL
 if !u_choice! GTR !U_CANCEL! goto GET_U_CHOICE_MANUAL
@@ -1320,6 +1411,7 @@ echo %cBLUE%[ ACTION ]%cRESET% Deleting directory and scrubbing environment vari
 set "ADMIN_BAT=%TEMP%\jvm_admin_!RANDOM!.bat"
 (
     echo @echo off
+    echo setlocal enabledelayedexpansion
     echo taskkill /f /im java.exe ^>nul 2^>^&1
     echo taskkill /f /im javaw.exe ^>nul 2^>^&1
     echo rmdir /s /q "!DEL_PATH!"
@@ -1328,7 +1420,7 @@ set "ADMIN_BAT=%TEMP%\jvm_admin_!RANDOM!.bat"
     echo     reg delete "HKCU\Environment" /v JAVA_HOME /f ^>nul 2^>^&1
     echo ^)
     echo set "SYS_PATH="
-    echo for /f "tokens=2 delims==" %%%%A in ^('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^^^>nul'^) do set "SYS_PATH=%%%%A"
+    echo for /f "tokens=2*" %%%%A in ^('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^^^>nul'^) do set "SYS_PATH=%%%%B"
     echo if defined SYS_PATH ^(
     echo     set "SYS_PATH=^^!SYS_PATH:!DEL_PATH!\bin;=^^!"
     echo     set "SYS_PATH=^^!SYS_PATH:;!DEL_PATH!\bin=^^!"
@@ -1361,16 +1453,11 @@ echo %cBLUE%[  INFO  ]%cRESET% Uninstallation cancelled. Returning to menu...
 timeout /t 2 >nul
 goto :eof
 
-
-
-
-:: ============================================================
-:: JDK DOWNLOADER
-:: ============================================================
 :: ============================================================
 :: JDK INSTALLATION ROUTER (Interactive)
 :: ============================================================
 :InstallWizard
+call :FetchLatestVersions
 echo.
 echo ============================================================
 echo                   JDK Installation Wizard
@@ -1427,7 +1514,7 @@ if !dl_choice!==3 (
     set /p DL_VERSION="Enter the major version number to download (e.g., 21): "
     set "DL_VERSION=!DL_VERSION: =!"
     set "NUM_TEST="
-    for /f "delims=0123456789" %%A in ("!DL_VERSION!") do set "NUM_TEST=%%A"
+    for /f "delims=0123456789" %%A in (""!DL_VERSION!"") do set "NUM_TEST=%%A"
     if defined NUM_TEST (
         echo %cRED%[ ERROR  ]%cRESET% Invalid version number. Must be numeric.
         pause
@@ -1441,7 +1528,27 @@ if !dl_choice!==3 (
 )
 
 :DownloadJDK_Headless
-if "!CLI_VENDOR!"=="" set "CLI_VENDOR=oracle"
+if "!CLI_VENDOR!"=="" (
+    echo.
+    echo %cBLUE%[ ACTION ]%cRESET% Select JDK Distribution Vendor:
+    echo.
+    echo 1. Oracle ^(Standard^)
+    echo 2. Adoptium ^(Eclipse Temurin^)
+    echo 3. GraalVM ^(Community Edition^)
+    echo 4. Amazon Corretto
+    echo 5. Azul Zulu
+    echo 6. Microsoft Build of OpenJDK
+    echo 7. Cancel
+    echo.
+    choice /C 1234567 /N /M "Select vendor (1-7): "
+    if !errorlevel!==7 goto :eof
+    if !errorlevel!==1 set "CLI_VENDOR=oracle"
+    if !errorlevel!==2 set "CLI_VENDOR=adoptium"
+    if !errorlevel!==3 set "CLI_VENDOR=graalvm"
+    if !errorlevel!==4 set "CLI_VENDOR=corretto"
+    if !errorlevel!==5 set "CLI_VENDOR=zulu"
+    if !errorlevel!==6 set "CLI_VENDOR=microsoft"
+)
 
 if !DL_VERSION! LEQ 16 (
     if /i "!CLI_VENDOR!"=="oracle" (
@@ -1504,14 +1611,14 @@ set "PS_API_SCRIPT=%TEMP%\api_query_!RANDOM!.ps1"
 (
     echo $ErrorActionPreference = 'Stop'
     echo try {
-    echo     $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/assets/feature_releases/!DL_VERSION!/ga?architecture=x64^&image_type=jdk^&jvm_impl=hotspot^&os=windows^&page=0^&page_size=1' -UseBasicParsing
+    echo     $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/assets/feature_releases/!DL_VERSION!/ga?architecture=!SYS_ARCH!^&image_type=jdk^&jvm_impl=hotspot^&os=windows^&page=0^&page_size=1' -UseBasicParsing
     echo     $url = $res[0].binaries[0].package.link
     echo     $sha = $res[0].binaries[0].package.checksum
     echo     if ^($url -and $sha^) {
     echo         Write-Output "API_URL=$url"
     echo         Write-Output "API_SHA256=$sha"
     echo     } else { exit 1 }
-    echo } catch { exit 1 }
+    echo } catch { Write-Output "API_ERROR=$($_.Exception.Message)"; exit 1 }
 ) > "!PS_API_SCRIPT!"
 goto Run_API_Query
 
@@ -1542,7 +1649,7 @@ set "PS_API_SCRIPT=%TEMP%\api_query_!RANDOM!.ps1"
     echo         Write-Output "API_URL=$url"
     echo         Write-Output "API_SHA256_URL=$sha_url"
     echo     } else { exit 1 }
-    echo } catch { exit 1 }
+    echo } catch { Write-Output "API_ERROR=$($_.Exception.Message)"; exit 1 }
 ) > "!PS_API_SCRIPT!"
 goto Run_API_Query
 
@@ -1563,12 +1670,12 @@ set "PS_API_SCRIPT=%TEMP%\api_query_!RANDOM!.ps1"
 (
     echo $ErrorActionPreference = 'Stop'
     echo try {
-    echo     $res = Invoke-RestMethod -Uri 'https://api.azul.com/zulu/download/community/v1.0/bundles/latest/?java_version=!DL_VERSION!^&os=windows^&arch=x86^&hw_bitness=64^&ext=zip' -UseBasicParsing
+    echo     $res = Invoke-RestMethod -Uri 'https://api.azul.com/zulu/download/community/v1.0/bundles/latest/?java_version=!DL_VERSION!^&os=windows^&arch=!ZULU_ARCH!^&hw_bitness=64^&ext=zip' -UseBasicParsing
     echo     if ^($res.url -and $res.sha256_hash^) {
     echo         Write-Output "API_URL=$($res.url)"
     echo         Write-Output "API_SHA256=$($res.sha256_hash)"
     echo     } else { exit 1 }
-    echo } catch { exit 1 }
+    echo } catch { Write-Output "API_ERROR=$($_.Exception.Message)"; exit 1 }
 ) > "!PS_API_SCRIPT!"
 goto Run_API_Query
 
@@ -1576,8 +1683,8 @@ goto Run_API_Query
 set "DL_VENDOR=Microsoft"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Resolving Microsoft Build of OpenJDK !DL_VERSION! URLs...
-set "API_URL=https://aka.ms/download-jdk/microsoft-jdk-!DL_VERSION!-windows-x64.zip"
-set "API_SHA256_URL=https://aka.ms/download-jdk/microsoft-jdk-!DL_VERSION!-windows-x64.zip.sha256sum.txt"
+set "API_URL=https://aka.ms/download-jdk/microsoft-jdk-!DL_VERSION!-windows-!SYS_ARCH!.zip"
+set "API_SHA256_URL=https://aka.ms/download-jdk/microsoft-jdk-!DL_VERSION!-windows-!SYS_ARCH!.zip.sha256sum.txt"
 set "API_SHA256="
 goto :FetchAndExtract
 
@@ -1585,12 +1692,21 @@ goto :FetchAndExtract
 set "API_URL="
 set "API_SHA256="
 set "API_SHA256_URL="
+set "API_ERROR="
 for /f "tokens=1,* delims==" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_API_SCRIPT!"') do (
     if "%%A"=="API_URL" set "API_URL=%%B"
     if "%%A"=="API_SHA256" set "API_SHA256=%%B"
     if "%%A"=="API_SHA256_URL" set "API_SHA256_URL=%%B"
+    if "%%A"=="API_ERROR" set "API_ERROR=%%B"
 )
 if exist "!PS_API_SCRIPT!" del "!PS_API_SCRIPT!"
+
+if defined API_ERROR (
+    echo %cRED%[ ERROR  ]%cRESET% Network connection failed. You appear to be offline.
+    echo %cYELLOW%[ DETAIL ]%cRESET% !API_ERROR!
+    if "!CLI_COMMAND!"=="" pause
+    goto :eof
+)
 
 if "!API_URL!"=="" (
     echo %cRED%[ ERROR  ]%cRESET% Failed to find !DL_VENDOR! JDK !DL_VERSION!. The version might not exist.
@@ -1598,6 +1714,28 @@ if "!API_URL!"=="" (
     goto :eof
 )
 goto :FetchAndExtract
+
+:FetchLatestVersions
+if defined ORACLE_LATEST_FEATURE goto :eof
+set "PS_API_SCRIPT=%TEMP%\api_query_!RANDOM!.ps1"
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo try {
+    echo     $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/info/available_releases' -UseBasicParsing -TimeoutSec 3
+    echo     Write-Output "LATEST_FEATURE=$($res.most_recent_feature_release)"
+    echo     Write-Output "LATEST_LTS=$($res.most_recent_lts)"
+    echo } catch {
+    echo     Write-Output "LATEST_FEATURE=26"
+    echo     Write-Output "LATEST_LTS=25"
+    echo     exit 0
+    echo }
+) > "!PS_API_SCRIPT!"
+for /f "tokens=1,* delims==" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_API_SCRIPT!"') do (
+    if "%%A"=="LATEST_FEATURE" set "ORACLE_LATEST_FEATURE=%%B"
+    if "%%A"=="LATEST_LTS" set "ORACLE_LATEST_LTS=%%B"
+)
+if exist "!PS_API_SCRIPT!" del "!PS_API_SCRIPT!"
+goto :eof
 
 :FetchAndExtract
 setlocal enabledelayedexpansion
@@ -1683,11 +1821,12 @@ set "PS_SCRIPT=%TEMP%\dl_jdk_!RANDOM!.ps1"
     echo             $lastPercent = $percent
     echo         }
     echo     }
+    echo     Write-Host "`r[ ACTION ] Extracting: [==================================================] 100%% ($totalEntries / $totalEntries) " -NoNewline -ForegroundColor Cyan
     echo     $zip.Dispose^(^)
     echo     Write-Host ""
     echo     Remove-Item '!ZIP_PATH!'
     echo } catch {
-    echo     Write-Host '[ ERROR  ] Download failed! !DL_VENDOR! API might be unreachable.' -ForegroundColor Red
+    echo     Write-Host '[ ERROR  ] Network connection failed. You appear to be offline.' -ForegroundColor Red
     echo     Write-Host '[ DETAIL ] ' $_.Exception.Message -ForegroundColor Yellow
     echo     if ^(Test-Path '!ZIP_PATH!'^) { Remove-Item '!ZIP_PATH!' -ErrorAction SilentlyContinue }
     echo     exit 1
@@ -1724,7 +1863,7 @@ set "ADMIN_BAT=%TEMP%\jvm_admin_!RANDOM!.bat"
     echo if not exist "!DEST_DIR!" mkdir "!DEST_DIR!"
     echo if exist "!DEST_DIR!\!NEW_FOLDER!" rmdir /s /q "!DEST_DIR!\!NEW_FOLDER!"
     echo move /y "!EXTRACT_DIR!\!NEW_FOLDER!" "!DEST_DIR!\" ^>nul
-    echo rmdir /s /q "!EXTRACT_DIR!"
+    echo if not exist "!EXTRACT_DIR!\!NEW_FOLDER!" rmdir /s /q "!EXTRACT_DIR!"
 ) > "!ADMIN_BAT!"
 
 echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to move files...
@@ -1845,7 +1984,7 @@ goto :eof
 :: ============================================================
 :ClearJavaEnvironment
 setlocal enabledelayedexpansion
-cls
+rem cls
 echo ============================================================
 echo               Clear Java Environment Variables
 echo ============================================================
@@ -1867,10 +2006,7 @@ reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
 :: Clean SYSTEM PATH
 echo %cBLUE%[ ACTION ]%cRESET% Cleaning SYSTEM PATH...
 set "SYS_PATH="
-for /f "tokens=2 delims==" %%A in ('wmic environment where "name='Path' and username='<system>'" get VariableValue /value 2^>nul') do set "SYS_PATH=%%A"
-if not defined SYS_PATH (
-    for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
-)
+for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
 if defined SYS_PATH (
     :: Remove %%JAVA_HOME%%\bin and %JAVA_HOME%\bin
     set "SYS_PATH=!SYS_PATH:%%JAVA_HOME%%\bin;=!"
@@ -1958,8 +2094,8 @@ set "CLEAN_PATH=!CLEAN_PATH:C:\ProgramData\Oracle\Java\javapath=!"
 set "CLEAN_PATH=!CLEAN_PATH:;;=;!"
 
 :: Export active session path
-for /f "delims=" %%A in ("!CLEAN_PATH!") do (
-    endlocal & set "CLEAN_PATH=%%A"
+for /f "delims=" %%A in (""!CLEAN_PATH!"") do (
+    endlocal & set "CLEAN_PATH=%%~A"
 )
 echo %cGREEN%[   OK   ]%cRESET% Java environment variables cleared.
 echo            Open a new command prompt to see changes take full effect.
@@ -1973,7 +2109,7 @@ goto :eof
 :: PATH & ENVIRONMENT SUB-MENU
 :: ============================================================
 :PathEnvironmentMenu
-cls
+rem cls
 echo ============================================================
 echo             Path ^& Environment Management
 echo ============================================================
@@ -2111,7 +2247,7 @@ if defined OPT_P_MICROSOFT if !v_choice!==!OPT_P_MICROSOFT! set "TARGET_VENDOR=M
 if defined OPT_P_CUSTOM if !v_choice!==!OPT_P_CUSTOM! set "TARGET_VENDOR=Custom"
 
 :PathEnvironmentMenu_Vendor
-cls
+rem cls
 echo ============================================================
 echo             Path ^& Environment Management
 echo ============================================================
@@ -2156,7 +2292,7 @@ set /p p_choice="Enter your choice (1-!P_CANCEL!): "
 if "!p_choice!"=="" goto GET_P_CHOICE_MANUAL
 set "p_choice=!p_choice: =!"
 set "NUM_TEST="
-for /f "delims=0123456789" %%A in ("!p_choice!") do set "NUM_TEST=%%A"
+for /f "delims=0123456789" %%A in (""!p_choice!"") do set "NUM_TEST=%%A"
 if defined NUM_TEST goto GET_P_CHOICE_MANUAL
 if !p_choice! LSS 1 goto GET_P_CHOICE_MANUAL
 if !p_choice! GTR !P_CANCEL! goto GET_P_CHOICE_MANUAL
@@ -2177,7 +2313,7 @@ if "!NEEDS_RESCAN!"=="1" (
     set "NEEDS_RESCAN=0"
     goto :eof
 )
-cls
+rem cls
 echo ============================================================
 echo                       Version Management
 echo ============================================================
@@ -2213,7 +2349,7 @@ goto VersionMenu
 :: SETTINGS MENU
 :: ============================================================
 :SettingsMenu
-cls
+rem cls
 echo ============================================================
 echo                         Settings
 echo ============================================================
@@ -2289,7 +2425,7 @@ goto SettingsMenu
 :: GLOBAL COMMAND REMOVER
 :: ============================================================
 :RemoveGlobalCommand
-cls
+rem cls
 echo ============================================================
 echo               Global Command Removal
 echo ============================================================
@@ -2336,7 +2472,7 @@ goto :eof
 :: GLOBAL COMMAND INSTALLER
 :: ============================================================
 :InstallGlobalCommand
-cls
+rem cls
 echo ============================================================
 echo               Global Command Installation
 echo ============================================================
@@ -2504,7 +2640,7 @@ goto :eof
 :: JVM Version / About Menu
 :: ============================================================
 :AboutMenu
-cls
+rem cls
 echo ============================================================
 echo                     Java Version Manager
 echo ============================================================
@@ -2595,6 +2731,13 @@ if !NEW_SIZE! EQU 0 (
     goto :eof
 )
 
+findstr /C:":: END OF SCRIPT" "%TEMP%\jvm_new.bat" >nul 2>&1
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Downloaded file failed integrity check. The file may be corrupted or truncated.
+    pause
+    goto :eof
+)
+
 echo %cBLUE%[ ACTION ]%cRESET% Generating background updater...
 set "UPDATER_SCRIPT=%TEMP%\jvm_updater.bat"
 (
@@ -2649,3 +2792,4 @@ if /i "%~1"=="--registry" (
 )
 shift
 goto PARSE_JV_LOOP
+:: END OF SCRIPT
