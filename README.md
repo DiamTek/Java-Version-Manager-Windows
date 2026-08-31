@@ -74,7 +74,7 @@ Instantly update your `JAVA_HOME` and system PATH without opening menus. If ther
 * `jvm install lts` — Prompts you to pick an LTS version (e.g., 17, 21, 25) and then prompts you for your preferred Vendor before installing.
 * `jvm install lts --latest` — Skips the version prompt (locks onto the highest available LTS) but still pauses to prompt you for a Vendor.
 * `jvm install lts --latest --vendor oracle` — 100% automated headless installation of the absolute newest Oracle LTS version (bypasses all menus).
-* `jvm install 17 --vendor oracle -y` — (or `--yes`) Aggressively bypasses any remaining interactive safety warnings (like Oracle's legacy version caps) for 100% uninterrupted CI/CD automation.
+* `jvm install 17 --vendor oracle -y` — (or `--yes`) Aggressively bypasses any remaining interactive safety warnings (like Oracle's legacy version caps or "already installed" warnings) for 100% uninterrupted CI/CD automation.
 
 ### 🔄 Updates & Uninstalls
 * `jvm update` — Opens the dynamic, vendor-sorted Updater menu UI.
@@ -90,6 +90,8 @@ Instantly update your `JAVA_HOME` and system PATH without opening menus. If ther
 * `jvm clear` — Instantly wipes `JAVA_HOME` and purges Java from your PATH.
 * `jvm link <path> [name]` — Manually link an existing, custom JDK directory into the manager so you can easily switch to it (e.g., `jvm link C:\my-custom-jdk my-jdk`). Linked JDKs automatically integrate into the interactive UI under the "Custom (Local Links)" vendor category.
 * `jvm unlink <name>` — Removes a custom linked JDK.
+* `jvm version` — Displays your current `jvm.bat` build number and compares it against the latest release on GitHub to check for updates.
+* `jvm self-update` — Automatically downloads and atomic-swaps the core `jvm.bat` script if a newer version is available on GitHub.
 * `jvm <semantic-alias>` — Switch to a JDK using intelligent aliases instead of exact version numbers. Examples:
   * `jvm latest` (Switches to the absolute newest JDK installed)
   * `jvm lts` (Switches to the newest Long-Term Support version installed)
