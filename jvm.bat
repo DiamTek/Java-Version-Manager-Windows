@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260831.11"
+set "JVM_BUILD=20260831.12"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -224,7 +224,14 @@ if defined CLI_TARGET (
 ) else if exist ".java-version" (
     for /f "delims=" %%L in ('type ".java-version" 2^>nul ^| findstr /r "[0-9]"') do (
         call :ParseJavaVersion %%L
-        if not "%FORCE_GLOBAL%"=="1" set "SESSION_MODE=1"
+        if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
+        set "SILENT_MODE=1"
+        set "SKIP_HEADER=1"
+    )
+) else if exist ".sdkmanrc" (
+    for /f "tokens=1,2 delims==" %%A in ('type ".sdkmanrc" 2^>nul ^| findstr /i "^java="') do (
+        call :ParseSdkmanrc %%B
+        if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
         set "SILENT_MODE=1"
         set "SKIP_HEADER=1"
     )
@@ -2877,4 +2884,23 @@ if /i "%~1"=="--registry" (
 )
 shift
 goto PARSE_JV_LOOP
+
+:: ============================================================
+:: Hijack SDKMAN configuration file
+:: ============================================================
+:ParseSdkmanrc
+if "%~1"=="" exit /b 0
+for /f "tokens=1,2 delims=-" %%V in ("%~1") do (
+    for /f "tokens=1 delims=." %%M in ("%%V") do set "CLI_TARGET=%%M"
+    if /i "%%W"=="tem" set "CLI_VENDOR=Adoptium"
+    if /i "%%W"=="amzn" set "CLI_VENDOR=Corretto"
+    if /i "%%W"=="zulu" set "CLI_VENDOR=Zulu"
+    if /i "%%W"=="ms" set "CLI_VENDOR=Microsoft"
+    if /i "%%W"=="open" set "CLI_VENDOR=Oracle"
+    if /i "%%W"=="graal" set "CLI_VENDOR=GraalVM"
+    if /i "%%W"=="graalce" set "CLI_VENDOR=GraalVM"
+    if /i "%%W"=="oracle" set "CLI_VENDOR=Oracle"
+)
+exit /b 0
+
 :: END OF SCRIPT
