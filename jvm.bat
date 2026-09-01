@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260901.15"
+set "JVM_BUILD=20260901.16"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3430,38 +3430,40 @@ set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!.ps1"
     echo         Write-Host '[   OK   ] Checksum verified successfully.' -ForegroundColor Green
     echo         Write-Host ""
     echo     }
-    echo     Write-Host '[ ACTION ] Extracting archive...' -ForegroundColor Cyan
-    echo     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    echo     $zip = [System.IO.Compression.ZipFile]::OpenRead^('!DL_ZIP!'^)
-    echo     $entries = $zip.Entries
-    echo     $totalEntries = $entries.Count
-    echo     $extracted = 0
-    echo     $lastPercent = -1
-    echo     foreach ^($entry in $entries^) {
-    echo         $destinationPath = [System.IO.Path]::GetFullPath^([System.IO.Path]::Combine^('!DL_EXTRACT!', $entry.FullName^)^)
-    echo         if ^([string]::IsNullOrEmpty^($entry.Name^)^) {
-    echo             [System.IO.Directory]::CreateDirectory^($destinationPath^) ^| Out-Null
-    echo         } else {
-    echo             [System.IO.Directory]::CreateDirectory^([System.IO.Path]::GetDirectoryName^($destinationPath^)^) ^| Out-Null
-    echo             [System.IO.Compression.ZipFileExtensions]::ExtractToFile^($entry, $destinationPath, $true^)
+    echo     if ^('!DL_EXTRACT!' -ne ''^) {
+    echo         Write-Host '[ ACTION ] Extracting archive...' -ForegroundColor Cyan
+    echo         Add-Type -AssemblyName System.IO.Compression.FileSystem
+    echo         $zip = [System.IO.Compression.ZipFile]::OpenRead^('!DL_ZIP!'^)
+    echo         $entries = $zip.Entries
+    echo         $totalEntries = $entries.Count
+    echo         $extracted = 0
+    echo         $lastPercent = -1
+    echo         foreach ^($entry in $entries^) {
+    echo             $destinationPath = [System.IO.Path]::GetFullPath^([System.IO.Path]::Combine^('!DL_EXTRACT!', $entry.FullName^)^)
+    echo             if ^([string]::IsNullOrEmpty^($entry.Name^)^) {
+    echo                 [System.IO.Directory]::CreateDirectory^($destinationPath^) ^| Out-Null
+    echo             } else {
+    echo                 [System.IO.Directory]::CreateDirectory^([System.IO.Path]::GetDirectoryName^($destinationPath^)^) ^| Out-Null
+    echo                 [System.IO.Compression.ZipFileExtensions]::ExtractToFile^($entry, $destinationPath, $true^)
+    echo             }
+    echo             $extracted++
+    echo             $percent = [math]::Round^(^($extracted / $totalEntries^) * 100^)
+    echo             if ^($percent -ne $lastPercent^) {
+    echo                 $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
+    echo                 Write-Host "`r[ ACTION ] Extracting: $bar $percent%% ($extracted / $totalEntries) " -NoNewline -ForegroundColor Cyan
+    echo                 $lastPercent = $percent
+    echo             }
     echo         }
-    echo         $extracted++
-    echo         $percent = [math]::Round^(^($extracted / $totalEntries^) * 100^)
-    echo         if ^($percent -ne $lastPercent^) {
-    echo             $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
-    echo             Write-Host "`r[ ACTION ] Extracting: $bar $percent%% ($extracted / $totalEntries) " -NoNewline -ForegroundColor Cyan
-    echo             $lastPercent = $percent
-    echo         }
-    echo     }
-    echo     Write-Host "`r[ ACTION ] Extracting: [==================================================] 100%% ($totalEntries / $totalEntries) " -NoNewline -ForegroundColor Cyan
-    echo     $zip.Dispose^(^)
-    echo     Write-Host "`n"
-    echo     Remove-Item '!DL_ZIP!'
-    echo     if ^('!DL_STRIP_ROOT!' -eq '1'^) {
-    echo         $items = Get-ChildItem '!DL_EXTRACT!'
-    echo         if ^($items.Count -eq 1 -and $items[0].PSIsContainer^) {
-    echo             Move-Item -Path ^($items[0].FullName + '\*'^) -Destination '!DL_EXTRACT!\' -Force
-    echo             Remove-Item $items[0].FullName -Recurse -Force
+    echo         Write-Host "`r[ ACTION ] Extracting: [==================================================] 100%% ($totalEntries / $totalEntries) " -NoNewline -ForegroundColor Cyan
+    echo         $zip.Dispose^(^)
+    echo         Write-Host "`n"
+    echo         Remove-Item '!DL_ZIP!'
+    echo         if ^('!DL_STRIP_ROOT!' -eq '1'^) {
+    echo             $items = Get-ChildItem '!DL_EXTRACT!'
+    echo             if ^($items.Count -eq 1 -and $items[0].PSIsContainer^) {
+    echo                 Move-Item -Path ^($items[0].FullName + '\*'^) -Destination '!DL_EXTRACT!\' -Force
+    echo                 Remove-Item $items[0].FullName -Recurse -Force
+    echo             }
     echo         }
     echo     }
     echo } catch {
