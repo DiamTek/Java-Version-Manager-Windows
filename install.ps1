@@ -1,8 +1,8 @@
 $ErrorActionPreference = 'Stop'
-Write-Host "[ ACTION ] Installing Java Version Manager..." -ForegroundColor Cyan
+Write-Host "[ ACTION ] Installing DiamTek Java Version Manager..." -ForegroundColor Cyan
 
-# Create a clean, dedicated bin folder for the executable
-$installDir = "$env:USERPROFILE\.jvm\bin"
+# Create a clean, dedicated bin folder for the executable under LocalAppData
+$installDir = "$env:LOCALAPPDATA\DiamTek\JVM\bin"
 if (-not (Test-Path $installDir)) { New-Item -ItemType Directory -Path $installDir -Force | Out-Null }
 $batPath = Join-Path $installDir "jvm.bat"
 

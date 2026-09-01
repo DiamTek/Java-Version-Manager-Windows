@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260901.19"
+set "JVM_BUILD=20260901.20"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -64,8 +64,8 @@ set "ORIGINAL_ARGS=%*"
 set "SCRIPT_PATH=%~f0"
 
 set "SWITCH_MODE=SYMLINK"
-if exist "%USERPROFILE%\.jvm\mode.txt" (
-    set /p SWITCH_MODE=<"%USERPROFILE%\.jvm\mode.txt"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" (
+    set /p SWITCH_MODE=<"%LOCALAPPDATA%\DiamTek\JVM\mode.txt"
 )
 if /i not "!SWITCH_MODE!"=="DIRECT" set "SWITCH_MODE=SYMLINK"
 
@@ -279,8 +279,8 @@ cd /d "%~dp0"
 set "CURRENT_JDK_PATH="
 
 :: Reload config in case it was changed inside a setlocal block
-if exist "%USERPROFILE%\.jvm\mode.txt" (
-    set /p SWITCH_MODE=<"%USERPROFILE%\.jvm\mode.txt"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" (
+    set /p SWITCH_MODE=<"%LOCALAPPDATA%\DiamTek\JVM\mode.txt"
 )
 if /i not "!SWITCH_MODE!"=="DIRECT" set "SWITCH_MODE=SYMLINK"
 
@@ -329,8 +329,8 @@ if "!SESSION_MODE!"=="1" (
 )
 
 echo.
-set "JVM_DIR=%USERPROFILE%\.jvm"
-set "CURRENT_SYMLINK=%USERPROFILE%\.jvm\current"
+set "JVM_DIR=%LOCALAPPDATA%\DiamTek\JVM"
+set "CURRENT_SYMLINK=%LOCALAPPDATA%\DiamTek\JVM\current"
 
 if /i "%SWITCH_MODE%"=="DIRECT" (
     echo %cBLUE%[ ACTION ]%cRESET% Setting Java to %CURRENT_JDK_PATH%...
@@ -488,8 +488,8 @@ if "!SKIP_HEADER!"=="0" (
 
 :: Resolve the true underlying path of JAVA_HOME if it is currently using the symlink mode
 set "RESOLVED_JAVA_HOME=!JAVA_HOME!"
-if /i "!JAVA_HOME!"=="%USERPROFILE%\.jvm\current" (
-    for /f "tokens=2* delims=:" %%P in ('fsutil reparsepoint query "%USERPROFILE%\.jvm\current" 2^>nul ^| findstr /c:"Print Name:"') do (
+if /i "!JAVA_HOME!"=="%LOCALAPPDATA%\DiamTek\JVM\current" (
+    for /f "tokens=2* delims=:" %%P in ('fsutil reparsepoint query "%LOCALAPPDATA%\DiamTek\JVM\current" 2^>nul ^| findstr /c:"Print Name:"') do (
         set "RAW_TARGET=%%P:%%Q"
         for /f "tokens=* delims= " %%A in ("!RAW_TARGET!") do set "RESOLVED_JAVA_HOME=%%A"
     )
@@ -738,9 +738,9 @@ if defined CLI_TARGET (
                 echo %cBLUE%[ ACTION ]%cRESET% Automatically updating ALL JDKs and Ecosystem Tools...
                 for /l %%k in (1,1,!JDK_COUNT!) do call :ProcessSingleUpdate %%k
                 for %%T in (maven gradle kotlin scala groovy) do (
-                    if exist "%USERPROFILE%\.jvm\candidates\%%T\current" (
+                    if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current" (
                         set "act_ver=none"
-                        for /f "tokens=2*" %%A in ('fsutil reparsepoint query "%USERPROFILE%\.jvm\candidates\%%T\current" 2^>nul ^| findstr /i "Print Name:"') do for %%X in ("%%B") do set "act_ver=%%~nxX"
+                        for /f "tokens=2*" %%A in ('fsutil reparsepoint query "%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current" 2^>nul ^| findstr /i "Print Name:"') do for %%X in ("%%B") do set "act_ver=%%~nxX"
                         call :EcoPerformCheck %%T "!act_ver!"
                     )
                 )
@@ -810,8 +810,8 @@ if defined CLI_TARGET (
                 taskkill /f /im java.exe >nul 2^>^&1
                 taskkill /f /im javaw.exe >nul 2^>^&1
                 rmdir /s /q "!DEL_PATH!"
-                if not exist "%USERPROFILE%\.jvm\current\bin\java.exe" (
-                    if exist "%USERPROFILE%\.jvm\current" rmdir "%USERPROFILE%\.jvm\current"
+                if not exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" (
+                    if exist "%LOCALAPPDATA%\DiamTek\JVM\current" rmdir "%LOCALAPPDATA%\DiamTek\JVM\current"
                     reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2^>^&1
                 )
                 set "SYS_PATH="
@@ -1072,7 +1072,7 @@ set "EU_HAS_MAVEN=0" & set "EU_HAS_GRADLE=0" & set "EU_HAS_KOTLIN=0" & set "EU_H
 set "EU_ACTIVE_MAVEN=" & set "EU_ACTIVE_GRADLE=" & set "EU_ACTIVE_KOTLIN=" & set "EU_ACTIVE_SCALA=" & set "EU_ACTIVE_GROOVY="
 
 for %%T in (maven gradle kotlin scala groovy) do (
-    set "eu_cdir=%USERPROFILE%\.jvm\candidates\%%T"
+    set "eu_cdir=%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T"
     if exist "!eu_cdir!" (
         set "eu_has_ver=0"
         for /d %%V in ("!eu_cdir!\*") do if not "%%~nxV"=="current" set "eu_has_ver=1"
@@ -1175,7 +1175,7 @@ goto :EcoPerformCheck_End
 set "CHK_T=%~1"
 set "CHK_ACT=%~2"
 set "TARGET_CANDIDATE=!CHK_T!"
-set "c_dir=%USERPROFILE%\.jvm\candidates\!CHK_T!"
+set "c_dir=%LOCALAPPDATA%\DiamTek\JVM\candidates\!CHK_T!"
 call :GetCandidateEnvVar
 echo ------------------------------------------------------------
 echo %cBLUE%[ ACTION ]%cRESET% Analyzing !CANDIDATE_PROPER_NAME!...
@@ -1233,15 +1233,15 @@ echo ============================================================
 set "OPT_M=" & set "OPT_G=" & set "OPT_K=" & set "OPT_S=" & set "OPT_GR="
 set "HAS_ANY=0"
 set "HAS_M=0"
-if exist "%USERPROFILE%\.jvm\candidates\maven\*" for /d %%D in ("%USERPROFILE%\.jvm\candidates\maven\*") do if not "%%~nxD"=="current" ( set "HAS_M=1" & set "HAS_ANY=1" )
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\maven\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\maven\*") do if not "%%~nxD"=="current" ( set "HAS_M=1" & set "HAS_ANY=1" )
 set "HAS_G=0"
-if exist "%USERPROFILE%\.jvm\candidates\gradle\*" for /d %%D in ("%USERPROFILE%\.jvm\candidates\gradle\*") do if not "%%~nxD"=="current" ( set "HAS_G=1" & set "HAS_ANY=1" )
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\gradle\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\gradle\*") do if not "%%~nxD"=="current" ( set "HAS_G=1" & set "HAS_ANY=1" )
 set "HAS_K=0"
-if exist "%USERPROFILE%\.jvm\candidates\kotlin\*" for /d %%D in ("%USERPROFILE%\.jvm\candidates\kotlin\*") do if not "%%~nxD"=="current" ( set "HAS_K=1" & set "HAS_ANY=1" )
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\kotlin\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\kotlin\*") do if not "%%~nxD"=="current" ( set "HAS_K=1" & set "HAS_ANY=1" )
 set "HAS_S=0"
-if exist "%USERPROFILE%\.jvm\candidates\scala\*" for /d %%D in ("%USERPROFILE%\.jvm\candidates\scala\*") do if not "%%~nxD"=="current" ( set "HAS_S=1" & set "HAS_ANY=1" )
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\scala\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\scala\*") do if not "%%~nxD"=="current" ( set "HAS_S=1" & set "HAS_ANY=1" )
 set "HAS_GR=0"
-if exist "%USERPROFILE%\.jvm\candidates\groovy\*" for /d %%D in ("%USERPROFILE%\.jvm\candidates\groovy\*") do if not "%%~nxD"=="current" ( set "HAS_GR=1" & set "HAS_ANY=1" )
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\groovy\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\groovy\*") do if not "%%~nxD"=="current" ( set "HAS_GR=1" & set "HAS_ANY=1" )
 
 if "!ECO_SUB_MODE!"=="SWITCH" goto :ECO_TOOL_FILTERED
 if "!ECO_SUB_MODE!"=="UNINSTALL" goto :ECO_TOOL_FILTERED
@@ -1323,7 +1323,7 @@ if "!ECO_SUB_MODE!"=="INSTALL" (
 if "!ECO_SUB_MODE!"=="UNINSTALL" (
     echo.
     echo %cBLUE%[  INFO  ]%cRESET% Installed !CANDIDATE_PROPER_NAME! versions:
-    for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -Path '%USERPROFILE%\.jvm\candidates\!TARGET_CANDIDATE!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { [version]($_.Name -replace '-.*','') } -Descending | Select-Object -ExpandProperty Name"') do (
+    for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -Path '%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { [version]($_.Name -replace '-.*','') } -Descending | Select-Object -ExpandProperty Name"') do (
         echo   - %%V
     )
     echo.
@@ -1348,7 +1348,7 @@ if defined !CANDIDATE_ENV_VAR! (
 echo.
 
 set "eco_count=0"
-set "CANDIDATE_DIR=%USERPROFILE%\.jvm\candidates\!TARGET_CANDIDATE!"
+set "CANDIDATE_DIR=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
 if exist "!CANDIDATE_DIR!" (
     for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { [version]($_.Name -replace '-.*','') } -Descending | Select-Object -ExpandProperty Name"') do (
         set /a eco_count+=1
@@ -1757,7 +1757,7 @@ if not defined ORIGINAL_PATH (
 
 echo            - De-bloating Phantom Oracle paths...
 
-for %%P in ("C:\Program Files\Common Files\Oracle\Java\javapath" "C:\Program Files (x86)\Common Files\Oracle\Java\javapath" "C:\ProgramData\Oracle\Java\javapath" "%USERPROFILE%\.jvm\current\bin" "%CURRENT_JDK_PATH%\bin") do (
+for %%P in ("C:\Program Files\Common Files\Oracle\Java\javapath" "C:\Program Files (x86)\Common Files\Oracle\Java\javapath" "C:\ProgramData\Oracle\Java\javapath" "%LOCALAPPDATA%\DiamTek\JVM\current\bin" "%CURRENT_JDK_PATH%\bin") do (
     set "ORIGINAL_PATH=!ORIGINAL_PATH:%%~P;=!"
     set "ORIGINAL_PATH=!ORIGINAL_PATH:;%%~P=!"
     set "ORIGINAL_PATH=!ORIGINAL_PATH:%%~P=!"
@@ -1845,13 +1845,13 @@ reg delete "HKCU\Environment" /v SCALA_HOME /f >nul 2>&1
 reg delete "HKCU\Environment" /v GROOVY_HOME /f >nul 2>&1
 
 echo %cBLUE%[ ACTION ]%cRESET% Removing active directory junctions...
-if exist "%USERPROFILE%\.jvm\current" rmdir "%USERPROFILE%\.jvm\current" >nul 2>&1
-for /d %%C in ("%USERPROFILE%\.jvm\candidates\*") do (
+if exist "%LOCALAPPDATA%\DiamTek\JVM\current" rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
+for /d %%C in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\*") do (
     if exist "%%C\current" rmdir "%%C\current" >nul 2>&1
 )
 
 :: Safely gather paths to purge to prevent catastrophic '\bin' wiping if variables are empty
-set "PURGE_PATHS="%USERPROFILE%\.jvm\current\bin" "%%JAVA_HOME%%\bin" "C:\Program Files\Common Files\Oracle\Java\javapath" "C:\Program Files (x86)\Common Files\Oracle\Java\javapath" "C:\ProgramData\Oracle\Java\javapath""
+set "PURGE_PATHS="%LOCALAPPDATA%\DiamTek\JVM\current\bin" "%%JAVA_HOME%%\bin" "C:\Program Files\Common Files\Oracle\Java\javapath" "C:\Program Files (x86)\Common Files\Oracle\Java\javapath" "C:\ProgramData\Oracle\Java\javapath""
 if defined JAVA_HOME set "PURGE_PATHS=!PURGE_PATHS! "!JAVA_HOME!\bin""
 for /l %%k in (1,1,!JDK_COUNT!) do set "PURGE_PATHS=!PURGE_PATHS! "!JDK_PATH_%%k!\bin""
 
@@ -2530,8 +2530,8 @@ set "ADMIN_BAT=%TEMP%\jvm_admin_!RANDOM!.bat"
     echo taskkill /f /im java.exe ^>nul 2^>^&1
     echo taskkill /f /im javaw.exe ^>nul 2^>^&1
     echo rmdir /s /q "!DEL_PATH!"
-    echo if not exist "%USERPROFILE%\.jvm\current\bin\java.exe" ^(
-    echo     if exist "%USERPROFILE%\.jvm\current" rmdir "%USERPROFILE%\.jvm\current"
+    echo if not exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" ^(
+    echo     if exist "%LOCALAPPDATA%\DiamTek\JVM\current" rmdir "%LOCALAPPDATA%\DiamTek\JVM\current"
     echo     reg delete "HKCU\Environment" /v JAVA_HOME /f ^>nul 2^>^&1
     echo ^)
     echo set "SYS_PATH="
@@ -2622,8 +2622,8 @@ if !sub_choice!==2 (
     ) else (
         set "SWITCH_MODE=DIRECT"
     )
-    if not exist "%USERPROFILE%\.jvm" mkdir "%USERPROFILE%\.jvm"
-    echo !SWITCH_MODE!> "%USERPROFILE%\.jvm\mode.txt"
+    if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM"
+    echo !SWITCH_MODE!> "%LOCALAPPDATA%\DiamTek\JVM\mode.txt"
     echo.
     echo %cGREEN%[   OK   ]%cRESET% Switched mode to !SWITCH_MODE!.
     timeout /t 2 >nul
@@ -3106,7 +3106,7 @@ exit /b 0
 :SwitchCandidate
 set "TARGET_VER=%~1"
 call :GetCandidateEnvVar
-set "CANDIDATE_DIR=%USERPROFILE%\.jvm\candidates\!TARGET_CANDIDATE!"
+set "CANDIDATE_DIR=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
 
 if /i "!TARGET_VER!"=="latest" (
     if exist "!CANDIDATE_DIR!" (
@@ -3217,7 +3217,7 @@ if /i "!TARGET_CANDIDATE!"=="groovy" (
 )
 
 set "ZIP_DEST=%TEMP%\jvm_!TARGET_CANDIDATE!_!TARGET_VER!.zip"
-set "EXTRACT_DEST=%USERPROFILE%\.jvm\candidates\!TARGET_CANDIDATE!\!TARGET_VER!"
+set "EXTRACT_DEST=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\!TARGET_VER!"
 set "EXTRACT_DEST_TEMP=%TEMP%\jvm_!TARGET_CANDIDATE!_!TARGET_VER!_temp"
 
 if exist "!EXTRACT_DEST!" (
@@ -3250,7 +3250,7 @@ set "DL_CHKSUM_VAL="
 set "DL_CHKSUM_TYPE=!CHECKSUM_TYPE!"
 set "DL_STRIP_ROOT=1"
 
-if not exist "%USERPROFILE%\.jvm\candidates\!TARGET_CANDIDATE!" mkdir "%USERPROFILE%\.jvm\candidates\!TARGET_CANDIDATE!"
+if not exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!" mkdir "%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
 
 call :ExecuteSharedDownloader
 if !errorlevel! NEQ 0 (
@@ -3263,7 +3263,7 @@ echo.
 
 echo %cGREEN%[   OK   ]%cRESET% Successfully installed !CANDIDATE_PROPER_NAME! !TARGET_VER!.
 
-if not exist "%USERPROFILE%\.jvm\candidates\!TARGET_CANDIDATE!\current" (
+if not exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\current" (
     echo.
     echo %cBLUE%[  INFO  ]%cRESET% First installation detected. Auto-activating...
     call :SwitchCandidate "!TARGET_VER!"
@@ -3280,7 +3280,7 @@ if "!TARGET_VER!"=="" (
     exit /b 1
 )
 
-set "CANDIDATE_DIR=%USERPROFILE%\.jvm\candidates\!TARGET_CANDIDATE!"
+set "CANDIDATE_DIR=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
 
 if /i "!TARGET_VER!"=="latest" (
     if exist "!CANDIDATE_DIR!" (
@@ -3314,11 +3314,11 @@ echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! !TARGET_VER! successfull
 exit /b 0
 
 :ListEcosystemCandidates
-if not exist "%USERPROFILE%\.jvm\candidates" exit /b 0
+if not exist "%LOCALAPPDATA%\DiamTek\JVM\candidates" exit /b 0
 echo.
 echo %cBLUE%[  INFO  ]%cRESET% Installed Ecosystem Tools:
 echo ============================================================
-for /d %%C in ("%USERPROFILE%\.jvm\candidates\*") do (
+for /d %%C in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\*") do (
     set "TARGET_CANDIDATE=%%~nxC"
     call :GetCandidateEnvVar
     echo  - !CANDIDATE_PROPER_NAME!
@@ -3339,7 +3339,7 @@ set "TARGET_CANDIDATE=%~1"
 call :GetCandidateEnvVar
 if not defined CANDIDATE_ENV_VAR exit /b 0
 
-set "T_PATH=%USERPROFILE%\.jvm\candidates\!TARGET_CANDIDATE!\%~2"
+set "T_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\%~2"
 if not exist "!T_PATH!" (
     echo %cYELLOW%[ WARNING]%cRESET% !CANDIDATE_PROPER_NAME! %~2 is not installed.
     exit /b 0
