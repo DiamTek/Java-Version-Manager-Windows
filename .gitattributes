@@ -1,1 +1,2 @@
 *.bat text eol=crlf
+*.ps1 linguist-vendored

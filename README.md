@@ -57,13 +57,13 @@ Despite being nearly 100 KB in size, the `jvm.bat` engine is mathematically opti
 
 ## 🚀 Installation
 
-Open PowerShell as Administrator and run the following command to download, sanitize, and start the Java Version Manager:
+Open PowerShell and run the following command to securely download and install the Java Version Manager:
 
 ```powershell
-Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/Diamond-Industries/Java-Version-Manager-Windows/main/jvm.bat' -UseBasicParsing | ForEach-Object { $_.Replace([char]160, ' ') -replace "(?<!`r)`n", "`r`n" } | Out-File -FilePath "$env:TEMP\jvm_setup.bat" -Encoding utf8; Start-Process -FilePath "$env:TEMP\jvm_setup.bat" -Wait
+irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex
 ```
 
-This single line guarantees you get a mathematically perfect, sanitized, and perfectly encoded version of the code, completely bypassing any chance of Notepad formatting corruption.
+This single line downloads the installer script, which automatically fetches `jvm.bat`, sanitizes any web formatting artifacts (hidden spaces, Linux line endings), installs it to `%USERPROFILE%\.jvm\bin`, and adds it to your User PATH. Open a new terminal and type `jvm` to start.
 
 ## 🛠️ Usage
 

@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260901.17"
+set "JVM_BUILD=20260901.18"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2937,7 +2937,7 @@ if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
     
-    set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/Diamond-Industries/Java-Version-Manager-Windows/main/jvm.bat'); $req.Method = 'GET'; try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) } } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) } } else { Write-Output 'UNKNOWN|UNKNOWN' }; $reader.Close(); $res.Close() } catch { Write-Output 'ERROR|ERROR' }"
+    set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat'); $req.Method = 'GET'; try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) } } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) } } else { Write-Output 'UNKNOWN|UNKNOWN' }; $reader.Close(); $res.Close() } catch { Write-Output 'ERROR|ERROR' }"
     powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
     set "REMOTE_BUILD=UNKNOWN"
     set "UPDATE_FLAG=ERROR"
