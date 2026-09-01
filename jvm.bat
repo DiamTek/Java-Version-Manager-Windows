@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260901.18"
+set "JVM_BUILD=20260901.19"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2986,7 +2986,7 @@ if !errorlevel! NEQ 0 (
 )
 
 :: Sanitize LF line endings and hidden spaces after download to prevent the 'cho' bug
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$c = [IO.File]::ReadAllText('%TEMP%\jvm_new.bat', [Text.Encoding]::UTF8); $c = $c.Replace([char]160, ' ') -replace '(?<!\r)\n', [Environment]::NewLine; [IO.File]::WriteAllText('%TEMP%\jvm_new.bat', $c, [Text.Encoding]::UTF8)" 2>nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$c = [IO.File]::ReadAllText('%TEMP%\jvm_new.bat'); $c = $c.Replace([char]160, ' ') -replace '(?<!\r)\n', [Environment]::NewLine; [IO.File]::WriteAllText('%TEMP%\jvm_new.bat', $c, (New-Object System.Text.UTF8Encoding $false))" 2>nul
 
 for %%I in ("%TEMP%\jvm_new.bat") do set "NEW_SIZE=%%~zI"
 if !NEW_SIZE! EQU 0 (

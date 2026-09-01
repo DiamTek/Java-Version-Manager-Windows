@@ -13,7 +13,7 @@ $content = (Invoke-WebRequest -Uri $url -UseBasicParsing).Content
 Write-Host "           Sanitizing code format..."
 # Scrub hidden HTML spaces and force strict Windows CRLF line endings
 $content = $content.Replace([char]160, ' ') -replace "(?<!`r)`n", "`r`n"
-[IO.File]::WriteAllText($batPath, $content, [Text.Encoding]::UTF8)
+[IO.File]::WriteAllText($batPath, $content, (New-Object System.Text.UTF8Encoding $false))
 
 Write-Host "           Configuring User PATH..."
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
