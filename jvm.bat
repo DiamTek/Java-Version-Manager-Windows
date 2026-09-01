@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260901.16"
+set "JVM_BUILD=20260901.17"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2875,7 +2875,7 @@ echo.
 echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
 
 :: Fetch latest build number from GitHub main branch and compare using PowerShell [version]
-set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/Diamond-Industries/Java-Version-Manager-Windows/main/jvm.bat'); $req.Method = 'GET'; try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) } } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) } } else { Write-Output 'UNKNOWN|UNKNOWN' }; $reader.Close(); $res.Close() } catch { Write-Output 'ERROR|ERROR' }"
+set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat'); $req.Method = 'GET'; try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) } } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) } } else { Write-Output 'UNKNOWN|UNKNOWN' }; $reader.Close(); $res.Close() } catch { Write-Output 'ERROR|ERROR' }"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
 set "REMOTE_BUILD=UNKNOWN"
 set "UPDATE_FLAG=ERROR"
@@ -2969,13 +2969,24 @@ if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
 
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
-echo            Fetching latest jvm.bat...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$c = (Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/Diamond-Industries/Java-Version-Manager-Windows/main/jvm.bat' -UseBasicParsing).Content; $c = $c.Replace([char]160, ' ') -replace '(?<!\r)\n', [Environment]::NewLine; [IO.File]::WriteAllText('%TEMP%\jvm_new.bat', $c, [Text.Encoding]::UTF8)" 2>nul
-if errorlevel 1 (
+
+set "DL_URL=https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat"
+set "DL_ZIP=%TEMP%\jvm_new.bat"
+set "DL_EXTRACT="
+set "DL_CHKSUM_URL="
+set "DL_CHKSUM_VAL="
+set "DL_STRIP_ROOT=0"
+
+call :ExecuteSharedDownloader
+if !errorlevel! NEQ 0 (
+    echo.
     echo %cRED%[ ERROR  ]%cRESET% Failed to download the latest update.
     pause
     goto :eof
 )
+
+:: Sanitize LF line endings and hidden spaces after download to prevent the 'cho' bug
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$c = [IO.File]::ReadAllText('%TEMP%\jvm_new.bat', [Text.Encoding]::UTF8); $c = $c.Replace([char]160, ' ') -replace '(?<!\r)\n', [Environment]::NewLine; [IO.File]::WriteAllText('%TEMP%\jvm_new.bat', $c, [Text.Encoding]::UTF8)" 2>nul
 
 for %%I in ("%TEMP%\jvm_new.bat") do set "NEW_SIZE=%%~zI"
 if !NEW_SIZE! EQU 0 (
