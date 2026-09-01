@@ -55,6 +55,16 @@ Despite being nearly 100 KB in size, the `jvm.bat` engine is mathematically opti
 * **OS:** Windows 10 or Windows 11
 * **Privileges:** Standard User (UAC bypass is enabled by default via Symlink Architecture). Administrator rights are only requested if you explicitly switch to legacy Registry Mode, or during global system installations.
 
+## 🚀 Installation
+
+Open PowerShell as Administrator and run the following command to download, sanitize, and start the Java Version Manager:
+
+```powershell
+Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/Diamond-Industries/Java-Version-Manager-Windows/main/jvm.bat' -UseBasicParsing | ForEach-Object { $_.Replace([char]160, ' ') -replace "(?<!`r)`n", "`r`n" } | Out-File -FilePath "$env:TEMP\jvm_setup.bat" -Encoding utf8; Start-Process -FilePath "$env:TEMP\jvm_setup.bat" -Wait
+```
+
+This single line guarantees you get a mathematically perfect, sanitized, and perfectly encoded version of the code, completely bypassing any chance of Notepad formatting corruption.
+
 ## 🛠️ Usage
 
 1. Launch `jvm.bat` to open the interactive menu, or run it from any terminal.

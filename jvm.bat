@@ -26,7 +26,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260901.14"
+set "JVM_BUILD=20260901.15"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2970,7 +2970,7 @@ if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
 echo            Fetching latest jvm.bat...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/Diamond-Industries/Java-Version-Manager-Windows/main/jvm.bat' -OutFile '%TEMP%\jvm_new.bat' -UseBasicParsing" 2>nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$c = (Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/Diamond-Industries/Java-Version-Manager-Windows/main/jvm.bat' -UseBasicParsing).Content; $c = $c.Replace([char]160, ' ') -replace '(?<!\r)\n', [Environment]::NewLine; [IO.File]::WriteAllText('%TEMP%\jvm_new.bat', $c, [Text.Encoding]::UTF8)" 2>nul
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Failed to download the latest update.
     pause
