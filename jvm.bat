@@ -1,35 +1,35 @@
 @echo off
-:: Java Version Manager
-:: Copyright (C) 2026 DiamTek / Alexéy Shishkin
+rem Java Version Manager
+rem Copyright (C) 2026 DiamTek / Alexéy Shishkin
 ::
-:: This program is free software: you can redistribute it and/or modify
-:: it under the terms of the GNU Affero General Public License as
-:: published by the Free Software Foundation, either version 3 of the
-:: License, or (at your option) any later version.
+rem This program is free software: you can redistribute it and/or modify
+rem it under the terms of the GNU Affero General Public License as
+rem published by the Free Software Foundation, either version 3 of the
+rem License, or (at your option) any later version.
 ::
-:: This program is distributed in the hope that it will be useful,
-:: but WITHOUT ANY WARRANTY; without even the implied warranty of
-:: MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-:: GNU Affero General Public License for more details.
+rem This program is distributed in the hope that it will be useful,
+rem but WITHOUT ANY WARRANTY; without even the implied warranty of
+rem MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+rem GNU Affero General Public License for more details.
 ::
-:: You should have received a copy of the GNU Affero General Public License
-:: along with this program.  If not, see <https://www.gnu.org/licenses/>.
+rem You should have received a copy of the GNU Affero General Public License
+rem along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-:: Enable UTF-8 encoding for console output
+rem Enable UTF-8 encoding for console output
 chcp 65001 >nul
 
 setlocal enabledelayedexpansion
 set "INVOCATION_DIR=%cd%"
 
-:: Cleanup self-updater artifact if it exists
+rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260902.21"
+set "JVM_BUILD=20260902.22"
 
-:: Generate ESC character for ANSI color codes
+rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
 set "cRED=%ESC%[91m"
 set "cGREEN=%ESC%[92m"
@@ -38,7 +38,7 @@ set "cBLUE=%ESC%[96m"
 set "cGRAY=%ESC%[90m"
 set "cRESET=%ESC%[0m"
 
-:: Define base JDK search locations BEFORE delayed expansion to prevent exclamation mark corruption
+rem Define base JDK search locations BEFORE delayed expansion to prevent exclamation mark corruption
 set "LOCATIONS[0]=C:\Program Files\Java"
 set "LOCATIONS[1]=C:\Program Files (x86)\Java"
 set "LOCATIONS[2]=C:\Java"
@@ -57,7 +57,7 @@ if exist "%USERPROFILE%\scoop\apps" (
 )
 set /a MAX_LOC=LOC_IDX-1
 
-:: Parse .java-version and establish mode BEFORE changing directories or checking UAC!
+rem Parse .java-version and establish mode BEFORE changing directories or checking UAC!
 set "SILENT_MODE=0"
 set "CLI_TARGET="
 set "SESSION_MODE=0"
@@ -215,7 +215,7 @@ if /i "%~1"=="list" (
 
 :PARSE_DONE
 
-:: Detect Hardware Architecture
+rem Detect Hardware Architecture
 set "SYS_ARCH=x64"
 set "ZULU_ARCH=x86"
 if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" (
@@ -223,7 +223,7 @@ if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" (
     set "ZULU_ARCH=arm"
 )
 
-:: If a target was provided via CLI, set variables
+rem If a target was provided via CLI, set variables
 set "SKIP_HEADER=0"
 
 if defined CLI_COMMAND (
@@ -255,7 +255,7 @@ if defined CLI_TARGET (
 
 if /i "%CLI_COMMAND%"=="clear" set "SKIP_HEADER=1"
 
-:: Check if the script is running as Administrator
+rem Check if the script is running as Administrator
 if "%SESSION_MODE%"=="1" goto :SKIP_ADMIN_CHECK
 if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="list" goto :SKIP_ADMIN_CHECK
@@ -268,18 +268,18 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="self-update" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="version" set "SKIP_HEADER=1"
 )
-:: By default, run everything inline without Admin. We only elevate for specific file/registry operations.
+rem By default, run everything inline without Admin. We only elevate for specific file/registry operations.
 goto :SKIP_ADMIN_CHECK
 
 :SKIP_ADMIN_CHECK
 
-:: CRITICAL: Set the working directory to the script's location
+rem CRITICAL: Set the working directory to the script's location
 cd /d "%~dp0"
 :MAIN_LOOP
-:: Clear the variable before calling the menu to ensure a clean state
+rem Clear the variable before calling the menu to ensure a clean state
 set "CURRENT_JDK_PATH="
 
-:: Reload config in case it was changed inside a setlocal block
+rem Reload config in case it was changed inside a setlocal block
 if exist "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" (
     set /p SWITCH_MODE=<"%LOCALAPPDATA%\DiamTek\JVM\mode.txt"
 )
@@ -289,10 +289,10 @@ if defined SWITCH_MODE_OVERRIDE (
     set "SWITCH_MODE=%SWITCH_MODE_OVERRIDE%"
 )
 
-:: Jump straight to the menu function to prevent screen clearing issues
+rem Jump straight to the menu function to prevent screen clearing issues
 call :ShowDynamicMenu %*
 
-:: If CURRENT_JDK_PATH is not set, the user chose the Exit option (unless purely doing ecosystem session switching)
+rem If CURRENT_JDK_PATH is not set, the user chose the Exit option (unless purely doing ecosystem session switching)
 if not defined CURRENT_JDK_PATH (
     if not "!FOUND_SDKMANRC!"=="1" (
         exit /B 0
@@ -310,7 +310,7 @@ if "!SESSION_MODE!"=="1" (
     if exist "%TEMP%\.jvm_session_target" del "%TEMP%\.jvm_session_target"
     if defined CURRENT_JDK_PATH (
         echo %cBLUE%[ ACTION ]%cRESET% Session mode active. Setting Java to !CURRENT_JDK_PATH!...
-        echo JAVA_HOME=!CURRENT_JDK_PATH!>> "%TEMP%\.jvm_session_target"
+        >>"%TEMP%\.jvm_session_target" echo JAVA_HOME=!CURRENT_JDK_PATH!
         set "JAVA_HOME=!CURRENT_JDK_PATH!"
         set "PATH=!CURRENT_JDK_PATH!\bin;!PATH!"
     ) else (
@@ -318,7 +318,7 @@ if "!SESSION_MODE!"=="1" (
     )
     
     if "!FOUND_SDKMANRC!"=="1" (
-        for /f "tokens=1,2 delims==" %%A in ('type ".sdkmanrc" 2^>nul ^| findstr /i /v "^java="') do (
+        for /f "tokens=1,2 delims==" %%A in ('type "!INVOCATION_DIR!\.sdkmanrc" 2^>nul ^| findstr /i /v "^java="') do (
             set "ECO_CAND=%%A"
             set "ECO_VER=%%B"
             call :ProcessEcosystemSession "!ECO_CAND!" "!ECO_VER!"
@@ -337,10 +337,10 @@ if /i "%SWITCH_MODE%"=="DIRECT" (
     echo %cBLUE%[ ACTION ]%cRESET% Setting Java to %CURRENT_JDK_PATH%...
     echo %cBLUE%[  INFO  ]%cRESET% Setting JAVA_HOME to: %CURRENT_JDK_PATH%
     
-    :: Output session target so the parent PowerShell window can sync immediately
-    echo %CURRENT_JDK_PATH%> "%TEMP%\.jvm_session_target"
+    rem Output session target so the parent PowerShell window can sync immediately
+    >"%TEMP%\.jvm_session_target" echo %CURRENT_JDK_PATH%
     
-    :: Deferring registry update to UpdateSystemPath to do both in one UAC prompt
+    rem Deferring registry update to UpdateSystemPath to do both in one UAC prompt
     set "SYMLINK_OR_DIRECT=%CURRENT_JDK_PATH%"
 ) else (
     if not exist "%JVM_DIR%" mkdir "%JVM_DIR%"
@@ -358,9 +358,9 @@ if /i "%SWITCH_MODE%"=="DIRECT" (
         goto MAIN_LOOP
     )
     
-    echo %CURRENT_SYMLINK%> "%TEMP%\.jvm_session_target"
+    >"%TEMP%\.jvm_session_target" echo %CURRENT_SYMLINK%
     
-    :: Ensure JAVA_HOME permanently points to the junction in the USER registry (bypasses UAC)
+    rem Ensure JAVA_HOME permanently points to the junction in the USER registry (bypasses UAC)
     if /i not "%JAVA_HOME%"=="%CURRENT_SYMLINK%" (
         echo.
         echo %cBLUE%[  INFO  ]%cRESET% Setting JAVA_HOME to: %CURRENT_SYMLINK%
@@ -376,41 +376,41 @@ if /i "%SWITCH_MODE%"=="DIRECT" (
     set "SYMLINK_OR_DIRECT=%CURRENT_SYMLINK%"
 )
 
-:: Ensure system PATH permanently uses %JAVA_HOME%\bin
+rem Ensure system PATH permanently uses %JAVA_HOME%\bin
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Ensuring system PATH uses %%JAVA_HOME%%\bin...
 call :UpdateSystemPath
 
 
-:: Clean the current session PATH dynamically to prevent duplicates
+rem Clean the current session PATH dynamically to prevent duplicates
 setlocal enabledelayedexpansion
 set "CLEAN_PATH=!PATH!"
 
-:: Strip the OLD Java Home if it exists
+rem Strip the OLD Java Home if it exists
 if defined JAVA_HOME (
     set "CLEAN_PATH=!CLEAN_PATH:%JAVA_HOME%\bin;=!"
     set "CLEAN_PATH=!CLEAN_PATH:;%JAVA_HOME%\bin=!"
 )
-:: Strip the NEW path just in case to prevent doubling up
+rem Strip the NEW path just in case to prevent doubling up
 set "CLEAN_PATH=!CLEAN_PATH:%SYMLINK_OR_DIRECT%\bin;=!"
 set "CLEAN_PATH=!CLEAN_PATH:;%SYMLINK_OR_DIRECT%\bin=!"
-:: Strip the hardcoded JDK path just in case
+rem Strip the hardcoded JDK path just in case
 set "CLEAN_PATH=!CLEAN_PATH:%CURRENT_JDK_PATH%\bin;=!"
 set "CLEAN_PATH=!CLEAN_PATH:;%CURRENT_JDK_PATH%\bin=!"
-:: Remove double semicolons
+rem Remove double semicolons
 set "CLEAN_PATH=!CLEAN_PATH:;;=;!"
 
-:: Export the clean path back to the main session and apply at the front
+rem Export the clean path back to the main session and apply at the front
 for /f "delims=" %%A in (""!CLEAN_PATH!"") do (
     endlocal & set "PATH=%SYMLINK_OR_DIRECT%\bin;%%~A"
 )
 
-:: Finally update the local JAVA_HOME
+rem Finally update the local JAVA_HOME
 set "JAVA_HOME=%SYMLINK_OR_DIRECT%"
 
 
 :VERIFICATION
-:: Verify the changes
+rem Verify the changes
 echo.
 echo ============================================================
 echo                     VERIFICATION
@@ -448,11 +448,11 @@ pause >nul
 goto MAIN_LOOP
 
 
-:: ============================================================
-:: FUNCTIONS
-:: ============================================================
+rem ============================================================
+rem FUNCTIONS
+rem ============================================================
 
-:: Function to dynamically scan and display menu
+rem Function to dynamically scan and display menu
 :ShowDynamicMenu
 setlocal enabledelayedexpansion
 
@@ -464,7 +464,7 @@ if "!SKIP_HEADER!"=="0" (
     echo ============================================================
     echo.
 
-    :: Display current Java info HERE so it survives the 'rem cls'
+    rem Display current Java info HERE so it survives the 'rem cls'
     if not defined JAVA_HOME (
         echo %cBLUE%[  INFO  ]%cRESET% JAVA_HOME is not currently set.
     ) else (
@@ -487,7 +487,7 @@ if "!SKIP_HEADER!"=="0" (
     echo.
 )
 
-:: Resolve the true underlying path of JAVA_HOME if it is currently using the symlink mode
+rem Resolve the true underlying path of JAVA_HOME if it is currently using the symlink mode
 set "RESOLVED_JAVA_HOME=!JAVA_HOME!"
 if /i "!JAVA_HOME!"=="%LOCALAPPDATA%\DiamTek\JVM\current" (
     for /f "tokens=2* delims=:" %%P in ('fsutil reparsepoint query "%LOCALAPPDATA%\DiamTek\JVM\current" 2^>nul ^| findstr /c:"Print Name:"') do (
@@ -495,7 +495,7 @@ if /i "!JAVA_HOME!"=="%LOCALAPPDATA%\DiamTek\JVM\current" (
         for /f "tokens=* delims= " %%A in ("!RAW_TARGET!") do set "RESOLVED_JAVA_HOME=%%A"
     )
 )
-:: Strip trailing backslash just in case to ensure perfect path matching
+rem Strip trailing backslash just in case to ensure perfect path matching
 if defined RESOLVED_JAVA_HOME (
     if "!RESOLVED_JAVA_HOME:~-1!"=="\" set "RESOLVED_JAVA_HOME=!RESOLVED_JAVA_HOME:~0,-1!"
 )
@@ -508,9 +508,9 @@ set "LATEST_JDK_NAME="
 set "ORACLE_LATEST_FEATURE="
 set "ORACLE_LATEST_LTS="
 
-:: The LOCATIONS array is populated at the top of the script to prevent delayed expansion corruption
+rem The LOCATIONS array is populated at the top of the script to prevent delayed expansion corruption
 
-:: Find all JDK folders
+rem Find all JDK folders
 for /l %%i in (0,1,!MAX_LOC!) do (
     if exist "!LOCATIONS[%%i]!" (
         pushd "!LOCATIONS[%%i]!" 2>nul
@@ -531,7 +531,7 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                         set /a JDK_COUNT+=1
                         set "JDK_PATH_!JDK_COUNT!=!LOCATIONS[%%i]!\%%j"
                         
-                        :: Parse version to find the latest
+                        rem Parse version to find the latest
                         set "VER="
                         set "VENDOR_STR=Unknown"
                         if exist "%%j\release" (
@@ -556,7 +556,7 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                                 set "VER_STR=!VER_STR:"=!"
                             )
                         )
-                        :: Handle legacy 1.x versioning (e.g., 1.8.0 -> 8)
+                        rem Handle legacy 1.x versioning (e.g., 1.8.0 -> 8)
                         set "NUM_VER=0"
                         if defined VER_STR (
                             for /f "tokens=1,2 delims=." %%V in ("!VER_STR!") do (
@@ -582,7 +582,7 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                             set "LATEST_JDK_NAME_CANDIDATE=%%j"
                         )
                         
-                        :: Store the major version specifically for the menu display
+                        rem Store the major version specifically for the menu display
                         set "JDK_MAJOR_!JDK_COUNT!=!NUM_VER!"
                         
                         if !NUM_VER! GTR !LATEST_VER_NUM! (
@@ -591,7 +591,7 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                             set "LATEST_JDK_NAME=!LATEST_JDK_NAME_CANDIDATE!"
                         )
                         
-                        :: Track highest LTS version
+                        rem Track highest LTS version
                         if !NUM_VER!==8 set "IS_LTS=1"
                         if !NUM_VER!==11 set "IS_LTS=1"
                         if !NUM_VER!==17 set "IS_LTS=1"
@@ -613,7 +613,7 @@ for /l %%i in (0,1,!MAX_LOC!) do (
     )
 )
 
-:: Sort JDKs by major version (descending)
+rem Sort JDKs by major version (descending)
 if !JDK_COUNT! GTR 1 (
     for /l %%i in (1,1,!JDK_COUNT!) do (
         for /l %%j in (1,1,!JDK_COUNT!) do (
@@ -854,7 +854,7 @@ if defined CLI_TARGET (
                 echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
                 set "WORK_DIR=%cd%"
                 set "UAC_ARGS=%ORIGINAL_ARGS%"
-                powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath \"$env:SCRIPT_PATH\" -WorkingDirectory \"$env:WORK_DIR\" -ArgumentList '--admin-run', \"$env:UAC_ARGS\" -Verb RunAs -WindowStyle Hidden -Wait"
+                powershell -NoProfile -ExecutionPolicy Bypass -Command "$argsArray = @('--admin-run') + ($env:UAC_ARGS -split ' '); Start-Process -FilePath \"$env:SCRIPT_PATH\" -WorkingDirectory \"$env:WORK_DIR\" -ArgumentList $argsArray -Verb RunAs -WindowStyle Hidden -Wait"
                 
                 if exist "!DEL_PATH!" (
                     echo %cRED%[ ERROR  ]%cRESET% Failed to completely delete directory. 
@@ -895,7 +895,7 @@ if defined CLI_TARGET (
         goto :eof
     )
     echo %cBLUE%[  INFO  ]%cRESET% Target JDK !CLI_TARGET! detected...
-    :: Resolve Semantic Aliases
+    rem Resolve Semantic Aliases
     if /i "!CLI_TARGET!"=="latest" (
         if !LATEST_VER_NUM! GTR 0 set "CLI_TARGET=!LATEST_VER_NUM!"
     ) else if /i "!CLI_TARGET!"=="lts" (
@@ -919,7 +919,7 @@ if defined CLI_TARGET (
             echo.
             echo %cBLUE%[ ACTION ]%cRESET% Quick-Switching to JDK !JDK_NAME_%%k! ^(!JDK_MAJOR_%%k!^)...
             set "CURRENT_JDK_PATH=!JDK_PATH_%%k!"
-            :: Return to MAIN_LOOP to apply the changes
+            rem Return to MAIN_LOOP to apply the changes
             for /f "delims=" %%P in (""!CURRENT_JDK_PATH!"") do (
                 endlocal & set "CURRENT_JDK_PATH=%%~P"
             )
@@ -934,11 +934,11 @@ if defined CLI_TARGET (
 )
 
 if "!SILENT_MODE!"=="1" (
-    :: Safety catch: If we are hidden and CLI_TARGET was empty, abort so we don't hang!
+    rem Safety catch: If we are hidden and CLI_TARGET was empty, abort so we don't hang!
     goto :eof
 )
 
-:: Show main menu
+rem Show main menu
 echo Please choose an option:
 echo.
 echo 1. JDK Management (Java)
@@ -989,7 +989,7 @@ if !choice!==1 (
     goto RESCAN_MENU
 )
 
-:: Catch-all to prevent falling through if choice errors out
+rem Catch-all to prevent falling through if choice errors out
 goto RESCAN_MENU
 
 :JdkMenu
@@ -1074,7 +1074,7 @@ echo               Ecosystem Tool Updater
 echo ============================================================
 echo.
 
-:: Scan which tools are installed and their current versions
+rem Scan which tools are installed and their current versions
 set /a EU_OPT=0
 set "EU_OPT_ALL="
 set "EU_OPT_MAVEN=" & set "EU_OPT_GRADLE=" & set "EU_OPT_KOTLIN=" & set "EU_OPT_SCALA=" & set "EU_OPT_GROOVY="
@@ -1088,7 +1088,7 @@ for %%T in (maven gradle kotlin scala groovy) do (
         for /d %%V in ("!eu_cdir!\*") do if not "%%~nxV"=="current" set "eu_has_ver=1"
         if "!eu_has_ver!"=="1" (
             set "EU_HAS_%%T=1"
-            :: Resolve active version from the current symlink
+            rem Resolve active version from the current symlink
             set "EU_ACTIVE_%%T=none"
             for /f "tokens=2*" %%A in ('fsutil reparsepoint query "!eu_cdir!\current" 2^>nul ^| findstr /i "Print Name:"') do (
                 set "eu_raw_target=%%B"
@@ -1098,7 +1098,7 @@ for %%T in (maven gradle kotlin scala groovy) do (
     )
 )
 
-:: Count installed tools and build menu
+rem Count installed tools and build menu
 set "eu_any=0"
 for %%T in (maven gradle kotlin scala groovy) do (
     if "!EU_HAS_%%T!"=="1" set "eu_any=1"
@@ -1151,7 +1151,7 @@ set /a EU_CANCEL=EU_OPT+1
 echo !EU_CANCEL!. Go back
 echo.
 
-:: Build choice keys dynamically
+rem Build choice keys dynamically
 set "EU_KEYS="
 for /l %%i in (1,1,!EU_CANCEL!) do set "EU_KEYS=!EU_KEYS!%%i"
 choice /C !EU_KEYS! /N /M "Select tool (1-!EU_CANCEL!): "
@@ -1159,7 +1159,7 @@ set "eu_choice=!errorlevel!"
 
 if !eu_choice!==!EU_CANCEL! goto :eof
 
-:: Determine which tools to check
+rem Determine which tools to check
 set "EU_CHECK_MAVEN=0" & set "EU_CHECK_GRADLE=0" & set "EU_CHECK_KOTLIN=0" & set "EU_CHECK_SCALA=0" & set "EU_CHECK_GROOVY=0"
 
 if !eu_choice!==!EU_OPT_ALL! (
@@ -1175,7 +1175,7 @@ if defined EU_OPT_KOTLIN if !eu_choice!==!EU_OPT_KOTLIN! set "EU_CHECK_KOTLIN=1"
 if defined EU_OPT_SCALA if !eu_choice!==!EU_OPT_SCALA! set "EU_CHECK_SCALA=1"
 if defined EU_OPT_GROOVY if !eu_choice!==!EU_OPT_GROOVY! set "EU_CHECK_GROOVY=1"
 
-:: Now run update checks for selected tools
+rem Now run update checks for selected tools
 for %%T in (maven gradle kotlin scala groovy) do (
     if "!EU_CHECK_%%T!"=="1" call :EcoPerformCheck %%T "!EU_ACTIVE_%%T!"
 )
@@ -1256,7 +1256,7 @@ if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\groovy\*" for /d %%D in ("%LOCAL
 if "!ECO_SUB_MODE!"=="SWITCH" goto :ECO_TOOL_FILTERED
 if "!ECO_SUB_MODE!"=="UNINSTALL" goto :ECO_TOOL_FILTERED
 
-:: For INSTALL, show everything
+rem For INSTALL, show everything
 echo Select an ecosystem tool to install:
 echo.
 echo %cGRAY%--- Manage by Tool ---%cRESET%
@@ -1412,7 +1412,7 @@ if !user_choice!==!clear_opt! (
     goto :EcosystemToolMenu
 )
 
-:: Otherwise they selected a version to switch to
+rem Otherwise they selected a version to switch to
 set "TARGET_VER=!ECO_VER_%user_choice%!"
 if "!TARGET_VER!"=="" goto :EcosystemToolMenu
 call :SwitchCandidate "!TARGET_VER!"
@@ -1476,7 +1476,7 @@ set /p TARGET_VER="Enter version to install (or type 'latest'): "
 if "!TARGET_VER!"=="" set "TARGET_VER=latest"
 set "CLI_TARGET=!TARGET_VER!"
 
-:: Route to the Universal Candidate Engine
+rem Route to the Universal Candidate Engine
 call :InstallCandidate
 goto :eof
 
@@ -1503,7 +1503,7 @@ if "!CLI_VENDOR!"=="" (
     if !errorlevel!==6 set "CLI_VENDOR=Microsoft"
 )
 
-:: Check if this vendor and major version combination is already installed
+rem Check if this vendor and major version combination is already installed
 if "!IS_UPDATER!" NEQ "1" (
     set "EXISTING_PATH="
     set "EXISTING_VENDOR="
@@ -1664,7 +1664,7 @@ set "DEST_DIR=C:\Program Files\Java"
 
 if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!"
 
-:: Map variables to Universal Downloader
+rem Map variables to Universal Downloader
 set "DL_URL=!API_URL!"
 set "DL_ZIP=!ZIP_PATH!"
 set "DL_EXTRACT=!EXTRACT_DIR!"
@@ -1733,10 +1733,11 @@ endlocal
 goto :eof
 
 
-:: ============================================================
-:: PATH UPDATER
-:: ============================================================
+rem ============================================================
+rem PATH UPDATER
+rem ============================================================
 :UpdateSystemPath
+if not defined CURRENT_JDK_PATH goto :eof
 setlocal enabledelayedexpansion
 
 if /i "!SWITCH_MODE!"=="DIRECT" (
@@ -1788,7 +1789,7 @@ echo.
 if /i "!SWITCH_MODE!"=="DIRECT" (
     echo %cBLUE%[ ACTION ]%cRESET% Requesting Administrator privileges to update Registry...
     
-    :: Scrub any conflicting User-level JAVA_HOME that might override the Machine-level variable
+    rem Scrub any conflicting User-level JAVA_HOME that might override the Machine-level variable
     reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
     
     set "SAFE_JDK_PATH=!CURRENT_JDK_PATH:'=''!"
@@ -1819,12 +1820,12 @@ endlocal
 goto :eof
 
 
-:: ============================================================
-:: CLEAR JAVA ENVIRONMENT
-:: ============================================================
-:: ============================================================
-:: CLEAR JAVA ENVIRONMENT
-:: ============================================================
+rem ============================================================
+rem CLEAR JAVA ENVIRONMENT
+rem ============================================================
+rem ============================================================
+rem CLEAR JAVA ENVIRONMENT
+rem ============================================================
 :ClearJavaEnvironment
 setlocal enabledelayedexpansion
 rem cls
@@ -1857,12 +1858,12 @@ for /d %%C in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\*") do (
     if exist "%%C\current" rmdir "%%C\current" >nul 2>&1
 )
 
-:: Safely gather paths to purge to prevent catastrophic '\bin' wiping if variables are empty
+rem Safely gather paths to purge to prevent catastrophic '\bin' wiping if variables are empty
 set "PURGE_PATHS="%LOCALAPPDATA%\DiamTek\JVM\current\bin" "%%JAVA_HOME%%\bin" "C:\Program Files\Common Files\Oracle\Java\javapath" "C:\Program Files (x86)\Common Files\Oracle\Java\javapath" "C:\ProgramData\Oracle\Java\javapath""
 if defined JAVA_HOME set "PURGE_PATHS=!PURGE_PATHS! "!JAVA_HOME!\bin""
 for /l %%k in (1,1,!JDK_COUNT!) do set "PURGE_PATHS=!PURGE_PATHS! "!JDK_PATH_%%k!\bin""
 
-:: Clean SYSTEM PATH
+rem Clean SYSTEM PATH
 echo %cBLUE%[ ACTION ]%cRESET% Cleaning SYSTEM PATH...
 set "SYS_PATH="
 for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
@@ -1883,7 +1884,7 @@ if defined SYS_PATH (
     if exist "!ELEVATE_SCRIPT!" del "!ELEVATE_SCRIPT!"
 )
 
-:: Clean USER PATH
+rem Clean USER PATH
 echo %cBLUE%[ ACTION ]%cRESET% Cleaning USER PATH...
 set "USR_PATH="
 for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USR_PATH=%%B"
@@ -1898,7 +1899,7 @@ if defined USR_PATH (
     powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable('Path', $env:USR_PATH, 'User')"
 )
 
-:: Clean active session variables
+rem Clean active session variables
 echo %cBLUE%[ ACTION ]%cRESET% Cleaning current session environment...
 set "CLEAN_PATH=!PATH!"
 
@@ -1917,7 +1918,7 @@ for %%P in (!PURGE_PATHS! !SESS_ECO_PURGE!) do (
 
 set "CLEAN_PATH=!CLEAN_PATH:;;=;!"
 
-:: Export active session path
+rem Export active session path
 for /f "delims=" %%A in (""!CLEAN_PATH!"") do (
     endlocal & set "PATH=%%~A" & set "JAVA_HOME=" & set "MAVEN_HOME=" & set "GRADLE_HOME=" & set "KOTLIN_HOME=" & set "SCALA_HOME=" & set "GROOVY_HOME="
 )
@@ -1928,9 +1929,9 @@ echo Press any key to return to the menu...
 pause >nul
 goto :eof
 
-:: ============================================================
-:: PATH & ENVIRONMENT SUB-MENU
-:: ============================================================
+rem ============================================================
+rem PATH & ENVIRONMENT SUB-MENU
+rem ============================================================
 :PathEnvironmentMenu
 rem cls
 echo ============================================================
@@ -2129,9 +2130,9 @@ set "CURRENT_JDK_PATH=!JDK_PATH_%GLOBAL_IDX%!"
 goto :eof
 
 
-:: ============================================================
-:: VERSION MANAGEMENT SUB-MENU
-:: ============================================================
+rem ============================================================
+rem VERSION MANAGEMENT SUB-MENU
+rem ============================================================
 :VersionMenu
 if "!NEEDS_RESCAN!"=="1" (
     set "NEEDS_RESCAN=0"
@@ -2169,9 +2170,9 @@ if !sub_choice!==3 (
 
 goto VersionMenu
 
-:: ============================================================
-:: INSTALL WIZARDS
-:: ============================================================
+rem ============================================================
+rem INSTALL WIZARDS
+rem ============================================================
 :InstallWizard
 echo ============================================================
 echo                     Global Installer
@@ -2219,14 +2220,14 @@ if !sub_choice!==3 (
 
 goto VersionMenu
 
-:: ============================================================
-:: JDK UPDATER 
-:: ============================================================
-:: ============================================================
-:: SHARED VENDOR MENU BUILDER
-:: ============================================================
-:: Sets TARGET_VENDOR based on user selection. Returns "CANCEL" if user backs out.
-:: Requires JDK_COUNT and JDK_VENDOR_n to be populated.
+rem ============================================================
+rem JDK UPDATER 
+rem ============================================================
+rem ============================================================
+rem SHARED VENDOR MENU BUILDER
+rem ============================================================
+rem Sets TARGET_VENDOR based on user selection. Returns "CANCEL" if user backs out.
+rem Requires JDK_COUNT and JDK_VENDOR_n to be populated.
 :BuildVendorMenu
 set "TARGET_VENDOR="
 set /a BV_OPT=0
@@ -2277,9 +2278,9 @@ if defined BV_OPT_ALL if !bv_choice!==!BV_OPT_ALL! (
 set "TARGET_VENDOR=!BV_MAP_%bv_choice%!"
 goto :eof
 
-:: ============================================================
-:: JDK UPDATE CHECKER
-:: ============================================================
+rem ============================================================
+rem JDK UPDATE CHECKER
+rem ============================================================
 :UpdateJDKs
 echo ============================================================
 echo                     JDK Update Checker
@@ -2368,7 +2369,7 @@ set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!.ps1"
     echo         $remoteVersion = $res.tag_name -replace "^^jdk-", ""
     echo     } elseif ^($Vendor -eq "Zulu"^) {
     echo         $res = Invoke-RestMethod -Uri "https://api.azul.com/metadata/v1/zulu/packages/?java_version=$Major&os=windows&arch=!ZULU_ARCH!&hw_bitness=64&archive_type=zip&java_package_type=jdk&latest=true" -UseBasicParsing -TimeoutSec 5
-    echo         $remoteVersion = $res[0].java_version.join^("."^)
+    echo         $remoteVersion = ^($res[0].java_version -join '.'^)
     echo     } elseif ^($Vendor -eq "Microsoft"^) {
     echo         $req = [Net.HttpWebRequest]::Create^("https://aka.ms/download-jdk/microsoft-jdk-$Major-windows-!SYS_ARCH!.zip"^)
     echo         $req.AllowAutoRedirect = $false
@@ -2464,9 +2465,9 @@ echo %cGREEN%[DOWNLOAD]%cRESET% Fetching newest JDK !UP_MAJOR! from !UP_VENDOR!.
 set "CLI_VENDOR=!UP_VENDOR!" & set "DL_VERSION=!UP_MAJOR!" & set "IS_UPDATER=1"
 goto :Resolve_!UP_VENDOR!
 
-:: ============================================================
-:: JDK UNINSTALLER
-:: ============================================================
+rem ============================================================
+rem JDK UNINSTALLER
+rem ============================================================
 :UninstallJDK
 echo ============================================================
 echo                     JDK Uninstaller
@@ -2576,24 +2577,9 @@ goto :eof
 :SettingsMenu
 rem cls
 echo ============================================================
-echo                         Settings
+echo                             Settings
 echo ============================================================
 echo.
-
-set "SCRIPT_DIR=%~dp0"
-if "!SCRIPT_DIR:~-1!"=="\" set "SCRIPT_DIR=!SCRIPT_DIR:~0,-1!"
-
-set "IN_PATH=0"
-set "USER_PATH="
-for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
-    set "USER_PATH=%%B"
-)
-
-set "TEST_PATH=;!USER_PATH!;"
-for %%D in ("!SCRIPT_DIR!") do (
-    if "!TEST_PATH:;%%~D;=!" NEQ "!TEST_PATH!" set "IN_PATH=1"
-)
-
 echo Please choose an option:
 echo.
 
@@ -2655,7 +2641,7 @@ goto SettingsMenu
 :RemoveGlobalCommand
 rem cls
 echo ============================================================
-echo               Global Command Removal
+echo                Global Command Removal
 echo ============================================================
 echo.
 echo %cBLUE%[  INFO  ]%cRESET% Target: !SCRIPT_DIR!
@@ -2672,7 +2658,6 @@ for %%D in ("!SCRIPT_DIR!") do (
     set "NEW_PATH=!NEW_PATH:%%~D=!"
 )
 
-:: Safely update Registry as REG_EXPAND_SZ and trigger system broadcast without 1024-char truncation
 reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
@@ -2694,12 +2679,12 @@ goto :eof
 
 
 :: ============================================================
-:: GLOBAL COMMAND INSTALLER
+:: GLOBAL COMMAND INSTALLER (Native & Safe via Temp PS1)
 :: ============================================================
 :InstallGlobalCommand
 rem cls
 echo ============================================================
-echo               Global Command Installation
+echo                Global Command Installation
 echo ============================================================
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Scanning User PATH for JVM directory...
@@ -2713,7 +2698,7 @@ echo ;!USER_PATH!; | findstr /i /c:";!SCRIPT_DIR!;" >nul
 if not errorlevel 1 (
     echo.
     echo %cGREEN%[   OK   ]%cRESET% The Java Version Manager is already installed in your system PATH!
-    echo             You can run 'jvm' from any terminal.
+    echo              You can run 'jvm' from any terminal.
     echo.
     echo Press any key to return...
     pause >nul
@@ -2728,22 +2713,19 @@ if errorlevel 2 goto :eof
 
 echo.
 
-:: Ensure no rogue double quotes corrupt the string!
 set "USER_PATH=!USER_PATH:"=!"
 set "SCRIPT_DIR=!SCRIPT_DIR:"=!"
 
 if not defined USER_PATH (
     set "NEW_PATH=!SCRIPT_DIR!"
 ) else (
-    :: Remove trailing semicolon from USER_PATH if it exists
     if "!USER_PATH:~-1!"==";" set "USER_PATH=!USER_PATH:~0,-1!"
     set "NEW_PATH=!USER_PATH!;!SCRIPT_DIR!"
 )
 
-:: Strip the trailing backslash from SCRIPT_DIR in NEW_PATH to prevent escaping the closing quote
 if "!NEW_PATH:~-1!"=="\" set "NEW_PATH=!NEW_PATH:~0,-1!"
 
-:: Safely update Registry as REG_EXPAND_SZ and trigger system broadcast without 1024-char truncation
+:: Write safe REG_EXPAND_SZ path update
 reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
@@ -2753,52 +2735,56 @@ if errorlevel 1 (
     echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated.
 )
 
-set "PS_PROFILE_SCRIPT=%TEMP%\jvm_profile_!RANDOM!.ps1"
+:: Write a clean temporary PowerShell script to configure the $PROFILE safely without escaping hell
+set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
 (
-    echo $jvmBat = '!SCRIPT_DIR!\jvm.bat'
-    echo $code = @"
-    echo function jvm {
-    echo     & '$jvmBat' `$args;
-    echo     `$sessionFile = `"`$env:TEMP\.jvm_session_target`";
-    echo     if (Test-Path `$sessionFile) {
+    echo `$batPath = '!SCRIPT_DIR!\jvm.bat'
+    echo `$profileCode = @"
+    echo # >>> jvm >>>
+    echo function jvm ^{
+    echo     & '`$batPath' `$args;
+    echo     `$sessionFile = \`"`$env:TEMP\.jvm_session_target\`";
+    echo     if (Test-Path `$sessionFile^) ^{
     echo         `$lines = Get-Content `$sessionFile;
-    echo         `$newPaths = @();
-    echo         foreach (`$line in `$lines) {
-    echo             if (`$line -match '^([^=]+)=(.*)$') {
+    echo         `$newPaths = @(^);
+    echo         foreach (`$line in `$lines^) ^{
+    echo             if (`$line -match '^([^=]+)=(.*)$'^) ^{
     echo                 `$key = `$matches[1]; `$val = `$matches[2];
-    echo                 [Environment]::SetEnvironmentVariable(`$key, `$val, 'Process');
-    echo                 `$newPaths += `"`$val\bin`";
-    echo             } elseif (![string]::IsNullOrWhiteSpace(`$line)) {
+    echo                 [Environment]::SetEnvironmentVariable^(`$key, `$val, 'Process'^);
+    echo                 `$newPaths += \`"`$val\bin\`";
+    echo             } elseif (![string]::IsNullOrWhiteSpace^(`$line^)^) ^{
     echo                 `$env:JAVA_HOME = `$line;
-    echo                 `$newPaths += `"`$line\bin`";
+    echo                 `$newPaths += \`"`$line\bin\`";
     echo             }
     echo         }
-    echo         if (`$newPaths.Count -gt 0) { `$env:Path = (`$newPaths -join ';') + ';' + `$env:Path; }
+    echo         if (`$newPaths.Count -gt 0^) ^{ `$env:Path = (`$newPaths -join ';'^) + ';' + `$env:Path; }
     echo         Remove-Item `$sessionFile -Force;
-    echo     } else {
-    echo         `$vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME');
-    echo         foreach (`$v in `$vars) {
-    echo             `$val = [System.Environment]::GetEnvironmentVariable(`$v, 'User');
-    echo             if ([string]::IsNullOrEmpty(`$val)) { `$val = [System.Environment]::GetEnvironmentVariable(`$v, 'Machine'); }
-    echo             [Environment]::SetEnvironmentVariable(`$v, `$val, 'Process');
+    echo     } else ^{
+    echo         `$vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME'^);
+    echo         foreach (`$v in `$vars^) ^{
+    echo             `$val = [System.Environment]::GetEnvironmentVariable^(`$v, 'User'^);
+    echo             if ([string]::IsNullOrEmpty^(`$val^)^) ^{ `$val = [System.Environment]::GetEnvironmentVariable^(`$v, 'Machine'^); }
+    echo             [Environment]::SetEnvironmentVariable^(`$v, `$val, 'Process'^);
     echo         }
-    echo         `$env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User');
+    echo         `$env:Path = [System.Environment]::GetEnvironmentVariable^('Path', 'Machine'^) + ';' + [System.Environment]::GetEnvironmentVariable^('Path', 'User'^);
     echo     }
-    echo }
+    echo ^}
+    echo # ^<^<^< jvm ^<^<^<
     echo "@
-    echo $p = $PROFILE
-    echo if (!(Test-Path $p)) { New-Item -Type File -Path $p -Force > $null }
-    echo $content = Get-Content $p -ErrorAction SilentlyContinue ^| Out-String
-    echo if ($content -notmatch '# ^>^>^> jvm ^>^>^>') {
-    echo     Add-Content -Path $p -Value "`n# >>> jvm >>>`n$code`n# <<< jvm <<<`n"
-    echo } else {
-    echo     $content = $content -replace '(?s)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<', "# >>> jvm >>>`n$code`n# <<< jvm <<<"
-    echo     Set-Content -Path $p -Value $content
+    echo `$p = `$PROFILE
+    echo if (!(Test-Path `$p^)^) ^{ New-Item -Type File -Path `$p -Force ^| Out-Null }
+    echo `$profContent = Get-Content `$p -ErrorAction SilentlyContinue ^| Out-String
+    echo if (`$profContent -notmatch '# ^>^>^> jvm ^>^>^>') ^{
+    echo     Add-Content -Path `$p -Value "`n`$profileCode`n"
+    echo } else ^{
+    echo     `$profContent = `$profContent -replace '(?s)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<', `$profileCode
+    echo     Set-Content -Path `$p -Value `$profContent
     echo }
-) > "!PS_PROFILE_SCRIPT!"
-powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_PROFILE_SCRIPT!"
-pwsh -NoProfile -ExecutionPolicy Bypass -File "!PS_PROFILE_SCRIPT!" 2>nul
-del "!PS_PROFILE_SCRIPT!" >nul 2>&1
+) > "!INSTALL_PS1!"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!" 2>nul
+if exist "!INSTALL_PS1!" del "!INSTALL_PS1!" >nul 2>&1
 
 echo.
 echo ============================================================
@@ -2845,7 +2831,7 @@ if /i "%~1"=="link" (
         exit /b 0
     )
 
-    :: Resolve absolute path
+    rem Resolve absolute path
     pushd "%~2" 2>nul
     if errorlevel 1 (
         echo %cRED%[ ERROR  ]%cRESET% The directory "%~2" does not exist!
@@ -2901,9 +2887,9 @@ if "!IS_ADMIN_RUN!"=="1" (
 )
 goto :eof
 
-:: ============================================================
-:: JVM Version / About Menu
-:: ============================================================
+rem ============================================================
+rem JVM Version / About Menu
+rem ============================================================
 :AboutMenu
 rem cls
 echo ============================================================
@@ -2920,7 +2906,7 @@ echo ============================================================
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
 
-:: Fetch latest build number from GitHub main branch and compare using PowerShell [version]
+rem Fetch latest build number from GitHub main branch and compare using PowerShell [version]
 set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat'); $req.Method = 'GET'; try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) } } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) } } else { Write-Output 'UNKNOWN|UNKNOWN' }; $reader.Close(); $res.Close() } catch { Write-Output 'ERROR|ERROR' }"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
 set "REMOTE_BUILD=UNKNOWN"
@@ -2975,9 +2961,9 @@ if "!UPDATE_FLAG!"=="UPDATE" (
     goto :eof
 )
 
-:: ============================================================
-:: Self-Updater
-:: ============================================================
+rem ============================================================
+rem Self-Updater
+rem ============================================================
 :SelfUpdate
 if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
     echo.
@@ -3031,7 +3017,7 @@ if !errorlevel! NEQ 0 (
     goto :eof
 )
 
-:: Sanitize LF line endings and hidden spaces after download to prevent the 'cho' bug
+rem Sanitize LF line endings and hidden spaces after download to prevent the 'cho' bug
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$c = [IO.File]::ReadAllText('%TEMP%\jvm_new.bat'); $c = $c.Replace([char]160, ' ') -replace '(?<!\r)\n', [Environment]::NewLine; [IO.File]::WriteAllText('%TEMP%\jvm_new.bat', $c, (New-Object System.Text.UTF8Encoding $false))" 2>nul
 
 for %%I in ("%TEMP%\jvm_new.bat") do set "NEW_SIZE=%%~zI"
@@ -3041,7 +3027,7 @@ if !NEW_SIZE! EQU 0 (
     goto :eof
 )
 
-findstr /C:":: END OF SCRIPT" "%TEMP%\jvm_new.bat" >nul 2>&1
+findstr /C:"rem END OF SCRIPT" "%TEMP%\jvm_new.bat" >nul 2>&1
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Downloaded file failed integrity check. The file may be corrupted or truncated.
     pause
@@ -3070,9 +3056,9 @@ echo "%~f0"
 echo %cGREEN%[   OK   ]%cRESET% Update downloaded! Initiating handoff...
 "!UPDATER_SCRIPT!"
 
-:: ============================================================
-:: Parse contents of .java-version file
-:: ============================================================
+rem ============================================================
+rem Parse contents of .java-version file
+rem ============================================================
 :ParseJavaVersion
 if "%~1"=="" exit /b 0
 set "CLI_TARGET=%~1"
@@ -3103,9 +3089,9 @@ if /i "%~1"=="--registry" (
 shift
 goto PARSE_JV_LOOP
 
-:: ============================================================
-:: Hijack SDKMAN configuration file
-:: ============================================================
+rem ============================================================
+rem Hijack SDKMAN configuration file
+rem ============================================================
 :ParseSdkmanrc
 if "%~1"=="" exit /b 0
 for /f "tokens=1,2 delims=-" %%V in ("%~1") do (
@@ -3120,9 +3106,9 @@ for /f "tokens=1,2 delims=-" %%V in ("%~1") do (
     if /i "%%W"=="oracle" set "CLI_VENDOR=Oracle"
 )
 exit /b 0
-:: ============================================================
-:: Universal Candidate Engine
-:: ============================================================
+rem ============================================================
+rem Universal Candidate Engine
+rem ============================================================
 :RouteEcosystemCandidate
 if /i "!CLI_COMMAND!"=="install" (
     call :InstallCandidate
@@ -3180,7 +3166,7 @@ echo            - Updating Directory Junction...
 
 powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable($env:CANDIDATE_ENV_VAR, $env:SYMLINK_PATH, 'User')"
 
-:: Update user PATH to ensure %CANDIDATE_ENV_VAR%\bin is present
+rem Update user PATH to ensure %CANDIDATE_ENV_VAR%\bin is present
 set "HAS_CANDIDATE_PATH=0"
 for /f "tokens=2*" %%P in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
     set "USR_PATH=%%Q"
@@ -3201,7 +3187,7 @@ if "!HAS_CANDIDATE_PATH!"=="0" (
     echo            - Updating !CANDIDATE_ENV_VAR! variables...
 )
 
-:: Inject immediately into active terminal session
+rem Inject immediately into active terminal session
 set "!CANDIDATE_ENV_VAR!=!SYMLINK_PATH!"
 echo !PATH! | findstr /i "!SYMLINK_PATH!\bin" >nul
 if !errorlevel! NEQ 0 (
@@ -3234,7 +3220,7 @@ if not defined TARGET_VER (
     exit /b 1
 )
 
-:: Build the download URL
+rem Build the download URL
 set "DOWNLOAD_URL="
 set "CHECKSUM_URL="
 set "CHECKSUM_TYPE="
@@ -3287,7 +3273,7 @@ if exist "!EXTRACT_DEST!" (
 if exist "!EXTRACT_DEST_TEMP!" rmdir /s /q "!EXTRACT_DEST_TEMP!"
 mkdir "!EXTRACT_DEST_TEMP!" >nul 2>&1
 
-:: Map variables to Universal Downloader
+rem Map variables to Universal Downloader
 set "DL_URL=!DOWNLOAD_URL!"
 set "DL_ZIP=!ZIP_DEST!"
 set "DL_EXTRACT=!EXTRACT_DEST_TEMP!"
@@ -3346,7 +3332,7 @@ if not exist "!TARGET_PATH!" (
 echo %cBLUE%[ ACTION ]%cRESET% Uninstalling !CANDIDATE_PROPER_NAME! version !TARGET_VER!...
 rmdir /S /Q "!TARGET_PATH!" >nul 2>&1
 
-:: Check if it was the active version
+rem Check if it was the active version
 set "SYMLINK_PATH=!CANDIDATE_DIR!\current"
 for /f "tokens=2*" %%A in ('fsutil reparsepoint query "!SYMLINK_PATH!" 2^>nul ^| findstr /i "Print Name:"') do (
     if /i "%%B"=="!TARGET_PATH!" (
@@ -3391,14 +3377,14 @@ if not exist "!T_PATH!" (
     exit /b 0
 )
 echo %cBLUE%[ ACTION ]%cRESET% Setting !CANDIDATE_PROPER_NAME! to %~2...
-echo !CANDIDATE_ENV_VAR!=!T_PATH!>> "%TEMP%\.jvm_session_target"
+>>"%TEMP%\.jvm_session_target" echo !CANDIDATE_ENV_VAR!=!T_PATH!
 set "!CANDIDATE_ENV_VAR!=!T_PATH!"
 set "PATH=!T_PATH!\bin;!PATH!"
 exit /b 0
 
-:: ============================================================
-:: Shared API Resolver for Ecosystem Tools
-:: ============================================================
+rem ============================================================
+rem Shared API Resolver for Ecosystem Tools
+rem ============================================================
 :ResolveLatestEcosystemCandidate
 set "PS_RESOLVE_LATEST="
 if /i "!TARGET_CANDIDATE!"=="maven" set "PS_RESOLVE_LATEST=$url='https://api.github.com/repos/apache/maven/releases/latest'; try { ((Invoke-RestMethod -Uri $url -UseBasicParsing).tag_name).Replace('maven-','') } catch { 'ERROR' }"
@@ -3413,9 +3399,9 @@ for /f "delims=" %%V in ('powershell -NoProfile -Command "!PS_RESOLVE_LATEST!"')
 )
 exit /b 0
 
-:: ============================================================
-:: Universal Downloader & Extractor (PowerShell)
-:: ============================================================
+rem ============================================================
+rem Universal Downloader & Extractor (PowerShell)
+rem ============================================================
 :ExecuteSharedDownloader
 set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!.ps1"
 (
@@ -3536,4 +3522,4 @@ set PS_EXIT_CODE=!errorlevel!
 if exist "!PS_SCRIPT!" del "!PS_SCRIPT!" >nul 2>&1
 exit /b !PS_EXIT_CODE!
 
-:: END OF SCRIPT
+rem END OF SCRIPT
