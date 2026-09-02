@@ -27,7 +27,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260902.24"
+set "JVM_BUILD=20260902.25"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -261,13 +261,6 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="list" goto :SKIP_ADMIN_CHECK
     if /i "%CLI_COMMAND%"=="env" goto :SKIP_ADMIN_CHECK
 )
-if defined CLI_COMMAND (
-    if /i "%CLI_COMMAND%"=="list" set "SKIP_HEADER=1"
-    if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
-    if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
-    if /i "%CLI_COMMAND%"=="self-update" set "SKIP_HEADER=1"
-    if /i "%CLI_COMMAND%"=="version" set "SKIP_HEADER=1"
-)
 rem By default, run everything inline without Admin. We only elevate for specific file/registry operations.
 goto :SKIP_ADMIN_CHECK
 
@@ -458,7 +451,7 @@ setlocal enabledelayedexpansion
 
 :RESCAN_MENU
 if "!SKIP_HEADER!"=="0" (
-    rem rem cls
+    rem cls
     echo ============================================================
     echo                     Java Version Manager
     echo ============================================================
@@ -2221,9 +2214,9 @@ goto :eof
 :InstallWizard_JDK
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Enter the JDK version you wish to install.
-echo            ^(e.g., 8, 11, 17, 21, 22, 23, 24, 25, 26^)
-echo            Type 'lts' for latest Long-Term Support
-echo            Type 'latest' for the absolute newest release
+echo             ^(e.g., 8, 11, 17, 21, 22, 23, 24, 25, 26^)
+echo             Type 'lts' for latest Long-Term Support
+echo             Type 'latest' for the absolute newest release
 echo.
 set /p TARGET_VER="Enter version: "
 if "!TARGET_VER!"=="" goto :eof
@@ -2238,12 +2231,6 @@ set "DL_VERSION=!TARGET_VER!"
 set "CLI_VENDOR="
 call :DownloadJDK_Headless
 goto :eof
-if !sub_choice!==3 (
-    call :UninstallJDK
-    goto VersionMenu
-)
-
-goto VersionMenu
 
 rem ============================================================
 rem JDK UPDATER 
