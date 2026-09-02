@@ -27,7 +27,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260902.23"
+set "JVM_BUILD=20260902.24"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -242,9 +242,9 @@ if defined CLI_TARGET (
         set "SILENT_MODE=1"
         set "SKIP_HEADER=1"
     )
-) else if exist "!INVOCATION_DIR!\.sdkmanrc" (
+) else if exist "%INVOCATION_DIR%\.sdkmanrc" (
     set "FOUND_SDKMANRC=1"
-    for /f "tokens=1,2 delims==" %%A in ('type "!INVOCATION_DIR!\.sdkmanrc" 2^>nul ^| findstr /i "^java="') do (
+    for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /i "^java="') do (
         call :ParseSdkmanrc %%B
     )
     if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
@@ -318,7 +318,7 @@ if "!SESSION_MODE!"=="1" (
     )
     
     if "!FOUND_SDKMANRC!"=="1" (
-        for /f "tokens=1,2 delims==" %%A in ('type "!INVOCATION_DIR!\.sdkmanrc" 2^>nul ^| findstr /i /v "^java="') do (
+        for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /i /v "^java="') do (
             set "ECO_CAND=%%A"
             set "ECO_VER=%%B"
             call :ProcessEcosystemSession "!ECO_CAND!" "!ECO_VER!"
@@ -696,12 +696,7 @@ if defined CLI_COMMAND (
     
     set "TARGET_IDX=0"
     set "MATCH_COUNT=0"
-    if defined CLI_COMMAND (
-    if /i "%CLI_COMMAND%"=="list" set "SKIP_HEADER=1"
-    if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
-    if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
-)
-if defined CLI_TARGET (
+    if defined CLI_TARGET (
         if /i "!CLI_TARGET!" NEQ "--all" (
             for /l %%k in (1,1,!JDK_COUNT!) do (
                 set "MATCH_FOUND=0"
@@ -883,11 +878,6 @@ if defined CLI_TARGET (
     )
 )
 
-if defined CLI_COMMAND (
-    if /i "%CLI_COMMAND%"=="list" set "SKIP_HEADER=1"
-    if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
-    if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
-)
 if defined CLI_TARGET (
     if "!CLI_TARGET!"=="SKIP_JAVA" goto :eof
     if not "!TARGET_CANDIDATE!"=="java" (
@@ -1394,7 +1384,7 @@ echo.
 
 set "ALLOWED_CHOICES=123456789abcdefghijklmnopqrstuvwxyz"
 set /a total_opts=eco_count+2
-set "VALID_CHOICES=!ALLOWED_CHOICES:~0,%total_opts%!"
+call set "VALID_CHOICES=%%ALLOWED_CHOICES:~0,!total_opts!%%"
 
 choice /C !VALID_CHOICES! /N /M "Select an option: "
 set "user_choice=!errorlevel!"
