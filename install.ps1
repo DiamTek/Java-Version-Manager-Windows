@@ -17,13 +17,20 @@ $content = $content.Replace([char]160, ' ') -replace "(?<!`r)`n", "`r`n"
 
 Write-Host "           Configuring User PATH..."
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($null -eq $userPath) { $userPath = "" }
+
 if ($userPath -notmatch [regex]::Escape($installDir)) {
     $cleanPath = $userPath.TrimEnd(';')
-    $newPath = "$cleanPath;$installDir"
-    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    $newPath = ("$cleanPath;$installDir").TrimStart(';')
+    
+    # Safely write as ExpandString to prevent corrupting user variables
+    [Microsoft.Win32.Registry]::SetValue("HKEY_CURRENT_USER\Environment", "Path", $newPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
+    
+    # Broadcast WM_SETTINGCHANGE so terminal instantly picks it up
+    $code = '[DllImport("user32.dll")] public static extern bool SendMessageTimeout(IntPtr hWnd, int Msg, IntPtr wParam, string lParam, int fuFlags, int uTimeout, out IntPtr lpdwResult);'
+    Add-Type -MemberDefinition $code -Name NativeMethods -Namespace Win32
+    [Win32.NativeMethods]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [IntPtr]0, 'Environment', 2, 5000, [ref][IntPtr]::Zero) | Out-Null
 }
 
-Write-Host ""
-Write-Host "[   OK   ] Installation Complete!" -ForegroundColor Green
-Write-Host "           Open a new terminal and type 'jvm' to start."
-Write-Host ""
+Write-Host "`n[   OK   ] Installation Complete!" -ForegroundColor Green
+Write-Host "           Open a new terminal and type 'jvm' to start.`n"

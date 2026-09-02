@@ -19,6 +19,7 @@
 chcp 65001 >nul
 
 setlocal enabledelayedexpansion
+set "INVOCATION_DIR=%cd%"
 
 :: Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
@@ -26,7 +27,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260901.20"
+set "JVM_BUILD=20260902.21"
 
 :: Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -241,9 +242,9 @@ if defined CLI_TARGET (
         set "SILENT_MODE=1"
         set "SKIP_HEADER=1"
     )
-) else if exist ".sdkmanrc" (
+) else if exist "!INVOCATION_DIR!\.sdkmanrc" (
     set "FOUND_SDKMANRC=1"
-    for /f "tokens=1,2 delims==" %%A in ('type ".sdkmanrc" 2^>nul ^| findstr /i "^java="') do (
+    for /f "tokens=1,2 delims==" %%A in ('type "!INVOCATION_DIR!\.sdkmanrc" 2^>nul ^| findstr /i "^java="') do (
         call :ParseSdkmanrc %%B
     )
     if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
@@ -552,11 +553,20 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                         if not defined VER (
                             for /f "tokens=3" %%A in ('"%%j\bin\java.exe" -version 2^>^&1 ^| findstr /i "version"') do (
                                 set "VER_STR=%%~A"
-                                for /f "tokens=1 delims=." %%V in ("!VER_STR!") do set "VER=%%V"
+                                set "VER_STR=!VER_STR:"=!"
                             )
                         )
+                        :: Handle legacy 1.x versioning (e.g., 1.8.0 -> 8)
                         set "NUM_VER=0"
-                        set /a "NUM_VER=!VER!" 2>nul
+                        if defined VER_STR (
+                            for /f "tokens=1,2 delims=." %%V in ("!VER_STR!") do (
+                                if "%%V"=="1" (
+                                    set /a "NUM_VER=%%W" 2>nul
+                                ) else (
+                                    set /a "NUM_VER=%%V" 2>nul
+                                )
+                            )
+                        )
                         
                         if "%%i"=="5" (
                             if "!VENDOR_STR!"=="Unknown" set "VENDOR_STR=Custom"
@@ -1316,7 +1326,6 @@ if "!ECO_SUB_MODE!"=="INSTALL" (
     if "!TARGET_VER!"=="" set "TARGET_VER=latest"
     set "CLI_TARGET=!TARGET_VER!"
     call :InstallCandidate
-    pause
     goto :EcoVersionMenu
 )
 
@@ -1395,8 +1404,8 @@ if !user_choice!==!clear_opt! (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Clearing !CANDIDATE_PROPER_NAME! from environment...
     set "SYMLINK_PATH=!CANDIDATE_DIR!\current"
-    if exist "!SYMLINK_PATH!" rmdir "!SYMLINK_PATH!" >nul 2^>^&1
-    reg delete "HKCU\Environment" /v !CANDIDATE_ENV_VAR! /f >nul 2^>^&1
+    if exist "!SYMLINK_PATH!" rmdir "!SYMLINK_PATH!" >nul 2>&1
+    reg delete "HKCU\Environment" /v !CANDIDATE_ENV_VAR! /f >nul 2>&1
     set "!CANDIDATE_ENV_VAR!="
     echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! has been de-activated.
     pause
@@ -1427,7 +1436,6 @@ if !user_choice!==1 (
     if "!TARGET_VER!"=="" set "TARGET_VER=latest"
     set "CLI_TARGET=!TARGET_VER!"
     call :InstallCandidate
-    pause
     goto :EcosystemToolMenu
 )
 if !user_choice!==2 (
@@ -1470,7 +1478,6 @@ set "CLI_TARGET=!TARGET_VER!"
 
 :: Route to the Universal Candidate Engine
 call :InstallCandidate
-pause
 goto :eof
 
 :DownloadJDK_Headless
@@ -2036,8 +2043,8 @@ set /a P_OPT+=1
 set "OPT_P_CANCEL=!P_OPT!"
 echo !OPT_P_CANCEL!. Go back
 
-set "P_KEYS="
-for /l %%k in (1,1,!P_OPT!) do set "P_KEYS=!P_KEYS!%%k"
+set "ALLOWED_CHOICES=123456789abcdefghijklmnopqrstuvwxyz"
+set "P_KEYS=!ALLOWED_CHOICES:~0,%P_OPT%!"
 
 echo.
 choice /C !P_KEYS! /N /M "Select option (1-!P_OPT!): "
@@ -2337,8 +2344,8 @@ set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!.ps1"
     echo $releaseFile = Join-Path $LocalPath "release"
     echo if ^(Test-Path $releaseFile^) {
     echo     $content = Get-Content $releaseFile
-    echo     $semVerLine = $content ^| Where-Object { $_ -match "^SEMANTIC_VERSION=" }
-    echo     $javaVerLine = $content ^| Where-Object { $_ -match "^JAVA_VERSION=" }
+    echo     $semVerLine = $content ^| Where-Object { $_ -match "^^SEMANTIC_VERSION=" }
+    echo     $javaVerLine = $content ^| Where-Object { $_ -match "^^JAVA_VERSION=" }
     echo     if ^($semVerLine^) { $localVersion = ^($semVerLine -split "="^)[1].Trim^([char]34, ' '^) }
     echo     elseif ^($javaVerLine^) { $localVersion = ^($javaVerLine -split "="^)[1].Trim^([char]34, ' '^) }
     echo }
@@ -2355,10 +2362,10 @@ set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!.ps1"
     echo         $req.AllowAutoRedirect = $false
     echo         $req.Timeout = 5000
     echo         $res = $req.GetResponse^(^)
-    echo         if ^($res.Headers["Location"] -match "resources/([^/]+)/"^) { $remoteVersion = $matches[1] }
+    echo         if ^($res.Headers["Location"] -match "resources/([^^/]+)/"^) { $remoteVersion = $matches[1] }
     echo     } elseif ^($Vendor -eq "GraalVM"^) {
     echo         $res = Invoke-RestMethod -Uri "https://api.github.com/repos/graalvm/graalvm-ce-builds/releases/latest" -UseBasicParsing -TimeoutSec 5
-    echo         $remoteVersion = $res.tag_name -replace "^jdk-", ""
+    echo         $remoteVersion = $res.tag_name -replace "^^jdk-", ""
     echo     } elseif ^($Vendor -eq "Zulu"^) {
     echo         $res = Invoke-RestMethod -Uri "https://api.azul.com/metadata/v1/zulu/packages/?java_version=$Major&os=windows&arch=!ZULU_ARCH!&hw_bitness=64&archive_type=zip&java_package_type=jdk&latest=true" -UseBasicParsing -TimeoutSec 5
     echo         $remoteVersion = $res[0].java_version.join^("."^)
@@ -2367,7 +2374,7 @@ set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!.ps1"
     echo         $req.AllowAutoRedirect = $false
     echo         $req.Timeout = 5000
     echo         $res = $req.GetResponse^(^)
-    echo         if ^($res.Headers["Location"] -match "jdk-([^/-]+)-"^) { $remoteVersion = $matches[1] }
+    echo         if ^($res.Headers["Location"] -match "jdk-([^^/-]+)-"^) { $remoteVersion = $matches[1] }
     echo     }
     echo } catch {
     echo     Write-Output "ERROR|$($_.Exception.Message)"
@@ -2375,9 +2382,11 @@ set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!.ps1"
     echo }
     echo Write-Output "LOCAL|$localVersion"
     echo Write-Output "REMOTE|$remoteVersion"
+    echo $cleanLocal = $localVersion -replace '^^1\.8\.0_', '8.0.' -replace '[\+-].*$', ''
+    echo $cleanRemote = $remoteVersion -replace '^^1\.8\.0_', '8.0.' -replace '[\+-].*$', ''
     echo if ^($localVersion -eq "UNKNOWN" -or $remoteVersion -eq "UNKNOWN"^) {
     echo     Write-Output "RESULT|UNKNOWN"
-    echo } elseif ^($localVersion -eq $remoteVersion^) {
+    echo } elseif ^($cleanLocal -eq $cleanRemote^) {
     echo     Write-Output "RESULT|UP_TO_DATE"
     echo } else {
     echo     Write-Output "RESULT|UPDATE_AVAILABLE"
@@ -2663,16 +2672,13 @@ for %%D in ("!SCRIPT_DIR!") do (
     set "NEW_PATH=!NEW_PATH:%%~D=!"
 )
 
-powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable('Path', $env:NEW_PATH, 'User')"
+:: Safely update Registry as REG_EXPAND_SZ and trigger system broadcast without 1024-char truncation
+reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
 if errorlevel 1 (
-    echo %cRED%[ ERROR  ]%cRESET% Failed to update User PATH via .NET. Attempting registry fallback...
-    reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
-    if errorlevel 1 (
-        echo %cRED%[ ERROR  ]%cRESET% Registry fallback failed. Run as Admin.
-    ) else (
-        echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated via registry.
-    )
+    echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
 ) else (
+    setx JVM_BROADCAST 1 >nul 2>&1
+    reg delete "HKCU\Environment" /v JVM_BROADCAST /f >nul 2>&1
     echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated.
 )
 
@@ -2737,22 +2743,62 @@ if not defined USER_PATH (
 :: Strip the trailing backslash from SCRIPT_DIR in NEW_PATH to prevent escaping the closing quote
 if "!NEW_PATH:~-1!"=="\" set "NEW_PATH=!NEW_PATH:~0,-1!"
 
-powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable('Path', $env:NEW_PATH, 'User')"
+:: Safely update Registry as REG_EXPAND_SZ and trigger system broadcast without 1024-char truncation
+reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
 if errorlevel 1 (
-    echo %cRED%[ ERROR  ]%cRESET% Failed to update User PATH via .NET. Attempting registry fallback...
-    reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
-    if errorlevel 1 (
-        echo %cRED%[ ERROR  ]%cRESET% Registry fallback failed. Run as Admin.
-    ) else (
-        echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated via registry.
-    )
+    echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
 ) else (
+    setx JVM_BROADCAST 1 >nul 2>&1
+    reg delete "HKCU\Environment" /v JVM_BROADCAST /f >nul 2>&1
     echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated.
 )
 
-set "B64_PAYLOAD=JABqAHYAbQBCAGEAdAAgAD0AIAAoAEcAZQB0AC0AQwBvAG0AbQBhAG4AZAAgAGoAdgBtAC4AYgBhAHQAIAAtAEUAcgByAG8AcgBBAGMAdABpAG8AbgAgAFMAaQBsAGUAbgB0AGwAeQBDAG8AbgB0AGkAbgB1AGUAKQAuAFMAbwB1AHIAYwBlAAoAaQBmACAAKAAkAGoAdgBtAEIAYQB0ACkAIAB7AAoAIAAgACAAIAAkAGMAbwBkAGUAIAA9ACAAQAAiAAoAZgB1AG4AYwB0AGkAbwBuACAAagB2AG0AIAB7AAoAIAAgACAAIAAmACAAJwAkAGoAdgBtAEIAYQB0ACcAIABgACQAYQByAGcAcwA7AAoAIAAgACAAIABgACQAcwBlAHMAcwBpAG8AbgBGAGkAbABlACAAPQAgAGAAIgBgACQAZQBuAHYAOgBUAEUATQBQAFwALgBqAHYAbQBfAHMAZQBzAHMAaQBvAG4AXwB0AGEAcgBnAGUAdABgACIAOwAKACAAIAAgACAAaQBmACAAKABUAGUAcwB0AC0AUABhAHQAaAAgAGAAJABzAGUAcwBzAGkAbwBuAEYAaQBsAGUAKQAgAHsACgAgACAAIAAgACAAIAAgACAAYAAkAGwAaQBuAGUAcwAgAD0AIABHAGUAdAAtAEMAbwBuAHQAZQBuAHQAIABgACQAcwBlAHMAcwBpAG8AbgBGAGkAbABlADsACgAgACAAIAAgACAAIAAgACAAYAAkAG4AZQB3AFAAYQB0AGgAcwAgAD0AIABAACgAKQA7AAoAIAAgACAAIAAgACAAIAAgAGYAbwByAGUAYQBjAGgAIAAoAGAAJABsAGkAbgBlACAAaQBuACAAYAAkAGwAaQBuAGUAcwApACAAewAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGkAZgAgACgAYAAkAGwAaQBuAGUAIAAtAG0AYQB0AGMAaAAgACcAXgAoAFsAXgA9AF0AKwApAD0AKAAuACoAKQBgACQAJwApACAAewAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAkAGsAZQB5ACAAPQAgAGAAJABtAGEAdABjAGgAZQBzAFsAMQBdADsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAJAB2AGEAbAAgAD0AIABgACQAbQBhAHQAYwBoAGUAcwBbADIAXQA7AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABbAEUAbgB2AGkAcgBvAG4AbQBlAG4AdABdADoAOgBTAGUAdABFAG4AdgBpAHIAbwBuAG0AZQBuAHQAVgBhAHIAaQBhAGIAbABlACgAYAAkAGsAZQB5ACwAIABgACQAdgBhAGwALAAgACcAUAByAG8AYwBlAHMAcwAnACkAOwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAkAG4AZQB3AFAAYQB0AGgAcwAgACsAPQAgAGAAIgBgACQAdgBhAGwAXABiAGkAbgBgACIAOwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAH0AIABlAGwAcwBlAGkAZgAgACgAIQBbAHMAdAByAGkAbgBnAF0AOgA6AEkAcwBOAHUAbABsAE8AcgBXAGgAaQB0AGUAUwBwAGEAYwBlACgAYAAkAGwAaQBuAGUAKQApACAAewAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAkAGUAbgB2ADoASgBBAFYAQQBfAEgATwBNAEUAIAA9ACAAYAAkAGwAaQBuAGUAOwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAkAG4AZQB3AFAAYQB0AGgAcwAgACsAPQAgAGAAIgBgACQAbABpAG4AZQBcAGIAaQBuAGAAIgA7AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAfQAKACAAIAAgACAAIAAgACAAIAB9AAoAIAAgACAAIAAgACAAIAAgAGkAZgAgACgAYAAkAG4AZQB3AFAAYQB0AGgAcwAuAEMAbwB1AG4AdAAgAC0AZwB0ACAAMAApACAAewAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAJABlAG4AdgA6AFAAYQB0AGgAIAA9ACAAKABgACQAbgBlAHcAUABhAHQAaABzACAALQBqAG8AaQBuACAAJwA7ACcAKQAgACsAIAAnADsAJwAgACsAIABgACQAZQBuAHYAOgBQAGEAdABoADsACgAgACAAIAAgACAAIAAgACAAfQAKACAAIAAgACAAIAAgACAAIABSAGUAbQBvAHYAZQAtAEkAdABlAG0AIABgACQAcwBlAHMAcwBpAG8AbgBGAGkAbABlACAALQBGAG8AcgBjAGUAOwAKACAAIAAgACAAfQAgAGUAbABzAGUAIAB7AAoAIAAgACAAIAAgACAAIAAgAGAAJAB2AGEAcgBzACAAPQAgAEAAKAAnAEoAQQBWAEEAXwBIAE8ATQBFACcALAAgACcATQBBAFYARQBOAF8ASABPAE0ARQAnACwAIAAnAEcAUgBBAEQATABFAF8ASABPAE0ARQAnACwAIAAnAEsATwBUAEwASQBOAF8ASABPAE0ARQAnACwAIAAnAFMAQwBBAEwAQQBfAEgATwBNAEUAJwAsACAAJwBHAFIATwBPAFYAWQBfAEgATwBNAEUAJwApADsACgAgACAAIAAgACAAIAAgACAAZgBvAHIAZQBhAGMAaAAgACgAYAAkAHYAIABpAG4AIABgACQAdgBhAHIAcwApACAAewAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGAAJAB2AGEAbAAgAD0AIABbAFMAeQBzAHQAZQBtAC4ARQBuAHYAaQByAG8AbgBtAGUAbgB0AF0AOgA6AEcAZQB0AEUAbgB2AGkAcgBvAG4AbQBlAG4AdABWAGEAcgBpAGEAYgBsAGUAKABgACQAdgAsACAAJwBVAHMAZQByACcAKQA7AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAaQBmACAAKABbAHMAdAByAGkAbgBnAF0AOgA6AEkAcwBOAHUAbABsAE8AcgBFAG0AcAB0AHkAKABgACQAdgBhAGwAKQApACAAewAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYAAkAHYAYQBsACAAPQAgAFsAUwB5AHMAdABlAG0ALgBFAG4AdgBpAHIAbwBuAG0AZQBuAHQAXQA6ADoARwBlAHQARQBuAHYAaQByAG8AbgBtAGUAbgB0AFYAYQByAGkAYQBiAGwAZQAoAGAAJAB2ACwAIAAnAE0AYQBjAGgAaQBuAGUAJwApADsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAB9AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAWwBFAG4AdgBpAHIAbwBuAG0AZQBuAHQAXQA6ADoAUwBlAHQARQBuAHYAaQByAG8AbgBtAGUAbgB0AFYAYQByAGkAYQBiAGwAZQAoAGAAJAB2ACwAIABgACQAdgBhAGwALAAgACcAUAByAG8AYwBlAHMAcwAnACkAOwAKACAAIAAgACAAIAAgACAAIAB9AAoAIAAgACAAIAAgACAAIAAgAGAAJABlAG4AdgA6AFAAYQB0AGgAIAA9ACAAWwBTAHkAcwB0AGUAbQAuAEUAbgB2AGkAcgBvAG4AbQBlAG4AdABdADoAOgBHAGUAdABFAG4AdgBpAHIAbwBuAG0AZQBuAHQAVgBhAHIAaQBhAGIAbABlACgAJwBQAGEAdABoACcALAAgACcATQBhAGMAaABpAG4AZQAnACkAIAArACAAJwA7ACcAIAArACAAWwBTAHkAcwB0AGUAbQAuAEUAbgB2AGkAcgBvAG4AbQBlAG4AdABdADoAOgBHAGUAdABFAG4AdgBpAHIAbwBuAG0AZQBuAHQAVgBhAHIAaQBhAGIAbABlACgAJwBQAGEAdABoACcALAAgACcAVQBzAGUAcgAnACkAOwAKACAAIAAgACAAfQAKAH0ACgAiAEAACgAKACAAIAAgACAAJABwACAAPQAgACQAUABSAE8ARgBJAEwARQAKACAAIAAgACAAaQBmACAAKAAhACgAVABlAHMAdAAtAFAAYQB0AGgAIAAkAHAAKQApACAAewAgAE4AZQB3AC0ASQB0AGUAbQAgAC0AVAB5AHAAZQAgAEYAaQBsAGUAIAAtAFAAYQB0AGgAIAAkAHAAIAAtAEYAbwByAGMAZQAgAD4AIAAkAG4AdQBsAGwAIAB9AAoAIAAgACAAIAAkAGMAbwBuAHQAZQBuAHQAIAA9ACAARwBlAHQALQBDAG8AbgB0AGUAbgB0ACAAJABwACAALQBFAHIAcgBvAHIAQQBjAHQAaQBvAG4AIABTAGkAbABlAG4AdABsAHkAQwBvAG4AdABpAG4AdQBlACAAfAAgAE8AdQB0AC0AUwB0AHIAaQBuAGcACgAgACAAIAAgAGkAZgAgACgAJABjAG8AbgB0AGUAbgB0ACAALQBuAG8AdABtAGEAdABjAGgAIAAnAGYAdQBuAGMAdABpAG8AbgAgAGoAdgBtACAAXAB7ACcAKQAgAHsACgAgACAAIAAgACAAIAAgACAAQQBkAGQALQBDAG8AbgB0AGUAbgB0ACAALQBQAGEAdABoACAAJABwACAALQBWAGEAbAB1AGUAIAAkAGMAbwBkAGUACgAgACAAIAAgAH0AIABlAGwAcwBlACAAewAKACAAIAAgACAAIAAgACAAIAAkAGMAbwBuAHQAZQBuAHQAIAA9ACAAJABjAG8AbgB0AGUAbgB0ACAALQByAGUAcABsAGEAYwBlACAAJwAoAD8AcwApAGYAdQBuAGMAdABpAG8AbgAgAGoAdgBtACAAXAB7AC4AKgBcAH0AJwAsACAAJABjAG8AZABlAAoAIAAgACAAIAAgACAAIAAgAFMAZQB0AC0AQwBvAG4AdABlAG4AdAAgAC0AUABhAHQAaAAgACQAcAAgAC0AVgBhAGwAdQBlACAAJABjAG8AbgB0AGUAbgB0AAoAIAAgACAAIAB9AAoAfQAKAA=="
-powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand "!B64_PAYLOAD!"
-pwsh -NoProfile -ExecutionPolicy Bypass -EncodedCommand "!B64_PAYLOAD!" 2>nul
+set "PS_PROFILE_SCRIPT=%TEMP%\jvm_profile_!RANDOM!.ps1"
+(
+    echo $jvmBat = '!SCRIPT_DIR!\jvm.bat'
+    echo $code = @"
+    echo function jvm {
+    echo     & '$jvmBat' `$args;
+    echo     `$sessionFile = `"`$env:TEMP\.jvm_session_target`";
+    echo     if (Test-Path `$sessionFile) {
+    echo         `$lines = Get-Content `$sessionFile;
+    echo         `$newPaths = @();
+    echo         foreach (`$line in `$lines) {
+    echo             if (`$line -match '^([^=]+)=(.*)$') {
+    echo                 `$key = `$matches[1]; `$val = `$matches[2];
+    echo                 [Environment]::SetEnvironmentVariable(`$key, `$val, 'Process');
+    echo                 `$newPaths += `"`$val\bin`";
+    echo             } elseif (![string]::IsNullOrWhiteSpace(`$line)) {
+    echo                 `$env:JAVA_HOME = `$line;
+    echo                 `$newPaths += `"`$line\bin`";
+    echo             }
+    echo         }
+    echo         if (`$newPaths.Count -gt 0) { `$env:Path = (`$newPaths -join ';') + ';' + `$env:Path; }
+    echo         Remove-Item `$sessionFile -Force;
+    echo     } else {
+    echo         `$vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME');
+    echo         foreach (`$v in `$vars) {
+    echo             `$val = [System.Environment]::GetEnvironmentVariable(`$v, 'User');
+    echo             if ([string]::IsNullOrEmpty(`$val)) { `$val = [System.Environment]::GetEnvironmentVariable(`$v, 'Machine'); }
+    echo             [Environment]::SetEnvironmentVariable(`$v, `$val, 'Process');
+    echo         }
+    echo         `$env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User');
+    echo     }
+    echo }
+    echo "@
+    echo $p = $PROFILE
+    echo if (!(Test-Path $p)) { New-Item -Type File -Path $p -Force > $null }
+    echo $content = Get-Content $p -ErrorAction SilentlyContinue ^| Out-String
+    echo if ($content -notmatch '# ^>^>^> jvm ^>^>^>') {
+    echo     Add-Content -Path $p -Value "`n# >>> jvm >>>`n$code`n# <<< jvm <<<`n"
+    echo } else {
+    echo     $content = $content -replace '(?s)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<', "# >>> jvm >>>`n$code`n# <<< jvm <<<"
+    echo     Set-Content -Path $p -Value $content
+    echo }
+) > "!PS_PROFILE_SCRIPT!"
+powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_PROFILE_SCRIPT!"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "!PS_PROFILE_SCRIPT!" 2>nul
+del "!PS_PROFILE_SCRIPT!" >nul 2>&1
 
 echo.
 echo ============================================================
@@ -3136,7 +3182,7 @@ powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable($env:CANDI
 
 :: Update user PATH to ensure %CANDIDATE_ENV_VAR%\bin is present
 set "HAS_CANDIDATE_PATH=0"
-for /f "tokens=2* delims==" %%P in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
+for /f "tokens=2*" %%P in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
     set "USR_PATH=%%Q"
 )
 if "!USR_PATH!"=="" set "USR_PATH=%PATH%"
