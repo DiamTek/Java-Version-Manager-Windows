@@ -27,7 +27,7 @@ if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 title Java Version Manager
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260902.22"
+set "JVM_BUILD=20260902.23"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -1752,10 +1752,45 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
         )
     )
 ) else (
-    echo           - Reading current USER PATH...
+    echo            - Reading current USER PATH...
     set "ORIGINAL_PATH="
     for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
         set "ORIGINAL_PATH=%%B"
+    )
+    
+    rem Check for Machine-level legacy pollution
+    set "LEGACY_POLLUTION=0"
+    reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME >nul 2>&1
+    if not errorlevel 1 set "LEGACY_POLLUTION=1"
+    
+    if "!LEGACY_POLLUTION!"=="1" (
+        echo.
+        echo %cYELLOW%[ WARNING]%cRESET% Legacy system-level Java variables detected.
+        echo %cBLUE%[ ACTION ]%cRESET% Requesting Administrator privileges to scrub legacy override...
+        
+        set "SYS_PATH="
+        for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
+        
+        set PURGE_PATHS="C:\Program Files\Common Files\Oracle\Java\javapath" "C:\Program Files (x86)\Common Files\Oracle\Java\javapath" "C:\ProgramData\Oracle\Java\javapath"
+        for /l %%k in (1,1,!JDK_COUNT!) do set PURGE_PATHS=!PURGE_PATHS! "!JDK_PATH_%%k!\bin"
+        
+        if defined SYS_PATH (
+            for %%P in (!PURGE_PATHS!) do (
+                set "SYS_PATH=!SYS_PATH:%%~P;=!"
+                set "SYS_PATH=!SYS_PATH:;%%~P=!"
+                set "SYS_PATH=!SYS_PATH:%%~P=!"
+            )
+            set "SYS_PATH=!SYS_PATH:;;=;!"
+        )
+        set "SAFE_SYS_PATH=!SYS_PATH:'=''!"
+        
+        set "ELEVATE_SCRIPT=%TEMP%\jvm_scrub_!RANDOM!.ps1"
+        echo [Environment]::SetEnvironmentVariable^('JAVA_HOME', $null, 'Machine'^) > "!ELEVATE_SCRIPT!"
+        echo [Environment]::SetEnvironmentVariable^('Path', '!SAFE_SYS_PATH!', 'Machine'^) >> "!ELEVATE_SCRIPT!"
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""!ELEVATE_SCRIPT!""' -Verb RunAs -Wait" 2>nul
+        if exist "!ELEVATE_SCRIPT!" del "!ELEVATE_SCRIPT!"
+        echo %cGREEN%[   OK   ]%cRESET% Legacy environment scrubbed successfully.
+        echo.
     )
 )
 
@@ -1859,9 +1894,9 @@ for /d %%C in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\*") do (
 )
 
 rem Safely gather paths to purge to prevent catastrophic '\bin' wiping if variables are empty
-set "PURGE_PATHS="%LOCALAPPDATA%\DiamTek\JVM\current\bin" "%%JAVA_HOME%%\bin" "C:\Program Files\Common Files\Oracle\Java\javapath" "C:\Program Files (x86)\Common Files\Oracle\Java\javapath" "C:\ProgramData\Oracle\Java\javapath""
-if defined JAVA_HOME set "PURGE_PATHS=!PURGE_PATHS! "!JAVA_HOME!\bin""
-for /l %%k in (1,1,!JDK_COUNT!) do set "PURGE_PATHS=!PURGE_PATHS! "!JDK_PATH_%%k!\bin""
+set PURGE_PATHS="%LOCALAPPDATA%\DiamTek\JVM\current\bin" "%%JAVA_HOME%%\bin" "C:\Program Files\Common Files\Oracle\Java\javapath" "C:\Program Files (x86)\Common Files\Oracle\Java\javapath" "C:\ProgramData\Oracle\Java\javapath"
+if defined JAVA_HOME set PURGE_PATHS=!PURGE_PATHS! "!JAVA_HOME!\bin"
+for /l %%k in (1,1,!JDK_COUNT!) do set PURGE_PATHS=!PURGE_PATHS! "!JDK_PATH_%%k!\bin"
 
 rem Clean SYSTEM PATH
 echo %cBLUE%[ ACTION ]%cRESET% Cleaning SYSTEM PATH...
@@ -2572,14 +2607,32 @@ echo Press any key to return to the menu...
 pause >nul
 goto :eof
 
-:: SETTINGS MENU
-:: ============================================================
+rem SETTINGS MENU
+rem ============================================================
 :SettingsMenu
 rem cls
 echo ============================================================
 echo                             Settings
 echo ============================================================
 echo.
+
+set "SCRIPT_DIR=%~dp0"
+if "!SCRIPT_DIR:~-1!"=="\" set "SCRIPT_DIR=!SCRIPT_DIR:~0,-1!"
+
+set "IN_PATH=0"
+set "USER_PATH="
+for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
+    set "USER_PATH=%%B"
+)
+
+if defined USER_PATH (
+    set "CLEAN_USER_PATH=!USER_PATH:"=!"
+    set "TEST_PATH=;!CLEAN_USER_PATH!;"
+    for %%D in ("!SCRIPT_DIR!") do (
+        if "!TEST_PATH:;%%~D;=!" NEQ "!TEST_PATH!" set "IN_PATH=1"
+    )
+)
+
 echo Please choose an option:
 echo.
 
@@ -2610,8 +2663,25 @@ if !sub_choice!==2 (
         set "SWITCH_MODE=SYMLINK"
         echo.
         echo %cBLUE%[ ACTION ]%cRESET% Scrubbing Machine Registry to prevent Legacy override...
+        set "SYS_PATH="
+        for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
+        
+        set PURGE_PATHS="C:\Program Files\Common Files\Oracle\Java\javapath" "C:\Program Files (x86)\Common Files\Oracle\Java\javapath" "C:\ProgramData\Oracle\Java\javapath"
+        for /l %%k in (1,1,!JDK_COUNT!) do set PURGE_PATHS=!PURGE_PATHS! "!JDK_PATH_%%k!\bin"
+        
+        if defined SYS_PATH (
+            for %%P in (!PURGE_PATHS!) do (
+                set "SYS_PATH=!SYS_PATH:%%~P;=!"
+                set "SYS_PATH=!SYS_PATH:;%%~P=!"
+                set "SYS_PATH=!SYS_PATH:%%~P=!"
+            )
+            set "SYS_PATH=!SYS_PATH:;;=;!"
+        )
+        set "SAFE_SYS_PATH=!SYS_PATH:'=''!"
+        
         set "ELEVATE_SCRIPT=%TEMP%\jvm_scrub_!RANDOM!.ps1"
         echo [Environment]::SetEnvironmentVariable^('JAVA_HOME', $null, 'Machine'^) > "!ELEVATE_SCRIPT!"
+        echo [Environment]::SetEnvironmentVariable^('Path', '!SAFE_SYS_PATH!', 'Machine'^) >> "!ELEVATE_SCRIPT!"
         powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""!ELEVATE_SCRIPT!""' -Verb RunAs -Wait" 2>nul
         if exist "!ELEVATE_SCRIPT!" del "!ELEVATE_SCRIPT!"
     ) else (
@@ -2635,9 +2705,9 @@ if !sub_choice!==1 (
 
 goto SettingsMenu
 
-:: ============================================================
-:: GLOBAL COMMAND REMOVER
-:: ============================================================
+rem ============================================================
+rem GLOBAL COMMAND REMOVER
+rem ============================================================
 :RemoveGlobalCommand
 rem cls
 echo ============================================================
@@ -2678,9 +2748,9 @@ pause >nul
 goto :eof
 
 
-:: ============================================================
-:: GLOBAL COMMAND INSTALLER (Native & Safe via Temp PS1)
-:: ============================================================
+rem ============================================================
+rem GLOBAL COMMAND INSTALLER (Native & Safe via Temp PS1)
+rem ============================================================
 :InstallGlobalCommand
 rem cls
 echo ============================================================
@@ -2694,8 +2764,16 @@ for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
     set "USER_PATH=%%B"
 )
 
-echo ;!USER_PATH!; | findstr /i /c:";!SCRIPT_DIR!;" >nul
-if not errorlevel 1 (
+set "ALREADY_INSTALLED=0"
+if defined USER_PATH (
+    set "CLEAN_USER_PATH=!USER_PATH:"=!"
+    set "TEST_PATH=;!CLEAN_USER_PATH!;"
+    for %%D in ("!SCRIPT_DIR!") do (
+        if "!TEST_PATH:;%%~D;=!" NEQ "!TEST_PATH!" set "ALREADY_INSTALLED=1"
+    )
+)
+
+if "!ALREADY_INSTALLED!"=="1" (
     echo.
     echo %cGREEN%[   OK   ]%cRESET% The Java Version Manager is already installed in your system PATH!
     echo              You can run 'jvm' from any terminal.
@@ -2725,7 +2803,7 @@ if not defined USER_PATH (
 
 if "!NEW_PATH:~-1!"=="\" set "NEW_PATH=!NEW_PATH:~0,-1!"
 
-:: Write safe REG_EXPAND_SZ path update
+rem Write safe REG_EXPAND_SZ path update
 reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
@@ -2735,52 +2813,50 @@ if errorlevel 1 (
     echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated.
 )
 
-:: Write a clean temporary PowerShell script to configure the $PROFILE safely without escaping hell
+rem Write a clean temporary PowerShell script to configure the $PROFILE safely
 set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
-(
-    echo `$batPath = '!SCRIPT_DIR!\jvm.bat'
-    echo `$profileCode = @"
-    echo # >>> jvm >>>
-    echo function jvm ^{
-    echo     & '`$batPath' `$args;
-    echo     `$sessionFile = \`"`$env:TEMP\.jvm_session_target\`";
-    echo     if (Test-Path `$sessionFile^) ^{
-    echo         `$lines = Get-Content `$sessionFile;
-    echo         `$newPaths = @(^);
-    echo         foreach (`$line in `$lines^) ^{
-    echo             if (`$line -match '^([^=]+)=(.*)$'^) ^{
-    echo                 `$key = `$matches[1]; `$val = `$matches[2];
-    echo                 [Environment]::SetEnvironmentVariable^(`$key, `$val, 'Process'^);
-    echo                 `$newPaths += \`"`$val\bin\`";
-    echo             } elseif (![string]::IsNullOrWhiteSpace^(`$line^)^) ^{
-    echo                 `$env:JAVA_HOME = `$line;
-    echo                 `$newPaths += \`"`$line\bin\`";
-    echo             }
-    echo         }
-    echo         if (`$newPaths.Count -gt 0^) ^{ `$env:Path = (`$newPaths -join ';'^) + ';' + `$env:Path; }
-    echo         Remove-Item `$sessionFile -Force;
-    echo     } else ^{
-    echo         `$vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME'^);
-    echo         foreach (`$v in `$vars^) ^{
-    echo             `$val = [System.Environment]::GetEnvironmentVariable^(`$v, 'User'^);
-    echo             if ([string]::IsNullOrEmpty^(`$val^)^) ^{ `$val = [System.Environment]::GetEnvironmentVariable^(`$v, 'Machine'^); }
-    echo             [Environment]::SetEnvironmentVariable^(`$v, `$val, 'Process'^);
-    echo         }
-    echo         `$env:Path = [System.Environment]::GetEnvironmentVariable^('Path', 'Machine'^) + ';' + [System.Environment]::GetEnvironmentVariable^('Path', 'User'^);
-    echo     }
-    echo ^}
-    echo # ^<^<^< jvm ^<^<^<
-    echo "@
-    echo `$p = `$PROFILE
-    echo if (!(Test-Path `$p^)^) ^{ New-Item -Type File -Path `$p -Force ^| Out-Null }
-    echo `$profContent = Get-Content `$p -ErrorAction SilentlyContinue ^| Out-String
-    echo if (`$profContent -notmatch '# ^>^>^> jvm ^>^>^>') ^{
-    echo     Add-Content -Path `$p -Value "`n`$profileCode`n"
-    echo } else ^{
-    echo     `$profContent = `$profContent -replace '(?s)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<', `$profileCode
-    echo     Set-Content -Path `$p -Value `$profContent
-    echo }
-) > "!INSTALL_PS1!"
+
+echo $profileCode = @' > "!INSTALL_PS1!"
+echo # ^>^>^> jvm ^>^>^> >> "!INSTALL_PS1!"
+echo function jvm { >> "!INSTALL_PS1!"
+echo     jvm.bat $args; >> "!INSTALL_PS1!"
+echo     $sessionFile = "$env:TEMP\.jvm_session_target"; >> "!INSTALL_PS1!"
+echo     if (Test-Path $sessionFile) { >> "!INSTALL_PS1!"
+echo         $lines = Get-Content $sessionFile; >> "!INSTALL_PS1!"
+echo         $newPaths = @(); >> "!INSTALL_PS1!"
+echo         foreach ($line in $lines) { >> "!INSTALL_PS1!"
+echo             if ($line -match '^^([^=]+)=(.*)$') { >> "!INSTALL_PS1!"
+echo                 $key = $matches[1]; $val = $matches[2]; >> "!INSTALL_PS1!"
+echo                 [Environment]::SetEnvironmentVariable($key, $val, 'Process'); >> "!INSTALL_PS1!"
+echo                 $newPaths += "$val\bin"; >> "!INSTALL_PS1!"
+echo             } elseif (-not [string]::IsNullOrWhiteSpace($line)) { >> "!INSTALL_PS1!"
+echo                 $env:JAVA_HOME = $line; >> "!INSTALL_PS1!"
+echo                 $newPaths += "$line\bin"; >> "!INSTALL_PS1!"
+echo             } >> "!INSTALL_PS1!"
+echo         } >> "!INSTALL_PS1!"
+echo         if ($newPaths.Count -gt 0) { $env:Path = ($newPaths -join ';') + ';' + $env:Path; } >> "!INSTALL_PS1!"
+echo         Remove-Item $sessionFile -Force; >> "!INSTALL_PS1!"
+echo     } else { >> "!INSTALL_PS1!"
+echo         $vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME'); >> "!INSTALL_PS1!"
+echo         foreach ($v in $vars) { >> "!INSTALL_PS1!"
+echo             $val = [System.Environment]::GetEnvironmentVariable($v, 'User'); >> "!INSTALL_PS1!"
+echo             if ([string]::IsNullOrEmpty($val)) { $val = [System.Environment]::GetEnvironmentVariable($v, 'Machine'); } >> "!INSTALL_PS1!"
+echo             [Environment]::SetEnvironmentVariable($v, $val, 'Process'); >> "!INSTALL_PS1!"
+echo         } >> "!INSTALL_PS1!"
+echo         $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User'); >> "!INSTALL_PS1!"
+echo     } >> "!INSTALL_PS1!"
+echo } >> "!INSTALL_PS1!"
+echo # ^<^<^< jvm ^<^<^< >> "!INSTALL_PS1!"
+echo '@ >> "!INSTALL_PS1!"
+echo $p = $PROFILE >> "!INSTALL_PS1!"
+echo if (-not (Test-Path $p)) { New-Item -Type File -Path $p -Force ^| Out-Null } >> "!INSTALL_PS1!"
+echo $profContent = Get-Content $p -ErrorAction SilentlyContinue ^| Out-String >> "!INSTALL_PS1!"
+echo if ($profContent -notmatch '# ^>^>^> jvm ^>^>^>') { >> "!INSTALL_PS1!"
+echo     Add-Content -Path $p -Value "`n$profileCode`n" >> "!INSTALL_PS1!"
+echo } else { >> "!INSTALL_PS1!"
+echo     $profContent = $profContent -replace '(?s)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<', $profileCode >> "!INSTALL_PS1!"
+echo     Set-Content -Path $p -Value $profContent >> "!INSTALL_PS1!"
+echo } >> "!INSTALL_PS1!"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!"
 pwsh -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!" 2>nul
