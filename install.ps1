@@ -13,7 +13,7 @@ $url = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/m
 $content = (Invoke-WebRequest -Uri $url -UseBasicParsing).Content
 
 # 2. Integrity Check
-if ($content.Length -eq 0 -or $content -notmatch ":: END OF SCRIPT") {
+if ($content.Length -eq 0 -or $content -notmatch "rem END OF SCRIPT") {
     Write-Host "[ ERROR  ] Download failed integrity check. File is empty or truncated." -ForegroundColor Red
     exit 1
 }
@@ -24,8 +24,17 @@ $content = $content.Replace([char]160, ' ') -replace "(?<!`r)`n", "`r`n"
 
 # 3. Safe REG_EXPAND_SZ Path Injection
 Write-Host "           Configuring User PATH..."
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($null -eq $userPath) { $userPath = "" }
+
+$userPath = ""
+$envKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Environment")
+if ($null -ne $envKey) {
+    try {
+        $raw = $envKey.GetValue("Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        if ($null -ne $raw) { $userPath = [string]$raw }
+    } finally {
+        $envKey.Close()
+    }
+}
 
 $pathArray = $userPath -split ';' | Where-Object { $_ -ne '' }
 if ($installDir -notin $pathArray) {
@@ -40,48 +49,75 @@ if ($installDir -notin $pathArray) {
 
 # 4. Install PowerShell Profile Hook natively
 Write-Host "           Configuring PowerShell Profile..."
-$profileCode = @"
+$profileCode = @'
 # >>> jvm >>>
 function jvm {
-    & '$batPath' `$args;
-    `$sessionFile = `"`$env:TEMP\.jvm_session_target`";
-    if (Test-Path `$sessionFile) {
-        `$lines = Get-Content `$sessionFile;
-        `$newPaths = @();
-        foreach (`$line in `$lines) {
-            if (`$line -match '^([^=]+)=(.*)$') {
-                `$key = `$matches[1]; `$val = `$matches[2];
-                [Environment]::SetEnvironmentVariable(`$key, `$val, 'Process');
-                `$newPaths += `"`$val\bin`";
-            } elseif (![string]::IsNullOrWhiteSpace(`$line)) {
-                `$env:JAVA_HOME = `$line;
-                `$newPaths += `"`$line\bin`";
+    & '__JVM_BAT__' @args
+
+    function Set-JvmVar {
+        param([string]$Name, [string]$OldValue, [string]$NewValue)
+
+        $OldValue = $OldValue.TrimEnd('\')
+        $NewValue = $NewValue.TrimEnd('\')
+
+        [Environment]::SetEnvironmentVariable($Name, $NewValue, 'Process')
+
+        $parts = $env:Path -split ';' | Where-Object { $_ -ne '' }
+        if (-not [string]::IsNullOrWhiteSpace($OldValue)) {
+            $parts = $parts | Where-Object { $_.TrimEnd('\') -ne "$OldValue\bin" }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($NewValue)) {
+            $parts = $parts | Where-Object { $_.TrimEnd('\') -ne "$NewValue\bin" }
+            $parts = @("$NewValue\bin") + $parts
+        }
+        $env:Path = $parts -join ';'
+    }
+
+    $sessionFile = "$env:TEMP\.jvm_session_target"
+    if (Test-Path $sessionFile) {
+        foreach ($line in (Get-Content $sessionFile)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line -match '^([^=]+)=(.*)$') {
+                $key = $matches[1]
+                $val = $matches[2]
+            } else {
+                $key = 'JAVA_HOME'
+                $val = $line
             }
+            $old = [Environment]::GetEnvironmentVariable($key, 'Process')
+            Set-JvmVar -Name $key -OldValue $old -NewValue $val
         }
-        if (`$newPaths.Count -gt 0) { `$env:Path = (`$newPaths -join ';') + ';' + `$env:Path; }
-        Remove-Item `$sessionFile -Force;
+        Remove-Item $sessionFile -Force
     } else {
-        `$vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME');
-        foreach (`$v in `$vars) {
-            `$val = [System.Environment]::GetEnvironmentVariable(`$v, 'User');
-            if ([string]::IsNullOrEmpty(`$val)) { `$val = [System.Environment]::GetEnvironmentVariable(`$v, 'Machine'); }
-            [Environment]::SetEnvironmentVariable(`$v, `$val, 'Process');
+        foreach ($v in @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')) {
+            $old = [Environment]::GetEnvironmentVariable($v, 'Process')
+            $new = [Environment]::GetEnvironmentVariable($v, 'User')
+            if ([string]::IsNullOrEmpty($new)) {
+                $new = [Environment]::GetEnvironmentVariable($v, 'Machine')
+            }
+            if ($old -eq $new) { continue }
+            Set-JvmVar -Name $v -OldValue $old -NewValue $new
         }
-        `$env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User');
     }
 }
 # <<< jvm <<<
-"@
+'@
+
+$profileCode = $profileCode.Replace('__JVM_BAT__', $batPath)
 
 $p = $PROFILE
 if (!(Test-Path $p)) { New-Item -Type File -Path $p -Force | Out-Null }
 $profContent = Get-Content $p -ErrorAction SilentlyContinue | Out-String
 
+$blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
 if ($profContent -notmatch '# >>> jvm >>>') {
     Add-Content -Path $p -Value "`n$profileCode`n"
 } else {
-    $profContent = $profContent -replace '(?s)# >>> jvm >>>.*?# <<< jvm <<<', $profileCode
-    Set-Content -Path $p -Value $profContent
+    $m = [Regex]::Match($profContent, $blockPattern)
+    if ($m.Success) {
+        $profContent = $profContent.Remove($m.Index, $m.Length).Insert($m.Index, $profileCode)
+        Set-Content -Path $p -Value $profContent -NoNewline
+    }
 }
 
 Write-Host "`n[   OK   ] Installation Complete!" -ForegroundColor Green
