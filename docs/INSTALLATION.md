@@ -27,6 +27,6 @@ If you prefer not to use the automated PowerShell script and understand the risk
 2. Create a folder somewhere safe (e.g., `C:\Tools\JVM`).
 3. Move the `jvm.bat` file into that folder.
 4. Double-click `jvm.bat` or run it from a terminal to open the interactive menu.
-5. Navigate to **Settings** (`9`) -> **Install Global Command** (`1`).
+5. Navigate to **Settings** (`3`) -> **Install Global Command** (`1`).
 6. The script will dynamically inject its current folder into your Windows User PATH.
 7. Restart your terminal and type `jvm`.
