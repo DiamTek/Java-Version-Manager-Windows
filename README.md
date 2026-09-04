@@ -43,9 +43,12 @@ Windows Directory Junctions (Symlinks) provide a massive speed and workflow impr
 
 However, some ultra-legacy enterprise Java applications or obscure classloaders perform strict canonical path resolution that can occasionally fail to traverse Windows Directory Junctions. To ensure 100% unbreakable compatibility for all workflows, we built a **Dual-Architecture Core**.
 
-By navigating to the **Settings** menu, users can freely toggle between:
-* **[Symlink Mode]**: The default, blazing-fast, UAC-Free approach that dynamically updates a junction pointer in your user directory.
-* **[Registry Mode]**: The classic, battle-tested legacy approach. The script generates an elevated background wrapper to forcefully update the system's absolute `HKLM` paths in the Windows Registry (requires a UAC prompt on switch).
+By navigating to the **Settings** menu, users can freely toggle between the two modes:
+
+| Mode | Mechanism | Privileges Required | Legacy App Compatibility |
+|------|-----------|---------------------|--------------------------|
+| **Symlink Mode** (Default) | Dynamically updates a junction pointer in your User `PATH`. | Standard User (UAC-Free) | Extremely High (99%) |
+| **Registry Mode** (Legacy) | Hardcodes absolute paths directly into the Machine `HKLM` Registry. | Administrator (Prompts UAC) | 100% Unbreakable |
 
 > [!WARNING]
 > **Architecture Conflicts:** Windows evaluates Machine (`HKLM`) paths before User (`HKCU`) paths. If you use Registry Mode (which writes to the Machine level) and later switch back to Symlink Mode (which writes to the User level), the old Machine path would normally stubbornly override your new Symlink! To prevent this, toggling back to Symlink Mode inside the Settings Menu will now automatically scrub the legacy Machine pollution for you. (Note: If you manually bypass the menu using `--legacy` and `--symlink` CLI flags and experience an override, simply run `jvm clear` to wipe the slate).
@@ -61,19 +64,25 @@ Despite being nearly 100 KB in size, the `jvm.bat` engine is mathematically opti
 * **Quote-Safe PATH Export:** All `for /f` loops that transfer variables across `setlocal`/`endlocal` boundaries use a double-quote encapsulation strategy (`""!VAR!""` with `%%~A` stripping) to guarantee safe handling of `PATH` strings containing embedded double-quotes — a common Windows scenario that normally causes `cmd.exe` to misinterpret path segments as filenames.
 
 ## 📋 Prerequisites
-
-* **OS:** Windows 10 or Windows 11
-* **Privileges:** Standard User (UAC bypass is enabled by default via Symlink Architecture). Administrator rights are only requested if you explicitly switch to legacy Registry Mode, or during global system installations.
+  
+| Requirement | Specification | Notes |
+|-------------|---------------|-------|
+| **OS** | Windows 10 or Windows 11 | Full support for x64 and native ARM64 detection. |
+| **Privileges** | Standard User | UAC is bypassed by default via the Symlink Architecture. Admin is only required for legacy Registry Mode. |
+| **Dependencies**| None | Runs purely on native CMD and PowerShell. No WSL, Cygwin, or MSYS2 required. |
 
 
 ## 📚 Documentation
 
 For deep technical details, CI/CD automation, and advanced usage, refer to the official documentation:
-* [**Usage Guide**](docs/USAGE.md) - Semantic routing, `.java-version` isolation, BYO-JDK, and Ecosystem commands.
-* [**Architecture**](docs/ARCHITECTURE.md) - Technical deep-dive into Directory Junctions and PowerShell Native execution.
-* [**SDKMAN! Comparison**](docs/SDKMAN-Comparison.md) - Why this is the premier native alternative to SDKMAN! for Windows.
-* [**FAQ**](docs/FAQ.md) - Common questions about UAC, global routing, and Windows Registry bridging.
-* [**Changelog**](docs/CHANGELOG.md) - Detailed release history.
+
+| Document | Description |
+|----------|-------------|
+| [**Usage Guide**](docs/USAGE.md) | Semantic routing, `.java-version` isolation, BYO-JDK, and Ecosystem commands. |
+| [**Architecture**](docs/ARCHITECTURE.md) | Technical deep-dive into Directory Junctions and PowerShell Native execution. |
+| [**SDKMAN! Comparison**](docs/SDKMAN-Comparison.md)| Why this is the premier native alternative to SDKMAN! for Windows. |
+| [**FAQ**](docs/FAQ.md) | Common questions about UAC, global routing, and Windows Registry bridging. |
+| [**Changelog**](docs/CHANGELOG.md) | Detailed chronological release history and bug fixes. |
 
 ## 🛠️ Usage
 
@@ -81,56 +90,67 @@ For deep technical details, CI/CD automation, and advanced usage, refer to the o
 2. Navigate to **Settings (Global Command & Setup)** to install the `jvm` global command.
 3. Once installed globally, you can use the following commands from anywhere:
 
-### ⚡ Quick-Switching (CLI)
+#### ⚡ Quick-Switching (CLI)
 Instantly update your `JAVA_HOME` and system PATH without opening menus. If there are duplicates, you will be prompted to pick a vendor.
-* `jvm 21` — Switch to JDK 21 (Globally).
-* `jvm 21 --session` — Switch to JDK 21 *locally* for the current terminal only (requires the PowerShell Profile hook to be installed).
-* `jvm 21 --symlink` — Force the switch to use Symlink Mode (UAC-Free) for this command, ignoring your saved defaults.
-* `jvm 21 --legacy` — Force the switch to use legacy Registry Mode (requests UAC) for this command, ignoring your saved defaults.
-* `jvm 21 --vendor adoptium` — Override priority and explicitly switch to Adoptium's JDK 21.
-* `jvm latest` — Dynamically switch to the absolute highest installed JDK version.
-* `jvm lts` — Dynamically switch to the highest installed LTS version.
-* `jvm` — If run inside a directory containing a `.java-version` file, it will silently parse it and auto-switch to that version locally for the current terminal only. If no `.java-version` file exists, it opens the main interactive terminal UI menu. *(Note: Your `.java-version` file can also contain CLI flags, such as `21 --vendor adoptium --legacy`. Make sure the version and flags are all on a single line. Architecture flags like `--legacy` will only take effect if you run `jvm --global`).*
-* `jvm --global` — Parses the `.java-version` file and forces the version switch to apply globally to your system registry.
+
+| Command | Action / Description |
+|---------|----------------------|
+| `jvm 21` | Switch to JDK 21 globally. |
+| `jvm 21 --session` | Switch *locally* for the current terminal only (requires PowerShell Profile hook). |
+| `jvm 21 --symlink` | Force switch using Symlink Mode (UAC-Free) for this command. |
+| `jvm 21 --legacy` | Force switch using Registry Mode (Requests UAC) for this command. |
+| `jvm 21 --vendor adoptium` | Override priority and explicitly switch to Adoptium's JDK 21. |
+| `jvm latest` | Dynamically switch to the absolute highest installed JDK version. |
+| `jvm lts` | Dynamically switch to the highest installed LTS version. |
+| `jvm` | Silently parses `.java-version` and auto-switches locally (or opens UI if missing). |
+| `jvm --global` | Parses `.java-version` and forces the switch globally to your registry. |
+
+> **Note on `.java-version`:** Your file can contain inline CLI flags (e.g., `21 --vendor adoptium --legacy`). Make sure the version and flags are on a single line. Architecture flags (`--legacy`) only apply when using `jvm --global`.
 
 ### 📥 Installations
-* `jvm install` — Opens the fully interactive Installation Wizard UI.
-* `jvm install 21` — Initiates the installation of JDK 21 (pauses to prompt you for your preferred Vendor).
-* `jvm install 21 --vendor oracle` — Bypasses all prompts to silently download and install Oracle JDK 21.
-* `jvm install lts` — Prompts you to pick an LTS version (e.g., 17, 21, 25) and then prompts you for your preferred Vendor before installing.
-* `jvm install lts --latest` — Skips the version prompt (locks onto the highest available LTS) but still pauses to prompt you for a Vendor.
-* `jvm install lts --latest --vendor oracle` — 100% automated headless installation of the absolute newest Oracle LTS version (bypasses all menus).
-* `jvm install 17 --vendor oracle -y` — (or `--yes`) Aggressively bypasses any remaining interactive safety warnings (like Oracle's legacy version caps or "already installed" warnings) for 100% uninterrupted CI/CD automation.
+
+| Command | Action / Description |
+|---------|----------------------|
+| `jvm install` | Opens the fully interactive Installation Wizard UI. |
+| `jvm install 21` | Initiates the installation of JDK 21 (pauses to prompt for Vendor). |
+| `jvm install 21 --vendor oracle` | Bypasses all prompts to silently download and install Oracle JDK 21. |
+| `jvm install lts` | Prompts you to pick an LTS version (e.g., 17, 21), then prompts for Vendor. |
+| `jvm install lts --latest` | Locks onto the highest available LTS, but still pauses for Vendor prompt. |
+| `jvm install lts --latest --vendor oracle` | **100% automated headless installation** of the newest Oracle LTS version. |
+| `jvm install 17 --vendor oracle -y` | Aggressively bypasses all safety warnings (caps, overwrites) for CI/CD automation. |
 
 ### 📦 Ecosystem Build Tools (SDKMAN Parity)
 JVM supports downloading, switching, and managing tools natively alongside Java. You can manage these via the command line or through the interactive **Ecosystem Management** sub-menu (Option 2 in the main UI).
-* `jvm install maven latest` — Installs the absolute newest version of Maven directly from Apache.
-* `jvm install gradle 8.9` — Installs a specific version of Gradle.
-* `jvm kotlin 2.0.20` — Instantly switches your active `KOTLIN_HOME` (and PATH) to the specified version.
-* `jvm list` — Scroll to the bottom of the list to see your installed Ecosystem tools and their currently `[ACTIVE]` versions.
-* `jvm uninstall groovy 4.0.23` — Safely uninstalls the specified tool and cleanly scrubs its environment variables.
+
+| Command | Action / Description |
+|---------|----------------------|
+| `jvm install maven latest` | Installs the absolute newest version of Maven directly from Apache. |
+| `jvm install gradle 8.9` | Installs a specific version of Gradle. |
+| `jvm kotlin 2.0.20` | Instantly switches your active `KOTLIN_HOME` (and PATH) to the specified version. |
+| `jvm list` | Lists Ecosystem tools and their currently `[ACTIVE]` versions at the bottom. |
+| `jvm uninstall groovy 4.0.23` | Safely uninstalls the tool and cleanly scrubs its environment variables. |
 
 ### 🔄 Updates & Uninstalls
-* `jvm update` — Opens the dynamic, vendor-sorted Updater menu UI.
-* `jvm update --all` — Silently checks and automatically patches all installed JDKs and Ecosystem Tools (Maven, Gradle, etc.) to their absolute newest releases.
-* `jvm update --all --vendor oracle` — Silently checks and automatically patches *only* your installed Oracle JDKs (the `--all` flag is optional here).
-* `jvm uninstall` — Opens the dynamic, vendor-sorted Uninstaller menu UI.
-* `jvm uninstall 21` — Headless uninstallation for JDK 21. If multiple vendors are found for the same version, it safely pauses to ask you which vendor you want to remove.
-* `jvm uninstall 21 --vendor oracle` — 100% headless uninstallation specifically targeting the Oracle vendor (bypasses all prompts).
+| Command | Action / Description |
+|---------|----------------------|
+| `jvm update` | Opens the dynamic, vendor-sorted Updater menu UI. |
+| `jvm update --all` | Silently patches all installed JDKs and Ecosystem Tools to their newest releases. |
+| `jvm update --all --vendor oracle` | Silently checks and automatically patches *only* your Oracle JDKs. |
+| `jvm uninstall` | Opens the dynamic, vendor-sorted Uninstaller menu UI. |
+| `jvm uninstall 21` | Headless uninstallation for JDK 21. Pauses if multiple vendors exist. |
+| `jvm uninstall 21 --vendor oracle` | 100% headless uninstallation targeting Oracle (bypasses all prompts). |
 
 ### 🧹 Global Environment Management
-* `jvm list` — Lists all installed JDKs with their version, vendor, path, and highlights the currently `[ACTIVE]` one.
-* `jvm env` — Displays the current `JAVA_HOME` environment variable.
-* `jvm clear` — Instantly wipes `JAVA_HOME` and purges Java from your PATH.
-* `jvm link <path> [name]` — Manually link an existing, custom JDK directory into the manager so you can easily switch to it (e.g., `jvm link C:\my-custom-jdk my-jdk`). Linked JDKs automatically integrate into the interactive UI under the "Custom (Local Links)" vendor category.
-* `jvm unlink <name>` — Removes a custom linked JDK.
-* `jvm version` — Displays your current `jvm.bat` build number and compares it against the latest release on GitHub to check for updates.
-* `jvm self-update` — Automatically downloads and atomic-swaps the core `jvm.bat` script if a newer version is available on GitHub.
-* `jvm <semantic-alias>` — Switch to a JDK using intelligent aliases instead of exact version numbers. Examples:
-  * `jvm latest` (Switches to the absolute newest JDK installed)
-  * `jvm lts` (Switches to the newest Long-Term Support version installed)
-  * `jvm 21` (Switches to the newest minor build of Java 21)
-  * `jvm lts --vendor corretto` (Switches to the newest Amazon Corretto LTS version)
+| Command | Action / Description |
+|---------|----------------------|
+| `jvm list` | Lists all installed JDKs (version, vendor, path), highlighting the `[ACTIVE]` one. |
+| `jvm env` | Displays the current `JAVA_HOME` environment variable path. |
+| `jvm clear` | Instantly wipes `JAVA_HOME` and purges Java from your PATH. |
+| `jvm link <path> [name]` | Manually links a custom JDK directory (e.g., `jvm link C:\my-jdk jdk-custom`). |
+| `jvm unlink <name>` | Removes a custom linked JDK. |
+| `jvm version` | Checks your current `jvm.bat` build number against GitHub for updates. |
+| `jvm self-update` | Automatically downloads and atomic-swaps the core script if an update exists. |
+| `jvm <semantic-alias>` | Routes dynamically (e.g., `jvm latest`, `jvm lts`, `jvm 21`). |
 
 ## 🎨 Interface Guide
 
