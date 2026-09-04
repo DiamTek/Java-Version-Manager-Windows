@@ -30,3 +30,16 @@ If you prefer not to use the automated PowerShell script and understand the risk
 5. Navigate to **Settings** (`3`) -> **Install Global Command** (`1`).
 6. The script will dynamically inject its current folder into your Windows User PATH.
 7. Restart your terminal and type `jvm`.
+
+---
+
+## Troubleshooting
+
+### PowerShell Execution Policy Errors
+If the automated installer fails with a red error mentioning **"cannot be loaded because running scripts is disabled on this system"**, your Windows machine has strict execution policies enabled.
+
+To fix this, open your PowerShell terminal and run:
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+Press **Y** to confirm, then try running the installation one-liner again.

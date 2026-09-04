@@ -66,6 +66,15 @@ Despite being nearly 100 KB in size, the `jvm.bat` engine is mathematically opti
 * **Privileges:** Standard User (UAC bypass is enabled by default via Symlink Architecture). Administrator rights are only requested if you explicitly switch to legacy Registry Mode, or during global system installations.
 
 
+## 📚 Documentation
+
+For deep technical details, CI/CD automation, and advanced usage, refer to the official documentation:
+* [**Usage Guide**](docs/USAGE.md) - Semantic routing, `.java-version` isolation, BYO-JDK, and Ecosystem commands.
+* [**Architecture**](docs/ARCHITECTURE.md) - Technical deep-dive into Directory Junctions and PowerShell Native execution.
+* [**SDKMAN! Comparison**](docs/SDKMAN-Comparison.md) - Why this is the premier native alternative to SDKMAN! for Windows.
+* [**FAQ**](docs/FAQ.md) - Common questions about UAC, global routing, and Windows Registry bridging.
+* [**Changelog**](docs/CHANGELOG.md) - Detailed release history.
+
 ## 🛠️ Usage
 
 1. Launch `jvm.bat` to open the interactive menu, or run it from any terminal.
