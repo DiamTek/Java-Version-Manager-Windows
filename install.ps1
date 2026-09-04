@@ -106,7 +106,9 @@ function jvm {
 $profileCode = $profileCode.Replace('__JVM_BAT__', $batPath)
 
 $p = $PROFILE
-if (!(Test-Path $p)) { New-Item -Type File -Path $p -Force | Out-Null }
+$profileDir = Split-Path $p
+if (!(Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
+if (!(Test-Path $p)) { New-Item -ItemType File -Path $p -Force | Out-Null }
 $profContent = Get-Content $p -ErrorAction SilentlyContinue | Out-String
 
 $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
