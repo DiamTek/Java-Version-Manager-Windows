@@ -20,6 +20,12 @@ $blockquote-text-color: $diamtek-muted;
 
 @import "{{ site.theme }}";
 
+/* Force Dark Background (Cayman ignores background variables by default) */
+body, html {
+  background-color: $diamtek-bg !important;
+  color: $body-text-color !important;
+}
+
 /* Specific Panel & Glass Overrides */
 .main-content {
 
