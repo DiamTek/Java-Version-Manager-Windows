@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260903.26"
+set "JVM_BUILD=20260904.27"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -1462,7 +1462,7 @@ if "!IS_UPDATER!" NEQ "1" (
     if defined EXISTING_PATH (
         echo.
         echo %cYELLOW%[ WARNING]%cRESET% !EXISTING_VENDOR! JDK !DL_VERSION! is already installed on your system:
-        echo              !EXISTING_PATH!
+        echo            - !EXISTING_PATH!
         echo.
         if "!FORCE_YES!"=="1" (
             echo %cBLUE%[  INFO  ]%cRESET% Reinstalling/overwriting due to --yes flag...
@@ -1712,7 +1712,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     set "ELEVATE_SCRIPT=%TEMP%\jvm_elevate_!RANDOM!.ps1"
     (
         echo $p = [Environment]::GetEnvironmentVariable^('Path', 'Machine'^)
-        echo $purges = @^('C:\Program Files\Common Files\Oracle\Java\javapath', 'C:\Program Files (x86)\Common Files\Oracle\Java\javapath', 'C:\ProgramData\Oracle\Java\javapath', '%LOCALAPPDATA%\DiamTek\JVM\current\bin', '!CURRENT_JDK_PATH!\bin'^)
+        echo $purges = @^('C:\Program Files\Common Files\Oracle\Java\javapath', 'C:\Program Files ^(x86^)\Common Files\Oracle\Java\javapath', 'C:\ProgramData\Oracle\Java\javapath', '%LOCALAPPDATA%\DiamTek\JVM\current\bin', '!CURRENT_JDK_PATH!\bin'^)
         echo if ^($p^) {
         echo     $clean = ^($p -split ';' ^| Where-Object { $_ -and $purges -notcontains $_.TrimEnd^('\'^) -and $_.TrimEnd^('\'^) -ne '%%JAVA_HOME%%\bin' }^) -join ';'
         echo     $finalPath = '%%JAVA_HOME%%\bin;' + $clean
@@ -1731,7 +1731,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     set "USER_PS1=%TEMP%\jvm_user_path_!RANDOM!.ps1"
     (
         echo $p = [Environment]::GetEnvironmentVariable^('Path', 'User'^)
-        echo $purges = @^('C:\Program Files\Common Files\Oracle\Java\javapath', 'C:\Program Files (x86)\Common Files\Oracle\Java\javapath', 'C:\ProgramData\Oracle\Java\javapath', '%LOCALAPPDATA%\DiamTek\JVM\current\bin', '!CURRENT_JDK_PATH!\bin'^)
+        echo $purges = @^('C:\Program Files\Common Files\Oracle\Java\javapath', 'C:\Program Files ^(x86^)\Common Files\Oracle\Java\javapath', 'C:\ProgramData\Oracle\Java\javapath', '%LOCALAPPDATA%\DiamTek\JVM\current\bin', '!CURRENT_JDK_PATH!\bin'^)
         echo if ^($p^) {
         echo     $clean = ^($p -split ';' ^| Where-Object { $_ -and $purges -notcontains $_.TrimEnd^('\'^) -and $_.TrimEnd^('\'^) -ne '%%JAVA_HOME%%\bin' }^) -join ';'
         echo     $finalPath = '%%JAVA_HOME%%\bin;' + $clean
@@ -2656,7 +2656,7 @@ rem ============================================================
 :InstallGlobalCommand
 rem cls
 echo ============================================================
-echo                Global Command Installation
+echo                 Global Command Installation
 echo ============================================================
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Scanning User PATH for JVM directory...
@@ -2677,7 +2677,7 @@ if defined USER_PATH (
 
 if "!ALREADY_INSTALLED!"=="1" (
     echo.
-    echo %cGREEN%[   OK   ]%cRESET% The Java Version Manager is already installed in your system PATH!
+    echo %cGREEN%[    OK   ]%cRESET% The Java Version Manager is already installed in your system PATH!
     echo              You can run 'jvm' from any terminal.
     echo.
     echo Press any key to return...
@@ -2693,7 +2693,6 @@ if errorlevel 2 goto :eof
 
 echo.
 
-rem Offload string manipulation to PowerShell to prevent delayed expansion corruption of exclamation marks
 set "SAFE_TARGET=!SCRIPT_DIR!"
 powershell -NoProfile -Command "$p = (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'Path').Path; $newPath = if ($p) { $p.TrimEnd(';') + ';' + $env:SAFE_TARGET } else { $env:SAFE_TARGET }; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $newPath -Type ExpandString"
 
@@ -2701,61 +2700,60 @@ if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
 ) else (
     powershell -NoProfile -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Env { [DllImport(\"user32.dll\", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult); }'; $res = [IntPtr]::Zero; [Env]::SendMessageTimeout([IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res) | Out-Null"
-    echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated and broadcasted to OS.
+    echo %cGREEN%[    OK   ]%cRESET% User PATH successfully updated and broadcasted to OS.
 )
 
-rem Write a clean temporary PowerShell script to configure the $PROFILE safely
 set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
-
-echo $profileCode = @' > "!INSTALL_PS1!"
-echo # ^>^>^> jvm ^>^>^> >> "!INSTALL_PS1!"
-echo function jvm { >> "!INSTALL_PS1!"
-echo     jvm.bat $args; >> "!INSTALL_PS1!"
-echo     $sessionFile = "$env:TEMP\.jvm_session_target"; >> "!INSTALL_PS1!"
-echo     if (Test-Path $sessionFile) { >> "!INSTALL_PS1!"
-echo         $lines = Get-Content $sessionFile; >> "!INSTALL_PS1!"
-echo         $newPaths = @(); >> "!INSTALL_PS1!"
-echo         foreach ($line in $lines) { >> "!INSTALL_PS1!"
-echo             if ($line -match '^^([^=]+)=(.*)$') { >> "!INSTALL_PS1!"
-echo                 $key = $matches[1]; $val = $matches[2]; >> "!INSTALL_PS1!"
-echo                 [Environment]::SetEnvironmentVariable($key, $val, 'Process'); >> "!INSTALL_PS1!"
-echo                 $newPaths += "$val\bin"; >> "!INSTALL_PS1!"
-echo             } elseif (-not [string]::IsNullOrWhiteSpace($line)) { >> "!INSTALL_PS1!"
-echo                 $env:JAVA_HOME = $line; >> "!INSTALL_PS1!"
-echo                 $newPaths += "$line\bin"; >> "!INSTALL_PS1!"
-echo             } >> "!INSTALL_PS1!"
-echo         } >> "!INSTALL_PS1!"
-echo         if ($newPaths.Count -gt 0) { $env:Path = ($newPaths -join ';') + ';' + $env:Path; } >> "!INSTALL_PS1!"
-echo         Remove-Item $sessionFile -Force; >> "!INSTALL_PS1!"
-echo     } else { >> "!INSTALL_PS1!"
-echo         $vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME'); >> "!INSTALL_PS1!"
-echo         foreach ($v in $vars) { >> "!INSTALL_PS1!"
-echo             $val = [System.Environment]::GetEnvironmentVariable($v, 'User'); >> "!INSTALL_PS1!"
-echo             if ([string]::IsNullOrEmpty($val)) { $val = [System.Environment]::GetEnvironmentVariable($v, 'Machine'); } >> "!INSTALL_PS1!"
-echo             [Environment]::SetEnvironmentVariable($v, $val, 'Process'); >> "!INSTALL_PS1!"
-echo         } >> "!INSTALL_PS1!"
-echo         $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User'); >> "!INSTALL_PS1!"
-echo     } >> "!INSTALL_PS1!"
-echo } >> "!INSTALL_PS1!"
-echo # ^<^<^< jvm ^<^<^< >> "!INSTALL_PS1!"
-echo '@ >> "!INSTALL_PS1!"
-echo $p = $PROFILE >> "!INSTALL_PS1!"
-echo if (-not (Test-Path $p)) { New-Item -Type File -Path $p -Force ^| Out-Null } >> "!INSTALL_PS1!"
-echo $profContent = Get-Content $p -ErrorAction SilentlyContinue ^| Out-String >> "!INSTALL_PS1!"
-echo if ($profContent -notmatch '# ^>^>^> jvm ^>^>^>') { >> "!INSTALL_PS1!"
-echo     Add-Content -Path $p -Value "`n$profileCode`n" >> "!INSTALL_PS1!"
-echo } else { >> "!INSTALL_PS1!"
-echo     $profContent = $profContent -replace '(?s)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<', $profileCode >> "!INSTALL_PS1!"
-echo     Set-Content -Path $p -Value $profContent >> "!INSTALL_PS1!"
-echo } >> "!INSTALL_PS1!"
+(
+    echo $profileCode = @'
+    # >>> jvm >>>
+    function jvm {
+        jvm.bat $args;
+        $sessionFile = "$env:TEMP\.jvm_session_target";
+        if (Test-Path $sessionFile) {
+            $lines = Get-Content $sessionFile;
+            $newPaths = @();
+            foreach ($line in $lines) {
+                if ($line -match '^([^=]+)=(.*)$') {
+                    $key = $matches[1]; $val = $matches[2];
+                    [Environment]::SetEnvironmentVariable($key, $val, 'Process');
+                    $newPaths += "$val\bin";
+                } elseif (-not [string]::IsNullOrWhiteSpace($line)) {
+                    $env:JAVA_HOME = $line;
+                    $newPaths += "$line\bin";
+                }
+            }
+            if ($newPaths.Count -gt 0) { $env:Path = ($newPaths -join ';') + ';' + $env:Path; }
+            Remove-Item $sessionFile -Force;
+        } else {
+            $vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME');
+            foreach ($v in $vars) {
+                $val = [System.Environment]::GetEnvironmentVariable($v, 'User');
+                if ([string]::IsNullOrEmpty($val)) { $val = [System.Environment]::GetEnvironmentVariable($v, 'Machine'); }
+                [Environment]::SetEnvironmentVariable($v, $val, 'Process');
+            }
+            $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User');
+        }
+    }
+    # <<< jvm <<<
+    '@
+    $p = $PROFILE
+    if (-not (Test-Path $p)) { New-Item -Type File -Path $p -Force | Out-Null }
+    $profContent = Get-Content $p -ErrorAction SilentlyContinue | Out-String
+    if ($profContent -notmatch '# >>> jvm >>>') {
+        Add-Content -Path $p -Value "`n$profileCode`n"
+    } else {
+        $profContent = $profContent -replace '(?s)# >>> jvm >>>.*?# <<< jvm <<<', $profileCode
+        Set-Content -Path $p -Value $profContent
+    }
+) > "!INSTALL_PS1!"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!"
-pwsh -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!" 2>nul
 if exist "!INSTALL_PS1!" del "!INSTALL_PS1!" >nul 2>&1
 
 echo.
 echo ============================================================
-echo %cGREEN%[   OK   ]%cRESET% Installation Complete!
+echo %cGREEN%[    OK   ]%cRESET% Installation Complete!
 echo %cBLUE%[  INFO  ]%cRESET% You can now type 'jvm' from any new command prompt or the Windows Run dialog.
 echo ============================================================
 echo.
@@ -2942,8 +2940,30 @@ if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
     
-    set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat'); $req.Method = 'GET'; try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) } } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) } } else { Write-Output 'UNKNOWN|UNKNOWN' }; $reader.Close(); $res.Close() } catch { Write-Output 'ERROR|ERROR' }"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
+    set "ABOUT_PS1=%TEMP%\jvm_about_!RANDOM!.ps1"
+    (
+        echo $local = [version]'!JVM_BUILD!'
+        echo $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat'^)
+        echo $req.Method = 'GET'
+        echo $req.Timeout = 5000
+        echo try {
+        echo     $res = $req.GetResponse(^)
+        echo     $stream = $res.GetResponseStream(^)
+        echo     $reader = New-Object System.IO.StreamReader($stream^)
+        echo     $content = $reader.ReadToEnd(^)
+        echo     $reader.Close(); $res.Close(^)
+        echo     if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') {
+        echo         $remoteStr = $matches[1]
+        echo         try {
+        echo             $remote = [version]$remoteStr
+        echo             if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) }
+        echo         } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) }
+        echo     } else { Write-Output 'UNKNOWN|UNKNOWN' }
+        echo } catch { Write-Output 'ERROR|ERROR' }
+    ) > "!ABOUT_PS1!"
+
+    powershell -NoProfile -ExecutionPolicy Bypass -File "!ABOUT_PS1!" > "%TEMP%\jvm_remote_build.txt" 2>nul
+    if exist "!ABOUT_PS1!" del "!ABOUT_PS1!" >nul 2>&1
     set "REMOTE_BUILD=UNKNOWN"
     set "UPDATE_FLAG=ERROR"
     if exist "%TEMP%\jvm_remote_build.txt" (

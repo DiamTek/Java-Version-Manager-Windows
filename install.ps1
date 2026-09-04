@@ -57,8 +57,8 @@ function jvm {
     function Set-JvmVar {
         param([string]$Name, [string]$OldValue, [string]$NewValue)
 
-        $OldValue = $OldValue.TrimEnd('\')
-        $NewValue = $NewValue.TrimEnd('\')
+        if ($OldValue) { $OldValue = $OldValue.TrimEnd('\') }
+        if ($NewValue) { $NewValue = $NewValue.TrimEnd('\') }
 
         [Environment]::SetEnvironmentVariable($Name, $NewValue, 'Process')
 
