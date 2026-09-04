@@ -131,6 +131,7 @@ JVM supports downloading, switching, and managing tools natively alongside Java.
 | `jvm uninstall groovy 4.0.23` | Safely uninstalls the tool and cleanly scrubs its environment variables. |
 
 ### 🔄 Updates & Uninstalls
+
 | Command | Action / Description |
 |---------|----------------------|
 | `jvm update` | Opens the dynamic, vendor-sorted Updater menu UI. |
@@ -141,6 +142,7 @@ JVM supports downloading, switching, and managing tools natively alongside Java.
 | `jvm uninstall 21 --vendor oracle` | 100% headless uninstallation targeting Oracle (bypasses all prompts). |
 
 ### 🧹 Global Environment Management
+
 | Command | Action / Description |
 |---------|----------------------|
 | `jvm list` | Lists all installed JDKs (version, vendor, path), highlighting the `[ACTIVE]` one. |
@@ -184,3 +186,4 @@ Copyright (c) 2026 DiamTek / Alexéy Shishkin.
 This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html). See the LICENSE file for details.
 
 *Note: Oracle JDK downloads triggered by this tool are subject to the [Oracle No-Fee Terms and Conditions (NFTC)](https://www.oracle.com/downloads/licenses/no-fee-license.html).*
+
