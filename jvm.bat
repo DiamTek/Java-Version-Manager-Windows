@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260904.28"
+set "JVM_BUILD=20260904.29"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -386,7 +386,7 @@ setlocal enabledelayedexpansion
 set "CLEAN_PATH=!PATH!"
 
 rem Use PowerShell to safely filter out old Java paths via exact string matching to prevent accidental substring pollution
-    set "PS_CMD=$p = '!PATH:'=''!' -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne '' -and ('!JAVA_HOME!' -eq '' -or $d -ne '!JAVA_HOME:'=''!\bin') -and ('!SYMLINK_OR_DIRECT!' -eq '' -or $d -ne '!SYMLINK_OR_DIRECT:'=''!\bin') -and ('!CURRENT_JDK_PATH!' -eq '' -or $d -ne '!CURRENT_JDK_PATH:'=''!\bin')) { $r += $d } }; $r -join ';'"
+    set "PS_CMD=$p = $env:PATH -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne '' -and (-not $env:JAVA_HOME -or $d -ne ($env:JAVA_HOME + '\bin')) -and (-not $env:SYMLINK_OR_DIRECT -or $d -ne ($env:SYMLINK_OR_DIRECT + '\bin')) -and (-not $env:CURRENT_JDK_PATH -or $d -ne ($env:CURRENT_JDK_PATH + '\bin'))) { $r += $d } }; $r -join ';'"
     for /f "delims=" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do set "CLEAN_PATH=%%A"
 
 rem Export the clean path back to the main session and apply at the front
@@ -1794,7 +1794,7 @@ echo %cBLUE%[ ACTION ]%cRESET% Cleaning SYSTEM PATH...
 set "SYS_PATH="
 for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
 if defined SYS_PATH (
-    set "PS_CMD=$p = '!SYS_PATH:'=''!' -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
+    set "PS_CMD=$p = $env:SYS_PATH -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
     for %%P in (!PURGE_PATHS!) do (
         set "PS_CMD=!PS_CMD! -and $d -ne '%%~P'"
     )
@@ -1816,7 +1816,7 @@ set "USR_PATH="
 for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USR_PATH=%%B"
 if defined USR_PATH (
     set "ECO_PURGE="%%MAVEN_HOME%%\bin" "%%GRADLE_HOME%%\bin" "%%KOTLIN_HOME%%\bin" "%%SCALA_HOME%%\bin" "%%GROOVY_HOME%%\bin""
-    set "PS_CMD=$p = '!USR_PATH:'=''!' -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
+    set "PS_CMD=$p = $env:USR_PATH -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
     for %%P in (!PURGE_PATHS! !ECO_PURGE!) do (
         set "PS_CMD=!PS_CMD! -and $d -ne '%%~P'"
     )
@@ -1837,7 +1837,7 @@ if defined SCALA_HOME set "SESS_ECO_PURGE=!SESS_ECO_PURGE! "!SCALA_HOME!\bin""
 if defined GROOVY_HOME set "SESS_ECO_PURGE=!SESS_ECO_PURGE! "!GROOVY_HOME!\bin""
 
 rem Use PowerShell to explicitly filter paths via exact array string matching
-set "PS_CMD=$p = '!PATH:'=''!' -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
+set "PS_CMD=$p = $env:PATH -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
 for %%P in (!PURGE_PATHS! !SESS_ECO_PURGE!) do (
     set "PS_CMD=!PS_CMD! -and $d -ne '%%~P'"
 )
@@ -2567,7 +2567,7 @@ if !sub_choice!==2 (
         for /l %%k in (1,1,!JDK_COUNT!) do set PURGE_PATHS=!PURGE_PATHS! "!JDK_PATH_%%k!\bin"
         
         if defined SYS_PATH (
-            set "PS_CMD=$p = '!SYS_PATH:'=''!' -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
+            set "PS_CMD=$p = $env:SYS_PATH -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
             for %%P in (!PURGE_PATHS!) do (
                 set "PS_CMD=!PS_CMD! -and $d -ne '%%~P'"
             )
