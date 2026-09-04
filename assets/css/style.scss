@@ -1,0 +1,65 @@
+--- ---
+/* DiamTek Official Brand Colors */
+$diamtek-bg: #070708;
+$diamtek-panel: #0f1012;
+$diamtek-muted: #9aa3b8;
+$diamtek-accent: #3b82f6;
+$diamtek-accent2: #7c5cff;
+
+/* Inject into Cayman Theme Variables */
+$header-bg-color: $diamtek-accent;
+$header-bg-color-secondary: $diamtek-accent2;
+
+/* Body / Text Overrides */
+$body-bg-color: $diamtek-bg;
+$body-text-color: #d1d5db;
+$section-headings-color: #ffffff;
+$body-link-color: $diamtek-accent;
+$blockquote-text-color: $diamtek-muted;
+
+@import "{{ site.theme }}";
+
+/* Specific Panel & Glass Overrides */
+.main-content {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: #ffffff;
+  }
+
+  table th,
+  table td {
+    border-color: #ffffff0d;
+  }
+
+  table tr:nth-child(2n) {
+    background-color: $diamtek-panel;
+  }
+
+  pre,
+  code {
+    background-color: $diamtek-panel;
+    border: 1px solid #ffffff08;
+    /* Glass border */
+    color: #e2e8f0;
+    border-radius: 6px;
+  }
+
+  blockquote {
+    border-left-color: $diamtek-accent2;
+    color: $diamtek-muted;
+    background-color: $diamtek-panel;
+    padding: 10px 20px;
+    border-radius: 0 14px 14px 0;
+  }
+
+  .markdown-alert {
+    border-left: 4px solid $diamtek-accent;
+    padding-left: 1em;
+    color: $diamtek-muted;
+  }
+}
