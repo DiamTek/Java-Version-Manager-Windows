@@ -17,7 +17,7 @@ $section-headings-color: #ffffff;
 $body-link-color: $diamtek-accent;
 $blockquote-text-color: $diamtek-muted;
 
-@import "{{ site.theme }}";
+@import "jekyll-theme-cayman";
 
 /* Specific Panel & Glass Overrides */
 .main-content {
