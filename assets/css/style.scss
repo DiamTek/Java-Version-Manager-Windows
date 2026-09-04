@@ -1,4 +1,5 @@
---- ---
+---
+---
 /* DiamTek Official Brand Colors */
 $diamtek-bg: #070708;
 $diamtek-panel: #0f1012;
@@ -17,7 +18,7 @@ $section-headings-color: #ffffff;
 $body-link-color: $diamtek-accent;
 $blockquote-text-color: $diamtek-muted;
 
-@import "jekyll-theme-cayman";
+@import "{{ site.theme }}";
 
 /* Specific Panel & Glass Overrides */
 .main-content {
