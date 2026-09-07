@@ -1,0 +1,15 @@
+{
+    "version": "1.0.0",
+    "description": "A lightweight, native Java Version Manager and superior SDKMAN! alternative for Windows. Easily install, manage, and switch between multiple JDKs and the entire JVM Ecosystem (Maven, Gradle, Kotlin) directly from your CMD or PowerShell terminal.",
+    "homepage": "https://diamtek.github.io/Java-Version-Manager-Windows",
+    "license": "AGPL-3.0-or-later",
+    "url": "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/v1.0.0/install.ps1",
+    "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "installer": {
+        "script": "Invoke-Expression (Get-Content \"$dir\\install.ps1\" -Raw)"
+    },
+    "checkver": "github",
+    "autoupdate": {
+        "url": "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/v$version/install.ps1"
+    }
+}
