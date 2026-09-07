@@ -67,8 +67,10 @@ if ($installDir -notin $pathArray) {
     [Microsoft.Win32.Registry]::SetValue("HKEY_CURRENT_USER\Environment", "Path", $newPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
     
     # Broadcast WM_SETTINGCHANGE
-    $code = '[DllImport("user32.dll")] public static extern bool SendMessageTimeout(IntPtr hWnd, int Msg, IntPtr wParam, string lParam, int fuFlags, int uTimeout, out IntPtr lpdwResult);'
-    Add-Type -MemberDefinition $code -Name NativeMethods -Namespace Win32
+    if (-not ("Win32.NativeMethods" -as [type])) {
+        $code = '[DllImport("user32.dll")] public static extern bool SendMessageTimeout(IntPtr hWnd, int Msg, IntPtr wParam, string lParam, int fuFlags, int uTimeout, out IntPtr lpdwResult);'
+        Add-Type -MemberDefinition $code -Name NativeMethods -Namespace Win32
+    }
     [Win32.NativeMethods]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [IntPtr]0, 'Environment', 2, 5000, [ref][IntPtr]::Zero) | Out-Null
 }
 
