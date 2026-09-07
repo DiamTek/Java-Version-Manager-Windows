@@ -16,11 +16,11 @@
 
 $ErrorActionPreference = 'Continue'
 
-Write-Host "
-============================================================"
+Write-Host ""
+Write-Host "============================================================"
 Write-Host "         Java Version Manager - Uninstaller"
-Write-Host "============================================================
-"
+Write-Host "============================================================"
+Write-Host ""
 
 # ----------------------------------------------------------------
 # PATH cleanup — remove ALL known JVM install locations from User PATH.
@@ -152,8 +152,8 @@ if (Test-Path $jvmAppData) {
 # ----------------------------------------------------------------
 # JDK folder — prompt because C:\Program Files\Java is sensitive
 # ----------------------------------------------------------------
-Write-Host "
-============================================================"
+Write-Host ""
+Write-Host "============================================================"
 Write-Host "[ WARNING] JVM installs JDKs into 'C:\Program Files\Java'." -ForegroundColor Yellow
 $confirmJava = Read-Host "Do you want to PERMANENTLY DELETE 'C:\Program Files\Java' and ALL installed JDKs? (y/N)"
 if ($confirmJava -match '^y') {
@@ -171,10 +171,10 @@ if ($confirmJava -match '^y') {
     }
 }
 
-Write-Host "
-============================================================"
+Write-Host ""
+Write-Host "============================================================"
 Write-Host "[   OK   ] Uninstallation Complete." -ForegroundColor Green
-Write-Host "           Please close and restart all terminals for environment changes to take effect.
-"
+Write-Host "           Please close and restart all terminals for environment changes to take effect."
+Write-Host ""
 Write-Host "Press any key to exit..."
 $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
