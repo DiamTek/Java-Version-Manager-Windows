@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.39"
+set "JVM_BUILD=20260907.40"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3179,6 +3179,11 @@ set "UPDATER_PS1=%TEMP%\jvm_updater.ps1"
     echo     try {
     echo         Copy-Item -LiteralPath $src -Destination $dst -Force -ErrorAction Stop
     echo         Remove-Item -LiteralPath $src -Force -ErrorAction SilentlyContinue
+    echo         Write-Host ""
+    echo         Write-Host "[   OK   ] Java Version Manager successfully updated!" -ForegroundColor Green
+    echo         Write-Host "[  INFO  ] Please close and reopen this window to use the new version." -ForegroundColor Cyan
+    echo         Write-Host ""
+    echo         Read-Host "Press Enter to exit"
     echo         Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
     echo         exit 0
     echo     } catch {
@@ -3186,23 +3191,22 @@ set "UPDATER_PS1=%TEMP%\jvm_updater.ps1"
     echo         Start-Sleep -Milliseconds 400
     echo     }
     echo }
-    echo Write-Host "" -ForegroundColor Red
+    echo Write-Host ""
     echo Write-Host "[ ERROR  ] Update failed: File lock could not be released." -ForegroundColor Red
+    echo Read-Host "Press Enter to exit"
     echo exit 1
 ) > "!UPDATER_PS1!"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER_PS1!"
 if !errorlevel! NEQ 0 (
     echo %cRED%[ ERROR  ]%cRESET% Update failed: file lock could not be released.
-    pause
     goto :eof
 )
-echo.
-echo %cGREEN%[   OK   ]%cRESET% Java Version Manager successfully updated^^!
-echo %cBLUE%[  INFO  ]%cRESET% Please close and reopen this window to use the new version.
-echo.
-pause
-goto :eof
+rem After a successful update, the bat file on disk has been replaced.
+rem CMD reads batch files line-by-line from disk, so continuing execution
+rem would read from the new file at an unpredictable seek position.
+rem Hard-exit the CMD process immediately to avoid running garbled code.
+exit
 
 rem ============================================================
 rem Parse contents of .java-version file
