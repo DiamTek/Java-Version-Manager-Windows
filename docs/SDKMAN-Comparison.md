@@ -24,6 +24,8 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **CPU Architecture**| Manual configuration | **Native x64 / ARM64 Auto-Detection** |
 | **Bulk Maintenance**| Manual, tool-by-tool | **1-Click Bulk Updater** (`jvm update --all`) |
 | **OS Conflict Handling**| Passive | **Active Phantom-Path Scrubbing** |
+| **Windows Packaging**| Unofficial / None | **Winget, Scoop, Chocolatey, & Native MSI** |
+| **Uninstallation**| Manual script deletion | **Deep UAC Uninstaller & Windows Settings Integration** |
 
 ---
 
