@@ -252,13 +252,7 @@ if ($targetFolder) {
     # If target is outside AppData and outside Temp, check standalone / test copy
     if (-not $targetFolder.StartsWith($normalizedAppData, [StringComparison]::OrdinalIgnoreCase) -and -not $targetFolder.StartsWith($env:TEMP, [StringComparison]::OrdinalIgnoreCase)) {
         # Protect active development repository from accidental deletion
-        $devPath = "c:\Users\Alexéy Shishkin\Documents\Kingston\Personal Projects\Programming\Projects\Java-Version-Manager-Windows"
-        $isDevRepo = $false
-        if (Test-Path $devPath) {
-            if ($targetFolder -eq (Resolve-Path $devPath).Path) {
-                $isDevRepo = $true
-            }
-        }
+        $isDevRepo = (Test-Path (Join-Path $targetFolder ".git")) -or (Test-Path (Join-Path $targetFolder "..\.git"))
 
         if ($isDevRepo) {
             Write-Host "`n[  INFO  ] Active development repository detected at: $targetFolder" -ForegroundColor Yellow

@@ -14,10 +14,18 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+[CmdletBinding()]
+param(
+    [switch]$Quiet,
+    [switch]$Update,
+    [string]$TargetDir
+)
+
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-Write-Host "[ ACTION ] Installing DiamTek Java Version Manager..." -ForegroundColor Cyan
+$actionName = if ($Update) { "Updating" } else { "Installing" }
+Write-Host "[ ACTION ] $actionName DiamTek Java Version Manager..." -ForegroundColor Cyan
 
 # 1. Create a clean, dedicated bin folder
 $installDir = "$env:LOCALAPPDATA\DiamTek\JVM\bin"
@@ -25,11 +33,30 @@ if (-not (Test-Path $installDir)) { New-Item -ItemType Directory -Path $installD
 $batPath = Join-Path $installDir "jvm.bat"
 
 Write-Host "           Fetching latest release..."
-$url = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat"
-if (Test-Path "$PSScriptRoot\jvm.bat") {
+$rawBranch = "main"
+try {
+    $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main")
+    $apiReq.UserAgent = "DiamTek-JVM"
+    $apiReq.Timeout = 3000
+    $apiRes = $apiReq.GetResponse()
+    $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
+    $json = $sr.ReadToEnd()
+    $sr.Close(); $apiRes.Close()
+    if ($json -match '"sha":\s*"([0-9a-f]{40})"') {
+        $rawBranch = $matches[1]
+    }
+} catch {
+    $rawBranch = "HEAD"
+}
+
+$cacheBuster = [DateTimeOffset]::UtcNow.Ticks
+$noCacheHeaders = @{ 'Cache-Control' = 'no-cache'; 'Pragma' = 'no-cache' }
+$url = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/jvm.bat?t=$cacheBuster"
+
+if (-not $Update -and (Test-Path "$PSScriptRoot\jvm.bat")) {
     $content = [System.IO.File]::ReadAllText("$PSScriptRoot\jvm.bat")
 } else {
-    $content = (Invoke-WebRequest -Uri $url -UseBasicParsing).Content
+    $content = (Invoke-WebRequest -Uri $url -Headers $noCacheHeaders -UseBasicParsing).Content
 }
 
 # 2. Integrity Check
@@ -42,19 +69,33 @@ Write-Host "           Sanitizing code format..."
 $lines = ($content.Replace([char]160, ' ') -split "\r?\n")
 [System.IO.File]::WriteAllLines($batPath, $lines, (New-Object System.Text.UTF8Encoding($false)))
 
+if ($TargetDir -and (Test-Path $TargetDir)) {
+    $normTarget = (Resolve-Path $TargetDir).Path
+    $normInstall = (Resolve-Path $installDir -ErrorAction SilentlyContinue)
+    $isDevRepo = (Test-Path (Join-Path $normTarget ".git")) -or (Test-Path (Join-Path $normTarget "..\.git"))
+
+    if ((-not $normInstall -or $normTarget -ne $normInstall.Path) -and -not $isDevRepo) {
+        $standaloneBat = Join-Path $normTarget "jvm.bat"
+        if (Test-Path $standaloneBat) {
+            [System.IO.File]::WriteAllLines($standaloneBat, $lines, (New-Object System.Text.UTF8Encoding($false)))
+            Write-Host "           Updated standalone copy: $standaloneBat"
+        }
+    }
+}
+
 Write-Host "           Fetching documentation, license, and uninstaller..."
 try {
     $repoRoot = "$env:LOCALAPPDATA\DiamTek\JVM"
-    if (Test-Path "$PSScriptRoot\LICENSE") { Copy-Item "$PSScriptRoot\LICENSE" "$repoRoot\LICENSE" -Force }
-    else { Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/LICENSE" -OutFile "$repoRoot\LICENSE" -UseBasicParsing }
+    if (-not $Update -and (Test-Path "$PSScriptRoot\LICENSE")) { Copy-Item "$PSScriptRoot\LICENSE" "$repoRoot\LICENSE" -Force }
+    else { Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/LICENSE?t=$cacheBuster" -Headers $noCacheHeaders -OutFile "$repoRoot\LICENSE" -UseBasicParsing }
 
-    if (Test-Path "$PSScriptRoot\README.md") { Copy-Item "$PSScriptRoot\README.md" "$repoRoot\README.md" -Force }
-    else { Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/README.md" -OutFile "$repoRoot\README.md" -UseBasicParsing }
+    if (-not $Update -and (Test-Path "$PSScriptRoot\README.md")) { Copy-Item "$PSScriptRoot\README.md" "$repoRoot\README.md" -Force }
+    else { Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/README.md?t=$cacheBuster" -Headers $noCacheHeaders -OutFile "$repoRoot\README.md" -UseBasicParsing }
 
-    if (Test-Path "$PSScriptRoot\uninstall.ps1") {
+    if (-not $Update -and (Test-Path "$PSScriptRoot\uninstall.ps1")) {
         Copy-Item "$PSScriptRoot\uninstall.ps1" "$repoRoot\uninstall.ps1" -Force
     } else {
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/uninstall.ps1" -OutFile "$repoRoot\uninstall.ps1" -UseBasicParsing
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/uninstall.ps1?t=$cacheBuster" -Headers $noCacheHeaders -OutFile "$repoRoot\uninstall.ps1" -UseBasicParsing
     }
     if (Test-Path "$installDir\uninstall.ps1") {
         Remove-Item "$installDir\uninstall.ps1" -Force -ErrorAction SilentlyContinue
@@ -213,5 +254,9 @@ try {
     Write-Host "           [WARN] Could not register uninstaller shortcut: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
-Write-Host "`n[   OK   ] Installation Complete!" -ForegroundColor Green
-Write-Host "           Open a new terminal and type 'jvm' to start.`n"
+if ($Update) {
+    Write-Host "`n[   OK   ] Update Complete!" -ForegroundColor Green
+} else {
+    Write-Host "`n[   OK   ] Installation Complete!" -ForegroundColor Green
+    Write-Host "           Open a new terminal and type 'jvm' to start.`n"
+}

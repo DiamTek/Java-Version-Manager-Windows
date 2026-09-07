@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.53"
+set "JVM_BUILD=20260907.54"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2895,7 +2895,7 @@ if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\bin\uninsta
 if not defined UNINSTALL_SCRIPT (
     echo %cBLUE%[ ACTION ]%cRESET% Downloading latest uninstall.ps1...
     set "UNINSTALL_SCRIPT=%TEMP%\jvm_uninstall_!RANDOM!.ps1"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/uninstall.ps1' -OutFile '!UNINSTALL_SCRIPT!' -UseBasicParsing"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/uninstall.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile '!UNINSTALL_SCRIPT!' -UseBasicParsing"
 )
 
 if not exist "!UNINSTALL_SCRIPT!" (
@@ -3076,14 +3076,16 @@ echo.
 echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
 
 rem Fetch latest build number from GitHub main branch and compare using PowerShell [version]
-set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat'); $req.Method = 'GET'; try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) } } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) } } else { Write-Output 'UNKNOWN|UNKNOWN' }; $reader.Close(); $res.Close() } catch { Write-Output 'ERROR|ERROR' }"
+set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $branch = 'HEAD'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $json = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); if ($json -match '\x22sha\x22:\s*\x22([0-9a-f]{40})\x22') { $branch = $matches[1] } } catch {}; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $branch + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 5000; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); $reader.Close(); $res.Close(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE|{1}' -f $remoteStr, $branch) } else { Write-Output ('{0}|OK|{1}' -f $remoteStr, $branch) } } catch { Write-Output ('{0}|INVALID_REMOTE|{1}' -f $remoteStr, $branch) } } else { Write-Output 'UNKNOWN|UNKNOWN|HEAD' } } catch { Write-Output 'ERROR|ERROR|HEAD' }"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
 set "REMOTE_BUILD=UNKNOWN"
 set "UPDATE_FLAG=ERROR"
+set "REMOTE_REF=HEAD"
 if exist "%TEMP%\jvm_remote_build.txt" (
-    for /f "tokens=1,2 delims=|" %%A in (%TEMP%\jvm_remote_build.txt) do (
+    for /f "tokens=1,2,3 delims=|" %%A in (%TEMP%\jvm_remote_build.txt) do (
         set "REMOTE_BUILD=%%A"
         set "UPDATE_FLAG=%%B"
+        set "REMOTE_REF=%%C"
     )
     del "%TEMP%\jvm_remote_build.txt" >nul 2>&1
 )
@@ -3150,14 +3152,16 @@ if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
     
-    set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat'); $req.Method = 'GET'; $req.Timeout = 5000; try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); $reader.Close(); $res.Close(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) } } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) } } else { Write-Output 'UNKNOWN|UNKNOWN' } } catch { Write-Output 'ERROR|ERROR' }"
+    set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $branch = 'HEAD'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $json = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); if ($json -match '\x22sha\x22:\s*\x22([0-9a-f]{40})\x22') { $branch = $matches[1] } } catch {}; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $branch + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 5000; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); $reader.Close(); $res.Close(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE|{1}' -f $remoteStr, $branch) } else { Write-Output ('{0}|OK|{1}' -f $remoteStr, $branch) } } catch { Write-Output ('{0}|INVALID_REMOTE|{1}' -f $remoteStr, $branch) } } else { Write-Output 'UNKNOWN|UNKNOWN|HEAD' } } catch { Write-Output 'ERROR|ERROR|HEAD' }"
     powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
     set "REMOTE_BUILD=UNKNOWN"
     set "UPDATE_FLAG=ERROR"
+    set "REMOTE_REF=HEAD"
     if exist "%TEMP%\jvm_remote_build.txt" (
-        for /f "tokens=1,2 delims=|" %%A in (%TEMP%\jvm_remote_build.txt) do (
+        for /f "tokens=1,2,3 delims=|" %%A in (%TEMP%\jvm_remote_build.txt) do (
             set "REMOTE_BUILD=%%A"
             set "UPDATE_FLAG=%%B"
+            set "REMOTE_REF=%%C"
         )
         del "%TEMP%\jvm_remote_build.txt" >nul 2>&1
     )
@@ -3180,11 +3184,13 @@ if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
     )
 )
 
+if not defined REMOTE_REF set "REMOTE_REF=HEAD"
+
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
 
 set "INSTALL_SCRIPT=%TEMP%\jvm_install_!RANDOM!.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1' -OutFile '!INSTALL_SCRIPT!' -UseBasicParsing"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + '!REMOTE_REF!' + '/install.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile '!INSTALL_SCRIPT!' -UseBasicParsing"
 
 if not exist "!INSTALL_SCRIPT!" (
     echo.
@@ -3193,28 +3199,43 @@ if not exist "!INSTALL_SCRIPT!" (
     goto :eof
 )
 
-echo %cBLUE%[ ACTION ]%cRESET% Running installer to update Java Version Manager and all companion files...
-powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_SCRIPT!"
-set "UPD_ERR=!errorlevel!"
-if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" >nul 2>&1
+echo %cBLUE%[ ACTION ]%cRESET% Preparing update handoff engine...
+set "UPDATER_BAT=%TEMP%\jvm_updater_!RANDOM!.bat"
+(
+    echo @echo off
+    echo for /F "delims=#" %%%%a in ^('"prompt #$E# ^& echo on ^& for %%%%b in ^(1^) do rem"'^) do set "ESC=%%%%a"
+    echo set "cGREEN=%%ESC%%[92m"
+    echo set "cRED=%%ESC%%[91m"
+    echo set "cBLUE=%%ESC%%[96m"
+    echo set "cRESET=%%ESC%%[0m"
+    echo echo.
+    echo powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_SCRIPT!" -Update -TargetDir "!SCRIPT_DIR!"
+    echo set "UPD_ERR=%%errorlevel%%"
+    echo if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" ^>nul 2^>^&1
+    echo if %%UPD_ERR%% NEQ 0 ^(
+    echo     echo.
+    echo     echo %%cRED%%[ ERROR  ]%%cRESET%% Update encountered an error.
+    echo     pause
+    echo     ^(goto^) 2^>nul ^& del "%%~f0"
+    echo ^)
+    echo echo.
+    echo echo %%cGREEN%%[   OK   ]%%cRESET%% Java Version Manager successfully updated.
+    echo echo.
+    if defined CLI_COMMAND (
+        echo ^(goto^) 2^>nul ^& del "%%~f0"
+    ) else (
+        echo echo Press any key to return to Java Version Manager...
+        echo pause ^>nul
+        echo cls
+        echo set "OLD_UPDATER=%%~f0"
+        echo start /b "" cmd /c "timeout /t 1 >nul & del \"%%OLD_UPDATER%%\" >nul 2>&1"
+        echo "%~f0"
+    )
+) > "!UPDATER_BAT!"
 
-if !UPD_ERR! NEQ 0 (
-    echo.
-    echo %cRED%[ ERROR  ]%cRESET% Update encountered an error.
-    pause
-    goto :eof
-)
-
-echo.
-echo %cGREEN%[   OK   ]%cRESET% Java Version Manager successfully updated!
-echo.
-echo Press any key to continue...
-pause >nul
-if defined CLI_COMMAND (
-    exit /b 0
-) else (
-    goto RESCAN_MENU
-)
+rem Chain execution to external updater in %TEMP% so jvm.bat is immediately closed by cmd.exe!
+"!UPDATER_BAT!"
+exit /b 0
 
 rem ============================================================
 rem Parse contents of .java-version file
