@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.37"
+set "JVM_BUILD=20260907.38"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2675,11 +2675,14 @@ rem Offload string manipulation to PowerShell to prevent delayed expansion corru
 set "SAFE_TARGET=!SCRIPT_DIR!"
 powershell -NoProfile -Command "$p = (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'Path').Path; if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $_ -ne $env:SAFE_TARGET }) -join ';'; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $clean -Type ExpandString }"
 
+rem Clean PowerShell Profile hook
+powershell -NoProfile -Command "$profiles = @($PROFILE, (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'), (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1')) | Select-Object -Unique; foreach ($prof in $profiles) { if ($prof -and (Test-Path -LiteralPath $prof)) { $c = Get-Content -LiteralPath $prof -ErrorAction SilentlyContinue | Out-String; $m = [Regex]::Match($c, '(?s)# >>> jvm >>>.*?# <<< jvm <<<'); if ($m.Success) { $c = $c.Remove($m.Index, $m.Length).Trim(); if ([string]::IsNullOrWhiteSpace($c)) { Remove-Item -LiteralPath $prof -Force } else { Set-Content -LiteralPath $prof -Value $c } } } }"
+
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
 ) else (
     powershell -NoProfile -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Env { [DllImport(\"user32.dll\", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult); }'; $res = [IntPtr]::Zero; [Env]::SendMessageTimeout([IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res) | Out-Null"
-    echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated and broadcasted to OS.
+    echo %cGREEN%[   OK   ]%cRESET% User PATH and PowerShell profile hook successfully updated.
 )
 
 echo.
@@ -2802,22 +2805,25 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
     echo(# ^<^<^< jvm ^<^<^<
     echo('@
     echo(
+    echo($batPath = Join-Path $env:SAFE_TARGET 'jvm.bat'
     echo($profileCode = $profileCode.Replace^('__JVM_BAT__', $batPath^)
     echo(
-    echo($p = $PROFILE
-    echo($profileDir = Split-Path $p
-    echo(if ^(^^!^(Test-Path $profileDir^)^) { New-Item -ItemType Directory -Path $profileDir -Force ^| Out-Null }
-    echo(if ^(^^!^(Test-Path $p^)^) { New-Item -ItemType File -Path $p -Force ^| Out-Null }
-    echo($profContent = Get-Content $p -ErrorAction SilentlyContinue ^| Out-String
-    echo(
-    echo($blockPattern = '^(?s^)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<'
-    echo(if ^($profContent -notmatch '# ^>^>^> jvm ^>^>^>'^) {
-    echo(    Add-Content -Path $p -Value "`n$profileCode`n"
-    echo(} else {
-    echo(    $m = [Regex]::Match^($profContent, $blockPattern^)
-    echo(    if ^($m.Success^) {
-    echo(        $profContent = $profContent.Remove^($m.Index, $m.Length^).Insert^($m.Index, $profileCode^)
-    echo(        Set-Content -Path $p -Value $profContent -NoNewline
+    echo($profiles = @^($PROFILE, ^(Join-Path ^([Environment]::GetFolderPath^('UserProfile'^)^) 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'^), ^(Join-Path ^([Environment]::GetFolderPath^('UserProfile'^)^) 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1'^)^) ^| Select-Object -Unique
+    echo(foreach ^($p in $profiles^) {
+    echo(    if ^([string]::IsNullOrWhiteSpace^($p^)^) { continue }
+    echo(    $profileDir = Split-Path $p
+    echo(    if ^(^^!^(Test-Path $profileDir^)^) { New-Item -ItemType Directory -Path $profileDir -Force ^| Out-Null }
+    echo(    if ^(^^!^(Test-Path $p^)^) { New-Item -ItemType File -Path $p -Force ^| Out-Null }
+    echo(    $profContent = Get-Content $p -ErrorAction SilentlyContinue ^| Out-String
+    echo(    $blockPattern = '^(?s^)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<'
+    echo(    if ^($profContent -notmatch '# ^>^>^> jvm ^>^>^>'^) {
+    echo(        Add-Content -Path $p -Value "`n$profileCode`n"
+    echo(    } else {
+    echo(        $m = [Regex]::Match^($profContent, $blockPattern^)
+    echo(        if ^($m.Success^) {
+    echo(            $profContent = $profContent.Remove^($m.Index, $m.Length^).Insert^($m.Index, $profileCode^)
+    echo(            Set-Content -Path $p -Value $profContent -NoNewline
+    echo(        }
     echo(    }
     echo(}
     echo(

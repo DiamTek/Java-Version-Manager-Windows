@@ -144,20 +144,23 @@ function jvm {
 
 $profileCode = $profileCode.Replace('__JVM_BAT__', $batPath)
 
-$p = $PROFILE
-$profileDir = Split-Path $p
-if (!(Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
-if (!(Test-Path $p)) { New-Item -ItemType File -Path $p -Force | Out-Null }
-$profContent = Get-Content $p -ErrorAction SilentlyContinue | Out-String
+$profiles = @($PROFILE, (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'), (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1')) | Select-Object -Unique
+foreach ($p in $profiles) {
+    if ([string]::IsNullOrWhiteSpace($p)) { continue }
+    $profileDir = Split-Path $p
+    if (!(Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
+    if (!(Test-Path $p)) { New-Item -ItemType File -Path $p -Force | Out-Null }
+    $profContent = Get-Content $p -ErrorAction SilentlyContinue | Out-String
 
-$blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
-if ($profContent -notmatch '# >>> jvm >>>') {
-    Add-Content -Path $p -Value "`n$profileCode`n"
-} else {
-    $m = [Regex]::Match($profContent, $blockPattern)
-    if ($m.Success) {
-        $profContent = $profContent.Remove($m.Index, $m.Length).Insert($m.Index, $profileCode)
-        Set-Content -Path $p -Value $profContent -NoNewline
+    $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
+    if ($profContent -notmatch '# >>> jvm >>>') {
+        Add-Content -Path $p -Value "`n$profileCode`n"
+    } else {
+        $m = [Regex]::Match($profContent, $blockPattern)
+        if ($m.Success) {
+            $profContent = $profContent.Remove($m.Index, $m.Length).Insert($m.Index, $profileCode)
+            Set-Content -Path $p -Value $profContent -NoNewline
+        }
     }
 }
 
