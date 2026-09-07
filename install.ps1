@@ -39,8 +39,8 @@ if ($content.Length -eq 0 -or $content -notmatch "rem END OF SCRIPT") {
 }
 
 Write-Host "           Sanitizing code format..."
-$content = $content.Replace([char]160, ' ') -replace "(?<!`r)`n", "`r`n"
-[IO.File]::WriteAllText($batPath, $content, (New-Object System.Text.UTF8Encoding $false))
+$lines = ($content.Replace([char]160, ' ') -split "\r?\n")
+[System.IO.File]::WriteAllLines($batPath, $lines, (New-Object System.Text.UTF8Encoding($false)))
 
 Write-Host "           Fetching documentation, license, and uninstaller..."
 try {

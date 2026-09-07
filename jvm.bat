@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.45"
+set "JVM_BUILD=20260907.46"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3169,8 +3169,8 @@ if !errorlevel! NEQ 0 (
     goto :eof
 )
 
-rem Sanitize LF line endings and hidden spaces after download to prevent the 'cho' bug
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$c = [IO.File]::ReadAllText('%TEMP%\jvm_new.bat'); $c = $c.Replace([char]160, ' ') -replace '(?<!\r)\n', [Environment]::NewLine; [IO.File]::WriteAllText('%TEMP%\jvm_new.bat', $c, (New-Object System.Text.UTF8Encoding $false))" 2>nul
+rem Sanitize LF line endings and hidden spaces after download to prevent the 'cho' and 'em' offset bugs
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Join-Path $env:TEMP 'jvm_new.bat'; $lines = [System.IO.File]::ReadAllLines($p) | ForEach-Object { $_.Replace([char]160, ' ') }; [System.IO.File]::WriteAllLines($p, $lines, (New-Object System.Text.UTF8Encoding($false)))"
 
 for %%I in ("%TEMP%\jvm_new.bat") do set "NEW_SIZE=%%~zI"
 if !NEW_SIZE! EQU 0 (
