@@ -24,9 +24,11 @@ rem Cleanup self-updater artifacts if they exist
 if exist "%TEMP%\jvm_updater_*.bat" del "%TEMP%\jvm_updater_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_install_*.ps1" del "%TEMP%\jvm_install_*.ps1" >nul 2>&1
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
+if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
+if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.57"
+set "JVM_BUILD=20260907.58"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2917,13 +2919,22 @@ rem Switch working directory to %TEMP% to release directory lock from cmd.exe
 set "TARGET_UNINSTALL_DIR=!SCRIPT_DIR!"
 cd /d "%TEMP%"
 
-echo %cBLUE%[ ACTION ]%cRESET% Running uninstaller...
-powershell -NoProfile -ExecutionPolicy Bypass -File "!RUNNER_PS1!" -SourceDir "!TARGET_UNINSTALL_DIR!"
-if exist "!RUNNER_PS1!" del "!RUNNER_PS1!" >nul 2>&1
+echo %cBLUE%[ ACTION ]%cRESET% Preparing uninstaller handoff engine...
+set "UNINSTALL_BAT=%TEMP%\jvm_uninstall_!RANDOM!.bat"
+(
+    echo @echo off
+    echo cd /d "%TEMP%"
+    echo echo.
+    echo powershell -NoProfile -ExecutionPolicy Bypass -File "!RUNNER_PS1!" -SourceDir "!TARGET_UNINSTALL_DIR!"
+    echo if exist "!RUNNER_PS1!" del "!RUNNER_PS1!" ^>nul 2^>^&1
+    echo if "!ORIG_CP!" NEQ "" chcp !ORIG_CP! ^>nul 2^>^&1
+    echo ^(goto^) 2^>nul ^& del "%%~f0" ^>nul 2^>^&1 ^& exit /b 0
+) > "!UNINSTALL_BAT!"
 
-echo.
-echo %cGREEN%[   OK   ]%cRESET% Uninstaller finished. Exiting JVM.
-exit /b 100
+rem Pop all subroutine call frames and chain to external uninstaller in %TEMP%
+rem This ensures jvm.bat is immediately closed and unlocked before powershell deletes it!
+for %%A in ("!UNINSTALL_BAT!") do (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & "%%~A"
+exit /b 0
 
 :HANDLE_LINKS
 setlocal enabledelayedexpansion
