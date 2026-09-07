@@ -4,9 +4,16 @@ All notable changes to the Java Version Manager for Windows will be documented i
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to Semantic Versioning.
 
-## [0.6.0] - 2026-09-XX
+## [1.0.0] - 2026-09-07
 
-This release represents a massive architectural overhaul of the entire engine, adding comprehensive ecosystem support, native automation integrations, and solving multiple Windows-specific system limitations.
+This milestone 1.0.0 release marks the official general availability of the DiamTek Java Version Manager for Windows. It features a massive architectural overhaul of the entire engine, adding comprehensive ecosystem support, native automation integrations, full package manager distribution, and solving multiple Windows-specific system limitations.
+
+### Distribution & Packaging
+- **Package Manager Ecosystem**: Full manifest support for Scoop (`jvm.json`), Chocolatey (`jvm.nuspec`, `chocolateyInstall.ps1`, `chocolateyUninstall.ps1`), Win
+get (`DiamTek.JVM.yaml`), and an automated WiX Toolset v4 MSI build pipeline (`build-msi.ps1`).
+- **Deep UAC Uninstaller Engine**: Introduced `uninstall.ps1` with automatic UAC administrator privilege escalation to completely scrub JVM, PATH entries, environment variables, AppData Ecosystem caches, and installed JDKs.
+- **Windows Integration**: Automatically registers JVM into Windows Settings / Installed apps (`HKCU:\...\Uninstall\DiamTek.JVM`) with native uninstallation support and creates a Start Menu uninstaller shortcut.
+- **Terminal & CLI Uninstaller**: Added a full system wipe option in the interactive Settings menu and CLI support via `jvm self-uninstall`.
 
 ### Architecture & Core Engines
 - **Enterprise Storage Migration**: Migrated the entire storage architecture from the user profile (`%USERPROFILE%\.jvm`) to `%LOCALAPPDATA%\DiamTek\JVM` for strict enterprise-grade path compliance.
@@ -32,6 +39,8 @@ This release represents a massive architectural overhaul of the entire engine, a
 - **Offline-Aware Error Handling**: Added structured error handling across all network operations with clean `[ ERROR ]` / `[ DETAIL ]` outputs instead of raw exception dumps.
 
 ### CLI Automation & Parsing
+- **Native CLI Help Engine**: Built-in formatted help screen (`jvm help`, `jvm --help`, `jvm -h`, `jvm /?`) displaying the full command suite, arguments, ecosystem switches, maintenance utilities, and flag overrides.
+- **Deep Uninstaller Command**: Added `jvm self-uninstall` to invoke the UAC-elevated deep uninstallation pipeline directly from any terminal.
 - **Semantic CLI Routing**: Added robust semantic routing commands (`jvm latest`, `jvm lts`) and powerful flag overrides (`--symlink`, `--legacy`, `--vendor`, `--latest`, `-y`).
 - **Semantic Self-Updater Engine**: Built a seamless self-updater engine (`jvm version`, `jvm self-update`) that securely compares build numbers using the native `.NET` `[version]` class before automatically downloading and atomic-swapping the core script.
 - **Dynamic Feature Resolvers**: Built a dynamic `FetchLatestVersions` resolver that queries the Adoptium API at runtime to establish the true latest feature release and LTS version numbers, eliminating hardcoded version constants.
