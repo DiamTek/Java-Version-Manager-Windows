@@ -91,7 +91,9 @@ Write-Host "           Configuring PowerShell Profile..."
 $profileCode = @'
 # >>> jvm >>>
 function jvm {
-    & '__JVM_BAT__' @args
+    $bat = Get-Command jvm.bat -CommandType Application -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
+    if (-not $bat) { $bat = '__FALLBACK_BAT__' }
+    & $bat @args
 
     function Set-JvmVar {
         param([string]$Name, [string]$OldValue, [string]$NewValue)
@@ -142,26 +144,30 @@ function jvm {
 # <<< jvm <<<
 '@
 
-$profileCode = $profileCode.Replace('__JVM_BAT__', $batPath)
+$profileCode = $profileCode.Replace('__FALLBACK_BAT__', $batPath)
 
-$profiles = @($PROFILE, (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'), (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1')) | Select-Object -Unique
+$userProfile = [Environment]::GetFolderPath('UserProfile')
+$profiles = @(
+    $PROFILE,
+    (Join-Path $userProfile 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'),
+    (Join-Path $userProfile 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1')
+) | Select-Object -Unique
+
+$utf8 = New-Object System.Text.UTF8Encoding($true)
 foreach ($p in $profiles) {
     if ([string]::IsNullOrWhiteSpace($p)) { continue }
     $profileDir = Split-Path $p
-    if (!(Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
-    if (!(Test-Path $p)) { New-Item -ItemType File -Path $p -Force | Out-Null }
-    $profContent = Get-Content $p -ErrorAction SilentlyContinue | Out-String
+    if (-not (Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
+    $profContent = ''
+    if (Test-Path $p) { $profContent = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) }
 
     $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
-    if ($profContent -notmatch '# >>> jvm >>>') {
-        Add-Content -Path $p -Value "`n$profileCode`n"
+    if ($profContent -match $blockPattern) {
+        $profContent = [Regex]::Replace($profContent, $blockPattern, $profileCode)
     } else {
-        $m = [Regex]::Match($profContent, $blockPattern)
-        if ($m.Success) {
-            $profContent = $profContent.Remove($m.Index, $m.Length).Insert($m.Index, $profileCode)
-            Set-Content -Path $p -Value $profContent -NoNewline
-        }
+        $profContent = if ([string]::IsNullOrWhiteSpace($profContent)) { $profileCode } else { "$profContent`r`n`r`n$profileCode" }
     }
+    [System.IO.File]::WriteAllText($p, $profContent, $utf8)
 }
 
 # 5. Register Windows Uninstaller & Start Menu Shortcuts

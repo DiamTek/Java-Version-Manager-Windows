@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.41"
+set "JVM_BUILD=20260907.42"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2749,16 +2749,17 @@ if errorlevel 1 (
     echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated and broadcasted to OS.
 )
 
-rem Compute relative path from USERPROFILE to jvm.bat (ASCII-safe — no é in the portion above USERPROFILE)
-rem This prevents encoding corruption when the path is written into the UTF-8 PowerShell profile.
-for /f "delims=" %%R in ('powershell -NoProfile -Command "[IO.Path]::GetRelativePath($env:USERPROFILE, (Join-Path $env:SAFE_TARGET 'jvm.bat'))"') do set "JVM_REL_PATH=%%R"
-
+rem Install/update PowerShell profile hooks reliably via UTF-8 PowerShell script
+set "SAFE_TARGET=!SCRIPT_DIR!"
 set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
 (
-    echo($profileCode = @'
+    echo $targetBat = Join-Path $env:SAFE_TARGET 'jvm.bat'
+    echo $hook = @'
     echo(# ^>^>^> jvm ^>^>^>
     echo(function jvm {
-    echo(    ^& '__JVM_BAT__' @args
+    echo(    $bat = Get-Command jvm.bat -CommandType Application -ErrorAction SilentlyContinue ^| Select-Object -ExpandProperty Source -First 1
+    echo(    if ^(-not $bat^) { $bat = '__FALLBACK_BAT__' }
+    echo(    ^& $bat @args
     echo(
     echo(    function Set-JvmVar {
     echo(        param^([string]$Name, [string]$OldValue, [string]$NewValue^)
@@ -2809,29 +2810,28 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
     echo(# ^<^<^< jvm ^<^<^<
     echo('@
     echo(
-    echo($jvmRelPath = '!JVM_REL_PATH!'
-    echo($batPath = Join-Path $env:USERPROFILE $jvmRelPath
-    echo($profileCode = $profileCode.Replace^('__JVM_BAT__', $batPath^)
-    echo(
-    echo($profiles = @^($PROFILE, ^(Join-Path ^([Environment]::GetFolderPath^('UserProfile'^)^) 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'^), ^(Join-Path ^([Environment]::GetFolderPath^('UserProfile'^)^) 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1'^)^) ^| Select-Object -Unique
-    echo(foreach ^($p in $profiles^) {
-    echo(    if ^([string]::IsNullOrWhiteSpace^($p^)^) { continue }
-    echo(    $profileDir = Split-Path $p
-    echo(    if ^(^^!^(Test-Path $profileDir^)^) { New-Item -ItemType Directory -Path $profileDir -Force ^| Out-Null }
-    echo(    if ^(^^!^(Test-Path $p^)^) { New-Item -ItemType File -Path $p -Force ^| Out-Null }
-    echo(    $profContent = Get-Content $p -ErrorAction SilentlyContinue ^| Out-String
-    echo(    $blockPattern = '^(?s^)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<'
-    echo(    if ^($profContent -notmatch '# ^>^>^> jvm ^>^>^>'^) {
-    echo(        Add-Content -Path $p -Value "`n$profileCode`n"
-    echo(    } else {
-    echo(        $m = [Regex]::Match^($profContent, $blockPattern^)
-    echo(        if ^($m.Success^) {
-    echo(            $profContent = $profContent.Remove^($m.Index, $m.Length^).Insert^($m.Index, $profileCode^)
-    echo(            Set-Content -Path $p -Value $profContent -NoNewline
-    echo(        }
-    echo(    }
-    echo(}
-    echo(
+    echo $hook = $hook.Replace^('__FALLBACK_BAT__', $targetBat^)
+    echo $userProfile = [Environment]::GetFolderPath^('UserProfile'^)
+    echo $profiles = @^(
+    echo     $PROFILE,
+    echo     ^(Join-Path $userProfile 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'^),
+    echo     ^(Join-Path $userProfile 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1'^)
+    echo ^) ^| Select-Object -Unique
+    echo $utf8 = New-Object System.Text.UTF8Encoding^($true^)
+    echo foreach ^($p in $profiles^) {
+    echo     if ^([string]::IsNullOrWhiteSpace^($p^)^) { continue }
+    echo     $profileDir = Split-Path $p
+    echo     if ^(-not ^(Test-Path $profileDir^)^) { New-Item -ItemType Directory -Path $profileDir -Force ^| Out-Null }
+    echo     $profContent = ''
+    echo     if ^(Test-Path $p^) { $profContent = [System.IO.File]::ReadAllText^($p, [System.Text.Encoding]::UTF8^) }
+    echo     $blockPattern = '(?s)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<'
+    echo     if ^($profContent -match $blockPattern^) {
+    echo         $profContent = [Regex]::Replace^($profContent, $blockPattern, $hook^)
+    echo     } else {
+    echo         $profContent = if ^([string]::IsNullOrWhiteSpace^($profContent^)^) { $hook } else { "$profContent`r`n`r`n$hook" }
+    echo     }
+    echo     [System.IO.File]::WriteAllText^($p, $profContent, $utf8^)
+    echo }
 ) > "!INSTALL_PS1!"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!"
