@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>jvm-windows</id>
+    <version>1.0.0</version>
+    <title>Java Version Manager for Windows</title>
+    <authors>Alexéy Shishkin</authors>
+    <owners>DiamTek</owners>
+    <projectUrl>https://diamtek.github.io/Java-Version-Manager-Windows</projectUrl>
+    <projectSourceUrl>https://github.com/DiamTek/Java-Version-Manager-Windows</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/DiamTek/Java-Version-Manager-Windows/issues</bugTrackerUrl>
+    <tags>java jvm jdk sdkman version-manager cmd powershell cli</tags>
+    <summary>A lightweight, native Java Version Manager and superior SDKMAN! alternative for Windows. Easily install, manage, and switch between multiple JDKs and the entire JVM Ecosystem (Maven, Gradle, Kotlin) directly from your CMD or PowerShell terminal.</summary>
+    <description>
+A lightweight, native Java Version Manager and superior SDKMAN! alternative for Windows. Easily install, manage, and switch between multiple JDKs and the entire JVM Ecosystem (Maven, Gradle, Kotlin) directly from your CMD or PowerShell terminal.
+
+Features:
+- **100% Native Windows**: Built entirely on native Windows APIs without requiring WSL, MSYS2, or Git Bash.
+- **Dual-Architecture Core**: Toggle between ultra-fast Directory Junctions (Symlinks) or legacy Registry manipulation.
+- **Ecosystem Management**: Natively manage tools like Maven, Gradle, Kotlin, Scala, and Groovy.
+- **Interactive TUI**: Vendor-sorted Updater and Uninstaller menus with ANSI color formatting.
+- **Global & Session Isolation**: Auto-switching via `.java-version` and `.sdkmanrc` files.
+    </description>
+    <releaseNotes>https://github.com/DiamTek/Java-Version-Manager-Windows/releases</releaseNotes>
+    <licenseUrl>https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

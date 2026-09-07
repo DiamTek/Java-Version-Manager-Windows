@@ -14,6 +14,12 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+[CmdletBinding()]
+param(
+    [switch]$Quiet,
+    [switch]$DeleteJava
+)
+
 $ErrorActionPreference = 'Continue'
 
 Write-Host ""
@@ -164,8 +170,15 @@ if (Test-Path $diamtekAppData) {
 Write-Host ""
 Write-Host "============================================================"
 Write-Host "[ WARNING] JVM installs JDKs into 'C:\Program Files\Java'." -ForegroundColor Yellow
-$confirmJava = Read-Host "Do you want to PERMANENTLY DELETE 'C:\Program Files\Java' and ALL installed JDKs? (y/N)"
-if ($confirmJava -match '^y') {
+$shouldDeleteJava = $DeleteJava -or $false
+if (-not $shouldDeleteJava -and -not $Quiet) {
+    $confirmJava = Read-Host "Do you want to PERMANENTLY DELETE 'C:\Program Files\Java' and ALL installed JDKs? (y/N)"
+    if ($confirmJava -match '^y') {
+        $shouldDeleteJava = $true
+    }
+}
+
+if ($shouldDeleteJava) {
     if (Test-Path "C:\Program Files\Java") {
         Write-Host "[ ACTION ] Deleting C:\Program Files\Java..." -ForegroundColor Cyan
         $deleted = $false
@@ -199,5 +212,7 @@ Write-Host "============================================================"
 Write-Host "[   OK   ] Uninstallation Complete." -ForegroundColor Green
 Write-Host "           Please close and restart all terminals for environment changes to take effect."
 Write-Host ""
-Write-Host "Press any key to exit..."
-$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+if (-not $Quiet) {
+    Write-Host "Press any key to exit..."
+    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+}
