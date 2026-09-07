@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.33"
+set "JVM_BUILD=20260907.34"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2720,7 +2720,7 @@ if defined USER_PATH (
 
 if "!ALREADY_INSTALLED!"=="1" (
     echo.
-    echo %cGREEN%[    OK   ]%cRESET% The Java Version Manager is already installed in your system PATH!
+    echo %cGREEN%[   OK   ]%cRESET% The Java Version Manager is already installed in your system PATH!
     echo              You can run 'jvm' from any terminal.
     echo.
     echo Press any key to return...
@@ -2743,7 +2743,7 @@ if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
 ) else (
     powershell -NoProfile -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Env { [DllImport(\"user32.dll\", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult); }'; $res = [IntPtr]::Zero; [Env]::SendMessageTimeout([IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res) | Out-Null"
-    echo %cGREEN%[    OK   ]%cRESET% User PATH successfully updated and broadcasted to OS.
+    echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated and broadcasted to OS.
 )
 
 set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
@@ -2828,7 +2828,7 @@ if exist "!INSTALL_PS1!" del "!INSTALL_PS1!" >nul 2>&1
 
 echo.
 echo ============================================================
-echo %cGREEN%[    OK   ]%cRESET% Installation Complete!
+echo %cGREEN%[   OK   ]%cRESET% Installation Complete!
 echo %cBLUE%[  INFO  ]%cRESET% You can now type 'jvm' from any new command prompt or the Windows Run dialog.
 echo ============================================================
 echo.
@@ -2856,6 +2856,7 @@ echo.
 echo %cBLUE%[ ACTION ]%cRESET% Locating uninstaller...
 set "UNINSTALL_SCRIPT="
 if exist "%SCRIPT_DIR%\uninstall.ps1" set "UNINSTALL_SCRIPT=%SCRIPT_DIR%\uninstall.ps1"
+if not defined UNINSTALL_SCRIPT if exist "%SCRIPT_DIR%\..\uninstall.ps1" set "UNINSTALL_SCRIPT=%SCRIPT_DIR%\..\uninstall.ps1"
 if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\uninstall.ps1" set "UNINSTALL_SCRIPT=%LOCALAPPDATA%\DiamTek\JVM\uninstall.ps1"
 if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\bin\uninstall.ps1" set "UNINSTALL_SCRIPT=%LOCALAPPDATA%\DiamTek\JVM\bin\uninstall.ps1"
 
