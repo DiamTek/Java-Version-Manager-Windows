@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.40"
+set "JVM_BUILD=20260907.41"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2749,6 +2749,10 @@ if errorlevel 1 (
     echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated and broadcasted to OS.
 )
 
+rem Compute relative path from USERPROFILE to jvm.bat (ASCII-safe — no é in the portion above USERPROFILE)
+rem This prevents encoding corruption when the path is written into the UTF-8 PowerShell profile.
+for /f "delims=" %%R in ('powershell -NoProfile -Command "[IO.Path]::GetRelativePath($env:USERPROFILE, (Join-Path $env:SAFE_TARGET 'jvm.bat'))"') do set "JVM_REL_PATH=%%R"
+
 set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
 (
     echo($profileCode = @'
@@ -2805,7 +2809,8 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
     echo(# ^<^<^< jvm ^<^<^<
     echo('@
     echo(
-    echo($batPath = Join-Path $env:SAFE_TARGET 'jvm.bat'
+    echo($jvmRelPath = '!JVM_REL_PATH!'
+    echo($batPath = Join-Path $env:USERPROFILE $jvmRelPath
     echo($profileCode = $profileCode.Replace^('__JVM_BAT__', $batPath^)
     echo(
     echo($profiles = @^($PROFILE, ^(Join-Path ^([Environment]::GetFolderPath^('UserProfile'^)^) 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'^), ^(Join-Path ^([Environment]::GetFolderPath^('UserProfile'^)^) 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1'^)^) ^| Select-Object -Unique
