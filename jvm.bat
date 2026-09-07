@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260907.31"
+set "JVM_BUILD=20260907.32"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2695,72 +2695,79 @@ if errorlevel 1 (
 
 set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
 (
-    echo $profileCode = @'
-
-# >>> jvm >>>
-function jvm {
-    & '__JVM_BAT__' @args
-
-    function Set-JvmVar {
-        param([string]$Name, [string]$OldValue, [string]$NewValue)
-
-        if ($OldValue) { $OldValue = $OldValue.TrimEnd('\') }
-        if ($NewValue) { $NewValue = $NewValue.TrimEnd('\') }
-
-        [Environment]::SetEnvironmentVariable($Name, $NewValue, 'Process')
-
-        $parts = $env:Path -split ';' | Where-Object { $_ -ne '' }
-        if (-not [string]::IsNullOrWhiteSpace($OldValue)) {
-            $parts = $parts | Where-Object { $_.TrimEnd('\') -ne "$OldValue\bin" }
-        }
-        if (-not [string]::IsNullOrWhiteSpace($NewValue)) {
-            $parts = $parts | Where-Object { $_.TrimEnd('\') -ne "$NewValue\bin" }
-            $parts = @("$NewValue\bin") + $parts
-        }
-        $env:Path = $parts -join ';'
-    }
-
-    $sessionFile = "$env:TEMP\.jvm_session_target"
-    if (Test-Path $sessionFile) {
-        foreach ($line in (Get-Content $sessionFile)) {
-            if ([string]::IsNullOrWhiteSpace($line)) { continue }
-            if ($line -match '^([^=]+)=(.*)$') {
-                $key = $matches[1]
-                $val = $matches[2]
-            } else {
-                $key = 'JAVA_HOME'
-                $val = $line
-            }
-            $old = [Environment]::GetEnvironmentVariable($key, 'Process')
-            Set-JvmVar -Name $key -OldValue $old -NewValue $val
-        }
-        Remove-Item $sessionFile -Force
-    } else {
-        foreach ($v in @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')) {
-            $old = [Environment]::GetEnvironmentVariable($v, 'Process')
-            $new = [Environment]::GetEnvironmentVariable($v, 'User')
-            if ([string]::IsNullOrEmpty($new)) {
-                $new = [Environment]::GetEnvironmentVariable($v, 'Machine')
-            }
-            if ($old -eq $new) { continue }
-            Set-JvmVar -Name $v -OldValue $old -NewValue $new
-        }
-    }
-}
-# <<< jvm <<<
-
-      '@
-    $p = $PROFILE
-    $profileDir = Split-Path $p
-    if (-not (Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
-    if (-not (Test-Path $p)) { New-Item -ItemType File -Path $p -Force | Out-Null }
-    $profContent = Get-Content $p -ErrorAction SilentlyContinue | Out-String
-    if ($profContent -notmatch '# >>> jvm >>>') {
-        Add-Content -Path $p -Value "`n$profileCode`n"
-    } else {
-        $profContent = $profContent -replace '(?s)# >>> jvm >>>.*?# <<< jvm <<<', $profileCode
-        Set-Content -Path $p -Value $profContent
-    }
+    echo($profileCode = @'
+    echo(# ^>^>^> jvm ^>^>^>
+    echo(function jvm {
+    echo(    ^& '__JVM_BAT__' @args
+    echo(
+    echo(    function Set-JvmVar {
+    echo(        param^([string]$Name, [string]$OldValue, [string]$NewValue^)
+    echo(
+    echo(        if ^($OldValue^) { $OldValue = $OldValue.TrimEnd^('\'^) }
+    echo(        if ^($NewValue^) { $NewValue = $NewValue.TrimEnd^('\'^) }
+    echo(
+    echo(        [Environment]::SetEnvironmentVariable^($Name, $NewValue, 'Process'^)
+    echo(
+    echo(        $parts = $env:Path -split ';' ^| Where-Object { $_ -ne '' }
+    echo(        if ^(-not [string]::IsNullOrWhiteSpace^($OldValue^)^) {
+    echo(            $parts = $parts ^| Where-Object { $_.TrimEnd^('\'^) -ne "$OldValue\bin" }
+    echo(        }
+    echo(        if ^(-not [string]::IsNullOrWhiteSpace^($NewValue^)^) {
+    echo(            $parts = $parts ^| Where-Object { $_.TrimEnd^('\'^) -ne "$NewValue\bin" }
+    echo(            $parts = @^("$NewValue\bin"^) + $parts
+    echo(        }
+    echo(        $env:Path = $parts -join ';'
+    echo(    }
+    echo(
+    echo(    $sessionFile = "$env:TEMP\.jvm_session_target"
+    echo(    if ^(Test-Path $sessionFile^) {
+    echo(        foreach ^($line in ^(Get-Content $sessionFile^)^) {
+    echo(            if ^([string]::IsNullOrWhiteSpace^($line^)^) { continue }
+    echo(            if ^($line -match '^^^([^^=]+^)=^(.*^)$'^) {
+    echo(                $key = $matches[1]
+    echo(                $val = $matches[2]
+    echo(            } else {
+    echo(                $key = 'JAVA_HOME'
+    echo(                $val = $line
+    echo(            }
+    echo(            $old = [Environment]::GetEnvironmentVariable^($key, 'Process'^)
+    echo(            Set-JvmVar -Name $key -OldValue $old -NewValue $val
+    echo(        }
+    echo(        Remove-Item $sessionFile -Force
+    echo(    } else {
+    echo(        foreach ^($v in @^('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME'^)^) {
+    echo(            $old = [Environment]::GetEnvironmentVariable^($v, 'Process'^)
+    echo(            $new = [Environment]::GetEnvironmentVariable^($v, 'User'^)
+    echo(            if ^([string]::IsNullOrEmpty^($new^)^) {
+    echo(                $new = [Environment]::GetEnvironmentVariable^($v, 'Machine'^)
+    echo(            }
+    echo(            if ^($old -eq $new^) { continue }
+    echo(            Set-JvmVar -Name $v -OldValue $old -NewValue $new
+    echo(        }
+    echo(    }
+    echo(}
+    echo(# ^<^<^< jvm ^<^<^<
+    echo('@
+    echo(
+    echo($profileCode = $profileCode.Replace^('__JVM_BAT__', $batPath^)
+    echo(
+    echo($p = $PROFILE
+    echo($profileDir = Split-Path $p
+    echo(if ^(^^!^(Test-Path $profileDir^)^) { New-Item -ItemType Directory -Path $profileDir -Force ^| Out-Null }
+    echo(if ^(^^!^(Test-Path $p^)^) { New-Item -ItemType File -Path $p -Force ^| Out-Null }
+    echo($profContent = Get-Content $p -ErrorAction SilentlyContinue ^| Out-String
+    echo(
+    echo($blockPattern = '^(?s^)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<'
+    echo(if ^($profContent -notmatch '# ^>^>^> jvm ^>^>^>'^) {
+    echo(    Add-Content -Path $p -Value "`n$profileCode`n"
+    echo(} else {
+    echo(    $m = [Regex]::Match^($profContent, $blockPattern^)
+    echo(    if ^($m.Success^) {
+    echo(        $profContent = $profContent.Remove^($m.Index, $m.Length^).Insert^($m.Index, $profileCode^)
+    echo(        Set-Content -Path $p -Value $profContent -NoNewline
+    echo(    }
+    echo(}
+    echo(
 ) > "!INSTALL_PS1!"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!"
