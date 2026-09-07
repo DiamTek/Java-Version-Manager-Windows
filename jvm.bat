@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.50"
+set "JVM_BUILD=20260907.51"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -989,6 +989,9 @@ if !choice!==4 (
 
 if !choice!==3 (
     call :SettingsMenu
+    if errorlevel 100 (
+        goto :eof
+    )
     goto RESCAN_MENU
 )
 

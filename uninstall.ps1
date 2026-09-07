@@ -1,4 +1,4 @@
-﻿# Java Version Manager
+# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -141,12 +141,21 @@ Write-Host "[   OK   ] Windows uninstall registration removed." -ForegroundColor
 # AppData folder - always removed on a complete uninstall
 # ----------------------------------------------------------------
 Write-Host "`n[ ACTION ] Deleting JVM AppData folder..." -ForegroundColor Cyan
-$jvmAppData = Join-Path $localAppData "DiamTek\JVM"
+$diamtekAppData = Join-Path $localAppData "DiamTek"
+$jvmAppData = Join-Path $diamtekAppData "JVM"
 if (Test-Path $jvmAppData) {
     Remove-Item $jvmAppData -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "[   OK   ] Deleted: $jvmAppData" -ForegroundColor Green
 } else {
     Write-Host "[   OK   ] AppData folder already missing." -ForegroundColor Green
+}
+
+if (Test-Path $diamtekAppData) {
+    $remaining = Get-ChildItem $diamtekAppData -Force -ErrorAction SilentlyContinue
+    if (-not $remaining) {
+        Remove-Item $diamtekAppData -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "[   OK   ] Cleaned up parent directory: $diamtekAppData" -ForegroundColor Green
+    }
 }
 
 # ----------------------------------------------------------------
@@ -159,12 +168,26 @@ $confirmJava = Read-Host "Do you want to PERMANENTLY DELETE 'C:\Program Files\Ja
 if ($confirmJava -match '^y') {
     if (Test-Path "C:\Program Files\Java") {
         Write-Host "[ ACTION ] Deleting C:\Program Files\Java..." -ForegroundColor Cyan
+        $deleted = $false
         try {
             Remove-Item "C:\Program Files\Java" -Recurse -Force -ErrorAction Stop
-            Write-Host "[   OK   ] JDK installation directory deleted." -ForegroundColor Green
+            $deleted = $true
         } catch {
-            Write-Host "[ ERROR  ] Could not delete 'C:\Program Files\Java' - Administrator privileges may be required." -ForegroundColor Red
-            Write-Host "           Please delete it manually." -ForegroundColor Red
+            Write-Host "[ ACTION ] Requesting Administrator privileges to delete 'C:\Program Files\Java'..." -ForegroundColor Cyan
+            try {
+                $proc = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"Remove-Item -Path 'C:\Program Files\Java' -Recurse -Force -ErrorAction SilentlyContinue`"" -Verb RunAs -Wait -PassThru
+                if (-not (Test-Path "C:\Program Files\Java")) {
+                    $deleted = $true
+                }
+            } catch {
+                Write-Host "[ ERROR  ] Administrator elevation was declined or failed." -ForegroundColor Red
+            }
+        }
+
+        if ($deleted -and (-not (Test-Path "C:\Program Files\Java"))) {
+            Write-Host "[   OK   ] JDK installation directory deleted." -ForegroundColor Green
+        } else {
+            Write-Host "[ ERROR  ] Could not delete 'C:\Program Files\Java'. Please remove it manually." -ForegroundColor Red
         }
     } else {
         Write-Host "[  INFO  ] The directory 'C:\Program Files\Java' does not exist." -ForegroundColor Yellow
