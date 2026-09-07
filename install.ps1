@@ -27,12 +27,38 @@ $ErrorActionPreference = 'Stop'
 $actionName = if ($Update) { "Updating" } else { "Installing" }
 Write-Host "[ ACTION ] $actionName DiamTek Java Version Manager..." -ForegroundColor Cyan
 
-# 1. Create a clean, dedicated bin folder
-$installDir = "$env:LOCALAPPDATA\DiamTek\JVM\bin"
+function Update-Progress {
+    param(
+        [int]$Percent,
+        [string]$Activity
+    )
+    if ($Quiet) { return }
+    $clamped = [math]::Max(0, [math]::Min(100, $Percent))
+    $barLength = 30
+    $filled = [math]::Floor(($clamped / 100) * $barLength)
+    $empty = $barLength - $filled
+    $bar = ('=' * $filled) + (' ' * $empty)
+    $paddedActivity = $Activity.PadRight(45)
+    Write-Host ("`r[ ACTION ] [{0}] {1,3}%  {2}" -f $bar, $clamped, $paddedActivity) -NoNewline -ForegroundColor Cyan
+}
+
+# 1. Determine destination directory
+Update-Progress -Percent 5 -Activity "Initializing environment..."
+
+$normTarget = if ($TargetDir -and (Test-Path $TargetDir)) { (Resolve-Path $TargetDir).Path } else { $null }
+$isDevRepo = $normTarget -and ((Test-Path (Join-Path $normTarget ".git")) -or (Test-Path (Join-Path $normTarget "..\.git")))
+
+if ($normTarget -and -not $isDevRepo) {
+    $installDir = $normTarget
+} else {
+    $installDir = "$env:LOCALAPPDATA\DiamTek\JVM\bin"
+}
+
 if (-not (Test-Path $installDir)) { New-Item -ItemType Directory -Path $installDir -Force | Out-Null }
 $batPath = Join-Path $installDir "jvm.bat"
+$repoRoot = if ($installDir.EndsWith("\bin", [StringComparison]::OrdinalIgnoreCase)) { Split-Path $installDir -Parent } else { $installDir }
 
-Write-Host "           Fetching latest release..."
+Update-Progress -Percent 15 -Activity "Resolving latest release from GitHub..."
 $rawBranch = "main"
 try {
     $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main")
@@ -53,6 +79,7 @@ $cacheBuster = [DateTimeOffset]::UtcNow.Ticks
 $noCacheHeaders = @{ 'Cache-Control' = 'no-cache'; 'Pragma' = 'no-cache' }
 $url = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/jvm.bat?t=$cacheBuster"
 
+Update-Progress -Percent 35 -Activity "Fetching core JVM engine..."
 if (-not $Update -and (Test-Path "$PSScriptRoot\jvm.bat")) {
     $content = [System.IO.File]::ReadAllText("$PSScriptRoot\jvm.bat")
 } else {
@@ -61,31 +88,17 @@ if (-not $Update -and (Test-Path "$PSScriptRoot\jvm.bat")) {
 
 # 2. Integrity Check
 if ($content.Length -eq 0 -or $content -notmatch "rem END OF SCRIPT") {
+    Write-Host ""
     Write-Host "[ ERROR  ] Download failed integrity check. File is empty or truncated." -ForegroundColor Red
     exit 1
 }
 
-Write-Host "           Sanitizing code format..."
+Update-Progress -Percent 50 -Activity "Sanitizing code format and encoding..."
 $lines = ($content.Replace([char]160, ' ') -split "\r?\n")
 [System.IO.File]::WriteAllLines($batPath, $lines, (New-Object System.Text.UTF8Encoding($false)))
 
-if ($TargetDir -and (Test-Path $TargetDir)) {
-    $normTarget = (Resolve-Path $TargetDir).Path
-    $normInstall = (Resolve-Path $installDir -ErrorAction SilentlyContinue)
-    $isDevRepo = (Test-Path (Join-Path $normTarget ".git")) -or (Test-Path (Join-Path $normTarget "..\.git"))
-
-    if ((-not $normInstall -or $normTarget -ne $normInstall.Path) -and -not $isDevRepo) {
-        $standaloneBat = Join-Path $normTarget "jvm.bat"
-        if (Test-Path $standaloneBat) {
-            [System.IO.File]::WriteAllLines($standaloneBat, $lines, (New-Object System.Text.UTF8Encoding($false)))
-            Write-Host "           Updated standalone copy: $standaloneBat"
-        }
-    }
-}
-
-Write-Host "           Fetching documentation, license, and uninstaller..."
+Update-Progress -Percent 65 -Activity "Fetching documentation, license, & uninstaller..."
 try {
-    $repoRoot = "$env:LOCALAPPDATA\DiamTek\JVM"
     if (-not $Update -and (Test-Path "$PSScriptRoot\LICENSE")) { Copy-Item "$PSScriptRoot\LICENSE" "$repoRoot\LICENSE" -Force }
     else { Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/LICENSE?t=$cacheBuster" -Headers $noCacheHeaders -OutFile "$repoRoot\LICENSE" -UseBasicParsing }
 
@@ -97,15 +110,16 @@ try {
     } else {
         Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/uninstall.ps1?t=$cacheBuster" -Headers $noCacheHeaders -OutFile "$repoRoot\uninstall.ps1" -UseBasicParsing
     }
-    if (Test-Path "$installDir\uninstall.ps1") {
+    if (Test-Path "$installDir\uninstall.ps1" -and ((Resolve-Path "$installDir\uninstall.ps1").Path -ne (Resolve-Path "$repoRoot\uninstall.ps1").Path)) {
         Remove-Item "$installDir\uninstall.ps1" -Force -ErrorAction SilentlyContinue
     }
 } catch {
+    Write-Host ""
     Write-Host "           [WARN] Could not fetch LICENSE/README/uninstall.ps1. Proceeding anyway." -ForegroundColor Yellow
 }
 
 # 3. Safe REG_EXPAND_SZ Path Injection
-Write-Host "           Configuring User PATH..."
+Update-Progress -Percent 80 -Activity "Configuring User PATH..."
 
 $userPath = ""
 $envKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Environment")
@@ -132,7 +146,7 @@ if ($installDir -notin $pathArray) {
 }
 
 # 4. Install PowerShell Profile Hook natively
-Write-Host "           Configuring PowerShell Profile..."
+Update-Progress -Percent 90 -Activity "Configuring PowerShell profile..."
 $profileCode = @'
 # >>> jvm >>>
 function jvm {
@@ -217,7 +231,7 @@ foreach ($p in $profiles) {
 }
 
 # 5. Register Windows Uninstaller & Start Menu Shortcuts
-Write-Host "           Registering Windows Uninstaller & Shortcuts..."
+Update-Progress -Percent 96 -Activity "Registering Windows uninstaller & shortcuts..."
 try {
     # Windows Settings / Control Panel 'Installed Apps' Registration
     $uninstallRegPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM"
@@ -251,8 +265,12 @@ try {
     $shortcut.Description = "Uninstall DiamTek Java Version Manager"
     $shortcut.Save()
 } catch {
+    Write-Host ""
     Write-Host "           [WARN] Could not register uninstaller shortcut: $($_.Exception.Message)" -ForegroundColor Yellow
 }
+
+Update-Progress -Percent 100 -Activity "Finalizing setup..."
+Write-Host ""
 
 if ($Update) {
     Write-Host "`n[   OK   ] Update Complete!" -ForegroundColor Green
