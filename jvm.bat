@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.60"
+set "JVM_BUILD=20260907.61"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -897,9 +897,7 @@ if defined CLI_COMMAND (
     )
 
     if /i "!CLI_COMMAND!"=="self-uninstall" (
-        call :UninstallJVM_Complete
-        if defined ORIG_CP chcp !ORIG_CP! >nul
-        exit /b 0
+        goto :UninstallJVM_Complete
     )
     
     if /i "!CLI_COMMAND!"=="version" (
@@ -2623,11 +2621,7 @@ set "sub_choice=!errorlevel!"
 
 if !sub_choice!==5 goto :eof
 if !sub_choice!==4 (
-    call :UninstallJVM_Complete
-    if errorlevel 100 (
-        goto :eof
-    )
-    goto :SettingsMenu
+    goto :UninstallJVM_Complete
 )
 if !sub_choice!==3 (
     call :AboutMenu
@@ -2887,7 +2881,13 @@ echo            It will remove JVM, PATH entries, profile hooks,
 echo            all downloaded ecosystem tools, and installed JDKs.
 echo.
 choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
-if errorlevel 2 goto :eof
+if errorlevel 2 (
+    if defined CLI_COMMAND (
+        if defined ORIG_CP chcp !ORIG_CP! >nul
+        exit /b 0
+    )
+    goto :SettingsMenu
+)
 
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Locating uninstaller...
@@ -2908,7 +2908,11 @@ if not exist "!UNINSTALL_SCRIPT!" (
     echo.
     echo Press any key to return...
     pause >nul
-    goto :eof
+    if defined CLI_COMMAND (
+        if defined ORIG_CP chcp !ORIG_CP! >nul
+        exit /b 1
+    )
+    goto :SettingsMenu
 )
 
 rem Stage uninstaller to %TEMP% so the JVM directory is completely unlocked
@@ -2933,7 +2937,12 @@ set "UNINSTALL_BAT=%TEMP%\jvm_uninstall_!RANDOM!.bat"
 
 rem Pop all subroutine call frames and chain to external uninstaller in %TEMP%
 rem This ensures jvm.bat is immediately closed and unlocked before powershell deletes it!
-for %%A in ("!UNINSTALL_BAT!") do (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & "%%~A"
+call :ChainUninstallerRunner "!UNINSTALL_BAT!"
+exit /b 0
+
+:ChainUninstallerRunner
+cd /d "%TEMP%"
+(goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & "%~1"
 exit /b 0
 
 :HANDLE_LINKS
