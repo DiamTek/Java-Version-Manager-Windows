@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.43"
+set "JVM_BUILD=20260907.44"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3185,14 +3185,14 @@ set "UPDATER_BAT=%TEMP%\jvm_updater.bat"
     echo :RETRY_COPY
     echo copy /y "%TEMP%\jvm_new.bat" "%TARGET_BAT%" ^>nul 2^>^&1
     echo if errorlevel 1 ^(
-    echo     timeout /t 1 /nobreak ^>nul
-    echo     goto RETRY_COPY
+    echo      timeout /t 1 /nobreak ^>nul
+    echo      goto RETRY_COPY
     echo ^)
     echo if exist "%TEMP%\jvm_new.bat" del "%TEMP%\jvm_new.bat" ^>nul 2^>^&1
-    echo.
-    echo %%cGREEN%%[   OK   ]%%cRESET%% Java Version Manager successfully updated^^!
-    echo.
-    echo Press any key to continue...
+    echo echo.
+    echo echo %%cGREEN%%[   OK   ]%%cRESET%% Java Version Manager successfully updated^^!
+    echo echo.
+    echo echo Press any key to continue...
     echo pause ^>nul
     if defined CLI_COMMAND (
         echo exit /b 0
