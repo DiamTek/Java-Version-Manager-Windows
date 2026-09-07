@@ -26,7 +26,11 @@ $batPath = Join-Path $installDir "jvm.bat"
 
 Write-Host "           Fetching latest release..."
 $url = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat"
-$content = (Invoke-WebRequest -Uri $url -UseBasicParsing).Content
+if (Test-Path "$PSScriptRoot\jvm.bat") {
+    $content = [System.IO.File]::ReadAllText("$PSScriptRoot\jvm.bat")
+} else {
+    $content = (Invoke-WebRequest -Uri $url -UseBasicParsing).Content
+}
 
 # 2. Integrity Check
 if ($content.Length -eq 0 -or $content -notmatch "rem END OF SCRIPT") {
@@ -162,8 +166,9 @@ foreach ($p in $profiles) {
     if (Test-Path $p) { $profContent = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) }
 
     $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
-    if ($profContent -match $blockPattern) {
-        $profContent = [Regex]::Replace($profContent, $blockPattern, $profileCode)
+    $m = [Regex]::Match($profContent, $blockPattern)
+    if ($m.Success) {
+        $profContent = $profContent.Substring(0, $m.Index) + $profileCode + $profContent.Substring($m.Index + $m.Length)
     } else {
         $profContent = if ([string]::IsNullOrWhiteSpace($profContent)) { $profileCode } else { "$profContent`r`n`r`n$profileCode" }
     }
