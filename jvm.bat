@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.38"
+set "JVM_BUILD=20260907.39"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2851,8 +2851,8 @@ echo ============================================================
 echo         Uninstall Java Version Manager (Complete Wipe)
 echo ============================================================
 echo.
-echo %cYELLOW%[ WARNING]%cRESET% This will launch the deep uninstaller with UAC elevation.
-echo             It will offer to remove JVM, PATH entries, profile hooks,
+echo %cYELLOW%[ WARNING]%cRESET% This will run the deep uninstaller.
+echo             It will remove JVM, PATH entries, profile hooks,
 echo             all downloaded ecosystem tools, and installed JDKs.
 echo.
 choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
@@ -2880,7 +2880,7 @@ if not exist "!UNINSTALL_SCRIPT!" (
     goto :eof
 )
 
-echo %cBLUE%[ ACTION ]%cRESET% Launching uninstaller in elevated PowerShell...
+echo %cBLUE%[ ACTION ]%cRESET% Running uninstaller...
 powershell -NoProfile -ExecutionPolicy Bypass -File "!UNINSTALL_SCRIPT!"
 echo.
 echo %cGREEN%[   OK   ]%cRESET% Uninstaller finished. Exiting JVM.
@@ -3168,7 +3168,7 @@ if errorlevel 1 (
     goto :eof
 )
 
-echo %cBLUE%[ ACTION ]%cRESET% Generating background updater...
+echo %cBLUE%[ ACTION ]%cRESET% Overwriting main script...
 set "TARGET_BAT=%~f0"
 set "UPDATER_PS1=%TEMP%\jvm_updater.ps1"
 (
@@ -3176,30 +3176,33 @@ set "UPDATER_PS1=%TEMP%\jvm_updater.ps1"
     echo $dst = $env:TARGET_BAT
     echo $retries = 0
     echo while ^($retries -lt 15^) {
-    echo     Start-Sleep -Milliseconds 600
     echo     try {
     echo         Copy-Item -LiteralPath $src -Destination $dst -Force -ErrorAction Stop
     echo         Remove-Item -LiteralPath $src -Force -ErrorAction SilentlyContinue
-    echo         Write-Host ""
-    echo         Write-Host "[   OK   ] Java Version Manager successfully updated^!" -ForegroundColor Green
-    echo         Write-Host ""
-    echo         Start-Sleep -Seconds 1
-    echo         Start-Process -FilePath $dst
     echo         Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
     echo         exit 0
     echo     } catch {
     echo         $retries++
+    echo         Start-Sleep -Milliseconds 400
     echo     }
     echo }
-    echo Write-Host ""
-    echo Write-Host "[ ERROR  ] Update failed: Could not overwrite script." -ForegroundColor Red
-    echo Write-Host "           $PSItem" -ForegroundColor Red
-    echo Read-Host "Press Enter to exit"
+    echo Write-Host "" -ForegroundColor Red
+    echo Write-Host "[ ERROR  ] Update failed: File lock could not be released." -ForegroundColor Red
+    echo exit 1
 ) > "!UPDATER_PS1!"
 
-echo %cGREEN%[   OK   ]%cRESET% Update downloaded! Initiating handoff...
-start "" powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER_PS1!"
-exit
+powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER_PS1!"
+if !errorlevel! NEQ 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Update failed: file lock could not be released.
+    pause
+    goto :eof
+)
+echo.
+echo %cGREEN%[   OK   ]%cRESET% Java Version Manager successfully updated^^!
+echo %cBLUE%[  INFO  ]%cRESET% Please close and reopen this window to use the new version.
+echo.
+pause
+goto :eof
 
 rem ============================================================
 rem Parse contents of .java-version file
