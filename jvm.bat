@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260904.29"
+set "JVM_BUILD=20260907.30"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3168,7 +3168,7 @@ for /f "tokens=2*" %%P in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
     set "USR_PATH=%%Q"
 )
 
-echo !USR_PATH! | findstr /i "%%!CANDIDATE_ENV_VAR!%%\bin" >nul
+echo(!USR_PATH! | findstr /i "%%!CANDIDATE_ENV_VAR!%%\bin" >nul
 if !errorlevel!==0 set "HAS_CANDIDATE_PATH=1"
 
 if "!HAS_CANDIDATE_PATH!"=="0" (
@@ -3184,7 +3184,7 @@ if "!HAS_CANDIDATE_PATH!"=="0" (
 
 rem Inject immediately into active terminal session
 set "!CANDIDATE_ENV_VAR!=!SYMLINK_PATH!"
-echo !PATH! | findstr /i "!SYMLINK_PATH!\bin" >nul
+echo(!PATH! | findstr /i "!SYMLINK_PATH!\bin" >nul
 if !errorlevel! NEQ 0 (
     set "PATH=!SYMLINK_PATH!\bin;!PATH!"
 )
