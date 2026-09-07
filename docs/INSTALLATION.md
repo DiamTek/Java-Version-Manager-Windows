@@ -31,6 +31,50 @@ If you prefer not to use the automated PowerShell script and understand the risk
 6. The script will dynamically inject its current folder into your Windows User PATH.
 7. Restart your terminal and type `jvm`.
 
+## Package Managers
+
+### Winget
+```powershell
+winget install DiamTek.JVM
+```
+
+### Scoop
+```powershell
+scoop install jvm
+```
+
+### Chocolatey
+```powershell
+choco install jvm-windows
+```
+
+### Windows Installer (MSI)
+Download the standalone `jvm-windows-1.0.0.msi` installer directly from the [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases) page and run the setup wizard.
+
+---
+
+## Uninstallation
+
+DiamTek Java Version Manager includes a dedicated, UAC-elevated deep uninstaller (`uninstall.ps1`) that completely scrubs the application, system PATH entries, PowerShell `$PROFILE` hooks, environment variables, ecosystem tool caches, and installed JDKs.
+
+You can uninstall JVM through any of the following methods:
+
+1. **Windows Settings (Installed Apps):**
+   - Open **Windows Settings** -> **Apps** -> **Installed apps**.
+   - Locate **DiamTek Java Version Manager** and click **Uninstall**.
+2. **Start Menu Shortcut:**
+   - Search **"Uninstall Java Version Manager"** in the Windows taskbar search box and press **Enter**.
+3. **Interactive Terminal Interface:**
+   - Run `jvm` -> Navigate to **Settings** (`3`) -> Select **Uninstall JVM Completely** (`4`).
+4. **Command Line (CLI):**
+   ```cmd
+   jvm self-uninstall
+   ```
+5. **Direct PowerShell Script:**
+   ```powershell
+   & "$env:LOCALAPPDATA\DiamTek\JVM\uninstall.ps1"
+   ```
+
 ---
 
 ## Troubleshooting

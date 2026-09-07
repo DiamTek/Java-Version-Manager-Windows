@@ -9,6 +9,19 @@ Instead of constantly appending and pruning your Windows `PATH` variable to poin
 
 Your system `PATH` only ever needs to contain `%LOCALAPPDATA%\DiamTek\JVM\current\bin`. When you switch Java versions, the manager simply tears down the old junction and repoints it to the target JDK directory. This provides `O(1)` symlink resolution for the OS.
 
+## Dual-Architecture Core (Symlink Mode vs. Legacy Registry Mode)
+The engine provides two distinct switching engines that users can toggle via the Settings menu or CLI flags:
+
+1. **Symlink Mode (Default, UAC-Free):**
+   - **Mechanism:** Updates the NTFS Directory Junction pointer (`%LOCALAPPDATA%\DiamTek\JVM\current`) in user-space.
+   - **Privileges:** Standard user space (100% UAC-free, zero admin popups).
+   - **Compatibility:** Native for 99% of modern tools (Maven, Gradle, IntelliJ IDEA, VS Code, Eclipse).
+
+2. **Registry Mode (Legacy, UAC Required):**
+   - **Mechanism:** Directly writes the absolute JDK path to the Machine-level Windows Registry (`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`) and updates the system-wide Machine `PATH`.
+   - **Privileges:** **Requires Administrator (UAC) Elevation** on every switch, spawning an elevated background PowerShell worker via `Start-Process -Verb RunAs`.
+   - **Compatibility:** 100% unbreakable fallback for legacy enterprise applications, obscure Windows service runners, or ancient classloaders that perform strict canonical path checks and cannot resolve NTFS Directory Junctions.
+
 ## Deep OS Environment Management
 To ensure deep OS integration without requiring users to download external binaries (like `setx` augmentations), the tool relies on inline PowerShell execution invoked seamlessly via `cmd.exe`.
 
@@ -25,5 +38,32 @@ To ensure deep OS integration without requiring users to download external binar
 Like SDKMAN!, this tool intercepts commands for popular Java tools (Maven, Gradle, Kotlin, Scala, Groovy). The CLI acts as a universal router:
 1. It intercepts the `jvm install <candidate> <version>` command.
 2. It executes a PowerShell `Invoke-RestMethod` to the respective API (Adoptium, GitHub Releases, Azul, etc.) to securely resolve the download URL and SHA-256 checksums.
-3. The payloads are extracted via `Expand-Archive` and isolated in `%LOCALAPPDATA%\DiamTek\JVM\<candidate>`.
+3. The payloads are extracted via `Expand-Archive` and isolated in `%LOCALAPPDATA%\DiamTek\JVM\candidates\<candidate>`.
 4. Specific `<CANDIDATE>_HOME` variables are injected into the registry, mapping the ecosystem completely identically to native Java.
+
+## Real-Time PowerShell Session Propagation (`Set-JvmVar`)
+Because Windows process environments cannot ordinarily be modified by a child batch process, `install.ps1` injects a native PowerShell function hook into `$PROFILE`. 
+When `jvm` switches an active tool or JDK:
+1. `jvm.bat` writes target environment pairs (`KEY=VALUE`) to `$env:TEMP\.jvm_session_target`.
+2. The PowerShell wrapper intercepts the return code and invokes `Set-JvmVar`.
+3. `Set-JvmVar` surgically strips the old `\bin` directory from `$env:Path` and prepends the new `\bin` directory directly into the current PowerShell process memory.
+4. It updates `$env:JAVA_HOME` (or corresponding tool variables) live, providing instantaneous switching without reopening terminal tabs.
+
+## Bulletproof Batch Heredoc Escaping
+Windows `cmd.exe` does not natively support Bash-style heredocs (`cat <<EOF`). Embedding multi-line PowerShell scripts inside a batch `( ... ) > script.ps1` redirection block requires careful escaping:
+- Redirection operators (`<`, `>`) are escaped as `^<`, `^>`.
+- Pipes (`|`) and command separators (`&`) are escaped as `^|`, `^&`.
+- Parentheses (`(`, `)`) are escaped as `^(`, `^)` to prevent premature termination of the enclosing batch block.
+- Exclamation marks (`!`) are escaped as `^^!` to prevent corruption by CMD's delayed variable expansion engine (`setlocal enabledelayedexpansion`).
+
+## Deep Uninstaller & Windows Integration Architecture
+The uninstaller subsystem (`uninstall.ps1`) is designed for 100% total system sanitization:
+1. **UAC Escalation:** Uses .NET security principals to check for elevated tokens; if missing, automatically spawns an elevated PowerShell host via `Start-Process -Verb RunAs`.
+2. **Registry Integration:** Registers under `HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM` with native Windows "Installed apps" metadata and creates a Start Menu uninstaller shortcut in `Start Menu\Programs\DiamTek`.
+3. **Dual-Scope Cleanup:** Cleans both `User` and `Machine` environment variables and `PATH` registries, surgically strips the `$PROFILE` hook, deletes the AppData Ecosystem cache, and prompts to clean `C:\Program Files\Java`.
+
+## Multi-Channel Packaging Pipelines
+- **Winget:** Native YAML manifest (`packages\winget\DiamTek.JVM.yaml`) declaring installer metadata and portable packaging.
+- **Scoop:** JSON manifest (`packages\scoop\jvm.json`) that automates downloading and bootstraps `install.ps1`.
+- **Chocolatey:** Package specification (`packages\choco\jvm.nuspec`) with automated `chocolateyInstall.ps1` and `chocolateyUninstall.ps1` scripts.
+- **WiX Toolset v4 (MSI):** Automated build script (`packages\msi\build-msi.ps1`) that compiles a native, per-user Windows Installer (`.msi`) bundling `jvm.bat`, `uninstall.ps1`, `LICENSE`, and `README.md`.
