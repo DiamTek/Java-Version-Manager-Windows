@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.48"
+set "JVM_BUILD=20260907.49"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3168,69 +3168,38 @@ if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
 
-set "DL_URL=https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat"
-set "DL_ZIP=%TEMP%\jvm_new.bat"
-set "DL_EXTRACT="
-set "DL_CHKSUM_URL="
-set "DL_CHKSUM_VAL="
-set "DL_STRIP_ROOT=0"
+set "INSTALL_SCRIPT=%TEMP%\jvm_install_!RANDOM!.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1' -OutFile '!INSTALL_SCRIPT!' -UseBasicParsing"
 
-call :ExecuteSharedDownloader
-if !errorlevel! NEQ 0 (
+if not exist "!INSTALL_SCRIPT!" (
     echo.
-    echo %cRED%[ ERROR  ]%cRESET% Failed to download the latest update.
+    echo %cRED%[ ERROR  ]%cRESET% Failed to download the latest installer.
     pause
     goto :eof
 )
 
-rem Sanitize LF line endings and hidden spaces after download to prevent the 'cho' and 'em' offset bugs
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Join-Path $env:TEMP 'jvm_new.bat'; $lines = [System.IO.File]::ReadAllLines($p) | ForEach-Object { $_.Replace([char]160, ' ') }; [System.IO.File]::WriteAllLines($p, $lines, (New-Object System.Text.UTF8Encoding($false)))"
+echo %cBLUE%[ ACTION ]%cRESET% Running installer to update Java Version Manager and all companion files...
+powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_SCRIPT!"
+set "UPD_ERR=!errorlevel!"
+if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" >nul 2>&1
 
-for %%I in ("%TEMP%\jvm_new.bat") do set "NEW_SIZE=%%~zI"
-if !NEW_SIZE! EQU 0 (
-    echo %cRED%[ ERROR  ]%cRESET% Downloaded file is empty.
+if !UPD_ERR! NEQ 0 (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Update encountered an error.
     pause
     goto :eof
 )
 
-findstr /C:"rem END OF SCRIPT" "%TEMP%\jvm_new.bat" >nul 2>&1
-if errorlevel 1 (
-    echo %cRED%[ ERROR  ]%cRESET% Downloaded file failed integrity check. The file may be corrupted or truncated.
-    pause
-    goto :eof
+echo.
+echo %cGREEN%[   OK   ]%cRESET% Java Version Manager successfully updated!
+echo.
+echo Press any key to continue...
+pause >nul
+if defined CLI_COMMAND (
+    exit /b 0
+) else (
+    goto RESCAN_MENU
 )
-
-echo %cBLUE%[ ACTION ]%cRESET% Overwriting main script...
-set "TARGET_BAT=%~f0"
-set "UPDATER_BAT=%TEMP%\jvm_updater.bat"
-(
-    echo @echo off
-    echo chcp 65001 ^>nul
-    echo for /F "delims=#" %%%%a in ^('"prompt #$E# ^& echo on ^& for %%%%b in ^(1^) do rem"'^) do set "ESC=%%%%a"
-    echo set "cGREEN=%%ESC%%[92m"
-    echo set "cRESET=%%ESC%%[0m"
-    echo :RETRY_COPY
-    echo copy /y "%TEMP%\jvm_new.bat" "%TARGET_BAT%" ^>nul 2^>^&1
-    echo if errorlevel 1 ^(
-    echo      timeout /t 1 /nobreak ^>nul
-    echo      goto RETRY_COPY
-    echo ^)
-    echo if exist "%TEMP%\jvm_new.bat" del "%TEMP%\jvm_new.bat" ^>nul 2^>^&1
-    echo echo.
-    echo echo %%cGREEN%%[   OK   ]%%cRESET%% Java Version Manager successfully updated^^!
-    echo echo.
-    echo echo Press any key to continue...
-    echo pause ^>nul
-    if defined CLI_COMMAND (
-        echo exit /b 0
-    ) else (
-        echo cls
-        echo "%TARGET_BAT%"
-    )
-) > "!UPDATER_BAT!"
-
-"!UPDATER_BAT!"
-exit /b 0
 
 rem ============================================================
 rem Parse contents of .java-version file
