@@ -38,13 +38,24 @@ Write-Host "           Sanitizing code format..."
 $content = $content.Replace([char]160, ' ') -replace "(?<!`r)`n", "`r`n"
 [IO.File]::WriteAllText($batPath, $content, (New-Object System.Text.UTF8Encoding $false))
 
-Write-Host "           Fetching documentation and license..."
+Write-Host "           Fetching documentation, license, and uninstaller..."
 try {
     $repoRoot = "$env:LOCALAPPDATA\DiamTek\JVM"
-    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/LICENSE" -OutFile "$repoRoot\LICENSE" -UseBasicParsing
-    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/README.md" -OutFile "$repoRoot\README.md" -UseBasicParsing
+    if (Test-Path "$PSScriptRoot\LICENSE") { Copy-Item "$PSScriptRoot\LICENSE" "$repoRoot\LICENSE" -Force }
+    else { Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/LICENSE" -OutFile "$repoRoot\LICENSE" -UseBasicParsing }
+
+    if (Test-Path "$PSScriptRoot\README.md") { Copy-Item "$PSScriptRoot\README.md" "$repoRoot\README.md" -Force }
+    else { Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/README.md" -OutFile "$repoRoot\README.md" -UseBasicParsing }
+
+    if (Test-Path "$PSScriptRoot\uninstall.ps1") {
+        Copy-Item "$PSScriptRoot\uninstall.ps1" "$repoRoot\uninstall.ps1" -Force
+        Copy-Item "$PSScriptRoot\uninstall.ps1" "$installDir\uninstall.ps1" -Force
+    } else {
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/uninstall.ps1" -OutFile "$repoRoot\uninstall.ps1" -UseBasicParsing
+        Copy-Item "$repoRoot\uninstall.ps1" "$installDir\uninstall.ps1" -Force -ErrorAction SilentlyContinue
+    }
 } catch {
-    Write-Host "           [WARN] Could not fetch LICENSE/README. Proceeding anyway." -ForegroundColor Yellow
+    Write-Host "           [WARN] Could not fetch LICENSE/README/uninstall.ps1. Proceeding anyway." -ForegroundColor Yellow
 }
 
 # 3. Safe REG_EXPAND_SZ Path Injection
@@ -147,6 +158,44 @@ if ($profContent -notmatch '# >>> jvm >>>') {
         $profContent = $profContent.Remove($m.Index, $m.Length).Insert($m.Index, $profileCode)
         Set-Content -Path $p -Value $profContent -NoNewline
     }
+}
+
+# 5. Register Windows Uninstaller & Start Menu Shortcuts
+Write-Host "           Registering Windows Uninstaller & Shortcuts..."
+try {
+    # Windows Settings / Control Panel 'Installed Apps' Registration
+    $uninstallRegPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM"
+    if (-not (Test-Path $uninstallRegPath)) { New-Item -Path $uninstallRegPath -Force | Out-Null }
+    
+    $uninstallScriptPath = "$repoRoot\uninstall.ps1"
+    $uninstallCommand = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
+    
+    Set-ItemProperty -Path $uninstallRegPath -Name "DisplayName" -Value "DiamTek Java Version Manager"
+    Set-ItemProperty -Path $uninstallRegPath -Name "DisplayVersion" -Value "1.0.0"
+    Set-ItemProperty -Path $uninstallRegPath -Name "Publisher" -Value "DiamTek / Alexéy Shishkin"
+    Set-ItemProperty -Path $uninstallRegPath -Name "InstallLocation" -Value $repoRoot
+    Set-ItemProperty -Path $uninstallRegPath -Name "UninstallString" -Value $uninstallCommand
+    Set-ItemProperty -Path $uninstallRegPath -Name "QuietUninstallString" -Value $uninstallCommand
+    Set-ItemProperty -Path $uninstallRegPath -Name "DisplayIcon" -Value "$env:SystemRoot\System32\shell32.dll,31"
+    Set-ItemProperty -Path $uninstallRegPath -Name "URLInfoAbout" -Value "https://diamtek.github.io/Java-Version-Manager-Windows"
+    Set-ItemProperty -Path $uninstallRegPath -Name "HelpLink" -Value "https://github.com/DiamTek/Java-Version-Manager-Windows/issues"
+    Set-ItemProperty -Path $uninstallRegPath -Name "NoModify" -Value 1 -Type DWord
+    Set-ItemProperty -Path $uninstallRegPath -Name "NoRepair" -Value 1 -Type DWord
+
+    # Start Menu Shortcuts
+    $startMenuPrograms = [Environment]::GetFolderPath('Programs')
+    $startMenuDir = Join-Path $startMenuPrograms "DiamTek"
+    if (-not (Test-Path $startMenuDir)) { New-Item -ItemType Directory -Path $startMenuDir -Force | Out-Null }
+    
+    $wshell = New-Object -ComObject WScript.Shell
+    $shortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Uninstall Java Version Manager.lnk"))
+    $shortcut.TargetPath = "powershell.exe"
+    $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
+    $shortcut.IconLocation = "$env:SystemRoot\System32\shell32.dll,31"
+    $shortcut.Description = "Uninstall DiamTek Java Version Manager"
+    $shortcut.Save()
+} catch {
+    Write-Host "           [WARN] Could not register uninstaller shortcut: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
 Write-Host "`n[   OK   ] Installation Complete!" -ForegroundColor Green
