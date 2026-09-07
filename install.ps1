@@ -49,10 +49,11 @@ try {
 
     if (Test-Path "$PSScriptRoot\uninstall.ps1") {
         Copy-Item "$PSScriptRoot\uninstall.ps1" "$repoRoot\uninstall.ps1" -Force
-        Copy-Item "$PSScriptRoot\uninstall.ps1" "$installDir\uninstall.ps1" -Force
     } else {
         Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/uninstall.ps1" -OutFile "$repoRoot\uninstall.ps1" -UseBasicParsing
-        Copy-Item "$repoRoot\uninstall.ps1" "$installDir\uninstall.ps1" -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path "$installDir\uninstall.ps1") {
+        Remove-Item "$installDir\uninstall.ps1" -Force -ErrorAction SilentlyContinue
     }
 } catch {
     Write-Host "           [WARN] Could not fetch LICENSE/README/uninstall.ps1. Proceeding anyway." -ForegroundColor Yellow
