@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260907.30"
+set "JVM_BUILD=20260907.31"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2696,37 +2696,60 @@ if errorlevel 1 (
 set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
 (
     echo $profileCode = @'
-    # >>> jvm >>>
-    function jvm {
-        jvm.bat $args;
-        $sessionFile = "$env:TEMP\.jvm_session_target";
-        if (Test-Path $sessionFile) {
-            $lines = Get-Content $sessionFile;
-            $newPaths = @();
-            foreach ($line in $lines) {
-                if ($line -match '^([^=]+)=(.*)$') {
-                    $key = $matches[1]; $val = $matches[2];
-                    [Environment]::SetEnvironmentVariable($key, $val, 'Process');
-                    $newPaths += "$val\bin";
-                } elseif (-not [string]::IsNullOrWhiteSpace($line)) {
-                    $env:JAVA_HOME = $line;
-                    $newPaths += "$line\bin";
-                }
+
+# >>> jvm >>>
+function jvm {
+    & '__JVM_BAT__' @args
+
+    function Set-JvmVar {
+        param([string]$Name, [string]$OldValue, [string]$NewValue)
+
+        if ($OldValue) { $OldValue = $OldValue.TrimEnd('\') }
+        if ($NewValue) { $NewValue = $NewValue.TrimEnd('\') }
+
+        [Environment]::SetEnvironmentVariable($Name, $NewValue, 'Process')
+
+        $parts = $env:Path -split ';' | Where-Object { $_ -ne '' }
+        if (-not [string]::IsNullOrWhiteSpace($OldValue)) {
+            $parts = $parts | Where-Object { $_.TrimEnd('\') -ne "$OldValue\bin" }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($NewValue)) {
+            $parts = $parts | Where-Object { $_.TrimEnd('\') -ne "$NewValue\bin" }
+            $parts = @("$NewValue\bin") + $parts
+        }
+        $env:Path = $parts -join ';'
+    }
+
+    $sessionFile = "$env:TEMP\.jvm_session_target"
+    if (Test-Path $sessionFile) {
+        foreach ($line in (Get-Content $sessionFile)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line -match '^([^=]+)=(.*)$') {
+                $key = $matches[1]
+                $val = $matches[2]
+            } else {
+                $key = 'JAVA_HOME'
+                $val = $line
             }
-            if ($newPaths.Count -gt 0) { $env:Path = ($newPaths -join ';') + ';' + $env:Path; }
-            Remove-Item $sessionFile -Force;
-        } else {
-            $vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME');
-            foreach ($v in $vars) {
-                $val = [System.Environment]::GetEnvironmentVariable($v, 'User');
-                if ([string]::IsNullOrEmpty($val)) { $val = [System.Environment]::GetEnvironmentVariable($v, 'Machine'); }
-                [Environment]::SetEnvironmentVariable($v, $val, 'Process');
+            $old = [Environment]::GetEnvironmentVariable($key, 'Process')
+            Set-JvmVar -Name $key -OldValue $old -NewValue $val
+        }
+        Remove-Item $sessionFile -Force
+    } else {
+        foreach ($v in @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')) {
+            $old = [Environment]::GetEnvironmentVariable($v, 'Process')
+            $new = [Environment]::GetEnvironmentVariable($v, 'User')
+            if ([string]::IsNullOrEmpty($new)) {
+                $new = [Environment]::GetEnvironmentVariable($v, 'Machine')
             }
-            $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User');
+            if ($old -eq $new) { continue }
+            Set-JvmVar -Name $v -OldValue $old -NewValue $new
         }
     }
-    # <<< jvm <<<
-    '@
+}
+# <<< jvm <<<
+
+      '@
     $p = $PROFILE
     $profileDir = Split-Path $p
     if (-not (Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
@@ -2939,11 +2962,11 @@ if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
         echo $req.Method = 'GET'
         echo $req.Timeout = 5000
         echo try {
-        echo     $res = $req.GetResponse(^)
-        echo     $stream = $res.GetResponseStream(^)
-        echo     $reader = New-Object System.IO.StreamReader($stream^)
-        echo     $content = $reader.ReadToEnd(^)
-        echo     $reader.Close(); $res.Close(^)
+        echo     $res = $req.GetResponse^(^)
+        echo     $stream = $res.GetResponseStream^(^)
+        echo     $reader = New-Object System.IO.StreamReader^($stream^)
+        echo     $content = $reader.ReadToEnd^(^)
+        echo     $reader.Close^(^); $res.Close^(^)
         echo     if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') {
         echo         $remoteStr = $matches[1]
         echo         try {
