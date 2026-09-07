@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.36"
+set "JVM_BUILD=20260907.37"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3163,35 +3163,36 @@ if errorlevel 1 (
 )
 
 echo %cBLUE%[ ACTION ]%cRESET% Generating background updater...
-set "UPDATER_SCRIPT=%TEMP%\jvm_updater.bat"
+set "TARGET_BAT=%~f0"
+set "UPDATER_PS1=%TEMP%\jvm_updater.ps1"
 (
-echo @echo off
-echo setlocal enabledelayedexpansion
-echo echo.
-echo echo %cBLUE%[ ACTION ]%cRESET% Overwriting main script...
-echo rem Dynamically wait for the parent process to release the file lock
-echo set "RETRY_COUNT=0"
-echo :WAITLOOP
-echo move /Y "%%TEMP%%\jvm_new.bat" "%~f0" ^>nul 2^>^&1
-echo if errorlevel 1 ^( 
-echo     set /a RETRY_COUNT+=1
-echo     if ^^!RETRY_COUNT^^! GEQ 10 ^(
-echo         echo %cRED%[ ERROR  ]%cRESET% Update failed: File lock could not be released.
-echo         pause
-echo         exit /b 1
-echo     ^)
-echo     timeout /t 1 /nobreak ^>nul 
-echo     goto :WAITLOOP 
-echo ^)
-echo echo %cGREEN%[   OK   ]%cRESET% Java Version Manager successfully updated^^!
-echo echo.
-echo timeout /t 2 /nobreak ^>nul
-echo start "" "%~f0"
-echo del "%%~f0" ^>nul
-) > "!UPDATER_SCRIPT!"
+    echo $src = Join-Path $env:TEMP 'jvm_new.bat'
+    echo $dst = $env:TARGET_BAT
+    echo $retries = 0
+    echo while ^($retries -lt 15^) {
+    echo     Start-Sleep -Milliseconds 600
+    echo     try {
+    echo         Copy-Item -LiteralPath $src -Destination $dst -Force -ErrorAction Stop
+    echo         Remove-Item -LiteralPath $src -Force -ErrorAction SilentlyContinue
+    echo         Write-Host ""
+    echo         Write-Host "[   OK   ] Java Version Manager successfully updated^!" -ForegroundColor Green
+    echo         Write-Host ""
+    echo         Start-Sleep -Seconds 1
+    echo         Start-Process -FilePath $dst
+    echo         Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+    echo         exit 0
+    echo     } catch {
+    echo         $retries++
+    echo     }
+    echo }
+    echo Write-Host ""
+    echo Write-Host "[ ERROR  ] Update failed: Could not overwrite script." -ForegroundColor Red
+    echo Write-Host "           $PSItem" -ForegroundColor Red
+    echo Read-Host "Press Enter to exit"
+) > "!UPDATER_PS1!"
 
 echo %cGREEN%[   OK   ]%cRESET% Update downloaded! Initiating handoff...
-start "" /min cmd /c ""!UPDATER_SCRIPT!""
+start "" powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER_PS1!"
 exit
 
 rem ============================================================
