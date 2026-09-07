@@ -19,9 +19,8 @@ $ErrorActionPreference = 'Stop'
 # Enforce UAC / Administrator Privileges
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-    Write-Host "[ ACTION ] Requesting Administrator privileges to completely remove JVM globally..." -ForegroundColor Yellow
     try {
-        Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File "$PSCommandPath"" -Verb RunAs -Wait
+        Start-Process powershell -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $PSCommandPath) -Verb RunAs -Wait
         exit
     } catch {
         Write-Host "[ ERROR  ] Uninstallation requires Administrator privileges to clean the Machine Registry." -ForegroundColor Red
@@ -92,6 +91,22 @@ foreach ($v in $vars) {
     }
 }
 Write-Host "[   OK   ] Removed $removedVars environment variables globally." -ForegroundColor Green
+
+Write-Host "`n[ ACTION ] Removing Windows Uninstall Registry & Shortcuts..." -ForegroundColor Cyan
+Remove-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue
+
+$startMenuDirs = @(
+    Join-Path ([Environment]::GetFolderPath('Programs')) "DiamTek",
+    Join-Path ([Environment]::GetFolderPath('CommonPrograms')) "DiamTek"
+)
+foreach ($sm in $startMenuDirs) {
+    if (Test-Path $sm) {
+        Remove-Item -Path $sm -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "[   OK   ] Removed Start Menu folder: $sm" -ForegroundColor Green
+    }
+}
+Write-Host "[   OK   ] Windows uninstall registration removed." -ForegroundColor Green
 
 Write-Host "
 ============================================================"
