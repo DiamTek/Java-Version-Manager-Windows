@@ -23,8 +23,8 @@ set "INVOCATION_DIR=%cd%"
 rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
-set "JVM_VERSION=0.6.0"
-set "JVM_BUILD=20260907.32"
+set "JVM_VERSION=1.0.0"
+set "JVM_BUILD=20260907.33"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -167,6 +167,16 @@ if /i "%~1"=="list" (
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="self-uninstall" (
+    set "CLI_COMMAND=self-uninstall"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="uninstall-self" (
+    set "CLI_COMMAND=self-uninstall"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="uninstall" (
     set "CLI_COMMAND=uninstall"
     set "SILENT_MODE=1"
@@ -202,6 +212,26 @@ if /i "%~1"=="list" (
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="help" (
+    set "CLI_COMMAND=help"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="--help" (
+    set "CLI_COMMAND=help"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="-h" (
+    set "CLI_COMMAND=help"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if "%~1"=="/?" (
+    set "CLI_COMMAND=help"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
 ) else (
     if not defined CLI_TARGET (
         set "CLI_TARGET=%~1"
@@ -217,6 +247,8 @@ set "WANT_UTF8=0"
 if "%SILENT_MODE%"=="0" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="version" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="self-update" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="self-uninstall" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="help" set "WANT_UTF8=1"
 if "%WANT_UTF8%"=="1" chcp 65001 >nul
 if "%SILENT_MODE%"=="0" title Java Version Manager
 
@@ -236,7 +268,13 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="self-update" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="self-uninstall" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="version" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="help" (
+        call :ShowHelp
+        if defined ORIG_CP chcp !ORIG_CP! >nul
+        exit /b 0
+    )
 )
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
@@ -288,7 +326,7 @@ if defined SWITCH_MODE_OVERRIDE (
 )
 
 rem Jump straight to the menu function to prevent screen clearing issues
-call :ShowDynamicMenu %*
+call :ShowDynamicMenu
 
 rem If CURRENT_JDK_PATH is not set, the user chose the Exit option (unless purely doing ecosystem session switching)
 if not defined CURRENT_JDK_PATH (
@@ -843,9 +881,19 @@ if defined CLI_COMMAND (
         call :SelfUpdate
         goto :eof
     )
+
+    if /i "!CLI_COMMAND!"=="self-uninstall" (
+        call :UninstallJVM_Complete
+        goto :eof
+    )
     
     if /i "!CLI_COMMAND!"=="version" (
         call :AboutMenu
+        goto :eof
+    )
+
+    if /i "!CLI_COMMAND!"=="help" (
+        call :ShowHelp
         goto :eof
     )
 )
@@ -2544,13 +2592,18 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     echo 2. Architecture: %cGREEN%[Symlink Mode]%cRESET% ^(UAC Free^) - Click to use Registry
 )
 echo 3. About JVM ^& Updates
-echo 4. Back to Main Menu
+echo 4. %cRED%Uninstall JVM Completely%cRESET% ^(Full System Wipe^)
+echo 5. Back to Main Menu
 echo.
 
-choice /C 1234 /N /M "Enter your choice (1-4): "
+choice /C 12345 /N /M "Enter your choice (1-5): "
 set "sub_choice=!errorlevel!"
 
-if !sub_choice!==4 goto :eof
+if !sub_choice!==5 goto :eof
+if !sub_choice!==4 (
+    call :UninstallJVM_Complete
+    goto :SettingsMenu
+)
 if !sub_choice!==3 (
     call :AboutMenu
     goto :SettingsMenu
@@ -2782,6 +2835,51 @@ echo.
 echo Press any key to return...
 pause >nul
 goto :eof
+
+rem ============================================================
+rem COMPLETE UNINSTALLER (Calls uninstall.ps1)
+rem ============================================================
+:UninstallJVM_Complete
+echo.
+echo ============================================================
+echo         Uninstall Java Version Manager (Complete Wipe)
+echo ============================================================
+echo.
+echo %cYELLOW%[ WARNING]%cRESET% This will launch the deep uninstaller with UAC elevation.
+echo             It will offer to remove JVM, PATH entries, profile hooks,
+echo             all downloaded ecosystem tools, and installed JDKs.
+echo.
+choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
+if errorlevel 2 goto :eof
+
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Locating uninstaller...
+set "UNINSTALL_SCRIPT="
+if exist "%SCRIPT_DIR%\uninstall.ps1" set "UNINSTALL_SCRIPT=%SCRIPT_DIR%\uninstall.ps1"
+if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\uninstall.ps1" set "UNINSTALL_SCRIPT=%LOCALAPPDATA%\DiamTek\JVM\uninstall.ps1"
+if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\bin\uninstall.ps1" set "UNINSTALL_SCRIPT=%LOCALAPPDATA%\DiamTek\JVM\bin\uninstall.ps1"
+
+if not defined UNINSTALL_SCRIPT (
+    echo %cBLUE%[ ACTION ]%cRESET% Downloading latest uninstall.ps1...
+    set "UNINSTALL_SCRIPT=%TEMP%\jvm_uninstall_!RANDOM!.ps1"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/uninstall.ps1' -OutFile '!UNINSTALL_SCRIPT!' -UseBasicParsing"
+)
+
+if not exist "!UNINSTALL_SCRIPT!" (
+    echo %cRED%[ ERROR  ]%cRESET% Could not find or download uninstall.ps1!
+    echo.
+    echo Press any key to return...
+    pause >nul
+    goto :eof
+)
+
+echo %cBLUE%[ ACTION ]%cRESET% Launching uninstaller in elevated PowerShell...
+powershell -NoProfile -ExecutionPolicy Bypass -File "!UNINSTALL_SCRIPT!"
+echo.
+echo %cGREEN%[   OK   ]%cRESET% Uninstaller finished. Exiting JVM.
+timeout /t 3 >nul
+exit /b 0
+
 :HANDLE_LINKS
 setlocal enabledelayedexpansion
 set "LINK_DIR=%LOCALAPPDATA%\JavaVersionManager\links"
@@ -2878,6 +2976,42 @@ if "!IS_ADMIN_RUN!"=="1" (
     echo Press any key to close this window...
     pause >nul
 )
+goto :eof
+
+rem ============================================================
+rem CLI HELP SCREEN
+rem ============================================================
+:ShowHelp
+echo Java Version Manager ^(JVM^) for Windows - Version !JVM_VERSION! ^(Build !JVM_BUILD!^)
+echo.
+echo Usage:
+echo   jvm                            Open interactive Terminal User Interface ^(TUI^)
+echo   jvm ^<version^>                  Switch active JDK ^(e.g. jvm 21, jvm latest, jvm lts^)
+echo   jvm ^<candidate^> ^<version^>      Switch ecosystem tool ^(e.g. jvm maven 3.9.6, jvm gradle 8.5^)
+echo.
+echo Management Commands:
+echo   jvm list                       List all installed JDKs and Ecosystem tools
+echo   jvm env                        Display currently active JAVA_HOME
+echo   jvm clear                      Purge JAVA_HOME and remove Java from PATH
+echo   jvm install ^<candidate^> ^<ver^>  Download and install a tool or JDK
+echo   jvm uninstall ^<ver^>           Uninstall a specific JDK
+echo   jvm update --all               Update all installed tools and JDKs
+echo   jvm link ^<path^> [name]         Register an external JDK directory
+echo   jvm unlink ^<name^>              Unregister an external JDK directory
+echo.
+echo System ^& Maintenance Commands:
+echo   jvm version, -v                Display version, build, and check for updates
+echo   jvm self-update                Automatically download and install the latest JVM update
+echo   jvm self-uninstall             Launch the deep uninstaller ^(full system wipe^)
+echo   jvm help, --help, -h, /?       Show this help message
+echo.
+echo Flag Overrides:
+echo   --vendor ^<name^>                Filter or target a specific vendor ^(oracle, adoptium, etc.^)
+echo   --symlink                      Force Symlink Mode ^(UAC-Free Directory Junction^)
+echo   --legacy, --registry           Force Legacy Mode ^(System HKLM Registry, requires UAC^)
+echo   --session                      Force True Session Isolation for the active terminal
+echo   --global                       Force global system-wide switch
+echo   --yes, -y                      Bypass interactive confirmation prompts
 goto :eof
 
 rem ============================================================
