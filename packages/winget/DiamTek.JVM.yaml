@@ -1,0 +1,33 @@
+PackageIdentifier: DiamTek.JVM
+PackageVersion: 1.0.0
+PackageLocale: en-US
+Publisher: DiamTek
+PublisherUrl: https://github.com/DiamTek
+PublisherSupportUrl: https://github.com/DiamTek/Java-Version-Manager-Windows/issues
+Author: Alexéy Shishkin
+PackageName: Java Version Manager
+PackageUrl: https://diamtek.github.io/Java-Version-Manager-Windows
+License: AGPL-3.0-or-later
+LicenseUrl: https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/LICENSE
+ShortDescription: A lightweight, native Java Version Manager and superior SDKMAN! alternative for Windows.
+Description: A lightweight, native Java Version Manager and superior SDKMAN! alternative for Windows. Easily install, manage, and switch between multiple JDKs and the entire JVM Ecosystem (Maven, Gradle, Kotlin) directly from your CMD or PowerShell terminal.
+Tags:
+  - java
+  - jvm
+  - sdkman
+  - version-manager
+  - jdk
+  - development
+Installers:
+  - Architecture: x64
+    InstallerType: msi
+    InstallerUrl: https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v1.0.0/jvm-windows-1.0.0-x64.msi
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+    ProductCode: '{db30058e-1738-46cb-84ec-8c652dc99a22}'
+  - Architecture: arm64
+    InstallerType: msi
+    InstallerUrl: https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v1.0.0/jvm-windows-1.0.0-arm64.msi
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+    ProductCode: '{db30058e-1738-46cb-84ec-8c652dc99a22}'
+ManifestType: singleton
+ManifestVersion: 1.6.0
