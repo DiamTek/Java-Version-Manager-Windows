@@ -194,31 +194,32 @@ if (Test-Path $userJvmCandidates) {
 }
 
 # ----------------------------------------------------------------
-# JDK folder - prompt because C:\Program Files\Java is sensitive
+# JDK folder - only prompt if C:\Program Files\Java actually exists
 # ----------------------------------------------------------------
-Write-Host ""
-Write-Host "============================================================"
-Write-Host "[ WARNING] JVM installs JDKs into 'C:\Program Files\Java'." -ForegroundColor Yellow
-$shouldDeleteJava = $DeleteJava -or $false
-if (-not $shouldDeleteJava -and -not $Quiet) {
-    $confirmJava = Read-Host "Do you want to PERMANENTLY DELETE 'C:\Program Files\Java' and ALL installed JDKs? (y/N)"
-    if ($confirmJava -match '^y') {
-        $shouldDeleteJava = $true
+$javaDir = if (Test-Path "C:\Program Files\Java") { "C:\Program Files\Java" } elseif ($env:ProgramFiles -and (Test-Path (Join-Path $env:ProgramFiles "Java"))) { Join-Path $env:ProgramFiles "Java" } else { $null }
+if ($javaDir) {
+    Write-Host ""
+    Write-Host "============================================================"
+    Write-Host "[ WARNING] JVM installs JDKs into '$javaDir'." -ForegroundColor Yellow
+    $shouldDeleteJava = $DeleteJava -or $false
+    if (-not $shouldDeleteJava -and -not $Quiet) {
+        $confirmJava = Read-Host "Do you want to PERMANENTLY DELETE '$javaDir' and ALL installed JDKs? (y/N)"
+        if ($confirmJava -match '^y') {
+            $shouldDeleteJava = $true
+        }
     }
-}
 
-if ($shouldDeleteJava) {
-    if (Test-Path "C:\Program Files\Java") {
-        Write-Host "[ ACTION ] Deleting C:\Program Files\Java..." -ForegroundColor Cyan
+    if ($shouldDeleteJava) {
+        Write-Host "[ ACTION ] Deleting $javaDir..." -ForegroundColor Cyan
         $deleted = $false
         try {
-            Remove-Item "C:\Program Files\Java" -Recurse -Force -ErrorAction Stop
+            Remove-Item -LiteralPath $javaDir -Recurse -Force -ErrorAction Stop
             $deleted = $true
         } catch {
-            Write-Host "[ ACTION ] Requesting Administrator privileges to delete 'C:\Program Files\Java'..." -ForegroundColor Cyan
+            Write-Host "[ ACTION ] Requesting Administrator privileges to delete '$javaDir'..." -ForegroundColor Cyan
             try {
-                $proc = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"Remove-Item -LiteralPath 'C:\Program Files\Java' -Recurse -Force -ErrorAction SilentlyContinue`"" -Verb RunAs -Wait -PassThru
-                if (-not (Test-Path "C:\Program Files\Java")) {
+                $proc = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"Remove-Item -LiteralPath '$javaDir' -Recurse -Force -ErrorAction SilentlyContinue`"" -Verb RunAs -Wait -PassThru
+                if (-not (Test-Path $javaDir)) {
                     $deleted = $true
                 }
             } catch {
@@ -226,13 +227,11 @@ if ($shouldDeleteJava) {
             }
         }
 
-        if ($deleted -and (-not (Test-Path "C:\Program Files\Java"))) {
+        if ($deleted -and (-not (Test-Path $javaDir))) {
             Write-Host "[   OK   ] JDK installation directory deleted." -ForegroundColor Green
         } else {
-            Write-Host "[ ERROR  ] Could not delete 'C:\Program Files\Java'. Please remove it manually." -ForegroundColor Red
+            Write-Host "[ ERROR  ] Could not delete '$javaDir'. Please remove it manually." -ForegroundColor Red
         }
-    } else {
-        Write-Host "[  INFO  ] The directory 'C:\Program Files\Java' does not exist." -ForegroundColor Yellow
     }
 }
 
