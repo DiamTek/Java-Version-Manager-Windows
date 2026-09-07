@@ -1,4 +1,4 @@
-# Java Version Manager
+﻿# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -23,7 +23,7 @@ Write-Host "============================================================"
 Write-Host ""
 
 # ----------------------------------------------------------------
-# PATH cleanup — remove ALL known JVM install locations from User PATH.
+# PATH cleanup - remove ALL known JVM install locations from User PATH.
 # Machine PATH is read-only without elevation; we attempt it silently
 # and skip if it fails (JVM never writes to Machine PATH in normal use).
 # ----------------------------------------------------------------
@@ -55,7 +55,7 @@ try {
         $cleanMachine = ($machinePath -split ';' | Where-Object { $_ -and ($jvmLocations -notcontains $_) }) -join ';'
         [Environment]::SetEnvironmentVariable('Path', $cleanMachine, 'Machine')
     }
-} catch { <# No elevation — skip silently #> }
+} catch { <# No elevation - skip silently #> }
 
 # Broadcast WM_SETTINGCHANGE so running terminals pick up the new PATH
 try {
@@ -69,10 +69,10 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
     $WM_SETTINGCHANGE = 0x001A
     $result = [UIntPtr]::Zero
     [Win32.NativeMethods]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result) | Out-Null
-} catch { <# Non-critical — ignore #> }
+} catch { <# Non-critical - ignore #> }
 
 # ----------------------------------------------------------------
-# PowerShell profile hook removal — all PS versions
+# PowerShell profile hook removal - all PS versions
 # ----------------------------------------------------------------
 Write-Host "[ ACTION ] Removing PowerShell Profile Hook..." -ForegroundColor Cyan
 $userProfileDir = [Environment]::GetFolderPath('UserProfile')
@@ -113,7 +113,7 @@ foreach ($v in $vars) {
                 [Environment]::SetEnvironmentVariable($v, $null, $scope)
                 $removedVars++
             }
-        } catch { <# Machine scope may need elevation — skip silently #> }
+        } catch { <# Machine scope may need elevation - skip silently #> }
     }
 }
 Write-Host "[   OK   ] Removed $removedVars environment variables." -ForegroundColor Green
@@ -138,7 +138,7 @@ foreach ($sm in $startMenuDirs) {
 Write-Host "[   OK   ] Windows uninstall registration removed." -ForegroundColor Green
 
 # ----------------------------------------------------------------
-# AppData folder — always removed on a complete uninstall
+# AppData folder - always removed on a complete uninstall
 # ----------------------------------------------------------------
 Write-Host "`n[ ACTION ] Deleting JVM AppData folder..." -ForegroundColor Cyan
 $jvmAppData = Join-Path $localAppData "DiamTek\JVM"
@@ -150,7 +150,7 @@ if (Test-Path $jvmAppData) {
 }
 
 # ----------------------------------------------------------------
-# JDK folder — prompt because C:\Program Files\Java is sensitive
+# JDK folder - prompt because C:\Program Files\Java is sensitive
 # ----------------------------------------------------------------
 Write-Host ""
 Write-Host "============================================================"
@@ -163,7 +163,7 @@ if ($confirmJava -match '^y') {
             Remove-Item "C:\Program Files\Java" -Recurse -Force -ErrorAction Stop
             Write-Host "[   OK   ] JDK installation directory deleted." -ForegroundColor Green
         } catch {
-            Write-Host "[ ERROR  ] Could not delete 'C:\Program Files\Java' — Administrator privileges may be required." -ForegroundColor Red
+            Write-Host "[ ERROR  ] Could not delete 'C:\Program Files\Java' - Administrator privileges may be required." -ForegroundColor Red
             Write-Host "           Please delete it manually." -ForegroundColor Red
         }
     } else {
