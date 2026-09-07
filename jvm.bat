@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.35"
+set "JVM_BUILD=20260907.36"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3642,7 +3642,7 @@ set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!.ps1"
     echo                 Write-Host '[ ERROR  ] Aborting due to security policy. Rerun with --yes or -y to bypass verification.' -ForegroundColor Red
     echo                 exit 1
     echo             }
-    echo             Write-Host '            Proceeding WITHOUT integrity verification (--yes flag active).' -ForegroundColor Yellow
+    echo             Write-Host '            Proceeding WITHOUT integrity verification ^(--yes flag active^).' -ForegroundColor Yellow
     echo             Write-Host ""
     echo         } else {
     echo             $crypto = [System.Security.Cryptography.HashAlgorithm]::Create^($cryptoType^)
