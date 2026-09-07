@@ -20,11 +20,13 @@ for /f "tokens=* delims=:" %%C in ('chcp') do for %%D in (%%C) do set "ORIG_CP=%
 
 set "INVOCATION_DIR=%cd%"
 
-rem Cleanup self-updater artifact if it exists
+rem Cleanup self-updater artifacts if they exist
+if exist "%TEMP%\jvm_updater_*.bat" del "%TEMP%\jvm_updater_*.bat" >nul 2>&1
+if exist "%TEMP%\jvm_install_*.ps1" del "%TEMP%\jvm_install_*.ps1" >nul 2>&1
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.56"
+set "JVM_BUILD=20260907.57"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3210,7 +3212,7 @@ set "UPDATER_BAT=%TEMP%\jvm_updater_!RANDOM!.bat"
     echo set "cBLUE=%%ESC%%[96m"
     echo set "cRESET=%%ESC%%[0m"
     echo echo.
-    echo powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_SCRIPT!" -Update -TargetDir "!SCRIPT_DIR!"
+    echo powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_SCRIPT!" -Update -TargetDir "!SCRIPT_DIR!" -Branch "!REMOTE_REF!"
     echo set "UPD_ERR=%%errorlevel%%"
     echo if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" ^>nul 2^>^&1
     echo if %%UPD_ERR%% NEQ 0 ^(
@@ -3228,8 +3230,6 @@ set "UPDATER_BAT=%TEMP%\jvm_updater_!RANDOM!.bat"
         echo echo Press any key to return to Java Version Manager...
         echo pause ^>nul
         echo cls
-        echo set "OLD_UPDATER=%%~f0"
-        echo start /b "" cmd /c "timeout /t 1 >nul & del \"%%OLD_UPDATER%%\" >nul 2>&1"
         echo "%~f0"
     )
 ) > "!UPDATER_BAT!"

@@ -18,7 +18,8 @@
 param(
     [switch]$Quiet,
     [switch]$Update,
-    [string]$TargetDir
+    [string]$TargetDir,
+    [string]$Branch
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,9 +48,8 @@ function Update-Progress {
 Update-Progress -Percent 5 -Activity "Initializing environment..."
 
 $normTarget = if ($TargetDir -and (Test-Path $TargetDir)) { (Resolve-Path $TargetDir).Path } else { $null }
-$isDevRepo = $normTarget -and ((Test-Path (Join-Path $normTarget ".git")) -or (Test-Path (Join-Path $normTarget "..\.git")))
 
-if ($normTarget -and -not $isDevRepo) {
+if ($normTarget) {
     $installDir = $normTarget
 } else {
     $installDir = "$env:LOCALAPPDATA\DiamTek\JVM\bin"
@@ -60,20 +60,22 @@ $batPath = Join-Path $installDir "jvm.bat"
 $repoRoot = if ($installDir.EndsWith("\bin", [StringComparison]::OrdinalIgnoreCase)) { Split-Path $installDir -Parent } else { $installDir }
 
 Update-Progress -Percent 15 -Activity "Resolving latest release from GitHub..."
-$rawBranch = "main"
-try {
-    $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main")
-    $apiReq.UserAgent = "DiamTek-JVM"
-    $apiReq.Timeout = 3000
-    $apiRes = $apiReq.GetResponse()
-    $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
-    $json = $sr.ReadToEnd()
-    $sr.Close(); $apiRes.Close()
-    if ($json -match '"sha":\s*"([0-9a-f]{40})"') {
-        $rawBranch = $matches[1]
+$rawBranch = if ($Branch) { $Branch } else { "main" }
+if (-not $Branch) {
+    try {
+        $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main")
+        $apiReq.UserAgent = "DiamTek-JVM"
+        $apiReq.Timeout = 3000
+        $apiRes = $apiReq.GetResponse()
+        $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
+        $json = $sr.ReadToEnd()
+        $sr.Close(); $apiRes.Close()
+        if ($json -match '"sha":\s*"([0-9a-f]{40})"') {
+            $rawBranch = $matches[1]
+        }
+    } catch {
+        $rawBranch = "HEAD"
     }
-} catch {
-    $rawBranch = "HEAD"
 }
 
 $cacheBuster = [DateTimeOffset]::UtcNow.Ticks
