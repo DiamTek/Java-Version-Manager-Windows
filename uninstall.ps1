@@ -23,6 +23,7 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
+$ProgressPreference = 'SilentlyContinue'
 
 Write-Host ""
 Write-Host "============================================================"

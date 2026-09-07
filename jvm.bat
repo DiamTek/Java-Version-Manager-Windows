@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.55"
+set "JVM_BUILD=20260907.56"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -1601,14 +1601,14 @@ goto :FetchAndExtract
 set "DL_VENDOR=Adoptium"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying Adoptium API for latest JDK !DL_VERSION! release...
-set "PS_CMD=try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/assets/feature_releases/!DL_VERSION!/ga?architecture=!SYS_ARCH!&image_type=jdk&jvm_impl=hotspot&os=windows&page=0&page_size=1' -UseBasicParsing; if ($res[0].binaries[0].package.link -and $res[0].binaries[0].package.checksum) { Write-Output ('API_URL='+$res[0].binaries[0].package.link); Write-Output ('API_SHA256='+$res[0].binaries[0].package.checksum) } else { exit 1 } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/assets/feature_releases/!DL_VERSION!/ga?architecture=!SYS_ARCH!&image_type=jdk&jvm_impl=hotspot&os=windows&page=0&page_size=1' -UseBasicParsing; if ($res[0].binaries[0].package.link -and $res[0].binaries[0].package.checksum) { Write-Output ('API_URL='+$res[0].binaries[0].package.link); Write-Output ('API_SHA256='+$res[0].binaries[0].package.checksum) } else { exit 1 } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
 goto Run_API_Query
 
 :Resolve_GraalVM
 set "DL_VENDOR=GraalVM"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying GraalVM GitHub API for latest JDK !DL_VERSION! release...
-set "PS_CMD=try { $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/graalvm/graalvm-ce-builds/releases' -UseBasicParsing; $t = $null; foreach ($r in $res) { if ($r.tag_name -like 'jdk-!DL_VERSION!*') { $t = $r; break } }; if (-not $t) { exit 1 }; $u = $null; $s = $null; foreach ($a in $t.assets) { if ($a.name -match 'windows-(x64|amd64)_bin\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'windows-(x64|amd64)_bin\.zip\.sha256$') { $s = $a.browser_download_url } }; if ($u -and $s) { Write-Output ('API_URL='+$u); Write-Output ('API_SHA256_URL='+$s) } else { exit 1 } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/graalvm/graalvm-ce-builds/releases' -UseBasicParsing; $t = $null; foreach ($r in $res) { if ($r.tag_name -like 'jdk-!DL_VERSION!*') { $t = $r; break } }; if (-not $t) { exit 1 }; $u = $null; $s = $null; foreach ($a in $t.assets) { if ($a.name -match 'windows-(x64|amd64)_bin\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'windows-(x64|amd64)_bin\.zip\.sha256$') { $s = $a.browser_download_url } }; if ($u -and $s) { Write-Output ('API_URL='+$u); Write-Output ('API_SHA256_URL='+$s) } else { exit 1 } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
 goto Run_API_Query
 
 :Resolve_Corretto
@@ -1624,7 +1624,7 @@ goto :FetchAndExtract
 set "DL_VENDOR=Zulu"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying Azul Zulu API for latest JDK !DL_VERSION! release...
-set "PS_CMD=try { $list = Invoke-RestMethod -Uri 'https://api.azul.com/metadata/v1/zulu/packages/?java_version=!DL_VERSION!&os=windows&arch=!ZULU_ARCH!&archive_type=zip&java_package_type=jdk&javafx_bundled=false&release_status=ga&availability_types=CA&latest=true&page=1&page_size=1' -UseBasicParsing; if (-not $list -or -not $list[0].download_url) { exit 1 }; Write-Output ('API_URL='+$list[0].download_url); $uuid = $list[0].package_uuid; if ($uuid) { try { $d = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/'+$uuid) -UseBasicParsing; if ($d.sha256_hash) { Write-Output ('API_SHA256='+$d.sha256_hash) } } catch { } } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $list = Invoke-RestMethod -Uri 'https://api.azul.com/metadata/v1/zulu/packages/?java_version=!DL_VERSION!&os=windows&arch=!ZULU_ARCH!&archive_type=zip&java_package_type=jdk&javafx_bundled=false&release_status=ga&availability_types=CA&latest=true&page=1&page_size=1' -UseBasicParsing; if (-not $list -or -not $list[0].download_url) { exit 1 }; Write-Output ('API_URL='+$list[0].download_url); $uuid = $list[0].package_uuid; if ($uuid) { try { $d = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/'+$uuid) -UseBasicParsing; if ($d.sha256_hash) { Write-Output ('API_SHA256='+$d.sha256_hash) } } catch { } } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
 goto Run_API_Query
 
 :Resolve_Microsoft
@@ -1660,7 +1660,7 @@ goto :FetchAndExtract
 
 :FetchLatestVersions
 if defined ORACLE_LATEST_FEATURE goto :eof
-set "PS_CMD=try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/info/available_releases' -UseBasicParsing -TimeoutSec 3; Write-Output ('LATEST_FEATURE='+$res.most_recent_feature_release); Write-Output ('LATEST_LTS='+$res.most_recent_lts) } catch { Write-Output 'LATEST_FEATURE=26'; Write-Output 'LATEST_LTS=25' }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/info/available_releases' -UseBasicParsing -TimeoutSec 3; Write-Output ('LATEST_FEATURE='+$res.most_recent_feature_release); Write-Output ('LATEST_LTS='+$res.most_recent_lts) } catch { Write-Output 'LATEST_FEATURE=26'; Write-Output 'LATEST_LTS=25' }"
 for /f "tokens=1,* delims==" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do (
     if "%%A"=="LATEST_FEATURE" set "ORACLE_LATEST_FEATURE=%%B"
     if "%%A"=="LATEST_LTS" set "ORACLE_LATEST_LTS=%%B"
@@ -2332,6 +2332,7 @@ set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!.ps1"
     echo     [Parameter^(Mandatory=$true^)][string]$Major,
     echo     [Parameter^(Mandatory=$true^)][string]$LocalPath
     echo ^)
+    echo $ProgressPreference = 'SilentlyContinue'
     echo $localVersion = "UNKNOWN"
     echo $releaseFile = Join-Path $LocalPath "release"
     echo if ^(Test-Path $releaseFile^) {
@@ -2895,7 +2896,7 @@ if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\bin\uninsta
 if not defined UNINSTALL_SCRIPT (
     echo %cBLUE%[ ACTION ]%cRESET% Downloading latest uninstall.ps1...
     set "UNINSTALL_SCRIPT=%TEMP%\jvm_uninstall_!RANDOM!.ps1"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/uninstall.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile '!UNINSTALL_SCRIPT!' -UseBasicParsing"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/uninstall.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile '!UNINSTALL_SCRIPT!' -UseBasicParsing"
 )
 
 if not exist "!UNINSTALL_SCRIPT!" (
@@ -3076,7 +3077,7 @@ echo.
 echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
 
 rem Fetch latest build number from GitHub main branch and compare using PowerShell [version]
-set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $branch = 'HEAD'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $json = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); if ($json -match '\x22sha\x22:\s*\x22([0-9a-f]{40})\x22') { $branch = $matches[1] } } catch {}; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $branch + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 5000; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); $reader.Close(); $res.Close(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE|{1}' -f $remoteStr, $branch) } else { Write-Output ('{0}|OK|{1}' -f $remoteStr, $branch) } } catch { Write-Output ('{0}|INVALID_REMOTE|{1}' -f $remoteStr, $branch) } } else { Write-Output 'UNKNOWN|UNKNOWN|HEAD' } } catch { Write-Output 'ERROR|ERROR|HEAD' }"
+set "PS_SCRIPT=$ProgressPreference = 'SilentlyContinue'; $local = [version]'!JVM_BUILD!'; $branch = 'HEAD'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $json = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); if ($json -match '\x22sha\x22:\s*\x22([0-9a-f]{40})\x22') { $branch = $matches[1] } } catch {}; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $branch + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 5000; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); $reader.Close(); $res.Close(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE|{1}' -f $remoteStr, $branch) } else { Write-Output ('{0}|OK|{1}' -f $remoteStr, $branch) } } catch { Write-Output ('{0}|INVALID_REMOTE|{1}' -f $remoteStr, $branch) } } else { Write-Output 'UNKNOWN|UNKNOWN|HEAD' } } catch { Write-Output 'ERROR|ERROR|HEAD' }"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
 set "REMOTE_BUILD=UNKNOWN"
 set "UPDATE_FLAG=ERROR"
@@ -3152,7 +3153,7 @@ if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
     
-    set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $branch = 'HEAD'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $json = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); if ($json -match '\x22sha\x22:\s*\x22([0-9a-f]{40})\x22') { $branch = $matches[1] } } catch {}; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $branch + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 5000; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); $reader.Close(); $res.Close(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE|{1}' -f $remoteStr, $branch) } else { Write-Output ('{0}|OK|{1}' -f $remoteStr, $branch) } } catch { Write-Output ('{0}|INVALID_REMOTE|{1}' -f $remoteStr, $branch) } } else { Write-Output 'UNKNOWN|UNKNOWN|HEAD' } } catch { Write-Output 'ERROR|ERROR|HEAD' }"
+    set "PS_SCRIPT=$ProgressPreference = 'SilentlyContinue'; $local = [version]'!JVM_BUILD!'; $branch = 'HEAD'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $json = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); if ($json -match '\x22sha\x22:\s*\x22([0-9a-f]{40})\x22') { $branch = $matches[1] } } catch {}; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $branch + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 5000; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); $reader.Close(); $res.Close(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE|{1}' -f $remoteStr, $branch) } else { Write-Output ('{0}|OK|{1}' -f $remoteStr, $branch) } } catch { Write-Output ('{0}|INVALID_REMOTE|{1}' -f $remoteStr, $branch) } } else { Write-Output 'UNKNOWN|UNKNOWN|HEAD' } } catch { Write-Output 'ERROR|ERROR|HEAD' }"
     powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
     set "REMOTE_BUILD=UNKNOWN"
     set "UPDATE_FLAG=ERROR"
@@ -3190,7 +3191,7 @@ echo.
 echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
 
 set "INSTALL_SCRIPT=%TEMP%\jvm_install_!RANDOM!.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + '!REMOTE_REF!' + '/install.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile '!INSTALL_SCRIPT!' -UseBasicParsing"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + '!REMOTE_REF!' + '/install.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile '!INSTALL_SCRIPT!' -UseBasicParsing"
 
 if not exist "!INSTALL_SCRIPT!" (
     echo.
@@ -3589,11 +3590,11 @@ rem ============================================================
 :ResolveLatestEcosystemCandidate
 set "PS_RESOLVE_LATEST="
 set "PS_CATCH=catch { if ($_.Exception.Response -and $_.Exception.Response.StatusCode -eq 'Forbidden') { 'RATE_LIMITED' } else { 'ERROR' } }"
-if /i "!TARGET_CANDIDATE!"=="maven" set "PS_RESOLVE_LATEST=$url='https://api.github.com/repos/apache/maven/releases?per_page=50'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; $r = Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing; $t = $r | Where-Object { -not $_.prerelease -and -not $_.draft -and $_.tag_name -like 'maven-*' } | Select-Object -First 1; if ($t) { $t.tag_name.Replace('maven-','') } else { 'ERROR' } } !PS_CATCH!"
-if /i "!TARGET_CANDIDATE!"=="gradle" set "PS_RESOLVE_LATEST=$url='https://services.gradle.org/versions/current'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing).version } catch { 'ERROR' }"
-if /i "!TARGET_CANDIDATE!"=="kotlin" set "PS_RESOLVE_LATEST=$url='https://api.github.com/repos/JetBrains/kotlin/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; ((Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing).tag_name).TrimStart('v') } !PS_CATCH!"
-if /i "!TARGET_CANDIDATE!"=="scala" set "PS_RESOLVE_LATEST=$url='https://api.github.com/repos/scala/scala3/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; (Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing).tag_name } !PS_CATCH!"
-if /i "!TARGET_CANDIDATE!"=="groovy" set "PS_RESOLVE_LATEST=$url='https://api.sdkman.io/2/candidates/default/groovy'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing) } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="maven" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/apache/maven/releases?per_page=50'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; $r = Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing; $t = $r | Where-Object { -not $_.prerelease -and -not $_.draft -and $_.tag_name -like 'maven-*' } | Select-Object -First 1; if ($t) { $t.tag_name.Replace('maven-','') } else { 'ERROR' } } !PS_CATCH!"
+if /i "!TARGET_CANDIDATE!"=="gradle" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://services.gradle.org/versions/current'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing).version } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="kotlin" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/JetBrains/kotlin/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; ((Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing).tag_name).TrimStart('v') } !PS_CATCH!"
+if /i "!TARGET_CANDIDATE!"=="scala" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/scala/scala3/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; (Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing).tag_name } !PS_CATCH!"
+if /i "!TARGET_CANDIDATE!"=="groovy" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.sdkman.io/2/candidates/default/groovy'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing) } catch { 'ERROR' }"
 
 set "LATEST_VER=ERROR"
 for /f "delims=" %%V in ('powershell -NoProfile -Command "!PS_RESOLVE_LATEST!"') do (
@@ -3612,6 +3613,7 @@ rem ============================================================
 set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!.ps1"
 (
     echo $ErrorActionPreference = 'Stop'
+    echo $ProgressPreference = 'SilentlyContinue'
     echo [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     echo try {
     echo     Write-Host '[ ACTION ] Downloading from !DL_URL! ...' -ForegroundColor Cyan

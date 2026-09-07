@@ -22,6 +22,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $actionName = if ($Update) { "Updating" } else { "Installing" }
@@ -38,8 +39,8 @@ function Update-Progress {
     $filled = [math]::Floor(($clamped / 100) * $barLength)
     $empty = $barLength - $filled
     $bar = ('=' * $filled) + (' ' * $empty)
-    $paddedActivity = $Activity.PadRight(45)
-    Write-Host ("`r[ ACTION ] [{0}] {1,3}%  {2}" -f $bar, $clamped, $paddedActivity) -NoNewline -ForegroundColor Cyan
+    $paddedActivity = $Activity.PadRight(52)
+    Write-Host ("`r[ ACTION ] [{0}] {1,3}%  {2}$([char]27)[K" -f $bar, $clamped, $paddedActivity) -NoNewline -ForegroundColor Cyan
 }
 
 # 1. Determine destination directory
@@ -98,24 +99,36 @@ $lines = ($content.Replace([char]160, ' ') -split "\r?\n")
 [System.IO.File]::WriteAllLines($batPath, $lines, (New-Object System.Text.UTF8Encoding($false)))
 
 Update-Progress -Percent 65 -Activity "Fetching documentation, license, & uninstaller..."
-try {
-    if (-not $Update -and (Test-Path "$PSScriptRoot\LICENSE")) { Copy-Item "$PSScriptRoot\LICENSE" "$repoRoot\LICENSE" -Force }
-    else { Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/LICENSE?t=$cacheBuster" -Headers $noCacheHeaders -OutFile "$repoRoot\LICENSE" -UseBasicParsing }
-
-    if (-not $Update -and (Test-Path "$PSScriptRoot\README.md")) { Copy-Item "$PSScriptRoot\README.md" "$repoRoot\README.md" -Force }
-    else { Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/README.md?t=$cacheBuster" -Headers $noCacheHeaders -OutFile "$repoRoot\README.md" -UseBasicParsing }
-
-    if (-not $Update -and (Test-Path "$PSScriptRoot\uninstall.ps1")) {
-        Copy-Item "$PSScriptRoot\uninstall.ps1" "$repoRoot\uninstall.ps1" -Force
+if (-not (Test-Path $repoRoot)) { New-Item -ItemType Directory -Path $repoRoot -Force | Out-Null }
+$companionFiles = @("LICENSE", "README.md", "uninstall.ps1")
+foreach ($cf in $companionFiles) {
+    $destFile = Join-Path $repoRoot $cf
+    $localSource = Join-Path $PSScriptRoot $cf
+    if (-not $Update -and (Test-Path $localSource)) {
+        Copy-Item $localSource $destFile -Force
     } else {
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/uninstall.ps1?t=$cacheBuster" -Headers $noCacheHeaders -OutFile "$repoRoot\uninstall.ps1" -UseBasicParsing
+        $downloadSuccess = $false
+        try {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/$cf`?t=$cacheBuster" -Headers $noCacheHeaders -OutFile $destFile -UseBasicParsing -TimeoutSec 10
+            $downloadSuccess = $true
+        } catch {
+            try {
+                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/$cf`?t=$cacheBuster" -Headers $noCacheHeaders -OutFile $destFile -UseBasicParsing -TimeoutSec 10
+                $downloadSuccess = $true
+            } catch {
+                if (-not (Test-Path $destFile)) {
+                    Write-Host ""
+                    Write-Host "           [WARN] Could not fetch $cf. Proceeding anyway." -ForegroundColor Yellow
+                }
+            }
+        }
     }
-    if (Test-Path "$installDir\uninstall.ps1" -and ((Resolve-Path "$installDir\uninstall.ps1").Path -ne (Resolve-Path "$repoRoot\uninstall.ps1").Path)) {
-        Remove-Item "$installDir\uninstall.ps1" -Force -ErrorAction SilentlyContinue
+}
+if ($installDir -ne $repoRoot) {
+    $legacyUninstall = Join-Path $installDir "uninstall.ps1"
+    if (Test-Path $legacyUninstall) {
+        Remove-Item $legacyUninstall -Force -ErrorAction SilentlyContinue
     }
-} catch {
-    Write-Host ""
-    Write-Host "           [WARN] Could not fetch LICENSE/README/uninstall.ps1. Proceeding anyway." -ForegroundColor Yellow
 }
 
 # 3. Safe REG_EXPAND_SZ Path Injection

@@ -9,9 +9,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 This milestone 1.0.0 release marks the official general availability of the DiamTek Java Version Manager for Windows. It features a massive architectural overhaul of the entire engine, adding comprehensive ecosystem support, native automation integrations, full package manager distribution, and solving multiple Windows-specific system limitations.
 
 ### Distribution & Packaging
-- **Package Manager Ecosystem**: Full manifest support for Scoop (`jvm.json`), Chocolatey (`jvm.nuspec`, `chocolateyInstall.ps1`, `chocolateyUninstall.ps1`), Win
-get (`DiamTek.JVM.yaml`), and an automated WiX Toolset v4 MSI build pipeline (`build-msi.ps1`).
+- **Package Manager Ecosystem**: Full manifest support for Scoop (`jvm.json`), Chocolatey (`jvm.nuspec`, `chocolateyInstall.ps1`, `chocolateyUninstall.ps1`), Winget (`DiamTek.JVM.yaml`), and an automated WiX Toolset v4 MSI build pipeline (`build-msi.ps1`).
 - **Deep UAC Uninstaller Engine**: Introduced `uninstall.ps1` with automatic UAC administrator privilege escalation to completely scrub JVM, PATH entries, environment variables, AppData Ecosystem caches, and installed JDKs.
+- **Uninstaller Directory Lock Staging**: Uninstaller stages its script to `%TEMP%` and pivots CMD working directory to `%TEMP%` before execution, releasing file and directory handles so the parent JVM directory can be fully wiped without file locks.
+- **Single-Destination Target Architecture**: Synchronized `TargetDir` handling so updating standalone or custom installations writes directly to the target location without creating duplicate parallel `%LOCALAPPDATA%` installations.
+- **Resilient Companion Asset Retrieval**: Hardened `LICENSE`, `README.md`, and `uninstall.ps1` fetching with per-file exception boundaries, automatic `HEAD` CDN fallback, and safe path comparisons, eliminating false-positive warnings and `Resolve-Path` exceptions.
 - **Windows Integration**: Automatically registers JVM into Windows Settings / Installed apps (`HKCU:\...\Uninstall\DiamTek.JVM`) with native uninstallation support and creates a Start Menu uninstaller shortcut.
 - **Terminal & CLI Uninstaller**: Added a full system wipe option in the interactive Settings menu and CLI support via `jvm self-uninstall`.
 
@@ -43,6 +45,8 @@ get (`DiamTek.JVM.yaml`), and an automated WiX Toolset v4 MSI build pipeline (`b
 - **Deep Uninstaller Command**: Added `jvm self-uninstall` to invoke the UAC-elevated deep uninstallation pipeline directly from any terminal.
 - **Semantic CLI Routing**: Added robust semantic routing commands (`jvm latest`, `jvm lts`) and powerful flag overrides (`--symlink`, `--legacy`, `--vendor`, `--latest`, `-y`).
 - **Semantic Self-Updater Engine**: Built a seamless self-updater engine (`jvm version`, `jvm self-update`) that securely compares build numbers using the native `.NET` `[version]` class before automatically downloading and atomic-swapping the core script.
+- **External Process Handoff Engine**: Self-update now decouples from `jvm.bat` by chaining execution into an external runner (`%TEMP%\jvm_updater_*.bat`) without `call`. This allows `cmd.exe` to close `jvm.bat`'s file handle immediately, eliminating mid-stream byte-offset corruption, `'file' is not recognized` syntax errors, and duplicate installer invocation loops.
+- **Dynamic GitHub CDN Cache Bypass**: Resolves the exact commit SHA of `main` via the GitHub API to bypass the 5-minute Fastly/Varnish edge caching on `raw.githubusercontent.com`, ensuring newly published releases are immediately discovered and fetched without propagation delays.
 - **Dynamic Feature Resolvers**: Built a dynamic `FetchLatestVersions` resolver that queries the Adoptium API at runtime to establish the true latest feature release and LTS version numbers, eliminating hardcoded version constants.
 - **Self-Contained Update Checkers**: Re-engineered the `UpdateChecker` as a fully self-contained inline PowerShell script generated at runtime for all six vendors, removing all external `.ps1` file dependencies.
 
@@ -52,6 +56,8 @@ get (`DiamTek.JVM.yaml`), and an automated WiX Toolset v4 MSI build pipeline (`b
 - **In-Memory Bubble Sort**: Built an optimized, strictly in-memory Bubble Sort algorithm to organize JDKs visually by newest version in the UI.
 - **Vendor Grouping**: Introduced dynamic Vendor grouping (Oracle, Adoptium, GraalVM, Corretto, Zulu, Microsoft) across all interactive menus.
 - **Code Page Preservation**: Added native terminal code page preservation and restoration to seamlessly handle UTF-8 rendering (like the `©` symbol) without permanently corrupting the user's host environment.
+- **Animated ANSI Progress Bar**: Added a real-time, 30-character animated ANSI progress bar to `install.ps1` with percentage indicators tracking environment initialization, release resolution, core engine fetch, encoding sanitization, companion assets, user PATH configuration, profile hook registration, and shortcut integration.
+- **Zero-Flicker Background Requests**: Configured `$ProgressPreference = 'SilentlyContinue'` across all PowerShell hooks, inline web requests, and candidate resolvers, completely suppressing the top blue/cyan progress bar that previously flashed during silent background network queries.
 - **Progress Bar Enhancements**: Overhauled the Self-Updater to utilize the Universal Candidate Downloader engine to grant it native ANSI progress bars. Restored native extraction progress bars and forced a final 100% frame to fix a rounding edge case.
 - **UI Tag Formatting**: Aligned all UI tags to a strict 10-character padded format (`[   OK   ]`, `[ ACTIVE ]`, etc.) for perfect visual alignment.
 
