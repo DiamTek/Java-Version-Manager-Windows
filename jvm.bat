@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.52"
+set "JVM_BUILD=20260907.53"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -61,6 +61,8 @@ set "CLI_TARGET="
 set "SESSION_MODE=0"
 set "ORIGINAL_ARGS=%*"
 set "SCRIPT_PATH=%~f0"
+set "SCRIPT_DIR=%~dp0"
+if "!SCRIPT_DIR:~-1!"=="\" set "SCRIPT_DIR=!SCRIPT_DIR:~0,-1!"
 
 set "SWITCH_MODE=SYMLINK"
 if exist "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" (
@@ -892,7 +894,8 @@ if defined CLI_COMMAND (
 
     if /i "!CLI_COMMAND!"=="self-uninstall" (
         call :UninstallJVM_Complete
-        goto :eof
+        if defined ORIG_CP chcp !ORIG_CP! >nul
+        exit /b 0
     )
     
     if /i "!CLI_COMMAND!"=="version" (
@@ -2884,8 +2887,8 @@ if errorlevel 2 goto :eof
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Locating uninstaller...
 set "UNINSTALL_SCRIPT="
-if exist "%SCRIPT_DIR%\uninstall.ps1" set "UNINSTALL_SCRIPT=%SCRIPT_DIR%\uninstall.ps1"
-if not defined UNINSTALL_SCRIPT if exist "%SCRIPT_DIR%\..\uninstall.ps1" set "UNINSTALL_SCRIPT=%SCRIPT_DIR%\..\uninstall.ps1"
+if exist "!SCRIPT_DIR!\uninstall.ps1" set "UNINSTALL_SCRIPT=!SCRIPT_DIR!\uninstall.ps1"
+if not defined UNINSTALL_SCRIPT if exist "!SCRIPT_DIR!\..\uninstall.ps1" set "UNINSTALL_SCRIPT=!SCRIPT_DIR!\..\uninstall.ps1"
 if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\uninstall.ps1" set "UNINSTALL_SCRIPT=%LOCALAPPDATA%\DiamTek\JVM\uninstall.ps1"
 if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\bin\uninstall.ps1" set "UNINSTALL_SCRIPT=%LOCALAPPDATA%\DiamTek\JVM\bin\uninstall.ps1"
 
@@ -2903,11 +2906,20 @@ if not exist "!UNINSTALL_SCRIPT!" (
     goto :eof
 )
 
+rem Stage uninstaller to %TEMP% so the JVM directory is completely unlocked
+set "RUNNER_PS1=%TEMP%\jvm_uninstall_runner_!RANDOM!.ps1"
+copy /y "!UNINSTALL_SCRIPT!" "!RUNNER_PS1!" >nul 2>&1
+
+rem Switch working directory to %TEMP% to release directory lock from cmd.exe
+set "TARGET_UNINSTALL_DIR=!SCRIPT_DIR!"
+cd /d "%TEMP%"
+
 echo %cBLUE%[ ACTION ]%cRESET% Running uninstaller...
-powershell -NoProfile -ExecutionPolicy Bypass -File "!UNINSTALL_SCRIPT!"
+powershell -NoProfile -ExecutionPolicy Bypass -File "!RUNNER_PS1!" -SourceDir "!TARGET_UNINSTALL_DIR!"
+if exist "!RUNNER_PS1!" del "!RUNNER_PS1!" >nul 2>&1
+
 echo.
 echo %cGREEN%[   OK   ]%cRESET% Uninstaller finished. Exiting JVM.
-timeout /t 3 >nul
 exit /b 100
 
 :HANDLE_LINKS

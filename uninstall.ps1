@@ -1,4 +1,4 @@
-# Java Version Manager
+﻿# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,7 +17,9 @@
 [CmdletBinding()]
 param(
     [switch]$Quiet,
-    [switch]$DeleteJava
+    [switch]$DeleteJava,
+    [switch]$DeleteTarget,
+    [string]$SourceDir
 )
 
 $ErrorActionPreference = 'Continue'
@@ -41,7 +43,14 @@ $jvmLocations = @(
     "$localAppData\DiamTek\JVM\current\bin"
 )
 
-# Also remove the script's own directory if it differs (dev-workspace installs)
+# Also remove SourceDir and its bin folder if provided
+if ($SourceDir) {
+    if ($jvmLocations -notcontains $SourceDir) { $jvmLocations += $SourceDir }
+    $sourceBin = Join-Path $SourceDir "bin"
+    if ($jvmLocations -notcontains $sourceBin) { $jvmLocations += $sourceBin }
+}
+
+# Also remove the script's own directory if it differs
 $scriptDir = Split-Path -Parent $PSCommandPath
 if ($scriptDir -and ($jvmLocations -notcontains $scriptDir)) {
     $jvmLocations += $scriptDir
@@ -144,24 +153,43 @@ foreach ($sm in $startMenuDirs) {
 Write-Host "[   OK   ] Windows uninstall registration removed." -ForegroundColor Green
 
 # ----------------------------------------------------------------
-# AppData folder - always removed on a complete uninstall
+# AppData & Ecosystem Candidate folders - always removed on a complete uninstall
 # ----------------------------------------------------------------
-Write-Host "`n[ ACTION ] Deleting JVM AppData folder..." -ForegroundColor Cyan
+Write-Host "`n[ ACTION ] Deleting JVM AppData and Candidate folders..." -ForegroundColor Cyan
 $diamtekAppData = Join-Path $localAppData "DiamTek"
 $jvmAppData = Join-Path $diamtekAppData "JVM"
 if (Test-Path $jvmAppData) {
-    Remove-Item $jvmAppData -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host "[   OK   ] Deleted: $jvmAppData" -ForegroundColor Green
+    try {
+        Remove-Item -LiteralPath $jvmAppData -Recurse -Force -ErrorAction Stop
+        Write-Host "[   OK   ] Deleted: $jvmAppData" -ForegroundColor Green
+    } catch {
+        Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$env:TEMP`" & timeout /t 1 >nul & rmdir /s /q `"$jvmAppData`"" -WindowStyle Hidden
+        Write-Host "[   OK   ] Scheduled deletion of: $jvmAppData" -ForegroundColor Green
+    }
 } else {
     Write-Host "[   OK   ] AppData folder already missing." -ForegroundColor Green
 }
 
 if (Test-Path $diamtekAppData) {
-    $remaining = Get-ChildItem $diamtekAppData -Force -ErrorAction SilentlyContinue
+    $remaining = Get-ChildItem -LiteralPath $diamtekAppData -Force -ErrorAction SilentlyContinue
     if (-not $remaining) {
-        Remove-Item $diamtekAppData -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $diamtekAppData -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "[   OK   ] Cleaned up parent directory: $diamtekAppData" -ForegroundColor Green
     }
+}
+
+# Legacy and shared state folders
+$legacyJvm = Join-Path $localAppData "JavaVersionManager"
+if (Test-Path $legacyJvm) {
+    Remove-Item -LiteralPath $legacyJvm -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "[   OK   ] Cleaned up: $legacyJvm" -ForegroundColor Green
+}
+
+# Candidate tools and caches (Maven, Gradle, etc. in ~/.jvm)
+$userJvmCandidates = Join-Path $userProfileDir ".jvm"
+if (Test-Path $userJvmCandidates) {
+    Remove-Item -LiteralPath $userJvmCandidates -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "[   OK   ] Cleaned up candidates folder: $userJvmCandidates" -ForegroundColor Green
 }
 
 # ----------------------------------------------------------------
@@ -188,7 +216,7 @@ if ($shouldDeleteJava) {
         } catch {
             Write-Host "[ ACTION ] Requesting Administrator privileges to delete 'C:\Program Files\Java'..." -ForegroundColor Cyan
             try {
-                $proc = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"Remove-Item -Path 'C:\Program Files\Java' -Recurse -Force -ErrorAction SilentlyContinue`"" -Verb RunAs -Wait -PassThru
+                $proc = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"Remove-Item -LiteralPath 'C:\Program Files\Java' -Recurse -Force -ErrorAction SilentlyContinue`"" -Verb RunAs -Wait -PassThru
                 if (-not (Test-Path "C:\Program Files\Java")) {
                     $deleted = $true
                 }
@@ -207,6 +235,67 @@ if ($shouldDeleteJava) {
     }
 }
 
+# ----------------------------------------------------------------
+# Standalone / workspace cleanup (if running from a portable copy outside AppData)
+# ----------------------------------------------------------------
+$targetFolder = $null
+if ($SourceDir -and (Test-Path $SourceDir)) {
+    $targetFolder = (Resolve-Path $SourceDir).Path
+} elseif ($scriptDir -and (Test-Path $scriptDir)) {
+    $targetFolder = (Resolve-Path $scriptDir).Path
+}
+
+if ($targetFolder) {
+    $normalizedAppData = Join-Path $localAppData "DiamTek"
+    if (Test-Path $normalizedAppData) { $normalizedAppData = (Resolve-Path $normalizedAppData).Path }
+
+    # If target is outside AppData and outside Temp, check standalone / test copy
+    if (-not $targetFolder.StartsWith($normalizedAppData, [StringComparison]::OrdinalIgnoreCase) -and -not $targetFolder.StartsWith($env:TEMP, [StringComparison]::OrdinalIgnoreCase)) {
+        # Protect active development repository from accidental deletion
+        $devPath = "c:\Users\Alexéy Shishkin\Documents\Kingston\Personal Projects\Programming\Projects\Java-Version-Manager-Windows"
+        $isDevRepo = $false
+        if (Test-Path $devPath) {
+            if ($targetFolder -eq (Resolve-Path $devPath).Path) {
+                $isDevRepo = $true
+            }
+        }
+
+        if ($isDevRepo) {
+            Write-Host "`n[  INFO  ] Active development repository detected at: $targetFolder" -ForegroundColor Yellow
+            Write-Host "           Source repository will NOT be deleted." -ForegroundColor Yellow
+        } else {
+            $deleteTarget = $DeleteTarget -or $false
+            if (-not $deleteTarget -and -not $Quiet) {
+                $confirmTarget = Read-Host "`nDo you also want to delete this JVM directory and all its files? ($targetFolder) (y/N)"
+                if ($confirmTarget -match '^y') {
+                    $deleteTarget = $true
+                }
+            }
+            if ($deleteTarget) {
+                Write-Host "[ ACTION ] Deleting JVM directory: $targetFolder..." -ForegroundColor Cyan
+                Set-Location $env:TEMP
+                try {
+                    Remove-Item -LiteralPath $targetFolder -Recurse -Force -ErrorAction Stop
+                    Write-Host "[   OK   ] Deleted directory: $targetFolder" -ForegroundColor Green
+                } catch {
+                    Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$env:TEMP`" & timeout /t 2 >nul & rmdir /s /q `"$targetFolder`"" -WindowStyle Hidden
+                    Write-Host "[   OK   ] Directory scheduled for deletion: $targetFolder" -ForegroundColor Green
+                }
+
+                # Clean up parent container folder if it is now empty (e.g. jvm-test-copy created for testing)
+                $parentDir = Split-Path -Parent $targetFolder
+                $systemRoots = @($env:USERPROFILE, [Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('MyDocuments'))
+                if ($parentDir -and (Test-Path $parentDir) -and ($parentDir -notin $systemRoots)) {
+                    $remaining = Get-ChildItem -LiteralPath $parentDir -Force -ErrorAction SilentlyContinue
+                    if (-not $remaining) {
+                        Remove-Item -LiteralPath $parentDir -Force -Recurse -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        }
+    }
+}
+
 Write-Host ""
 Write-Host "============================================================"
 Write-Host "[   OK   ] Uninstallation Complete." -ForegroundColor Green
@@ -214,5 +303,13 @@ Write-Host "           Please close and restart all terminals for environment ch
 Write-Host ""
 if (-not $Quiet) {
     Write-Host "Press any key to exit..."
-    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+    try {
+        if ([System.Console]::IsInputRedirected) {
+            $null = [System.Console]::ReadLine()
+        } else {
+            $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+        }
+    } catch {
+        # Fallback if console is non-interactive
+    }
 }
