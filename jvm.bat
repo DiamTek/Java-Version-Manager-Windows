@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.34"
+set "JVM_BUILD=20260907.35"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3097,30 +3097,8 @@ if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
     
-    set "ABOUT_PS1=%TEMP%\jvm_about_!RANDOM!.ps1"
-    (
-        echo $local = [version]'!JVM_BUILD!'
-        echo $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat'^)
-        echo $req.Method = 'GET'
-        echo $req.Timeout = 5000
-        echo try {
-        echo     $res = $req.GetResponse^(^)
-        echo     $stream = $res.GetResponseStream^(^)
-        echo     $reader = New-Object System.IO.StreamReader^($stream^)
-        echo     $content = $reader.ReadToEnd^(^)
-        echo     $reader.Close^(^); $res.Close^(^)
-        echo     if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') {
-        echo         $remoteStr = $matches[1]
-        echo         try {
-        echo             $remote = [version]$remoteStr
-        echo             if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) }
-        echo         } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) }
-        echo     } else { Write-Output 'UNKNOWN|UNKNOWN' }
-        echo } catch { Write-Output 'ERROR|ERROR' }
-    ) > "!ABOUT_PS1!"
-
-    powershell -NoProfile -ExecutionPolicy Bypass -File "!ABOUT_PS1!" > "%TEMP%\jvm_remote_build.txt" 2>nul
-    if exist "!ABOUT_PS1!" del "!ABOUT_PS1!" >nul 2>&1
+    set "PS_SCRIPT=$local = [version]'!JVM_BUILD!'; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat'); $req.Method = 'GET'; $req.Timeout = 5000; try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); $reader.Close(); $res.Close(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE' -f $remoteStr) } else { Write-Output ('{0}|OK' -f $remoteStr) } } catch { Write-Output ('{0}|INVALID_REMOTE' -f $remoteStr) } } else { Write-Output 'UNKNOWN|UNKNOWN' } } catch { Write-Output 'ERROR|ERROR' }"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
     set "REMOTE_BUILD=UNKNOWN"
     set "UPDATE_FLAG=ERROR"
     if exist "%TEMP%\jvm_remote_build.txt" (
