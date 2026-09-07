@@ -2,7 +2,7 @@
 # CMD.EXE requires CRLF; LF-only files cause 'echo' to split into 'e' + 'cho'.
 *.bat   text eol=crlf
 *.cmd   text eol=crlf
-*.ps1   text eol=crlf
+*.ps1   text eol=crlf linguist-vendored
 
 # Everything else: normalize to LF in the repo, checkout as-is on Linux/Mac
 *       text=auto
