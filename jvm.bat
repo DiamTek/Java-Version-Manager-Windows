@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.42"
+set "JVM_BUILD=20260907.43"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2824,7 +2824,7 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
     echo     if ^(-not ^(Test-Path $profileDir^)^) { New-Item -ItemType Directory -Path $profileDir -Force ^| Out-Null }
     echo     $profContent = ''
     echo     if ^(Test-Path $p^) { $profContent = [System.IO.File]::ReadAllText^($p, [System.Text.Encoding]::UTF8^) }
-    echo     $blockPattern = '(?s)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<'
+    echo     $blockPattern = '^(?s^)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<'
     echo     if ^($profContent -match $blockPattern^) {
     echo         $profContent = [Regex]::Replace^($profContent, $blockPattern, $hook^)
     echo     } else {
@@ -3175,43 +3175,35 @@ if errorlevel 1 (
 
 echo %cBLUE%[ ACTION ]%cRESET% Overwriting main script...
 set "TARGET_BAT=%~f0"
-set "UPDATER_PS1=%TEMP%\jvm_updater.ps1"
+set "UPDATER_BAT=%TEMP%\jvm_updater.bat"
 (
-    echo $src = Join-Path $env:TEMP 'jvm_new.bat'
-    echo $dst = $env:TARGET_BAT
-    echo $retries = 0
-    echo while ^($retries -lt 15^) {
-    echo     try {
-    echo         Copy-Item -LiteralPath $src -Destination $dst -Force -ErrorAction Stop
-    echo         Remove-Item -LiteralPath $src -Force -ErrorAction SilentlyContinue
-    echo         Write-Host ""
-    echo         Write-Host "[   OK   ] Java Version Manager successfully updated!" -ForegroundColor Green
-    echo         Write-Host "[  INFO  ] Please close and reopen this window to use the new version." -ForegroundColor Cyan
-    echo         Write-Host ""
-    echo         Read-Host "Press Enter to exit"
-    echo         Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
-    echo         exit 0
-    echo     } catch {
-    echo         $retries++
-    echo         Start-Sleep -Milliseconds 400
-    echo     }
-    echo }
-    echo Write-Host ""
-    echo Write-Host "[ ERROR  ] Update failed: File lock could not be released." -ForegroundColor Red
-    echo Read-Host "Press Enter to exit"
-    echo exit 1
-) > "!UPDATER_PS1!"
+    echo @echo off
+    echo chcp 65001 ^>nul
+    echo for /F "delims=#" %%%%a in ^('"prompt #$E# ^& echo on ^& for %%%%b in ^(1^) do rem"'^) do set "ESC=%%%%a"
+    echo set "cGREEN=%%ESC%%[92m"
+    echo set "cRESET=%%ESC%%[0m"
+    echo :RETRY_COPY
+    echo copy /y "%TEMP%\jvm_new.bat" "%TARGET_BAT%" ^>nul 2^>^&1
+    echo if errorlevel 1 ^(
+    echo     timeout /t 1 /nobreak ^>nul
+    echo     goto RETRY_COPY
+    echo ^)
+    echo if exist "%TEMP%\jvm_new.bat" del "%TEMP%\jvm_new.bat" ^>nul 2^>^&1
+    echo.
+    echo %%cGREEN%%[   OK   ]%%cRESET%% Java Version Manager successfully updated^^!
+    echo.
+    echo Press any key to continue...
+    echo pause ^>nul
+    if defined CLI_COMMAND (
+        echo exit /b 0
+    ) else (
+        echo cls
+        echo "%TARGET_BAT%"
+    )
+) > "!UPDATER_BAT!"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER_PS1!"
-if !errorlevel! NEQ 0 (
-    echo %cRED%[ ERROR  ]%cRESET% Update failed: file lock could not be released.
-    goto :eof
-)
-rem After a successful update, the bat file on disk has been replaced.
-rem CMD reads batch files line-by-line from disk, so continuing execution
-rem would read from the new file at an unpredictable seek position.
-rem Hard-exit the CMD process immediately to avoid running garbled code.
-exit
+"!UPDATER_BAT!"
+exit /b 0
 
 rem ============================================================
 rem Parse contents of .java-version file
