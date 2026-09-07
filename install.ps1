@@ -1,3 +1,19 @@
+# Java Version Manager
+# Copyright (C) 2026 DiamTek / Alexéy Shishkin
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
@@ -21,6 +37,15 @@ if ($content.Length -eq 0 -or $content -notmatch "rem END OF SCRIPT") {
 Write-Host "           Sanitizing code format..."
 $content = $content.Replace([char]160, ' ') -replace "(?<!`r)`n", "`r`n"
 [IO.File]::WriteAllText($batPath, $content, (New-Object System.Text.UTF8Encoding $false))
+
+Write-Host "           Fetching documentation and license..."
+try {
+    $repoRoot = "$env:LOCALAPPDATA\DiamTek\JVM"
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/LICENSE" -OutFile "$repoRoot\LICENSE" -UseBasicParsing
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/README.md" -OutFile "$repoRoot\README.md" -UseBasicParsing
+} catch {
+    Write-Host "           [WARN] Could not fetch LICENSE/README. Proceeding anyway." -ForegroundColor Yellow
+}
 
 # 3. Safe REG_EXPAND_SZ Path Injection
 Write-Host "           Configuring User PATH..."
