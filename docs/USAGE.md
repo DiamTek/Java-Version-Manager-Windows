@@ -235,3 +235,16 @@ Automatically download and atomic-swap the core `jvm.bat` script if a newer vers
 ```cmd
 jvm self-update
 ```
+
+### Self-Uninstallation
+Launch the deep uninstallation process directly from the CLI to wipe JVM, environment variables, AppData caches, and installed tools:
+```cmd
+jvm self-uninstall
+```
+
+### Help & Command Reference
+Display the full command-line reference, arguments, and flag overrides directly in your terminal:
+```cmd
+jvm --help
+# Or: jvm help, jvm -h, jvm /?
+```
