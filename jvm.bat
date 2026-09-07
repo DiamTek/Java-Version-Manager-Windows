@@ -24,7 +24,7 @@ rem Cleanup self-updater artifact if it exists
 if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.46"
+set "JVM_BUILD=20260907.47"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -398,7 +398,9 @@ if /i "%SWITCH_MODE%"=="DIRECT" (
     >"%TEMP%\.jvm_session_target" echo %CURRENT_SYMLINK%
     
     rem Ensure JAVA_HOME permanently points to the junction in the USER registry (bypasses UAC)
-    if /i not "%JAVA_HOME%"=="%CURRENT_SYMLINK%" (
+    set "REG_JAVA_HOME="
+    for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "REG_JAVA_HOME=%%B"
+    if /i not "!REG_JAVA_HOME!"=="%CURRENT_SYMLINK%" (
         echo.
         echo %cBLUE%[  INFO  ]%cRESET% Setting JAVA_HOME to: %CURRENT_SYMLINK%
         powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable('JAVA_HOME', $env:CURRENT_SYMLINK, 'User')"
@@ -486,6 +488,12 @@ rem Function to dynamically scan and display menu
 setlocal enabledelayedexpansion
 
 :RESCAN_MENU
+set "NEEDS_RESCAN=0"
+set "JAVA_HOME="
+for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "JAVA_HOME=%%B"
+if not defined JAVA_HOME (
+    for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME 2^>nul') do set "JAVA_HOME=%%B"
+)
 if "!SKIP_HEADER!"=="0" (
     rem cls
     echo ============================================================
@@ -1024,6 +1032,7 @@ if !jdk_main_choice!==1 (
 )
 if !jdk_main_choice!==2 (
     call :VersionMenu
+    if "!NEEDS_RESCAN!"=="1" goto :eof
     goto :JdkMenu
 )
 goto :JdkMenu
@@ -2108,10 +2117,7 @@ rem ============================================================
 rem VERSION MANAGEMENT SUB-MENU
 rem ============================================================
 :VersionMenu
-if "!NEEDS_RESCAN!"=="1" (
-    set "NEEDS_RESCAN=0"
-    goto :eof
-)
+if "!NEEDS_RESCAN!"=="1" goto :eof
 rem cls
 echo ============================================================
 echo                       Version Management
@@ -2548,6 +2554,11 @@ if exist "!DEL_PATH!" (
 echo.
 echo %cGREEN%[   OK   ]%cRESET% !DEL_NAME! was successfully uninstalled!
 set "NEEDS_RESCAN=1"
+if not exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" (
+    set "JAVA_HOME="
+    echo %cYELLOW%[  INFO  ]%cRESET% The uninstalled JDK was currently active. JAVA_HOME has been cleared.
+    echo            Please switch to another installed JDK version.
+)
 echo Press any key to return to the menu...
 pause >nul
 goto :eof
