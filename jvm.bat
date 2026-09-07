@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260907.59"
+set "JVM_BUILD=20260907.60"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2883,8 +2883,8 @@ echo         Uninstall Java Version Manager (Complete Wipe)
 echo ============================================================
 echo.
 echo %cYELLOW%[ WARNING]%cRESET% This will run the deep uninstaller.
-echo             It will remove JVM, PATH entries, profile hooks,
-echo             all downloaded ecosystem tools, and installed JDKs.
+echo            It will remove JVM, PATH entries, profile hooks,
+echo            all downloaded ecosystem tools, and installed JDKs.
 echo.
 choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
 if errorlevel 2 goto :eof
