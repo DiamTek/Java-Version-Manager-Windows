@@ -102,10 +102,12 @@ $lines = ($content.Replace([char]160, ' ') -split "\r?\n")
 
 Update-Progress -Percent 65 -Activity "Fetching documentation, license, & uninstaller..."
 if (-not (Test-Path $repoRoot)) { New-Item -ItemType Directory -Path $repoRoot -Force | Out-Null }
-$companionFiles = @("LICENSE", "README.md", "uninstall.ps1")
+$companionFiles = @("LICENSE", "README.md", "uninstall.ps1", "assets/icon.ico", "assets/icon.png")
 foreach ($cf in $companionFiles) {
-    $destFile = Join-Path $repoRoot $cf
-    $localSource = Join-Path $PSScriptRoot $cf
+    $destFile = Join-Path $repoRoot ($cf -replace '/', '\')
+    $destDir = Split-Path $destFile -Parent
+    if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
+    $localSource = Join-Path $PSScriptRoot ($cf -replace '/', '\')
     if (-not $Update -and (Test-Path $localSource)) {
         Copy-Item $localSource $destFile -Force
     } else {
@@ -261,7 +263,11 @@ try {
     Set-ItemProperty -Path $uninstallRegPath -Name "InstallLocation" -Value $repoRoot
     Set-ItemProperty -Path $uninstallRegPath -Name "UninstallString" -Value $uninstallCommand
     Set-ItemProperty -Path $uninstallRegPath -Name "QuietUninstallString" -Value $uninstallCommand
-    Set-ItemProperty -Path $uninstallRegPath -Name "DisplayIcon" -Value "$env:SystemRoot\System32\shell32.dll,31"
+    $iconPath = Join-Path $repoRoot "assets\icon.ico"
+    if (-not (Test-Path $iconPath)) { $iconPath = Join-Path $repoRoot "icon.ico" }
+    if (-not (Test-Path $iconPath)) { $iconPath = "$env:SystemRoot\System32\shell32.dll,27" }
+
+    Set-ItemProperty -Path $uninstallRegPath -Name "DisplayIcon" -Value $iconPath
     Set-ItemProperty -Path $uninstallRegPath -Name "URLInfoAbout" -Value "https://diamtek.github.io/Java-Version-Manager-Windows"
     Set-ItemProperty -Path $uninstallRegPath -Name "HelpLink" -Value "https://github.com/DiamTek/Java-Version-Manager-Windows/issues"
     Set-ItemProperty -Path $uninstallRegPath -Name "NoModify" -Value 1 -Type DWord
@@ -273,6 +279,14 @@ try {
     if (-not (Test-Path $startMenuDir)) { New-Item -ItemType Directory -Path $startMenuDir -Force | Out-Null }
     
     $wshell = New-Object -ComObject WScript.Shell
+    $appShortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Java Version Manager.lnk"))
+    $appShortcut.TargetPath = "cmd.exe"
+    $appShortcut.Arguments = "/k `"$batPath`""
+    $appShortcut.IconLocation = $iconPath
+    $appShortcut.Description = "DiamTek Java Version Manager"
+    $appShortcut.WorkingDirectory = $repoRoot
+    $appShortcut.Save()
+
     $shortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Uninstall Java Version Manager.lnk"))
     $shortcut.TargetPath = "powershell.exe"
     $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""

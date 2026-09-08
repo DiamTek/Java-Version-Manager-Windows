@@ -18,6 +18,10 @@ Tags:
   - version-manager
   - jdk
   - development
+Icons:
+  - IconUrl: https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/assets/icon.png
+    IconFileType: png
+    IconResolution: 768x768
 Installers:
   - Architecture: x64
     InstallerType: msi

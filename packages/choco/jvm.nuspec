@@ -8,6 +8,7 @@
     <owners>DiamTek</owners>
     <projectUrl>https://diamtek.github.io/Java-Version-Manager-Windows</projectUrl>
     <projectSourceUrl>https://github.com/DiamTek/Java-Version-Manager-Windows</projectSourceUrl>
+    <iconUrl>https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/assets/icon.png</iconUrl>
     <bugTrackerUrl>https://github.com/DiamTek/Java-Version-Manager-Windows/issues</bugTrackerUrl>
     <tags>java jvm jdk sdkman version-manager cmd powershell cli</tags>
     <summary>A lightweight, native Java Version Manager and superior SDKMAN! alternative for Windows. Easily install, manage, and switch between multiple JDKs and the entire JVM Ecosystem (Maven, Gradle, Kotlin) directly from your CMD or PowerShell terminal.</summary>
