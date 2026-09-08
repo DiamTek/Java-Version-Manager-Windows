@@ -108,7 +108,7 @@ foreach ($cf in $companionFiles) {
     $destDir = Split-Path $destFile -Parent
     if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
     $localSource = Join-Path $PSScriptRoot ($cf -replace '/', '\')
-    if (-not $Update -and (Test-Path $localSource)) {
+    if (Test-Path $localSource) {
         Copy-Item $localSource $destFile -Force
     } else {
         $downloadSuccess = $false
@@ -273,6 +273,61 @@ try {
     Set-ItemProperty -Path $uninstallRegPath -Name "NoModify" -Value 1 -Type DWord
     Set-ItemProperty -Path $uninstallRegPath -Name "NoRepair" -Value 1 -Type DWord
 
+    $totalBytes = (Get-ChildItem $repoRoot -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+    $dotJvm = Join-Path $env:USERPROFILE ".jvm"
+    if (Test-Path $dotJvm) {
+        $totalBytes += (Get-ChildItem $dotJvm -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+    }
+    $estimatedSizeKB = [math]::Max(1024, [int][math]::Ceiling($totalBytes / 1KB))
+    Set-ItemProperty -Path $uninstallRegPath -Name "EstimatedSize" -Value $estimatedSizeKB -Type DWord
+
+    # Windows Terminal Profile Registration (if Windows Terminal is installed)
+    $wtProfileAdded = $false
+    $wtSettingsCandidates = @(
+        "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json",
+        "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json",
+        "$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json"
+    )
+    foreach ($wtSettings in $wtSettingsCandidates) {
+        if (Test-Path $wtSettings) {
+            try {
+                $wtContent = Get-Content $wtSettings -Raw -ErrorAction Stop
+                $wtJson = $wtContent | ConvertFrom-Json
+                if ($wtJson.profiles -and $wtJson.profiles.list) {
+                    $existing = $wtJson.profiles.list | Where-Object { $_.guid -eq '{b20650a4-4212-4d64-9edf-744e9285e2be}' -or $_.name -eq 'Java Version Manager' }
+                    if (-not $existing) {
+                        $newProfile = [PSCustomObject]@{
+                            commandline       = 'cmd.exe /c "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat"'
+                            guid              = '{b20650a4-4212-4d64-9edf-744e9285e2be}'
+                            hidden            = $false
+                            icon              = '%LOCALAPPDATA%\DiamTek\JVM\assets\icon.png'
+                            name              = 'Java Version Manager'
+                            startingDirectory = '%USERPROFILE%'
+                            closeOnExit       = 'always'
+                        }
+                        $profileList = [System.Collections.Generic.List[object]]@($wtJson.profiles.list)
+                        $profileList.Add($newProfile)
+                        $wtJson.profiles.list = $profileList
+                        $newWtContent = $wtJson | ConvertTo-Json -Depth 32
+                        Set-Content $wtSettings $newWtContent -Encoding utf8
+                    } else {
+                        $existing.commandline = 'cmd.exe /c "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat"'
+                        $existing | Add-Member -NotePropertyName "closeOnExit" -NotePropertyValue "always" -Force
+                        $newWtContent = $wtJson | ConvertTo-Json -Depth 32
+                        Set-Content $wtSettings $newWtContent -Encoding utf8
+                    }
+                    $wtProfileAdded = $true
+                }
+            } catch {
+                # Silently ignore if settings.json has non-standard formatting or comments
+            }
+        }
+    }
+
+    $hasWt = $wtProfileAdded -and [bool](Get-Command wt.exe -ErrorAction SilentlyContinue)
+    $targetPath = if ($hasWt) { "wt.exe" } else { "cmd.exe" }
+    $targetArgs = if ($hasWt) { "-p `"Java Version Manager`"" } else { "/c `"$batPath`"" }
+
     # Start Menu Shortcuts
     $startMenuPrograms = [Environment]::GetFolderPath('Programs')
     $startMenuDir = Join-Path $startMenuPrograms "DiamTek"
@@ -280,12 +335,24 @@ try {
     
     $wshell = New-Object -ComObject WScript.Shell
     $appShortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Java Version Manager.lnk"))
-    $appShortcut.TargetPath = "cmd.exe"
-    $appShortcut.Arguments = "/k `"$batPath`""
+    $appShortcut.TargetPath = $targetPath
+    $appShortcut.Arguments = $targetArgs
     $appShortcut.IconLocation = $iconPath
     $appShortcut.Description = "DiamTek Java Version Manager"
     $appShortcut.WorkingDirectory = $repoRoot
     $appShortcut.Save()
+
+    # Update pinned Taskbar shortcut if it exists
+    $taskbarLnk = Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Java Version Manager.lnk"
+    if (Test-Path $taskbarLnk) {
+        $tbShortcut = $wshell.CreateShortcut($taskbarLnk)
+        $tbShortcut.TargetPath = $targetPath
+        $tbShortcut.Arguments = $targetArgs
+        $tbShortcut.IconLocation = $iconPath
+        $tbShortcut.WorkingDirectory = $repoRoot
+        $tbShortcut.Save()
+        (Get-Item $taskbarLnk).LastWriteTime = Get-Date
+    }
 
     $shortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Uninstall Java Version Manager.lnk"))
     $shortcut.TargetPath = "powershell.exe"

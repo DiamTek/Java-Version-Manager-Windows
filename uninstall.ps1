@@ -151,6 +151,44 @@ foreach ($sm in $startMenuDirs) {
         Write-Host "[   OK   ] Removed Start Menu folder: $sm" -ForegroundColor Green
     }
 }
+
+$taskbarLnk = Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Java Version Manager.lnk"
+if (Test-Path $taskbarLnk) {
+    Remove-Item -Path $taskbarLnk -Force -ErrorAction SilentlyContinue
+    Write-Host "[   OK   ] Removed pinned Taskbar shortcut." -ForegroundColor Green
+}
+
+# Windows Terminal Profile cleanup
+$wtSettingsCandidates = @(
+    "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json",
+    "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json",
+    "$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json"
+)
+foreach ($wtSettings in $wtSettingsCandidates) {
+    if (Test-Path $wtSettings) {
+        try {
+            $wtContent = Get-Content $wtSettings -Raw -ErrorAction Stop
+            $wtJson = $wtContent | ConvertFrom-Json
+            if ($wtJson.profiles -and $wtJson.profiles.list) {
+                $filtered = @($wtJson.profiles.list | Where-Object { $_.guid -ne '{b20650a4-4212-4d64-9edf-744e9285e2be}' -and $_.name -ne 'Java Version Manager' })
+                if ($filtered.Count -ne $wtJson.profiles.list.Count) {
+                    $wtJson.profiles.list = $filtered
+                    if ($wtJson.defaultProfile -eq '{b20650a4-4212-4d64-9edf-744e9285e2be}' -and $filtered.Count -gt 0) {
+                        $wtJson.defaultProfile = $filtered[0].guid
+                    }
+                    $newWtContent = $wtJson | ConvertTo-Json -Depth 32
+                    Set-Content $wtSettings $newWtContent -Encoding utf8
+                    Write-Host "[   OK   ] Removed Windows Terminal profile." -ForegroundColor Green
+                }
+            }
+        } catch { }
+    }
+}
+
+# Cleanup temporary session files
+Remove-Item -Path "$env:TEMP\.jvm_session_target" -Force -ErrorAction SilentlyContinue
+Get-ChildItem -Path $env:TEMP -Filter "jvm_*" -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+
 Write-Host "[   OK   ] Windows uninstall registration removed." -ForegroundColor Green
 
 # ----------------------------------------------------------------
