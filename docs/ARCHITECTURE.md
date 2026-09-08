@@ -59,8 +59,15 @@ Windows `cmd.exe` does not natively support Bash-style heredocs (`cat <<EOF`). E
 ## Deep Uninstaller & Windows Integration Architecture
 The uninstaller subsystem (`uninstall.ps1`) is designed for 100% total system sanitization:
 1. **UAC Escalation:** Uses .NET security principals to check for elevated tokens; if missing, automatically spawns an elevated PowerShell host via `Start-Process -Verb RunAs`.
-2. **Registry Integration:** Registers under `HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM` with native Windows "Installed apps" metadata and creates a Start Menu uninstaller shortcut in `Start Menu\Programs\DiamTek`.
-3. **Dual-Scope Cleanup:** Cleans both `User` and `Machine` environment variables and `PATH` registries, surgically strips the `$PROFILE` hook, deletes the AppData Ecosystem cache, and prompts to clean `C:\Program Files\Java`.
+2. **Registry Integration:** Registers under `HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM` with native Windows "Installed apps" metadata, dynamic `EstimatedSize` computation (with a 1,024 KB floor for Windows 11 compatibility), and creates a Start Menu uninstaller shortcut in `Start Menu\Programs\DiamTek`.
+3. **Dual-Scope Cleanup:** Cleans both `User` and `Machine` environment variables and `PATH` registries, surgically strips the `$PROFILE` hook, deletes the AppData Ecosystem cache, purges Windows Terminal profiles, removes pinned taskbar shortcuts, cleans session files, and prompts to clean `C:\Program Files\Java`.
+
+## Windows Terminal & Shell Integration Architecture
+To provide a first-class modern Windows developer experience while strictly maintaining 100% pure Batch & PowerShell code:
+1. **Dynamic Profile Injection**: `install.ps1` scans for Windows Terminal configurations across Release, Preview, and Unpackaged locations (`LocalState\settings.json`). It injects a dedicated profile with GUID `{b20650a4-4212-4d64-9edf-744e9285e2be}`, pointing to high-resolution `assets/icon.png`.
+2. **Tab Lifecycle Management**: Configured with `cmd.exe /c` and `closeOnExit: always`. When a developer exits the interactive JVM menu (`exit /B 0`), the hosting `cmd.exe` process terminates, signaling Windows Terminal to immediately close the tab.
+3. **Shortcut Synchronization**: Creates Start Menu application shortcuts targeting `wt.exe -p "Java Version Manager"` (falling back to `cmd.exe /c` on systems without Windows Terminal). During installation and self-updates, the script automatically searches `%APPDATA%\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\` to detect and update existing pinned taskbar shortcuts in place.
+4. **AppUserModelID & Taskbar Mechanics**: Windows Terminal is a packaged WinUI app that hardcodes its own process-level AppUserModelID (`Microsoft.WindowsTerminal...`) on all hosting windows. By registering a dedicated profile with native icon and dropdown integration rather than forcing brittle binary wrappers, the utility respects the OS container model while maintaining a zero-binary, 100% script-based repository.
 
 ## Multi-Channel Packaging Pipelines
 - **Winget:** Native YAML manifest (`packages\winget\DiamTek.JVM.yaml`) declaring installer metadata and portable packaging.

@@ -14,7 +14,12 @@ To launch the main hub, simply run the tool from any terminal without arguments:
 ```cmd
 jvm
 ```
-From here, you can visually explore installed JDKs, fetch new versions, manage ecosystem tools, and change global settings.
+You can also launch it directly from:
+- **Windows Terminal**: Click the `+` dropdown menu and select **Java Version Manager**.
+- **Start Menu**: Search for **Java Version Manager** and press Enter.
+- **Taskbar**: Click the pinned DiamTek JVM icon.
+
+From here, you can visually explore installed JDKs, fetch new versions, manage ecosystem tools, and change global settings. Exiting the menu automatically closes the dedicated terminal tab.
 
 **Initial Setup Note:**
 If you have just downloaded the script manually, navigate to **Settings (Global Command & Setup)** (Option `3`) and select **Install Global Command** (Option `1`). Once installed globally, you can use the `jvm` command from anywhere on your system.

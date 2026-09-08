@@ -11,10 +11,13 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-M
 ```
 
 ### What this script does:
-1. It downloads the latest `jvm.bat` core engine from the `main` repository.
-2. It provisions the `%LOCALAPPDATA%\DiamTek\JVM\bin` directory structure on your system.
+1. It downloads the latest `jvm.bat` core engine and companion branding assets (`icon.ico`, `icon.png`) from the repository.
+2. It provisions the `%LOCALAPPDATA%\DiamTek\JVM\bin` and `assets` directory structure on your system.
 3. It securely writes the `jvm.bat` executable into that binary path.
-4. It dynamically injects the path into your PowerShell `$PROFILE` and standard Windows Registry `PATH` so the `jvm` command is available immediately in all future terminals.
+4. It dynamically injects the path into your PowerShell `$PROFILE` and standard Windows Registry `PATH` so the `jvm` command is available immediately across all shells.
+5. It registers a dedicated **Windows Terminal Profile** with custom branding, launching `cmd.exe /c` with `closeOnExit: always` so tabs close cleanly on exit.
+6. It creates a Start Menu application shortcut and automatically updates any pinned Taskbar shortcuts.
+7. It registers into Windows Settings ("Installed apps") with an accurate dynamic `EstimatedSize` footprint calculation.
 
 ## Manual Installation
 
@@ -54,8 +57,8 @@ Download the standalone `jvm-windows-1.0.0.msi` installer directly from the [Rel
 ---
 
 ## Uninstallation
-
-DiamTek Java Version Manager includes a dedicated, UAC-elevated deep uninstaller (`uninstall.ps1`) that completely scrubs the application, system PATH entries, PowerShell `$PROFILE` hooks, environment variables, ecosystem tool caches, and installed JDKs.
+ 
+DiamTek Java Version Manager includes a dedicated, UAC-elevated deep uninstaller (`uninstall.ps1`) that completely scrubs the application, system PATH entries, PowerShell `$PROFILE` hooks, environment variables, ecosystem tool caches, Windows Terminal profiles, pinned taskbar shortcuts, and installed JDKs.
 
 You can uninstall JVM through any of the following methods:
 
