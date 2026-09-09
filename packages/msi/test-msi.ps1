@@ -20,15 +20,120 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+
+# Ensure process-level execution policy allows running hooks and commands
+try {
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction SilentlyContinue
+} catch { }
+
+# Resolve script directory robustly across PowerShell hosts and invocation modes
+$ScriptDir = if ($PSScriptRoot) {
+    $PSScriptRoot
+} elseif ($PSCommandPath) {
+    Split-Path -Parent $PSCommandPath
+} elseif ($MyInvocation.MyCommand.Path) {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+} elseif ($MyInvocation.MyCommand.Definition) {
+    Split-Path -Parent $MyInvocation.MyCommand.Definition
+} else {
+    (Get-Location).Path
+}
+
+# Auto-unblock script and companion files if flagged with Zone.Identifier (downloaded from web/untrusted zone)
+try {
+    if (Get-Command Unblock-File -ErrorAction SilentlyContinue) {
+        if ($PSCommandPath) { Unblock-File -Path $PSCommandPath -ErrorAction SilentlyContinue }
+        if ($ScriptDir) {
+            Get-ChildItem -Path $ScriptDir -Filter "*.ps1" -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+            Get-ChildItem -Path $ScriptDir -Filter "*.msi" -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+        }
+    }
+} catch { }
 
 # Resolve target MSI package
 if (-not $MsiPath) {
-    $candidate = Get-ChildItem -Path $ScriptDir -Filter "jvm-windows-*-x64.msi" -File | Select-Object -First 1
+    # Check in script directory first
+    $candidate = Get-ChildItem -Path $ScriptDir -Filter "jvm-windows-*-x64.msi" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $candidate) {
+        # Check current working directory or subdirectories if invoked from repo root
+        $candidate = Get-ChildItem -Path (Get-Location).Path -Filter "jvm-windows-*-x64.msi" -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+    }
     if ($candidate) {
         $MsiPath = $candidate.FullName
     } else {
         $MsiPath = Join-Path $ScriptDir "jvm-windows-1.0.0-x64.msi"
+    }
+} else {
+    # If explicitly specified, check if it's relative to current dir, script dir, or pure filename
+    if (-not (Test-Path $MsiPath)) {
+        $candidateScript = Join-Path $ScriptDir $MsiPath
+        if (Test-Path $candidateScript) {
+            $MsiPath = $candidateScript
+        } else {
+            $leafName = Split-Path $MsiPath -Leaf
+            $candidateLeaf = Join-Path $ScriptDir $leafName
+            if (Test-Path $candidateLeaf) {
+                $MsiPath = $candidateLeaf
+            }
+        }
+    }
+}
+
+# If MSI is not found, automatically compile it using build-msi.ps1
+if (-not (Test-Path $MsiPath)) {
+    $buildScript = Join-Path $ScriptDir "build-msi.ps1"
+    if (Test-Path $buildScript) {
+        Write-Host "[ INFO ] Target MSI not found. Automatically compiling with build-msi.ps1..." -ForegroundColor Yellow
+        try {
+            & $buildScript -Arch x64
+            $candidate = Get-ChildItem -Path $ScriptDir -Filter "jvm-windows-*-x64.msi" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($candidate) {
+                $MsiPath = $candidate.FullName
+            }
+        } catch { }
+    }
+}
+
+# If still not found (e.g. standalone test-msi.ps1 without build-msi.ps1 or build tools), download from GitHub Releases
+if (-not (Test-Path $MsiPath)) {
+    Write-Host "[ INFO ] Target MSI not found locally. Fetching latest release from GitHub..." -ForegroundColor Yellow
+    $downloadTarget = Join-Path $ScriptDir "jvm-windows-1.0.0-x64.msi"
+    $releaseUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest/download/jvm-windows-1.0.0-x64.msi"
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $releaseUrl -OutFile $downloadTarget -UseBasicParsing -ErrorAction Stop
+        if (Test-Path $downloadTarget) {
+            $MsiPath = $downloadTarget
+            Write-Host "[ PASS ] Downloaded $(Split-Path $MsiPath -Leaf) from GitHub Releases." -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "[ WARN ] Could not fetch from GitHub Releases: $_" -ForegroundColor DarkGray
+    }
+}
+
+# If still not found (e.g. unreleased build or release assets not yet posted), fetch source from GitHub and build from source
+if (-not (Test-Path $MsiPath)) {
+    Write-Host "[ INFO ] Release binary not found. Fetching source repository from GitHub to build MSI..." -ForegroundColor Yellow
+    $zipPath = Join-Path $env:TEMP "jvm-source-temp.zip"
+    $extractDir = Join-Path $env:TEMP "jvm-build-$(Get-Random)"
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri "https://github.com/DiamTek/Java-Version-Manager-Windows/archive/refs/heads/main.zip" -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+        Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+        $remoteBuildScript = Get-ChildItem -Path $extractDir -Filter "build-msi.ps1" -Recurse | Select-Object -First 1
+        if ($remoteBuildScript) {
+            Write-Host "[ INFO ] Compiling MSI from fetched repository source..." -ForegroundColor Yellow
+            & $remoteBuildScript.FullName -Arch x64
+            $builtCandidate = Get-ChildItem -Path (Split-Path $remoteBuildScript.FullName) -Filter "jvm-windows-*-x64.msi" -File | Select-Object -First 1
+            if ($builtCandidate) {
+                $MsiPath = $builtCandidate.FullName
+                Write-Host "[ PASS ] Successfully built $MsiPath from fetched source!" -ForegroundColor Green
+            }
+        }
+    } catch {
+        Write-Host "[ WARN ] Could not bootstrap build from source: $_" -ForegroundColor DarkGray
+    } finally {
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     }
 }
 

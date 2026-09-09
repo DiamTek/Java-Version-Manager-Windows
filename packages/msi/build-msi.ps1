@@ -22,7 +22,35 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+
+# Ensure process-level execution policy allows running build commands
+try {
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction SilentlyContinue
+} catch { }
+
+# Resolve script directory robustly across PowerShell hosts and invocation modes
+$ScriptDir = if ($PSScriptRoot) {
+    $PSScriptRoot
+} elseif ($PSCommandPath) {
+    Split-Path -Parent $PSCommandPath
+} elseif ($MyInvocation.MyCommand.Path) {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+} elseif ($MyInvocation.MyCommand.Definition) {
+    Split-Path -Parent $MyInvocation.MyCommand.Definition
+} else {
+    (Get-Location).Path
+}
+
+# Auto-unblock script and companion files if flagged with Zone.Identifier (downloaded from web/untrusted zone)
+try {
+    if (Get-Command Unblock-File -ErrorAction SilentlyContinue) {
+        if ($PSCommandPath) { Unblock-File -Path $PSCommandPath -ErrorAction SilentlyContinue }
+        if ($ScriptDir) {
+            Get-ChildItem -Path $ScriptDir -Filter "*.ps1" -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+        }
+    }
+} catch { }
+
 $RootDir = (Resolve-Path "$ScriptDir\..\..").Path
 Set-Location $ScriptDir
 
@@ -31,7 +59,8 @@ Write-Host "Checking for .NET SDK (Required for WiX v4)..." -ForegroundColor Cya
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     $dotnetCandidates = @(
         "$env:ProgramFiles\dotnet\dotnet.exe",
-        "${env:ProgramFiles(x86)}\dotnet\dotnet.exe"
+        "${env:ProgramFiles(x86)}\dotnet\dotnet.exe",
+        "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe"
     )
     foreach ($dc in $dotnetCandidates) {
         if (Test-Path $dc) {
@@ -41,7 +70,19 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     }
 }
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    Write-Host "ERROR: .NET SDK is not installed. Please install it from https://dotnet.microsoft.com/download to build MSIs." -ForegroundColor Red
+    Write-Host ".NET SDK not found. Automatically bootstrapping user-space .NET SDK..." -ForegroundColor Yellow
+    $dotnetInstall = Join-Path $env:TEMP "dotnet-install.ps1"
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile $dotnetInstall -UseBasicParsing -ErrorAction Stop
+        & $dotnetInstall -Channel LTS -InstallDir "$env:LOCALAPPDATA\Microsoft\dotnet" -Quality GA
+        $env:PATH = "$env:LOCALAPPDATA\Microsoft\dotnet;$env:PATH"
+    } catch {
+        Write-Host "WARNING: Could not automatically bootstrap .NET SDK: $_" -ForegroundColor DarkGray
+    }
+}
+if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+    Write-Host "ERROR: .NET SDK is required to build MSIs. Please install it from https://dotnet.microsoft.com/download" -ForegroundColor Red
     exit 1
 }
 
@@ -422,7 +463,20 @@ exit 0
 
     if (Test-Path $outputMsi) {
         $sizeKB = [math]::Round((Get-Item $outputMsi).Length / 1KB, 1)
-        $sha256 = (Get-FileHash $outputMsi -Algorithm SHA256).Hash
+        $sha256 = ""
+        try {
+            if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+                $sha256 = (Get-FileHash $outputMsi -Algorithm SHA256).Hash
+            } else {
+                $hasher = [System.Security.Cryptography.SHA256]::Create()
+                $fileStream = [System.IO.File]::OpenRead($outputMsi)
+                $hashBytes = $hasher.ComputeHash($fileStream)
+                $fileStream.Close()
+                $sha256 = [System.BitConverter]::ToString($hashBytes).Replace("-", "").ToUpper()
+            }
+        } catch {
+            $sha256 = "N/A"
+        }
 
         # Extract ProductCode from generated MSI
         $prodCode = "N/A"

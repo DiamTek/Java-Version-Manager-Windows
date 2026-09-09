@@ -81,20 +81,33 @@ You can compile native, standalone MSIs locally using the WiX Toolset v4 build p
   ```
 
 **Build Commands:**
-```powershell
-# Compiles both x64 and arm64 self-contained MSIs (default)
-.\packages\msi\build-msi.ps1
+Run the standalone build script from anywhere on your machine (compiles both `x64` and `arm64` by default):
 
-# Or target a specific architecture
-.\packages\msi\build-msi.ps1 -Arch x64
-.\packages\msi\build-msi.ps1 -Arch arm64
+```powershell
+# If downloaded from the web or git archive, unblock once:
+Unblock-File .\packages\msi\build-msi.ps1
+
+# Build both x64 and arm64 MSIs (works from any working directory):
+powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1
+
+# Or target a specific architecture:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1 -Arch x64
+powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1 -Arch arm64
 ```
 The resulting single-file installers are placed directly into `packages\msi\`.
 
 #### Automated Verification Suite
-To validate the installer against a 14-point end-to-end integration checklist before deployment:
+To validate the installer against the 14-point end-to-end integration checklist before deployment (can be run from any working directory; automatically builds the package if not already compiled):
+
 ```powershell
-.\packages\msi\test-msi.ps1 -MsiPath .\packages\msi\jvm-windows-1.0.0-x64.msi
+# If downloaded from the web or git archive, unblock once:
+Unblock-File .\packages\msi\test-msi.ps1
+
+# Run the test suite:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1
+
+# Or run directly inside an active PowerShell terminal:
+& .\packages\msi\test-msi.ps1
 ```
 This automated suite tests silent installation, directory structure, registry integrity, PATH propagation, Windows Terminal profile injection, CLI sanity, clean uninstallation, and zero filesystem residual traces.
 
