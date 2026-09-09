@@ -16,8 +16,8 @@
 
 param(
     [string]$Version = "1.0.0",
-    [ValidateSet("x64", "arm64")]
-    [string]$Arch = "x64",
+    [ValidateSet("all", "x64", "arm64")]
+    [string]$Arch = "all",
     [switch]$All
 )
 
@@ -447,7 +447,7 @@ exit 0
     }
 }
 
-if ($All) {
+if ($All -or $Arch -eq "all") {
     Build-MsiPackage -TargetArch "x64"
     Build-MsiPackage -TargetArch "arm64"
 } else {
