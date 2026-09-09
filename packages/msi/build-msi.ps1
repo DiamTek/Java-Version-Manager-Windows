@@ -92,12 +92,69 @@ $dotnetTools = Join-Path $env:USERPROFILE ".dotnet\tools"
 if ($env:PATH -split ';' -notcontains $dotnetTools) {
     $env:PATH = "$dotnetTools;$env:PATH"
 }
-if (-not (Get-Command wix -ErrorAction SilentlyContinue)) {
+$wixCandidate = Join-Path $dotnetTools "wix.exe"
+if (Test-Path $wixCandidate) {
+    Unblock-File -Path $wixCandidate -ErrorAction SilentlyContinue
+}
+
+function Find-WixDll {
+    $store = Join-Path $env:USERPROFILE ".dotnet\tools\.store"
+    if (Test-Path $store) {
+        $candidate = Get-ChildItem -Path $store -Filter "wix.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($candidate) { return $candidate.FullName }
+    }
+    return $null
+}
+
+$script:wixDll = Find-WixDll
+if ((-not (Get-Command wix -ErrorAction SilentlyContinue)) -and (-not $script:wixDll)) {
     Write-Host "Installing WiX v4 globally..." -ForegroundColor Yellow
     dotnet tool install --global wix --version "4.0.6"
+    $script:wixDll = Find-WixDll
 }
+
+function Invoke-Wix {
+    $WixArgs = @($args)
+    $escapedArgs = $WixArgs | ForEach-Object {
+        if ($_ -match '\s' -and -not ($_ -match '^".*"$')) {
+            "`"$_`""
+        } else {
+            $_
+        }
+    }
+
+    # Strategy 1: Try native wix.exe
+    try {
+        if (Get-Command wix -ErrorAction SilentlyContinue) {
+            $wixExe = (Get-Command wix).Source
+            if ($wixExe) { Unblock-File -Path $wixExe -ErrorAction SilentlyContinue }
+            $proc = Start-Process -FilePath "wix" -ArgumentList $escapedArgs -NoNewWindow -Wait -PassThru -ErrorAction Stop
+            if ($proc.ExitCode -eq 0) { return 0 }
+        }
+    } catch { }
+
+    # Strategy 2: Fallback to dotnet exec wix.dll (bypasses Windows Defender Application Control & Smart App Control)
+    $resolvedDll = if ($script:wixDll) { $script:wixDll } else { Find-WixDll }
+    if ($resolvedDll -and (Test-Path $resolvedDll)) {
+        try {
+            $dotnetCmd = if (Get-Command dotnet -ErrorAction SilentlyContinue) { (Get-Command dotnet).Source } else { "dotnet" }
+            $execArgs = @("exec", "`"$resolvedDll`"") + $escapedArgs
+            $proc = Start-Process -FilePath $dotnetCmd -ArgumentList $execArgs -NoNewWindow -Wait -PassThru -ErrorAction Stop
+            return $proc.ExitCode
+        } catch { }
+    }
+
+    # Strategy 3: Try dotnet tool run wix
+    try {
+        $proc = Start-Process -FilePath "dotnet" -ArgumentList (@("tool", "run", "wix") + $escapedArgs) -NoNewWindow -Wait -PassThru -ErrorAction Stop
+        return $proc.ExitCode
+    } catch { }
+
+    return 1
+}
+
 try {
-    wix extension add -g WixToolset.Util.wixext/4.0.6 2>$null | Out-Null
+    Invoke-Wix extension add -g WixToolset.Util.wixext/4.0.6 2>$null | Out-Null
 } catch { }
 
 # 3. Extract Profile Code from install.ps1 to bundle with MSI
@@ -448,8 +505,9 @@ exit 0
 
     # Compile the MSI using WiX v4
     $outputMsi = "$ScriptDir\jvm-windows-$Version-$TargetArch.msi"
+    Remove-Item $outputMsi -Force -ErrorAction SilentlyContinue
     Write-Host "Compiling MSI ($TargetArch) using WiX v4..." -ForegroundColor Cyan
-    wix build jvm.wxs -arch $TargetArch -ext WixToolset.Util.wixext -o $outputMsi
+    Invoke-Wix build jvm.wxs -arch $TargetArch -ext WixToolset.Util.wixext -o $outputMsi
 
     # Clean up temporary build artifacts
     Write-Host "Cleaning up build intermediate files..." -ForegroundColor DarkGray

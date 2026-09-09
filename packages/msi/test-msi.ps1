@@ -104,11 +104,31 @@ if (-not (Test-Path $MsiPath)) {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $releaseUrl -OutFile $downloadTarget -UseBasicParsing -ErrorAction Stop
         if (Test-Path $downloadTarget) {
-            $MsiPath = $downloadTarget
-            Write-Host "[ PASS ] Downloaded $(Split-Path $MsiPath -Leaf) from GitHub Releases." -ForegroundColor Green
+            $fileObj = Get-Item $downloadTarget
+            # Verify the downloaded payload is a valid binary package (> 100KB) and not an HTML error document
+            if ($fileObj.Length -gt 100KB) {
+                $head = Get-Content -Path $downloadTarget -TotalCount 1 -Raw -ErrorAction SilentlyContinue
+                if (-not ($head -match "^\s*<!DOCTYPE|^\s*<html")) {
+                    $MsiPath = $downloadTarget
+                    Write-Host "[ PASS ] Downloaded $(Split-Path $MsiPath -Leaf) from GitHub Releases." -ForegroundColor Green
+                } else {
+                    Remove-Item $downloadTarget -Force -ErrorAction SilentlyContinue
+                    Write-Host "[ INFO ] GitHub returned an HTML page instead of a release binary." -ForegroundColor DarkGray
+                }
+            } else {
+                Remove-Item $downloadTarget -Force -ErrorAction SilentlyContinue
+            }
         }
     } catch {
-        Write-Host "[ WARN ] Could not fetch from GitHub Releases: $_" -ForegroundColor DarkGray
+        Remove-Item $downloadTarget -Force -ErrorAction SilentlyContinue
+        $shortErr = if ($_.Exception.Response.StatusCode) {
+            "HTTP " + [int]$_.Exception.Response.StatusCode + " " + $_.Exception.Response.StatusCode
+        } elseif ($_.Exception.Message) {
+            ($_.Exception.Message -split "`r?`n")[0]
+        } else {
+            "Not found or network error"
+        }
+        Write-Host "[ INFO ] Official release binary not yet published on GitHub ($shortErr)." -ForegroundColor DarkGray
     }
 }
 
@@ -132,15 +152,19 @@ if (-not (Test-Path $MsiPath)) {
             }
         }
     } catch {
-        Write-Host "[ WARN ] Could not bootstrap build from source: $_" -ForegroundColor DarkGray
+        $shortErr = if ($_.Exception.Message) { ($_.Exception.Message -split "`r?`n")[0] } else { "$_" }
+        Write-Host "[ WARN ] Could not bootstrap build from source: $shortErr" -ForegroundColor DarkGray
     } finally {
         Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     }
 }
 
 if (-not (Test-Path $MsiPath)) {
-    Write-Host "[ ERROR ] Target MSI file not found: $MsiPath" -ForegroundColor Red
-    Write-Host "          Run build-msi.ps1 first before running tests." -ForegroundColor Yellow
+    Write-Host "`n[ ERROR ] Target MSI file not found: $MsiPath" -ForegroundColor Red
+    Write-Host "  To test the MSI on this machine:" -ForegroundColor Yellow
+    Write-Host "    1. Download 'jvm-windows-1.0.0-x64.msi' into the same directory as this script, or" -ForegroundColor DarkGray
+    Write-Host "    2. Pass the MSI path: .\test-msi.ps1 -MsiPath `"C:\path\to\jvm-windows-1.0.0-x64.msi`"" -ForegroundColor DarkGray
+    Write-Host "    3. Or compile it from the repository: .\packages\msi\build-msi.ps1`n" -ForegroundColor DarkGray
     exit 1
 }
 
