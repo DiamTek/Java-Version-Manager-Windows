@@ -62,3 +62,20 @@ It tests the **real, live system integration on your computer**:
 - Executes `jvm.bat --version` in a real subshell to verify engine startup.
 - Triggers `msiexec /x` to verify deep uninstallation and zero-residual cleanup.
 By default, the test suite runs silently (`/qn`) for CI automation. To display the Windows Installer progress dialog, pass `-ShowUI`. To keep JVM installed after testing, pass `-KeepInstalled`.
+
+### How do I cryptographically verify the authenticity and provenance of release binaries?
+All official release artifacts (`jvm-windows-*.msi`, `jvm-windows-*.zip`, `SHA256SUMS.txt`) are cryptographically attested via GitHub's Sigstore OIDC infrastructure using `actions/attest-build-provenance`. This generates an immutable, tamper-evident record linking the binaries directly to the GitHub Actions runner build and the specific Git commit SHA.
+
+You can verify any downloaded artifact using the official [GitHub CLI (`gh`)](https://cli.github.com/):
+```powershell
+gh attestation verify jvm-windows-1.0.0-x64.msi --repo DiamTek/Java-Version-Manager-Windows
+```
+Upon verification, the GitHub CLI outputs:
+```text
+Loaded digest sha256:... for jvm-windows-1.0.0-x64.msi
+The following policy criteria will be enforced:
+- Predicate type: https://slsa.dev/provenance/v1
+- Source repository: DiamTek/Java-Version-Manager-Windows
+✓ Verification succeeded!
+```
+This guarantees the binary you downloaded was built directly by GitHub Actions from the audited open-source codebase and has not been altered or tampered with.

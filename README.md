@@ -1,11 +1,22 @@
 # Java Version Manager (JVM)
 
+[![CI](https://github.com/DiamTek/Java-Version-Manager-Windows/actions/workflows/ci.yml/badge.svg)](https://github.com/DiamTek/Java-Version-Manager-Windows/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/DiamTek/Java-Version-Manager-Windows?color=0078D6&label=release)](https://github.com/DiamTek/Java-Version-Manager-Windows/releases)
+[![Provenance](https://img.shields.io/badge/provenance-attested-success.svg)](https://github.com/DiamTek/Java-Version-Manager-Windows/releases)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6.svg)](https://github.com/DiamTek/Java-Version-Manager-Windows)
+
 A lightweight, high-performance, color-coded Windows command-line utility designed to dynamically discover, download, and switch Java Development Kits (JDKs) and the entire JVM Ecosystem (Maven, Gradle, Kotlin, Scala, Groovy) with native SDKMAN! parity.
 
 ## 📥 Installation
 
-Open Windows PowerShell (no Administrator privileges required) and paste the following one-liner:
+Open Windows PowerShell (no Administrator privileges required) and run the one-liner:
+
 ```powershell
+# Shorthand (PowerShell 5.1+ / 7+):
+irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex
+
+# Or explicit Invoke-WebRequest:
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1" -OutFile "$env:TEMP\install.ps1"; & "$env:TEMP\install.ps1"
 ```
 *This instantly downloads the core engine, provisions `%LOCALAPPDATA%\DiamTek\JVM`, registers the Windows uninstaller, and updates your PowerShell Profile so the `jvm` command is available everywhere.*
@@ -16,7 +27,7 @@ winget install DiamTek.JVM
 scoop install jvm
 choco install jvm-windows
 ```
-*Or grab the standalone `jvm-windows-1.0.0-x64.msi` or `jvm-windows-1.0.0-arm64.msi` installer from [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases).*
+*Or grab the standalone MSI installers (`x64` / `arm64`), portable `.zip`, or raw `jvm.bat` directly from [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases).*
 
 ## 🗑️ Uninstallation
 
@@ -95,6 +106,7 @@ For deep technical details, CI/CD automation, and advanced usage, refer to the o
 
 | Document | Description |
 |----------|-------------|
+| [**Installation Guide**](docs/INSTALLATION.md) | PowerShell one-liners, Package Managers, MSI standalone installers, and WiX v4 build pipeline. |
 | [**Usage Guide**](docs/USAGE.md) | Semantic routing, `.java-version` isolation, BYO-JDK, and Ecosystem commands. |
 | [**Architecture**](docs/ARCHITECTURE.md) | Technical deep-dive into Directory Junctions and PowerShell Native execution. |
 | [**SDKMAN! Comparison**](docs/SDKMAN-Comparison.md)| Why this is the premier native alternative to SDKMAN! for Windows. |
@@ -199,10 +211,16 @@ To prevent catastrophic accidental deletions on local filesystems, all critical 
 * **v0.1.1:** Patched `PATH` variable corruption bugs and improved delayed-expansion safety protocols during active session switching.
 * **v0.1.0:** Initial Release.
 
+## 🤝 Community & Contributing
+
+Contributions, issues, and feature requests are welcome!
+- 📖 Read the [Contributing Guide](.github/CONTRIBUTING.md) to get started.
+- 🛡️ Review our [Security Policy](.github/SECURITY.md) to report vulnerabilities privately.
+- 💬 Need help? Check the [Support Guide](.github/SUPPORT.md), open an [Issue](https://github.com/DiamTek/Java-Version-Manager-Windows/issues), or reach out on Discord (**@thehawk01**).
+
 ## 📄 License
 Copyright (c) 2026 DiamTek / Alexéy Shishkin.
 
 This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html). See the LICENSE file for details.
 
 *Note: Oracle JDK downloads triggered by this tool are subject to the [Oracle No-Fee Terms and Conditions (NFTC)](https://www.oracle.com/downloads/licenses/no-fee-license.html).*
-
