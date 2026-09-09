@@ -39,3 +39,6 @@ If you are modifying the core `jvm.bat` engine, please keep the following Window
 
 ## Documentation
 Documentation improvements are always welcome! Our documentation is located in the `docs/` folder and uses standard Markdown.
+
+## Code of Conduct
+Please note that this project is released with a [Contributor Code of Conduct](CODE_OF_CONDUCT.md). By participating in this project, you agree to abide by its terms. Report any unacceptable behavior to Alexéy Shishkin via email at **salexey09@gmail.com** or Discord at **@thehawk01**.

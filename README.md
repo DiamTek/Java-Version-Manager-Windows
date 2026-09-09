@@ -124,6 +124,8 @@ For deep technical details, CI/CD automation, and advanced usage, refer to the o
 | [**FAQ**](docs/FAQ.md) | Common questions about UAC, global routing, and Windows Registry bridging. |
 | [**Changelog**](docs/CHANGELOG.md) | Detailed chronological release history and bug fixes. |
 | [**Support & Help**](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/SUPPORT.md) | Where to get help, ask questions, Discord community, and issue reporting channels. |
+| [**Contributing Guide**](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/CONTRIBUTING.md) | Development workflow, pull requests, issue templates, and coding standards. |
+| [**Code of Conduct**](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/CODE_OF_CONDUCT.md) | Standards, pledge, and reporting procedures for healthy community interaction. |
 
 ## 🛠️ Usage
 
@@ -229,6 +231,7 @@ Contributions, issues, and feature requests are welcome!
 - 📖 Read the [Contributing Guide](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/CONTRIBUTING.md) to get started.
 - 🛡️ Review our [Security Policy](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/SECURITY.md) to report vulnerabilities privately.
 - 💬 Need help? Check the [Support Guide](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/SUPPORT.md), open an [Issue](https://github.com/DiamTek/Java-Version-Manager-Windows/issues), or reach out on Discord (**@thehawk01**).
+- 📜 Review our [Code of Conduct](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/CODE_OF_CONDUCT.md).
 
 ## 📄 License
 Copyright (c) 2026 DiamTek / Alexéy Shishkin.

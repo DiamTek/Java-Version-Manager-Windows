@@ -99,7 +99,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1 -Arch x64
 powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1 -Arch arm64
 ```
-The resulting single-file installers are placed directly into `packages\msi\`.
+The resulting single-file installers are placed directly into `packages\msi\` (or the current folder when running standalone).
+
+> [!NOTE]
+> `build-msi.ps1` is fully autonomous and path-agnostic. You can run it from within the cloned repository or execute it completely standalone (e.g., downloaded directly to your `Downloads` folder). If local source files, the .NET SDK, or the WiX CLI are not present, `build-msi.ps1` automatically bootstraps a user-space .NET SDK, exports `DOTNET_ROOT`, retrieves repository assets into `%TEMP%`, and builds the single-file MSIs.
 
 #### Automated Verification Suite
 The MSI subsystem includes a fully autonomous, 18-point integration verification test suite (`packages\msi\test-msi.ps1`). It actively tests live operating system integration—including the Windows Installer service (`msiexec`), CLI `bin/` directory hygiene (guaranteeing internal hook scripts are isolated from `PATH`), Start Menu application and uninstaller shortcuts indexed by Windows Search, Windows Terminal `settings.json`, PowerShell `$PROFILE`, Windows Registry `PATH`, and live CLI subshell process execution (`cmd.exe /c "jvm.bat --version"`).
