@@ -97,19 +97,41 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1
 The resulting single-file installers are placed directly into `packages\msi\`.
 
 #### Automated Verification Suite
-To validate the installer against the 14-point end-to-end integration checklist before deployment (can be run from any working directory; automatically builds the package if not already compiled):
+The MSI subsystem includes a fully autonomous, 14-point integration verification test suite (`packages\msi\test-msi.ps1`). It actively tests live operating system integration—including the Windows Installer service (`msiexec`), Windows Terminal `settings.json`, PowerShell `$PROFILE`, Windows Registry `PATH`, Start Menu shortcuts, and live CLI subshell process execution (`cmd.exe /c "jvm.bat --version"`).
 
+##### Autonomous 4-Tier Resolution Engine
+You can run `test-msi.ps1` from **any working directory** on any Windows machine (even on a clean machine with no prior source code, Git, .NET, or WiX installed). The test runner resolves packages using a 4-tier fallback hierarchy:
+1. **Local Pre-Built MSI**: Discovers and tests `jvm-windows-*-x64.msi` if already present in `packages\msi\` or current path.
+2. **Local WiX Compiler**: If the `.msi` is missing, executes `build-msi.ps1 -Arch x64` to compile it from local source files.
+3. **Published GitHub Release**: If local build tools/source are not available, downloads the latest official `jvm-windows-1.0.0-x64.msi` directly from GitHub Releases.
+4. **Remote Source Bootstrap**: If the release binary is not yet published, downloads the latest repository source archive (`main.zip`) from GitHub, extracts to `%TEMP%`, automatically bootstraps a user-space .NET SDK and WiX CLI, compiles the MSI, and runs the test suite.
+
+##### Command Examples:
 ```powershell
-# If downloaded from the web or git archive, unblock once:
+# Unblock the file if downloaded via browser (clears Zone.Identifier):
 Unblock-File .\packages\msi\test-msi.ps1
 
-# Run the test suite:
+# 1. Run the test suite silently (standard headless CI mode):
 powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1
 
-# Or run directly inside an active PowerShell terminal:
-& .\packages\msi\test-msi.ps1
+# 2. Display the native Windows Installer progress bar dialog on screen:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1 -ShowUI
+
+# 3. Test and keep JVM installed on your machine ready to use:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1 -KeepInstalled
+
+# 4. Combine flags to watch the progress dialog and keep it installed:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1 -ShowUI -KeepInstalled
+
+# 5. Test a specific custom MSI binary:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1 -MsiPath "C:\Path\To\custom.msi"
 ```
-This automated suite tests silent installation, directory structure, registry integrity, PATH propagation, Windows Terminal profile injection, CLI sanity, clean uninstallation, and zero filesystem residual traces.
+
+> [!TIP]
+> **Interactive Graphical Setup Wizard**: By default, `test-msi.ps1` runs in silent mode (`/qn`) or progress dialog mode (`/qb` with `-ShowUI`). To open the traditional full Windows Installer wizard window with Next / Install / Finish buttons, double-click `packages\msi\jvm-windows-1.0.0-x64.msi` directly in File Explorer or run:
+> ```cmd
+> msiexec /i .\packages\msi\jvm-windows-1.0.0-x64.msi
+> ```
 
 ---
 
@@ -142,6 +164,34 @@ You can uninstall JVM through any of the following methods:
 ---
 
 ## Troubleshooting
+
+### Downloaded Script Blocked or Not Digitally Signed (Zone.Identifier)
+When downloading `.ps1` scripts, archives, or installers via a web browser (Edge, Chrome, Firefox), Windows Attachment Manager marks the files with a hidden NTFS alternate data stream: `Zone.Identifier` (`ZoneId=3` meaning "Internet").
+
+Under the default Windows PowerShell execution policy (`RemoteSigned`), Windows requires all scripts downloaded from the Internet to possess a trusted Authenticode digital signature before allowing execution. Open-source scripts that are not signed with a commercial certificate will be blocked before line 1 with:
+```text
+File ... cannot be loaded. The file ... is not digitally signed.
+```
+
+To resolve this, unblock the file using any of these methods:
+
+1. **PowerShell CLI (Recommended)**:
+   ```powershell
+   Unblock-File .\packages\msi\test-msi.ps1
+   # Or unblock all scripts in the directory:
+   Get-ChildItem -Path .\packages\msi -Filter *.ps1 | Unblock-File
+   ```
+
+2. **File Explorer GUI**:
+   - Right-click the `.ps1` file in File Explorer and select **Properties**.
+   - At the bottom of the **General** tab, check the **Unblock** checkbox.
+   - Click **Apply** and then **OK**.
+
+3. **ExecutionPolicy Bypass**:
+   Launching PowerShell with `-ExecutionPolicy Bypass` instructs PowerShell to ignore both execution policies and zone restrictions for that session:
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1
+   ```
 
 ### PowerShell Execution Policy Errors
 If the automated installer fails with a red error mentioning **"cannot be loaded because running scripts is disabled on this system"**, your Windows machine has strict execution policies enabled.

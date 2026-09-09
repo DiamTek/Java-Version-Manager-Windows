@@ -42,3 +42,23 @@ DiamTek JVM provides a complete, UAC-elevated uninstaller (`uninstall.ps1`) that
 - **CLI:** Run `jvm self-uninstall`.
 - **PowerShell:** Execute `& "$env:LOCALAPPDATA\DiamTek\JVM\uninstall.ps1"`.
 - **Windows Installer (MSI):** Run `msiexec /x jvm-windows-1.0.0-x64.msi /qn`.
+
+### Why does Windows PowerShell say a script is not digitally signed or blocked?
+When you download `.ps1` scripts or zip files through a browser, Windows tags them with a `Zone.Identifier` NTFS stream (`ZoneId=3` - Internet). Under the default `RemoteSigned` policy, PowerShell verifies digital signatures before running remote scripts. Open-source scripts without a commercial certificate will be blocked.
+
+You can unblock files in two ways:
+1. **PowerShell:** Run `Unblock-File .\packages\msi\test-msi.ps1`.
+2. **File Explorer:** Right-click the `.ps1` file -> **Properties** -> check **Unblock** at the bottom -> click **OK**.
+Alternatively, run with execution policy bypass:
+`powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1`
+
+### Does the MSI test suite test real system integration or just file creation?
+It tests the **real, live system integration on your computer**:
+- Spawns the Windows Installer service (`msiexec.exe`) to perform a real installation.
+- Reads your actual PowerShell `$PROFILE` to confirm the shell hook was injected.
+- Reads your actual Windows Terminal `settings.json` to verify profile registration and custom branding.
+- Queries the Windows Registry for User `PATH` and uninstaller keys.
+- Inspects your Windows Start Menu for application shortcuts.
+- Executes `jvm.bat --version` in a real subshell to verify engine startup.
+- Triggers `msiexec /x` to verify deep uninstallation and zero-residual cleanup.
+By default, the test suite runs silently (`/qn`) for CI automation. To display the Windows Installer progress dialog, pass `-ShowUI`. To keep JVM installed after testing, pass `-KeepInstalled`.

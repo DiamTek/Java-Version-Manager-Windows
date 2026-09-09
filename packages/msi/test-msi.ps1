@@ -16,7 +16,8 @@
 
 param(
     [string]$MsiPath,
-    [switch]$KeepInstalled
+    [switch]$KeepInstalled,
+    [switch]$ShowUI
 )
 
 $ErrorActionPreference = 'Continue'
@@ -169,8 +170,12 @@ Write-Host "============================================================" -Foreg
 # -------------------------------------------------------------------------
 # Phase 1: Installation Verification
 # -------------------------------------------------------------------------
-Write-Host "`n[ PHASE 1 ] Testing Silent Installation..." -ForegroundColor Cyan
-$installProc = Start-Process msiexec.exe -ArgumentList "/i `"$MsiPath`" /qn" -Wait -PassThru
+$uiFlag = if ($ShowUI) { "/qb" } else { "/qn" }
+Write-Host "`n[ PHASE 1 ] Testing Installation ($uiFlag)..." -ForegroundColor Cyan
+if (-not $ShowUI) {
+    Write-Host "  (Running silently in background with no GUI window. Pass -ShowUI to show the Windows Installer dialog)" -ForegroundColor DarkGray
+}
+$installProc = Start-Process msiexec.exe -ArgumentList "/i `"$MsiPath`" $uiFlag" -Wait -PassThru
 Report-Check -Title "MSI Installation completed with Exit Code 0" -Passed ($installProc.ExitCode -eq 0) -Details "ExitCode: $($installProc.ExitCode)"
 
 $jvmBatPath = "$env:LOCALAPPDATA\DiamTek\JVM\bin\jvm.bat"
@@ -237,8 +242,8 @@ Report-Check -Title "JVM engine functional verification (jvm.bat --version)" -Pa
 # Phase 2: Uninstallation Verification
 # -------------------------------------------------------------------------
 if (-not $KeepInstalled) {
-    Write-Host "`n[ PHASE 2 ] Testing Silent Uninstallation..." -ForegroundColor Cyan
-    $uninstallProc = Start-Process msiexec.exe -ArgumentList "/x `"$MsiPath`" /qn" -Wait -PassThru
+    Write-Host "`n[ PHASE 2 ] Testing Uninstallation ($uiFlag)..." -ForegroundColor Cyan
+    $uninstallProc = Start-Process msiexec.exe -ArgumentList "/x `"$MsiPath`" $uiFlag" -Wait -PassThru
     Report-Check -Title "MSI Uninstallation completed with Exit Code 0" -Passed ($uninstallProc.ExitCode -eq 0) -Details "ExitCode: $($uninstallProc.ExitCode)"
 
     Start-Sleep -Seconds 1
@@ -275,7 +280,12 @@ if (-not $KeepInstalled) {
 Write-Host "`n============================================================" -ForegroundColor Cyan
 if ($allPassed) {
     Write-Host "  [ ALL TESTS PASSED ] MSI package is verified & ready for attestation!" -ForegroundColor Green
-    Write-Host "============================================================`n" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "`n  Tip: The test suite runs in silent mode (/qn) by design for CI automation." -ForegroundColor DarkGray
+    Write-Host "       - To see the installer progress window: pass -ShowUI" -ForegroundColor DarkGray
+    Write-Host "       - To keep JVM installed on your system:  pass -KeepInstalled" -ForegroundColor DarkGray
+    Write-Host "       - To open the full graphical Setup Wizard: double-click the .msi file:" -ForegroundColor DarkGray
+    Write-Host "         $MsiPath`n" -ForegroundColor DarkGray
     exit 0
 } else {
     Write-Host "  [ TESTS FAILED ] One or more verification checks did not pass." -ForegroundColor Red
