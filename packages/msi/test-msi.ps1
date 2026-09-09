@@ -262,6 +262,26 @@ try {
     }
     Report-Check -Title "Start Menu application shortcut verified" -Passed $shortcutOk -Details "$shortcutTarget"
 
+    $uninstallLnkPath = Join-Path $startMenuDir "Uninstall Java Version Manager.lnk"
+    $uninstallShortcutOk = $false
+    $uninstallDetails = ""
+    if (Test-Path $uninstallLnkPath) {
+        $uninstallObj = $ws.CreateShortcut($uninstallLnkPath)
+        $uninstallTarget = $uninstallObj.TargetPath
+        $uninstallArgs = $uninstallObj.Arguments
+        $uninstallShortcutOk = [bool]($uninstallTarget -and ($uninstallTarget -match "msiexec(\.exe)?$") -and ($uninstallArgs -match "/x\s*\{"))
+        $uninstallDetails = "$uninstallTarget $uninstallArgs".Trim()
+    }
+    Report-Check -Title "Start Menu uninstaller shortcut verified (indexed in Windows Search)" -Passed $uninstallShortcutOk -Details $uninstallDetails
+
+    # Check CLI bin directory hygiene (ensure hooks are isolated in JVM root, not polluting bin/ or PATH)
+    $binDir = "$env:LOCALAPPDATA\DiamTek\JVM\bin"
+    $hookInBin = (Test-Path (Join-Path $binDir "msi-install-hook.ps1")) -or (Test-Path (Join-Path $binDir "msi-uninstall-hook.ps1"))
+    $jvmDir = "$env:LOCALAPPDATA\DiamTek\JVM"
+    $hookInJvm = (Test-Path (Join-Path $jvmDir "msi-install-hook.ps1")) -and (Test-Path (Join-Path $jvmDir "msi-uninstall-hook.ps1"))
+    $binHygiene = (-not $hookInBin) -and $hookInJvm
+    Report-Check -Title "CLI bin directory hygiene verified (internal hooks isolated from PATH)" -Passed $binHygiene
+
     $legacyKeyExists = Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM"
     Report-Check -Title "Legacy uninstaller registry keys cleansed" -Passed (-not $legacyKeyExists)
 
@@ -300,10 +320,16 @@ try {
         Report-Check -Title "Windows Terminal profile cleanly removed" -Passed $wtProfileCleaned
 
         $shortcutCleaned = -not (Test-Path $shortcutPath)
-        Report-Check -Title "Start Menu shortcut deleted" -Passed $shortcutCleaned
+        Report-Check -Title "Start Menu application shortcut deleted" -Passed $shortcutCleaned
+
+        $uninstallShortcutCleaned = -not (Test-Path $uninstallLnkPath)
+        Report-Check -Title "Start Menu uninstaller shortcut deleted" -Passed $uninstallShortcutCleaned
 
         $startMenuFolderCleaned = -not (Test-Path $startMenuDir)
         Report-Check -Title "Start Menu DiamTek program folder deleted" -Passed $startMenuFolderCleaned
+
+        $jvmDirCleaned = -not (Test-Path $jvmDir)
+        Report-Check -Title "Application install directory removed" -Passed $jvmDirCleaned
 
         $userPathAfter = [Environment]::GetEnvironmentVariable("Path", "User")
         $pathCleaned = -not ($userPathAfter -and ($userPathAfter -match "DiamTek|JVM"))

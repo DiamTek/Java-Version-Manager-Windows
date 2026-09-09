@@ -180,9 +180,8 @@ function Build-MsiPackage {
     # Generate msi-install-hook.ps1 (injects PowerShell profile hook, Windows Terminal profile & Start Menu shortcut polish)
     $msiInstallHook = @"
 `$ErrorActionPreference = 'SilentlyContinue'
-`$binDir = `$PSScriptRoot
-if (-not `$binDir) { `$binDir = "`$env:LOCALAPPDATA\DiamTek\JVM\bin" }
-`$jvmRoot = Split-Path `$binDir -Parent
+`$jvmRoot = if (`$PSScriptRoot) { `$PSScriptRoot } else { "`$env:LOCALAPPDATA\DiamTek\JVM" }
+`$binDir = Join-Path `$jvmRoot 'bin'
 `$batPath = Join-Path `$binDir 'jvm.bat'
 `$iconIco = Join-Path `$jvmRoot 'assets\icon.ico'
 `$iconPng = Join-Path `$jvmRoot 'assets\icon.png'
@@ -278,9 +277,9 @@ if (`$hasWt) {
     }
 }
 
-# Remove any legacy manual uninstall shortcut from Programs\DiamTek
-`$legacyUninstallLnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'DiamTek\Uninstall Java Version Manager.lnk'
-if (Test-Path `$legacyUninstallLnk) { Remove-Item -Path `$legacyUninstallLnk -Force -ErrorAction SilentlyContinue }
+# Clean legacy hook scripts from bin/ if upgrading from older package version
+Remove-Item -Path (Join-Path $binDir 'msi-install-hook.ps1') -Force -ErrorAction SilentlyContinue
+Remove-Item -Path (Join-Path $binDir 'msi-uninstall-hook.ps1') -Force -ErrorAction SilentlyContinue
 
 # Clean legacy manual install registry entry to prevent duplicate entries in Settings
 Remove-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM' -Recurse -Force -ErrorAction SilentlyContinue
@@ -400,12 +399,27 @@ if (Test-Path $userJvmCandidates) {
 
 # 9. Legacy and runtime-generated file cleanup
 $jvmDir = "$localAppData\DiamTek\JVM"
+
+# Terminate any dangling JVM processes locking directories
+try {
+    Get-Process | Where-Object {
+        try {
+            $_.Path -and $_.Path.StartsWith($jvmDir, [System.StringComparison]::OrdinalIgnoreCase)
+        } catch { $false }
+    } | Stop-Process -Force -ErrorAction SilentlyContinue
+} catch { }
+
 $current = Join-Path $jvmDir "current"
 if (Test-Path $current) { cmd.exe /c rmdir "$current" 2>$null }
 $modeFile = Join-Path $jvmDir "mode.txt"
 if (Test-Path $modeFile) { Remove-Item $modeFile -Force -ErrorAction SilentlyContinue }
 $legacyJvm = Join-Path $localAppData "JavaVersionManager"
 if (Test-Path $legacyJvm) { Remove-Item -LiteralPath $legacyJvm -Recurse -Force -ErrorAction SilentlyContinue }
+
+# Clean legacy hook scripts from bin/ if any existed from older MSI revisions
+$binDir = Join-Path $jvmDir "bin"
+Remove-Item -Path (Join-Path $binDir 'msi-install-hook.ps1') -Force -ErrorAction SilentlyContinue
+Remove-Item -Path (Join-Path $binDir 'msi-uninstall-hook.ps1') -Force -ErrorAction SilentlyContinue
 
 # 10. Start Menu folder cleanup (removes empty folder or any legacy shortcuts)
 $startMenuPrograms = [Environment]::GetFolderPath('Programs')
@@ -435,29 +449,29 @@ exit 0
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="DIAMTEK_DIR" Name="DiamTek">
         <Directory Id="JVM_DIR" Name="JVM">
-          <Component Id="DocumentationComponent" Guid="e2d271f8-b3ac-4b10-85f0-b98a3e8cc16f">
+          <Component Id="DocumentationComponent" Guid="01a08571-06d8-77a5-9f9d-77f21b5eb3e5">
             <File Id="LicenseFile" Source="..\..\LICENSE" KeyPath="yes" />
             <File Id="ReadmeFile" Source="..\..\README.md" />
             <File Id="UninstallFile" Source="..\..\uninstall.ps1" />
             <RemoveFolder Id="RemoveJvmDir" Directory="JVM_DIR" On="uninstall" />
             <RemoveFolder Id="RemoveDiamtekDir" Directory="DIAMTEK_DIR" On="uninstall" />
           </Component>
+          <Component Id="HookScriptsComponent" Guid="01a08571-06df-7d72-9fad-ccbdc9de1c26">
+            <File Id="MsiInstallHook" Source="msi-install-hook.ps1" KeyPath="yes" />
+            <File Id="MsiUninstallHook" Source="msi-uninstall-hook.ps1" />
+          </Component>
           <Directory Id="ASSETS_DIR" Name="assets">
-            <Component Id="AssetsComponent" Guid="d8f28b43-9824-4f05-b044-63304df2b13c">
+            <Component Id="AssetsComponent" Guid="01a08571-06e0-7a41-b4d0-834e377e4377">
               <File Id="IconIcoFile" Source="..\..\assets\icon.ico" KeyPath="yes" />
               <File Id="IconPngFile" Source="..\..\assets\icon.png" />
               <RemoveFolder Id="RemoveAssetsDir" Directory="ASSETS_DIR" On="uninstall" />
             </Component>
           </Directory>
           <Directory Id="INSTALLFOLDER" Name="bin">
-            <Component Id="JvmBatComponent" Guid="c37c2278-f7b5-4bce-b620-df10b78e3423">
+            <Component Id="JvmBatComponent" Guid="01a08571-06e0-7f19-a168-3e09b5dac718">
               <File Id="JvmBat" Source="..\..\jvm.bat" KeyPath="yes" />
               <Environment Id="UpdatePath" Name="PATH" Action="set" Part="last" System="no" Value="[INSTALLFOLDER]" />
               <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
-            </Component>
-            <Component Id="HookScriptsComponent" Guid="ab54a8b7-657c-4dc1-be1e-d4c38d975a5c">
-              <File Id="MsiInstallHook" Source="msi-install-hook.ps1" KeyPath="yes" />
-              <File Id="MsiUninstallHook" Source="msi-uninstall-hook.ps1" />
             </Component>
           </Directory>
         </Directory>
@@ -466,12 +480,18 @@ exit 0
 
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="ApplicationProgramsFolder" Name="DiamTek">
-        <Component Id="ApplicationShortcut" Guid="41b71457-3f9c-482d-a2f7-7fa15c7e4281">
+        <Component Id="ApplicationShortcut" Guid="01a08571-06e0-7ddd-be0b-a462aa0dd18f">
           <Shortcut Id="ApplicationStartMenuShortcut"
                     Name="Java Version Manager"
                     Description="DiamTek Java Version Manager"
                     Target="[INSTALLFOLDER]jvm.bat"
                     WorkingDirectory="INSTALLFOLDER"
+                    Icon="AppIcon" />
+          <Shortcut Id="UninstallProductShortcut"
+                    Name="Uninstall Java Version Manager"
+                    Description="Uninstalls DiamTek Java Version Manager"
+                    Target="[SystemFolder]msiexec.exe"
+                    Arguments="/x [ProductCode]"
                     Icon="AppIcon" />
           <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
           <RegistryValue Root="HKCU" Key="Software\DiamTek\JVM" Name="installed" Type="integer" Value="1" KeyPath="yes" />
@@ -487,10 +507,10 @@ exit 0
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
 
-    <SetProperty Id="RunInstallHook" Value="&quot;[WindowsFolder]System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]msi-install-hook.ps1&quot;" Sequence="execute" Before="RunInstallHook" Condition="NOT (REMOVE=&quot;ALL&quot;)" />
+    <SetProperty Id="RunInstallHook" Value="&quot;[WindowsFolder]System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[JVM_DIR]msi-install-hook.ps1&quot;" Sequence="execute" Before="RunInstallHook" Condition="NOT (REMOVE=&quot;ALL&quot;)" />
     <CustomAction Id="RunInstallHook" BinaryRef="Wix4UtilCA_`$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec" Execute="deferred" Impersonate="yes" Return="check" />
 
-    <SetProperty Id="RunUninstallHook" Value="&quot;[WindowsFolder]System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]msi-uninstall-hook.ps1&quot;" Sequence="execute" Before="RunUninstallHook" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    <SetProperty Id="RunUninstallHook" Value="&quot;[WindowsFolder]System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[JVM_DIR]msi-uninstall-hook.ps1&quot;" Sequence="execute" Before="RunUninstallHook" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     <CustomAction Id="RunUninstallHook" BinaryRef="Wix4UtilCA_`$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec" Execute="deferred" Impersonate="yes" Return="ignore" />
 
     <InstallExecuteSequence>
