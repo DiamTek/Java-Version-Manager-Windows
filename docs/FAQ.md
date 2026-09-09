@@ -41,3 +41,4 @@ DiamTek JVM provides a complete, UAC-elevated uninstaller (`uninstall.ps1`) that
 - **Terminal UI:** Launch `jvm`, navigate to **Settings** (`3`), and choose **Uninstall JVM Completely** (`4`).
 - **CLI:** Run `jvm self-uninstall`.
 - **PowerShell:** Execute `& "$env:LOCALAPPDATA\DiamTek\JVM\uninstall.ps1"`.
+- **Windows Installer (MSI):** Run `msiexec /x jvm-windows-1.0.0-x64.msi /qn`.

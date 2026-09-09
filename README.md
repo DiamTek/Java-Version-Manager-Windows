@@ -16,7 +16,7 @@ winget install DiamTek.JVM
 scoop install jvm
 choco install jvm-windows
 ```
-*Or grab the standalone `jvm-windows-1.0.0.msi` installer from [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases).*
+*Or grab the standalone `jvm-windows-1.0.0-x64.msi` or `jvm-windows-1.0.0-arm64.msi` installer from [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases).*
 
 ## 🗑️ Uninstallation
 

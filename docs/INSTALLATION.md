@@ -52,7 +52,51 @@ choco install jvm-windows
 ```
 
 ### Windows Installer (MSI)
-Download the standalone `jvm-windows-1.0.0.msi` installer directly from the [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases) page and run the setup wizard.
+
+Standalone, single-file Windows Installers are available for both **x64** (Intel/AMD) and **arm64** (Qualcomm Snapdragon / Windows on ARM):
+
+1. Download `jvm-windows-1.0.0-x64.msi` or `jvm-windows-1.0.0-arm64.msi` directly from the [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases) page.
+2. Double-click the `.msi` file to run the graphical setup wizard.
+
+#### Silent / Headless Installation (Command Line)
+For enterprise automation, scripts, or unattended CI environments:
+
+```cmd
+msiexec /i jvm-windows-1.0.0-x64.msi /qn
+```
+
+To enable verbose installation logging for diagnostics:
+```cmd
+msiexec /i jvm-windows-1.0.0-x64.msi /qn /l*v "%TEMP%\jvm-install.log"
+```
+
+#### Building the MSI from Source
+You can compile native, standalone MSIs locally using the WiX Toolset v4 build pipeline:
+
+**Prerequisites:**
+- [.NET SDK 6.0+](https://dotnet.microsoft.com/download)
+- WiX Toolset v4:
+  ```powershell
+  dotnet tool install --global wix
+  ```
+
+**Build Commands:**
+```powershell
+# Compiles both x64 and arm64 self-contained MSIs (default)
+.\packages\msi\build-msi.ps1
+
+# Or target a specific architecture
+.\packages\msi\build-msi.ps1 -Arch x64
+.\packages\msi\build-msi.ps1 -Arch arm64
+```
+The resulting single-file installers are placed directly into `packages\msi\`.
+
+#### Automated Verification Suite
+To validate the installer against a 14-point end-to-end integration checklist before deployment:
+```powershell
+.\packages\msi\test-msi.ps1 -MsiPath .\packages\msi\jvm-windows-1.0.0-x64.msi
+```
+This automated suite tests silent installation, directory structure, registry integrity, PATH propagation, Windows Terminal profile injection, CLI sanity, clean uninstallation, and zero filesystem residual traces.
 
 ---
 
@@ -76,6 +120,10 @@ You can uninstall JVM through any of the following methods:
 5. **Direct PowerShell Script:**
    ```powershell
    & "$env:LOCALAPPDATA\DiamTek\JVM\uninstall.ps1"
+   ```
+6. **Windows Installer (MSI) Silent Uninstallation:**
+   ```cmd
+   msiexec /x jvm-windows-1.0.0-x64.msi /qn
    ```
 
 ---
