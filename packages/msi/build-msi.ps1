@@ -51,7 +51,51 @@ try {
     }
 } catch { }
 
-$RootDir = (Resolve-Path "$ScriptDir\..\..").Path
+# Resolve repository root directory containing install.ps1, jvm.bat, and assets/
+$RootDir = $null
+$rootCandidates = @(
+    (Join-Path $ScriptDir "..\.."),
+    $ScriptDir,
+    (Get-Location).Path
+)
+
+foreach ($cand in $rootCandidates) {
+    if (Test-Path $cand) {
+        $resolved = (Resolve-Path $cand).Path
+        if ((Test-Path "$resolved\install.ps1") -and (Test-Path "$resolved\jvm.bat")) {
+            $RootDir = $resolved
+            break
+        }
+    }
+}
+
+# If executed standalone outside of repository (e.g. from Downloads), bootstrap source files from GitHub
+$script:cleanupRemoteSource = $false
+if (-not $RootDir) {
+    Write-Host "Repository source files not found locally. Bootstrapping repository source..." -ForegroundColor Cyan
+    $sourceZip = Join-Path $env:TEMP "jvm-source-$([guid]::NewGuid().ToString('N').Substring(0,8)).zip"
+    $sourceExtract = Join-Path $env:TEMP "jvm-src-$([guid]::NewGuid().ToString('N').Substring(0,8))"
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri "https://github.com/DiamTek/Java-Version-Manager-Windows/archive/refs/heads/main.zip" -OutFile $sourceZip -UseBasicParsing -ErrorAction Stop
+        Expand-Archive -Path $sourceZip -DestinationPath $sourceExtract -Force
+        $innerDir = Get-ChildItem -Path $sourceExtract -Directory | Select-Object -First 1
+        if ($innerDir -and (Test-Path "$($innerDir.FullName)\install.ps1")) {
+            $RootDir = $innerDir.FullName
+            $script:cleanupRemoteSource = $true
+        }
+    } catch {
+        Write-Host "WARNING: Could not automatically bootstrap repository source: $_" -ForegroundColor DarkGray
+    } finally {
+        Remove-Item $sourceZip -Force -ErrorAction SilentlyContinue
+    }
+}
+
+if (-not $RootDir -or -not (Test-Path "$RootDir\install.ps1") -or -not (Test-Path "$RootDir\jvm.bat")) {
+    Write-Host "ERROR: Could not locate repository source files (install.ps1, jvm.bat, assets). Please run build-msi.ps1 within the repository or check internet connectivity." -ForegroundColor Red
+    exit 1
+}
+
 Push-Location $ScriptDir
 
 # 1. Ensure .NET SDK is accessible
@@ -84,6 +128,15 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     Write-Host "ERROR: .NET SDK is required to build MSIs. Please install it from https://dotnet.microsoft.com/download" -ForegroundColor Red
     exit 1
+}
+
+# Ensure DOTNET_ROOT and DOTNET_ROOT_X64 are active in the current process
+# This is critical so .NET global tool apphosts (e.g. wix.exe) locate the runtime
+$dotnetCmd = (Get-Command dotnet -ErrorAction SilentlyContinue).Source
+if ($dotnetCmd) {
+    $dotnetDir = Split-Path $dotnetCmd
+    if (-not $env:DOTNET_ROOT) { $env:DOTNET_ROOT = $dotnetDir }
+    if (-not $env:DOTNET_ROOT_X64) { $env:DOTNET_ROOT_X64 = $dotnetDir }
 }
 
 # 2. Ensure WiX Toolset v4 CLI and Util extension are available
@@ -123,6 +176,16 @@ function Invoke-Wix {
         }
     }
 
+    # Ensure DOTNET_ROOT is populated in process environment
+    if (-not $env:DOTNET_ROOT -or -not $env:DOTNET_ROOT_X64) {
+        $dc = if (Get-Command dotnet -ErrorAction SilentlyContinue) { (Get-Command dotnet).Source } else { $null }
+        if ($dc) {
+            $dd = Split-Path $dc
+            if (-not $env:DOTNET_ROOT) { $env:DOTNET_ROOT = $dd }
+            if (-not $env:DOTNET_ROOT_X64) { $env:DOTNET_ROOT_X64 = $dd }
+        }
+    }
+
     # Strategy 1: Try native wix.exe
     try {
         if (Get-Command wix -ErrorAction SilentlyContinue) {
@@ -133,13 +196,13 @@ function Invoke-Wix {
         }
     } catch { }
 
-    # Strategy 2: Fallback to dotnet exec wix.dll (bypasses Windows Defender Application Control & Smart App Control)
+    # Strategy 2: Fallback to dotnet exec wix.dll (bypasses apphost runtime resolution issues & AppLocker)
     $resolvedDll = if ($script:wixDll) { $script:wixDll } else { Find-WixDll }
     if ($resolvedDll -and (Test-Path $resolvedDll)) {
         try {
-            $dotnetCmd = if (Get-Command dotnet -ErrorAction SilentlyContinue) { (Get-Command dotnet).Source } else { "dotnet" }
+            $dotnetExec = if (Get-Command dotnet -ErrorAction SilentlyContinue) { (Get-Command dotnet).Source } else { "dotnet" }
             $execArgs = @("exec", "`"$resolvedDll`"") + $escapedArgs
-            $proc = Start-Process -FilePath $dotnetCmd -ArgumentList $execArgs -NoNewWindow -Wait -PassThru -ErrorAction Stop
+            $proc = Start-Process -FilePath $dotnetExec -ArgumentList $execArgs -NoNewWindow -Wait -PassThru -ErrorAction Stop
             return $proc.ExitCode
         } catch { }
     }
@@ -433,13 +496,27 @@ exit 0
 
     # Generate WiX v4 XML manifest
     Write-Host "Generating jvm.wxs manifest..." -ForegroundColor Cyan
+    function Escape-XmlAttr([string]$val) {
+        if ([string]::IsNullOrEmpty($val)) { return '' }
+        return [System.Security.SecurityElement]::Escape($val)
+    }
+
+    $srcLicense = Escape-XmlAttr (Join-Path $RootDir "LICENSE")
+    $srcReadme = Escape-XmlAttr (Join-Path $RootDir "README.md")
+    $srcUninstall = Escape-XmlAttr (Join-Path $RootDir "uninstall.ps1")
+    $srcJvmBat = Escape-XmlAttr (Join-Path $RootDir "jvm.bat")
+    $srcIconIco = Escape-XmlAttr (Join-Path $RootDir "assets\icon.ico")
+    $srcIconPng = Escape-XmlAttr (Join-Path $RootDir "assets\icon.png")
+    $srcMsiInstallHook = Escape-XmlAttr (Join-Path $ScriptDir "msi-install-hook.ps1")
+    $srcMsiUninstallHook = Escape-XmlAttr (Join-Path $ScriptDir "msi-uninstall-hook.ps1")
+
     $wxsContent = @"
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="Java Version Manager" Manufacturer="DiamTek" Version="$Version" UpgradeCode="db30058e-1738-46cb-84ec-8c652dc99a22" Scope="perUser">
     <SummaryInformation Description="Java Version Manager (JVM) for Windows" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." AllowSameVersionUpgrades="yes" />
     <MediaTemplate EmbedCab="yes" />
-    <Icon Id="AppIcon" SourceFile="..\..\assets\icon.ico" />
+    <Icon Id="AppIcon" SourceFile="$srcIconIco" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
     <Property Id="ARPHELPLINK" Value="https://github.com/DiamTek/Java-Version-Manager-Windows/issues" />
     <Property Id="ARPURLINFOABOUT" Value="https://diamtek.github.io/Java-Version-Manager-Windows" />
@@ -450,26 +527,26 @@ exit 0
       <Directory Id="DIAMTEK_DIR" Name="DiamTek">
         <Directory Id="JVM_DIR" Name="JVM">
           <Component Id="DocumentationComponent" Guid="01a08571-06d8-77a5-9f9d-77f21b5eb3e5">
-            <File Id="LicenseFile" Source="..\..\LICENSE" KeyPath="yes" />
-            <File Id="ReadmeFile" Source="..\..\README.md" />
-            <File Id="UninstallFile" Source="..\..\uninstall.ps1" />
+            <File Id="LicenseFile" Source="$srcLicense" KeyPath="yes" />
+            <File Id="ReadmeFile" Source="$srcReadme" />
+            <File Id="UninstallFile" Source="$srcUninstall" />
             <RemoveFolder Id="RemoveJvmDir" Directory="JVM_DIR" On="uninstall" />
             <RemoveFolder Id="RemoveDiamtekDir" Directory="DIAMTEK_DIR" On="uninstall" />
           </Component>
           <Component Id="HookScriptsComponent" Guid="01a08571-06df-7d72-9fad-ccbdc9de1c26">
-            <File Id="MsiInstallHook" Source="msi-install-hook.ps1" KeyPath="yes" />
-            <File Id="MsiUninstallHook" Source="msi-uninstall-hook.ps1" />
+            <File Id="MsiInstallHook" Source="$srcMsiInstallHook" KeyPath="yes" />
+            <File Id="MsiUninstallHook" Source="$srcMsiUninstallHook" />
           </Component>
           <Directory Id="ASSETS_DIR" Name="assets">
             <Component Id="AssetsComponent" Guid="01a08571-06e0-7a41-b4d0-834e377e4377">
-              <File Id="IconIcoFile" Source="..\..\assets\icon.ico" KeyPath="yes" />
-              <File Id="IconPngFile" Source="..\..\assets\icon.png" />
+              <File Id="IconIcoFile" Source="$srcIconIco" KeyPath="yes" />
+              <File Id="IconPngFile" Source="$srcIconPng" />
               <RemoveFolder Id="RemoveAssetsDir" Directory="ASSETS_DIR" On="uninstall" />
             </Component>
           </Directory>
           <Directory Id="INSTALLFOLDER" Name="bin">
             <Component Id="JvmBatComponent" Guid="01a08571-06e0-7f19-a168-3e09b5dac718">
-              <File Id="JvmBat" Source="..\..\jvm.bat" KeyPath="yes" />
+              <File Id="JvmBat" Source="$srcJvmBat" KeyPath="yes" />
               <Environment Id="UpdatePath" Name="PATH" Action="set" Part="last" System="no" Value="[INSTALLFOLDER]" />
               <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
             </Component>
@@ -561,7 +638,15 @@ exit 0
             $view = $db.OpenView("SELECT Value FROM Property WHERE Property = 'ProductCode'")
             $view.Execute()
             $rec = $view.Fetch()
-            if ($rec) { $prodCode = $rec.StringData(1) }
+            if ($rec) {
+                $prodCode = $rec.StringData(1)
+                [System.Runtime.InteropServices.Marshal]::ReleaseComObject($rec) | Out-Null
+            }
+            if ($view) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($view) | Out-Null }
+            if ($db) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($db) | Out-Null }
+            if ($wi) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($wi) | Out-Null }
+            [System.GC]::Collect()
+            [System.GC]::WaitForPendingFinalizers()
         } catch { }
 
         Write-Host ""
@@ -589,5 +674,8 @@ try {
         Build-MsiPackage -TargetArch $Arch
     }
 } finally {
+    if ($script:cleanupRemoteSource -and $RootDir -and (Test-Path $RootDir)) {
+        Remove-Item (Split-Path $RootDir) -Recurse -Force -ErrorAction SilentlyContinue
+    }
     Pop-Location
 }
