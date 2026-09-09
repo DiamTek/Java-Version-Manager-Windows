@@ -4,7 +4,7 @@ All notable changes to the Java Version Manager for Windows will be documented i
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to Semantic Versioning.
 
-## [1.0.0] - 2026-09-07
+## [1.0.0] - 2026-09-09
 
 This milestone 1.0.0 release marks the official general availability of the DiamTek Java Version Manager for Windows. It features a massive architectural overhaul of the entire engine, adding comprehensive ecosystem support, native automation integrations, full package manager distribution, and solving multiple Windows-specific system limitations.
 

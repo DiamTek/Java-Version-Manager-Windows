@@ -123,6 +123,7 @@ For deep technical details, CI/CD automation, and advanced usage, refer to the o
 | [**SDKMAN! Comparison**](docs/SDKMAN-Comparison.md)| Why this is the premier native alternative to SDKMAN! for Windows. |
 | [**FAQ**](docs/FAQ.md) | Common questions about UAC, global routing, and Windows Registry bridging. |
 | [**Changelog**](docs/CHANGELOG.md) | Detailed chronological release history and bug fixes. |
+| [**Support & Help**](.github/SUPPORT.md) | Where to get help, ask questions, Discord community, and issue reporting channels. |
 
 ## 🛠️ Usage
 
