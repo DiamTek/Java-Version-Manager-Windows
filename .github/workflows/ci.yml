@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & Test MSI Packages
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install WiX Toolset v4
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 4.0.6
+          wix extension add --global WixToolset.Util.wixext/4.0.6
+          wix --version
+
+      - name: Build Standalone MSIs (x64 & arm64)
+        shell: pwsh
+        run: |
+          .\packages\msi\build-msi.ps1 -Arch all
+
+      - name: Run Integration Test Suite (x64)
+        shell: pwsh
+        run: |
+          .\packages\msi\test-msi.ps1
+
+      - name: Upload CI Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: msi-packages-ci
+          path: packages/msi/jvm-windows-*.msi
+          if-no-files-found: error

@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to build and release (e.g. 1.0.0)'
+        required: false
+        default: '1.0.0'
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build-attest-release:
+    name: Build, Attest & Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install WiX Toolset v4
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 4.0.6
+          wix extension add --global WixToolset.Util.wixext/4.0.6
+          wix --version
+
+      - name: Resolve Release Version and Tag
+        id: resolve-version
+        shell: pwsh
+        run: |
+          $ver = "${{ inputs.version }}"
+          $refName = "${{ github.ref_name }}"
+          $refType = "${{ github.ref_type }}"
+
+          # Only parse the ref_name if this action was triggered explicitly by a genuine git Tag push
+          if ($refType -eq "tag" -and $refName -match '^v?([0-9]+\.[0-9]+\.[0-9]+.*)') {
+              $ver = $matches[1]
+              $tag = "v$ver"
+          } elseif ($ver) {
+              $tag = if ($ver.StartsWith('v')) { $ver } else { "v$ver" }
+              $ver = $tag.TrimStart('v')
+          } else {
+              $ver = "1.0.0"
+              $tag = "v1.0.0"
+          }
+          Write-Host "Resolved Version: $ver"
+          Write-Host "Resolved Tag:     $tag"
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "tag=$tag"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Build Standalone MSIs (x64 & arm64)
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.resolve-version.outputs.version }}"
+          .\packages\msi\build-msi.ps1 -Version $ver -Arch all
+
+      - name: Run Integration Test Suite (x64)
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.resolve-version.outputs.version }}"
+          .\packages\msi\test-msi.ps1 -MsiPath "packages/msi/jvm-windows-$ver-x64.msi"
+
+      - name: Create Portable Zip Distribution
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.resolve-version.outputs.version }}"
+          $zipName = "packages/msi/jvm-windows-$ver-portable.zip"
+          $itemsToCompress = @("jvm.bat", "assets", "LICENSE", "README.md", "uninstall.ps1", "install.ps1") | Where-Object { Test-Path $_ }
+          Compress-Archive -Path $itemsToCompress -DestinationPath $zipName -Force
+          Write-Host "Created portable archive: $zipName"
+
+      - name: Generate Checksums (SHA256SUMS.txt)
+        shell: pwsh
+        run: |
+          $artifacts = Get-ChildItem -Path packages\msi -Filter "jvm-windows-*" -File | Where-Object { $_.Extension -in '.msi', '.zip' }
+          $checksumLines = foreach ($item in $artifacts) {
+              $hash = (Get-FileHash -Path $item.FullName -Algorithm SHA256).Hash.ToLower()
+              "$hash  $($item.Name)"
+          }
+          $checksumLines | Out-File -FilePath packages\msi\SHA256SUMS.txt -Encoding utf8
+          Write-Host "`nGenerated SHA256SUMS.txt:"
+          Get-Content packages\msi\SHA256SUMS.txt
+
+      - name: Attest Build Provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            packages/msi/jvm-windows-*.msi
+            packages/msi/jvm-windows-*.zip
+            packages/msi/SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.resolve-version.outputs.tag }}
+          name: DiamTek Java Version Manager ${{ steps.resolve-version.outputs.tag }}
+          files: |
+            packages/msi/jvm-windows-*.msi
+            packages/msi/jvm-windows-*.zip
+            packages/msi/SHA256SUMS.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: jvm-release-artifacts
+          path: |
+            packages/msi/jvm-windows-*.msi
+            packages/msi/jvm-windows-*.zip
+            packages/msi/SHA256SUMS.txt
+          if-no-files-found: error
