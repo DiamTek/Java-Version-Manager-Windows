@@ -123,7 +123,7 @@ For deep technical details, CI/CD automation, and advanced usage, refer to the o
 | [**SDKMAN! Comparison**](docs/SDKMAN-Comparison.md)| Why this is the premier native alternative to SDKMAN! for Windows. |
 | [**FAQ**](docs/FAQ.md) | Common questions about UAC, global routing, and Windows Registry bridging. |
 | [**Changelog**](docs/CHANGELOG.md) | Detailed chronological release history and bug fixes. |
-| [**Support & Help**](.github/SUPPORT.md) | Where to get help, ask questions, Discord community, and issue reporting channels. |
+| [**Support & Help**](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/SUPPORT.md) | Where to get help, ask questions, Discord community, and issue reporting channels. |
 
 ## 🛠️ Usage
 
@@ -226,9 +226,9 @@ To prevent catastrophic accidental deletions on local filesystems, all critical 
 ## 🤝 Community & Contributing
 
 Contributions, issues, and feature requests are welcome!
-- 📖 Read the [Contributing Guide](.github/CONTRIBUTING.md) to get started.
-- 🛡️ Review our [Security Policy](.github/SECURITY.md) to report vulnerabilities privately.
-- 💬 Need help? Check the [Support Guide](.github/SUPPORT.md), open an [Issue](https://github.com/DiamTek/Java-Version-Manager-Windows/issues), or reach out on Discord (**@thehawk01**).
+- 📖 Read the [Contributing Guide](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/CONTRIBUTING.md) to get started.
+- 🛡️ Review our [Security Policy](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/SECURITY.md) to report vulnerabilities privately.
+- 💬 Need help? Check the [Support Guide](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/SUPPORT.md), open an [Issue](https://github.com/DiamTek/Java-Version-Manager-Windows/issues), or reach out on Discord (**@thehawk01**).
 
 ## 📄 License
 Copyright (c) 2026 DiamTek / Alexéy Shishkin.
