@@ -52,7 +52,7 @@ try {
 } catch { }
 
 $RootDir = (Resolve-Path "$ScriptDir\..\..").Path
-Set-Location $ScriptDir
+Push-Location $ScriptDir
 
 # 1. Ensure .NET SDK is accessible
 Write-Host "Checking for .NET SDK (Required for WiX v4)..." -ForegroundColor Cyan
@@ -507,7 +507,7 @@ exit 0
     $outputMsi = "$ScriptDir\jvm-windows-$Version-$TargetArch.msi"
     Remove-Item $outputMsi -Force -ErrorAction SilentlyContinue
     Write-Host "Compiling MSI ($TargetArch) using WiX v4..." -ForegroundColor Cyan
-    Invoke-Wix build jvm.wxs -arch $TargetArch -ext WixToolset.Util.wixext -o $outputMsi
+    $null = Invoke-Wix build jvm.wxs -arch $TargetArch -ext WixToolset.Util.wixext -o $outputMsi
 
     # Clean up temporary build artifacts
     Write-Host "Cleaning up build intermediate files..." -ForegroundColor DarkGray
@@ -526,17 +526,14 @@ exit 0
             if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
                 $sha256 = (Get-FileHash $outputMsi -Algorithm SHA256).Hash
             } else {
-                $hasher = [System.Security.Cryptography.SHA256]::Create()
+                $shaObj = [System.Security.Cryptography.SHA256]::Create()
                 $fileStream = [System.IO.File]::OpenRead($outputMsi)
-                $hashBytes = $hasher.ComputeHash($fileStream)
+                $hashBytes = $shaObj.ComputeHash($fileStream)
                 $fileStream.Close()
-                $sha256 = [System.BitConverter]::ToString($hashBytes).Replace("-", "").ToUpper()
+                $sha256 = [System.BitConverter]::ToString($hashBytes).Replace('-', '')
             }
-        } catch {
-            $sha256 = "N/A"
-        }
+        } catch { }
 
-        # Extract ProductCode from generated MSI
         $prodCode = "N/A"
         try {
             $wi = New-Object -ComObject WindowsInstaller.Installer
@@ -547,21 +544,30 @@ exit 0
             if ($rec) { $prodCode = $rec.StringData(1) }
         } catch { }
 
-        Write-Host "`n[ SUCCESS ] Built Standalone MSI Package!" -ForegroundColor Green
-        Write-Host "            File:        $outputMsi" -ForegroundColor Green
-        Write-Host "            Size:        $sizeKB KB" -ForegroundColor Green
-        Write-Host "            SHA-256:     $sha256" -ForegroundColor Green
-        Write-Host "            ProductCode: $prodCode" -ForegroundColor Green
-        Write-Host "            UpgradeCode: {DB30058E-1738-46CB-84EC-8C652DC99A22}`n" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "  ============================================================" -ForegroundColor DarkGreen
+        Write-Host "   [ SUCCESS ] Built Standalone MSI ($TargetArch) Package!     " -ForegroundColor Green
+        Write-Host "  ============================================================" -ForegroundColor DarkGreen
+        Write-Host "   File:        $outputMsi" -ForegroundColor DarkGray
+        Write-Host "   Size:        $sizeKB KB" -ForegroundColor DarkGray
+        Write-Host "   SHA-256:     $sha256" -ForegroundColor DarkGray
+        Write-Host "   ProductCode: $prodCode" -ForegroundColor DarkGray
+        Write-Host "   UpgradeCode: {DB30058E-1738-46CB-84EC-8C652DC99A22}" -ForegroundColor DarkGray
+        Write-Host "  ============================================================`n" -ForegroundColor DarkGreen
     } else {
         Write-Host "`n[ ERROR ] MSI build output not found: $outputMsi" -ForegroundColor Red
+        Pop-Location
         exit 1
     }
 }
 
-if ($All -or $Arch -eq "all") {
-    Build-MsiPackage -TargetArch "x64"
-    Build-MsiPackage -TargetArch "arm64"
-} else {
-    Build-MsiPackage -TargetArch $Arch
+try {
+    if ($All -or $Arch -eq "all") {
+        Build-MsiPackage -TargetArch "x64"
+        Build-MsiPackage -TargetArch "arm64"
+    } else {
+        Build-MsiPackage -TargetArch $Arch
+    }
+} finally {
+    Pop-Location
 }
