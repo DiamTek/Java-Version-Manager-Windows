@@ -1,12 +1,22 @@
-# Java Version Manager (JVM)
+<p align="center">
+  <img src="assets/icon.png" alt="Java Version Manager Logo" width="128" height="128" />
+</p>
 
-[![CI](https://github.com/DiamTek/Java-Version-Manager-Windows/actions/workflows/ci.yml/badge.svg)](https://github.com/DiamTek/Java-Version-Manager-Windows/actions/workflows/ci.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/DiamTek/Java-Version-Manager-Windows?color=0078D6&label=release)](https://github.com/DiamTek/Java-Version-Manager-Windows/releases)
-[![Provenance](https://img.shields.io/badge/provenance-attested-success.svg)](https://github.com/DiamTek/Java-Version-Manager-Windows/releases)
-[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6.svg)](https://github.com/DiamTek/Java-Version-Manager-Windows)
+<h1 align="center">Java Version Manager (JVM)</h1>
 
-A lightweight, high-performance, color-coded Windows command-line utility designed to dynamically discover, download, and switch Java Development Kits (JDKs) and the entire JVM Ecosystem (Maven, Gradle, Kotlin, Scala, Groovy) with native SDKMAN! parity.
+<p align="center">
+  <strong>A lightweight, high-performance, color-coded Windows command-line utility designed to dynamically discover, download, and switch Java Development Kits (JDKs) and the entire JVM Ecosystem with native SDKMAN! parity.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/DiamTek/Java-Version-Manager-Windows/actions/workflows/ci.yml"><img src="https://github.com/DiamTek/Java-Version-Manager-Windows/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/DiamTek/Java-Version-Manager-Windows/releases"><img src="https://img.shields.io/github/v/release/DiamTek/Java-Version-Manager-Windows?color=0078D6&label=release" alt="Release"></a>
+  <a href="https://github.com/DiamTek/Java-Version-Manager-Windows/releases"><img src="https://img.shields.io/badge/provenance-attested-success.svg" alt="Provenance"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License"></a>
+  <a href="https://github.com/DiamTek/Java-Version-Manager-Windows"><img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6.svg" alt="Platform"></a>
+</p>
+
+---
 
 ## 📥 Installation
 
