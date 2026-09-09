@@ -87,8 +87,11 @@ jobs:
       - name: Generate Checksums (SHA256SUMS.txt)
         shell: pwsh
         run: |
-          $artifacts = Get-ChildItem -Path packages\msi -Filter "jvm-windows-*" -File | Where-Object { $_.Extension -in '.msi', '.zip' }
-          $checksumLines = foreach ($item in $artifacts) {
+          $msiAndZips = Get-ChildItem -Path packages\msi -Filter "jvm-windows-*" -File | Where-Object { $_.Extension -in '.msi', '.zip' }
+          $standaloneFiles = Get-Item -Path "jvm.bat", "install.ps1", "uninstall.ps1", "README.md", "LICENSE" -ErrorAction SilentlyContinue
+          $allReleaseFiles = @($msiAndZips) + @($standaloneFiles) | Where-Object { $_ }
+
+          $checksumLines = foreach ($item in $allReleaseFiles) {
               $hash = (Get-FileHash -Path $item.FullName -Algorithm SHA256).Hash.ToLower()
               "$hash  $($item.Name)"
           }
@@ -99,10 +102,7 @@ jobs:
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: |
-            packages/msi/jvm-windows-*.msi
-            packages/msi/jvm-windows-*.zip
-            packages/msi/SHA256SUMS.txt
+          subject-path: "packages/msi/jvm-windows-*.msi, packages/msi/jvm-windows-*.zip, packages/msi/SHA256SUMS.txt, ./jvm.bat, ./install.ps1, ./uninstall.ps1, ./README.md, ./LICENSE"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -113,6 +113,11 @@ jobs:
             packages/msi/jvm-windows-*.msi
             packages/msi/jvm-windows-*.zip
             packages/msi/SHA256SUMS.txt
+            ./jvm.bat
+            ./install.ps1
+            ./uninstall.ps1
+            ./README.md
+            ./LICENSE
           generate_release_notes: true
           draft: false
           prerelease: false
@@ -125,4 +130,9 @@ jobs:
             packages/msi/jvm-windows-*.msi
             packages/msi/jvm-windows-*.zip
             packages/msi/SHA256SUMS.txt
+            ./jvm.bat
+            ./install.ps1
+            ./uninstall.ps1
+            ./README.md
+            ./LICENSE
           if-no-files-found: error
