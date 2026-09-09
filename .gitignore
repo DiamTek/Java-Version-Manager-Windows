@@ -1,0 +1,26 @@
+# WiX Toolset and MSI Build Artifacts
+.wix/
+*.wixobj
+*.wixpdb
+*.cab
+packages/msi/*.msi
+packages/msi/*.wixpdb
+packages/msi/*.cab
+packages/msi/.wix/
+packages/msi/msi-*-hook.ps1
+
+# Windows OS Files
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# IDE / Editor Files
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Temporary / Scratch Files
+*.tmp
+*.temp
+scratch/
