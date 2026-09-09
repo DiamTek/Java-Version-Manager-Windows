@@ -13,10 +13,11 @@ A lightweight, high-performance, color-coded Windows command-line utility design
 Open Windows PowerShell (no Administrator privileges required) and run the one-liner:
 
 ```powershell
-# Shorthand (PowerShell 5.1+ / 7+):
 irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex
+```
 
-# Or explicit Invoke-WebRequest:
+Or via explicit `Invoke-WebRequest`:
+```powershell
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1" -OutFile "$env:TEMP\install.ps1"; & "$env:TEMP\install.ps1"
 ```
 *This instantly downloads the core engine, provisions `%LOCALAPPDATA%\DiamTek\JVM`, registers the Windows uninstaller, and updates your PowerShell Profile so the `jvm` command is available everywhere.*

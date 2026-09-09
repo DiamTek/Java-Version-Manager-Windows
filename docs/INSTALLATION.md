@@ -4,8 +4,13 @@ Getting started with the Java Version Manager for Windows takes less than 10 sec
 
 ## Standard Installation (PowerShell)
 
-Open Windows PowerShell (you do not need Administrator privileges) and run the following command:
+Open Windows PowerShell (you do not need Administrator privileges) and run the one-liner:
 
+```powershell
+irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex
+```
+
+Or via explicit `Invoke-WebRequest`:
 ```powershell
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1" -OutFile "$env:TEMP\install.ps1"; & "$env:TEMP\install.ps1"
 ```
