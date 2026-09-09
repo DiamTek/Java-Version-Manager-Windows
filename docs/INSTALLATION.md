@@ -97,7 +97,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1
 The resulting single-file installers are placed directly into `packages\msi\`.
 
 #### Automated Verification Suite
-The MSI subsystem includes a fully autonomous, 14-point integration verification test suite (`packages\msi\test-msi.ps1`). It actively tests live operating system integration—including the Windows Installer service (`msiexec`), Windows Terminal `settings.json`, PowerShell `$PROFILE`, Windows Registry `PATH`, Start Menu shortcuts, and live CLI subshell process execution (`cmd.exe /c "jvm.bat --version"`).
+The MSI subsystem includes a fully autonomous, 18-point integration verification test suite (`packages\msi\test-msi.ps1`). It actively tests live operating system integration—including the Windows Installer service (`msiexec`), CLI `bin/` directory hygiene (guaranteeing internal hook scripts are isolated from `PATH`), Start Menu application and uninstaller shortcuts indexed by Windows Search, Windows Terminal `settings.json`, PowerShell `$PROFILE`, Windows Registry `PATH`, and live CLI subshell process execution (`cmd.exe /c "jvm.bat --version"`).
 
 ##### Autonomous 4-Tier Resolution Engine
 You can run `test-msi.ps1` from **any working directory** on any Windows machine (even on a clean machine with no prior source code, Git, .NET, or WiX installed). The test runner resolves packages using a 4-tier fallback hierarchy:
@@ -132,6 +132,31 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1 
 > ```cmd
 > msiexec /i .\packages\msi\jvm-windows-1.0.0-x64.msi
 > ```
+
+#### Verifying GitHub Build Provenance & Attestation
+Every official release MSI package published to GitHub Releases is cryptographically signed and attested using GitHub's Artifact Attestations system (`actions/attest-build-provenance`), powered by Sigstore and in-toto specifications.
+
+This provides cryptographic, tamper-proof proof that:
+- The binary was compiled inside the official `DiamTek/Java-Version-Manager-Windows` repository workflow runners.
+- The build was triggered from a specific, immutable Git commit SHA.
+- The binary has not been modified, trojaned, or altered since compilation.
+
+##### How to Verify using GitHub CLI (`gh`):
+```powershell
+# Verify the downloaded MSI installer:
+gh attestation verify jvm-windows-1.0.0-x64.msi --repo DiamTek/Java-Version-Manager-Windows
+```
+
+When verified, the GitHub CLI confirms certificate authority validity against the OIDC token:
+```text
+Loaded digest sha256:fffb850b527908ec... for jvm-windows-1.0.0-x64.msi
+Loaded 1 attestation from GitHub API with build provenance
+The following policy criteria will be validated:
+- Certificate issuer must match: https://token.actions.githubusercontent.com
+- Source repository owner must match: DiamTek
+- Source repository must match: DiamTek/Java-Version-Manager-Windows
+Verification succeeded!
+```
 
 ---
 
