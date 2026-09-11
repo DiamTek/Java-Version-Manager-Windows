@@ -60,15 +60,17 @@ The engine provides two distinct switching engines that users can toggle via the
 flowchart TD
     Command["jvm switch / quick-switch command"] --> ModeCheck{"Active Mode?"}
     
+    ModeCheck -->|Symlink Mode| TearDown
+    ModeCheck -->|Registry Mode| CheckAdmin
+
     subgraph SymlinkMode["Symlink Mode (Default - UAC-Free)"]
-        ModeCheck -->|Symlink Mode| TearDown["Remove-Item / rmdir current"]
-        TearDown --> CreateJunction["New-Item -ItemType Junction<br/>targeting selected JDK"]
+        TearDown["Remove-Item / rmdir current"] --> CreateJunction["New-Item -ItemType Junction<br/>targeting selected JDK"]
         CreateJunction --> UpdateProfile["Invoke PowerShell Set-JvmVar Session Hook<br/>Updates active shell process memory"]
         UpdateProfile --> InstantSuccess["Instant Switch Across All Open Shells (0 UAC)"]
     end
     
     subgraph RegistryMode["Registry Mode (Legacy - UAC Required)"]
-        ModeCheck -->|Registry Mode| CheckAdmin{"Running as Admin?"}
+        CheckAdmin{"Running as Admin?"}
         CheckAdmin -->|Yes| WriteHKLM["[Environment]::SetEnvironmentVariable<br/>('JAVA_HOME', target, 'Machine')"]
         CheckAdmin -->|No| Elevate["Spawn Start-Process -Verb RunAs<br/>(Triggers Windows UAC Prompt)"]
         Elevate --> WriteHKLM

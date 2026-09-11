@@ -1,18 +1,90 @@
-<!-- Mermaid.js support for GitHub Pages -->
+<!-- Custom Favicon -->
+<link rel="shortcut icon" type="image/x-icon" href="{{ '/assets/icon.ico' | relative_url }}">
+<link rel="icon" type="image/png" sizes="128x128" href="{{ '/assets/icon.png' | relative_url }}">
+
+<!-- Custom Styles: Smooth Scroll, Mermaid Cards, Code Copy Buttons -->
 <style>
+  html {
+    scroll-behavior: smooth;
+  }
   .mermaid {
     display: flex;
     justify-content: center;
-    margin: 24px 0;
+    margin: 28px 0;
+    padding: 16px;
+    background: #f8f9fa;
+    border: 1px solid #e1e4e8;
+    border-radius: 8px;
     overflow-x: auto;
   }
   .mermaid svg {
     max-width: 100%;
     height: auto;
   }
+  .highlighter-rouge {
+    position: relative;
+  }
+  .copy-code-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #586069;
+    background-color: #f6f8fa;
+    border: 1px solid #d1d5da;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out, background-color 0.2s, color 0.2s;
+    z-index: 10;
+  }
+  .highlighter-rouge:hover .copy-code-btn {
+    opacity: 1;
+  }
+  .copy-code-btn:hover {
+    background-color: #e1e4e8;
+    color: #24292e;
+  }
+  .copy-code-btn.copied {
+    color: #22863a;
+    border-color: #34d058;
+    background-color: #dcffe4;
+  }
 </style>
+
+<!-- Custom Scripts: Mermaid.js Dynamic Loader & 1-Click Code Copy -->
 <script>
   document.addEventListener('DOMContentLoaded', async () => {
+    // 1. One-Click Code Copy Buttons
+    document.querySelectorAll('.highlighter-rouge').forEach((block) => {
+      if (block.classList.contains('language-mermaid')) return;
+      const btn = document.createElement('button');
+      btn.className = 'copy-code-btn';
+      btn.type = 'button';
+      btn.setAttribute('aria-label', 'Copy code to clipboard');
+      btn.textContent = 'Copy';
+      btn.addEventListener('click', async () => {
+        const code = block.querySelector('code')?.textContent || '';
+        try {
+          await navigator.clipboard.writeText(code.trimEnd());
+          btn.textContent = 'Copied! ✓';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.classList.remove('copied');
+          }, 2000);
+        } catch {
+          btn.textContent = 'Failed';
+          setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+        }
+      });
+      block.appendChild(btn);
+    });
+
+    // 2. Dynamic Mermaid Loader
     const mermaidCodeBlocks = document.querySelectorAll('code.language-mermaid');
     if (mermaidCodeBlocks.length === 0) return;
 
