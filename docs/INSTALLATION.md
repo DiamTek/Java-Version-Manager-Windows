@@ -63,6 +63,28 @@ If you prefer not to use the automated PowerShell script and understand the risk
 6. The script will dynamically inject its current folder into your Windows User PATH.
 7. Restart your terminal and type `jvm`.
 
+### Local Script Installation (`install.ps1`)
+
+If you download `install.ps1` or download the repository `.zip` to install locally:
+
+1. **Unblock the downloaded script(s):**
+   Windows tags files downloaded via web browsers with an NTFS `Zone.Identifier` stream. Unblock before running:
+   ```powershell
+   # Unblock install.ps1 directly:
+   Unblock-File .\install.ps1
+
+   # Or unblock all files across an extracted zip:
+   Get-ChildItem -Recurse | Unblock-File
+   ```
+   *(Alternatively: Right-click `install.ps1` → **Properties** → check **Unblock** → **OK**).*
+
+2. **Execute the local installer:**
+   ```powershell
+   .\install.ps1
+   # Or with explicit execution policy bypass:
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+   ```
+
 ## Package Managers
 
 ### Winget
@@ -251,24 +273,27 @@ Under the default Windows PowerShell execution policy (`RemoteSigned`), Windows 
 File ... cannot be loaded. The file ... is not digitally signed.
 ```
 
-To resolve this, unblock the file using any of these methods:
+To resolve this, unblock the file(s) using any of these methods:
 
 1. **PowerShell CLI (Recommended)**:
    ```powershell
-   Unblock-File .\packages\msi\test-msi.ps1
-   # Or unblock all scripts in the directory:
-   Get-ChildItem -Path .\packages\msi -Filter *.ps1 | Unblock-File
+   # Unblock install.ps1 or uninstall.ps1 directly:
+   Unblock-File .\install.ps1
+   Unblock-File .\uninstall.ps1
+
+   # Or unblock every file and script in an extracted folder recursively:
+   Get-ChildItem -Recurse | Unblock-File
    ```
 
 2. **File Explorer GUI**:
-   - Right-click the `.ps1` file in File Explorer and select **Properties**.
+   - Right-click the `.ps1` (or `.zip`) file in File Explorer and select **Properties**.
    - At the bottom of the **General** tab, check the **Unblock** checkbox.
    - Click **Apply** and then **OK**.
 
 3. **ExecutionPolicy Bypass**:
    Launching PowerShell with `-ExecutionPolicy Bypass` instructs PowerShell to ignore both execution policies and zone restrictions for that session:
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
    ```
 
 ### PowerShell Execution Policy Errors

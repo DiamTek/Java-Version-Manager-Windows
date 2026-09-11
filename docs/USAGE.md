@@ -314,6 +314,12 @@ Display the exact path your current `JAVA_HOME` environment variable is pointing
 ```cmd
 jvm env
 ```
+Inspect which `java.exe` binary Windows is actively executing in order of PATH precedence:
+```cmd
+where.exe java
+# In PowerShell: (Get-Command java -All).Source
+```
+*(If an old Oracle `javapath` appears above `%LOCALAPPDATA%\DiamTek\JVM\current\bin`, run `jvm clear` or use the UI to purge rogue paths, then re-activate with `jvm <version>`).*
 
 ### System Scrubbing
 Instantly wipe `JAVA_HOME` and purge Java from your Windows PATH entirely:

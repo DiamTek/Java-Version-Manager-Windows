@@ -15,15 +15,19 @@
 ### 🔍 Quick Jump
 - [Why use this over SDKMAN! on Windows?](#why-use-this-over-sdkman-on-windows)
 - [Why isn't `java` recognized immediately after I switch versions?](#why-isnt-java-recognized-immediately-after-i-switch-versions)
+- [Why does `java -version` still show an old version after I switch? (PATH Shadowing)](#why-does-java--version-still-show-an-old-java-version-after-i-switch-path-shadowing)
 - [How do I verify or manually configure the PowerShell Profile Hook?](#how-do-i-verify-or-manually-configure-the-powershell-profile-hook)
 - [Does this require Administrator (UAC) privileges?](#does-this-require-administrator-uac-privileges)
 - [How does it change the version globally without messing up my path?](#how-does-it-change-the-version-globally-without-messing-up-my-path)
 - [Can I use this in a CI/CD pipeline (like GitHub Actions)?](#can-i-use-this-in-a-cicd-pipeline-like-github-actions)
+- [Can I temporarily run a build with a specific Java version without altering my global environment?](#can-i-temporarily-run-a-build-with-a-specific-java-version-without-altering-my-global-environment)
 - [Does it support custom JDKs or private binaries?](#does-it-support-custom-jdks-or-private-binaries)
 - [Where are my JDKs and tools actually installed?](#where-are-my-jdks-and-tools-actually-installed)
+- [How do I use JVM behind a corporate proxy or enterprise firewall?](#how-do-i-use-jvm-behind-a-corporate-proxy-or-enterprise-firewall)
 - [How does Windows Terminal and Taskbar integration work?](#how-does-windows-terminal-and-taskbar-integration-work)
 - [How do I completely uninstall it?](#how-do-i-completely-uninstall-it)
 - [Why does Windows PowerShell say a script is not digitally signed or blocked?](#why-does-windows-powershell-say-a-script-is-not-digitally-signed-or-blocked)
+- [What should I do if Windows Defender SmartScreen warns about an "Unknown Publisher"?](#what-should-i-do-if-windows-defender-smartscreen-warns-about-an-unknown-publisher)
 - [Does the MSI test suite test real system integration or just file creation?](#does-the-msi-test-suite-test-real-system-integration-or-just-file-creation)
 - [How do I cryptographically verify the authenticity and provenance of release binaries?](#how-do-i-cryptographically-verify-the-authenticity-and-provenance-of-release-binaries)
 - [What process exit codes does the CLI and installer return for CI/CD scripting?](#what-process-exit-codes-does-the-cli-and-installer-return-for-cicd-scripting)
@@ -38,6 +42,28 @@ In most cases, it is recognized immediately!
 - **PowerShell (with Profile Hook):** The installer injects the `Set-JvmVar` hook into your PowerShell `$PROFILE`. When you switch versions with `jvm`, environment variables (`JAVA_HOME`, `Path`, toolchains) are dynamically injected into the active session memory on the fly without restarting.
 - **Command Prompt (CMD):** In default **Symlink Mode**, your `PATH` points to the directory junction (`%LOCALAPPDATA%\DiamTek\JVM\current\bin`). The moment the junction target changes, all open CMD terminals resolve the new `java` binary immediately.
 - **IDE Terminals & Background Daemons:** If an application (such as an open VS Code window, IntelliJ instance, or build daemon) cached the environment variables in its own process block before the switch, restarting that terminal or reload the IDE window will ensure the updated variables are picked up.
+
+### Why does `java -version` still show an old Java version after I switch? (PATH Shadowing)
+If switching versions with `jvm <version>` completes successfully but typing `java -version` still reports an old version (such as an ancient Oracle JRE or Chocolatey installation), you are experiencing **PATH Shadowing**.
+
+#### 1. Diagnosing Path Precedence
+When you run `java`, Windows scans through every folder listed in your system `PATH` from left to right and executes the first `java.exe` it finds. To list every Java binary on your machine in the exact order Windows checks them:
+
+**In Command Prompt:**
+```cmd
+where.exe java
+```
+
+**In PowerShell:**
+```powershell
+(Get-Command java -All).Source
+```
+
+If you see an entry like `C:\Program Files\Common Files\Oracle\Java\javapath\java.exe` or `C:\ProgramData\Oracle\Java\javapath\java.exe` listed **above** `%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe`, Windows is intercepting the command before it reaches JVM.
+
+#### 2. Automatic Resolution
+- **Purge Rogue Paths with `jvm clear`:** Run `jvm clear` (or in the interactive UI menu, select **Clear Java from Environment Variables**). This automatically scrubs legacy Oracle `javapath` entries (`C:\Program Files\Common Files\Oracle\Java\javapath`, `C:\ProgramData\Oracle\Java\javapath`) and broken symlinks from both your User and System `PATH`. Afterward, run `jvm <version>` (e.g., `jvm 21`) to re-activate your desired JDK cleanly with zero path conflicts.
+- **Manual Cleanup:** Open Windows System Properties (`sysdm.cpl` → **Advanced** → **Environment Variables**) and delete any lingering `javapath` entries from the Machine-level **Path** variable.
 
 ### How do I verify or manually configure the PowerShell Profile Hook?
 DiamTek JVM automatically configures both Windows PowerShell (5.1) and modern PowerShell Core (7+) profiles so that switching versions via `jvm` dynamically updates `JAVA_HOME`, toolpaths, and the active session `$env:Path` in-memory without restarting your shell.
@@ -119,11 +145,55 @@ Instead of adding a new folder to your system `PATH` every time you install a JD
 ### Can I use this in a CI/CD pipeline (like GitHub Actions)?
 Yes! The tool supports headless execution. You can bypass the interactive menu entirely by passing arguments directly, for example: `jvm install java 21` or `jvm 21`.
 
+### Can I temporarily run a build with a specific Java version without altering my global environment?
+Yes! DiamTek JVM provides clean options depending on whether you want true per-process isolation or sequential command execution:
+
+1. **True Session Isolation via `.java-version` (Recommended):**
+   Place a `.java-version` file in the root of your project directory containing the desired version (e.g., `21`). When you run `jvm` in that directory, it activates Java 21 **only for that active terminal process memory**—leaving the shared NTFS Directory Junction (`%LOCALAPPDATA%\DiamTek\JVM\current`), other open terminals, and your Windows Registry completely untouched.
+
+2. **In-Process Environment Overrides (Subshell):**
+   To execute a single build against a specific JDK path without changing any global state:
+   - **Command Prompt:**
+     ```cmd
+     cmd.exe /c "set JAVA_HOME=C:\Program Files\Java\jdk-17&& set PATH=C:\Program Files\Java\jdk-17\bin;%PATH%&& gradlew build"
+     ```
+   - **PowerShell:**
+     ```powershell
+     & { $env:JAVA_HOME = "C:\Program Files\Java\jdk-17"; $env:Path = "$env:JAVA_HOME\bin;$env:Path"; ./gradlew build }
+     ```
+
+3. **Sequential Execution (`&&`):**
+   You can also chain commands sequentially:
+   ```cmd
+   jvm 17 && gradlew build
+   ```
+   *(Note: Because `&&` runs two commands in sequence, `jvm 17` first updates your active Directory Junction to JDK 17, and then `gradlew build` runs using that newly activated version).*
+
 ### Does it support custom JDKs or private binaries?
 Yes! You can use `jvm link <path> [name]` to register any custom or private JDK into the manager. It will integrate seamlessly into the dynamic menus and CLI routing.
 
 ### Where are my JDKs and tools actually installed?
 By default, auto-downloaded JDKs are installed to `C:\Program Files\Java\<vendor-jdk>`, and ecosystem tools (Maven, Gradle, Kotlin, Scala, Groovy) are securely stored and cached in `%LOCALAPPDATA%\DiamTek\JVM\candidates\<tool>`.
+
+### How do I use JVM behind a corporate proxy or enterprise firewall?
+DiamTek JVM's networking leverages native Windows `.NET` APIs, which automatically respect enterprise network configurations:
+
+1. **System WinINet Proxies:**
+   If your workstation routes traffic through a corporate PAC file or system proxy (configured in Windows Settings → **Network & Internet** → **Proxy**), JVM automatically inherits and tunnels requests through it without manual setup.
+
+2. **Standard Proxy Environment Variables:**
+   For command-line proxy routing, define the standard Windows proxy variables in your terminal:
+   ```cmd
+   set HTTP_PROXY=http://proxy.company.com:8080
+   set HTTPS_PROXY=http://proxy.company.com:8080
+   ```
+   For authenticated proxies:
+   ```cmd
+   set HTTPS_PROXY=http://username:password@proxy.company.com:8080
+   ```
+
+3. **Corporate Root SSL Certificates (Zscaler, Netskope, Palo Alto):**
+   Unlike Unix tools that require manually importing corporate root CAs into custom Java `cacerts` truststores, JVM's internal downloader validates certificates against the native **Windows Trusted Root Certification Authorities** store. Any enterprise root certificate deployed via Group Policy (GPO) or Intune is trusted automatically.
 
 ### How does Windows Terminal and Taskbar integration work?
 The installer automatically integrates DiamTek JVM into Windows Terminal by registering a dedicated profile in `settings.json`:
@@ -141,13 +211,35 @@ DiamTek JVM provides a complete, UAC-elevated uninstaller (`uninstall.ps1`) that
 - **Windows Installer (MSI):** Run `msiexec /x jvm-windows-1.0.0-x64.msi /qn`.
 
 ### Why does Windows PowerShell say a script is not digitally signed or blocked?
-When you download `.ps1` scripts or zip files through a browser, Windows tags them with a `Zone.Identifier` NTFS stream (`ZoneId=3` - Internet). Under the default `RemoteSigned` policy, PowerShell verifies digital signatures before running remote scripts. Open-source scripts without a commercial certificate will be blocked.
+When you download `.ps1` scripts (such as `install.ps1`, `uninstall.ps1`, or test suites) or `.zip` archives through a web browser, Windows Attachment Manager tags them with an NTFS `Zone.Identifier` stream (`ZoneId=3` - Internet). Under the default `RemoteSigned` policy, PowerShell blocks any unverified script before running.
 
-You can unblock files in two ways:
-1. **PowerShell:** Run `Unblock-File .\packages\msi\test-msi.ps1`.
-2. **File Explorer:** Right-click the `.ps1` file -> **Properties** -> check **Unblock** at the bottom -> click **OK**.
-Alternatively, run with execution policy bypass:
-`powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1`
+You can unblock the file(s) in three ways:
+1. **PowerShell CLI:**
+   ```powershell
+   # Unblock install.ps1 or uninstall.ps1 directly:
+   Unblock-File .\install.ps1
+   Unblock-File .\uninstall.ps1
+
+   # Or unblock every script and file in an extracted folder recursively:
+   Get-ChildItem -Recurse | Unblock-File
+   ```
+2. **File Explorer GUI:** Right-click the `.ps1` or `.zip` file → **Properties** → check **Unblock** at the bottom → click **OK**.
+3. **ExecutionPolicy Bypass:** Run with temporary session bypass:
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+   ```
+
+### What should I do if Windows Defender SmartScreen warns about an "Unknown Publisher"?
+When downloading newly released open-source installers (`.msi` or `.ps1`) from GitHub without an expensive commercial EV Code Signing certificate ($500+/year), Windows Defender SmartScreen may display a blue warning banner: *"Windows protected your PC — Microsoft Defender SmartScreen prevented an unrecognized app from starting."*
+
+This is standard Windows behavior for open-source software with newly compiled binaries:
+1. Click **More info**.
+2. Click **Run anyway**.
+
+All official DiamTek release artifacts are cryptographically attested via GitHub's Sigstore OIDC infrastructure using `actions/attest-build-provenance`. You can independently verify that your downloaded binary was compiled directly by GitHub Actions from the audited open-source repository:
+```powershell
+gh attestation verify jvm-windows-1.0.0-x64.msi --repo DiamTek/Java-Version-Manager-Windows
+```
 
 ### Does the MSI test suite test real system integration or just file creation?
 It tests the **real, live system integration on your computer**:
