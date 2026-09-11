@@ -30,7 +30,10 @@
 - [What should I do if Windows Defender SmartScreen warns about an "Unknown Publisher"?](#what-should-i-do-if-windows-defender-smartscreen-warns-about-an-unknown-publisher)
 - [Does the MSI test suite test real system integration or just file creation?](#does-the-msi-test-suite-test-real-system-integration-or-just-file-creation)
 - [How do I cryptographically verify the authenticity and provenance of release binaries?](#how-do-i-cryptographically-verify-the-authenticity-and-provenance-of-release-binaries)
+- [How does JVM protect against local privilege escalation and corrupted downloads?](#how-does-jvm-protect-against-local-privilege-escalation-and-corrupted-downloads)
 - [What process exit codes does the CLI and installer return for CI/CD scripting?](#what-process-exit-codes-does-the-cli-and-installer-return-for-cicd-scripting)
+- [Can my engineering team adopt JVM on locked-down corporate laptops without IT admin tickets?](#can-my-engineering-team-adopt-jvm-on-locked-down-corporate-laptops-without-it-admin-tickets)
+- [How does DiamTek JVM fit into enterprise fleet management (Intune / MECM / GPO)?](#how-does-diamtek-jvm-fit-into-enterprise-fleet-management-intune--mecm--gpo)
 
 ---
 
@@ -292,6 +295,38 @@ if ($LASTEXITCODE -ne 0) {
     throw "JVM execution failed with exit code $LASTEXITCODE"
 }
 ```
+
+### Can my engineering team adopt JVM on locked-down corporate laptops without IT admin tickets?
+Yes! In locked-down corporate environments, developers rarely have local administrator (`UAC`) privileges. Traditional Java installations and updates write directly to protected system directories (`C:\Program Files\Java`) and machine-level registry hives (`HKLM`), requiring an IT helpdesk ticket and elevated technician credentials for every routine JDK change.
+
+DiamTek JVM was intentionally architected from the ground up to eliminate this enterprise bottleneck:
+1. **100% User-Space Storage Footprint:** Installs cleanly into `%LOCALAPPDATA%\DiamTek\JVM` without requiring write permissions to protected operating system locations.
+2. **0-UAC Version Switching:** Uses Windows NTFS Directory Junctions (`%LOCALAPPDATA%\DiamTek\JVM\current`). Updating junction pointers in user-space requires **zero administrator privileges and 0 UAC prompts**.
+3. **User-Level Environment Injection:** Automatically configures `JAVA_HOME` and system PATH additions inside the Current User (`HKCU`) registry hive and active PowerShell process memory via the PowerShell Profile hook.
+4. **Ecosystem Build Tools in User-Space:** Modern build tools (Maven, Gradle, Kotlin, Scala, Groovy) are resolved and symlinked entirely inside `%LOCALAPPDATA%\DiamTek\JVM\candidates`, requiring no elevated permissions.
+5. **Pre-Approved Corporate JDK Linking (`jvm link`):** If your corporate security policy prohibits downloading binaries from public mirrors, developers or sysadmins can stage approved JDK builds to any accessible path and register them with `jvm link <path> <name>` with zero administrative overhead.
+
+This allows developers to remain productive and switch JDKs independently while preserving corporate endpoint lockdown compliance.
+
+### How does DiamTek JVM fit into enterprise fleet management (Intune / MECM / GPO)?
+DiamTek JVM is packaged as a native, single-file Windows Installer (`.msi`) built with WiX Toolset v4 with a per-user installation scope (`Scope="perUser"`):
+- **Silent Distribution:** Enterprise IT administrators can silently deploy the MSI across thousands of endpoints without user interruption:
+  ```cmd
+  msiexec /i jvm-windows-1.0.0-x64.msi /qn /norestart
+  ```
+- **Registry-Based Intune Detection Rules:**
+  - **Rule Type:** Registry
+  - **Key Path:** `HKCU\Software\DiamTek\JVM`
+  - **Value Name:** `installed`
+  - **Detection Method:** Integer (DWORD) comparison equals `1`
+- **File-Based Intune Detection Rules:**
+  - **Path:** `%LOCALAPPDATA%\DiamTek\JVM\bin`
+  - **File or Folder:** `jvm.bat`
+- **Clean Fleet Uninstallation:**
+  ```cmd
+  msiexec /x jvm-windows-1.0.0-x64.msi /qn /norestart
+  ```
+- **Zero Reboot Footprint:** Installation, version switches, and uninstallation never require a workstation restart, preventing disruption to active corporate workflows.
 
 ---
 

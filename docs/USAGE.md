@@ -63,6 +63,7 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm install <ver> [--vendor <name>]` | Machine | Downloads and installs specified JDK (e.g., `jvm install 21 --vendor adoptium`). |
 | `jvm install lts [--latest]` | Machine | Downloads newest LTS JDK release directly from vendor APIs. |
 | `jvm install <ver> -y` | Machine | Automated headless install with aggressive safety warning bypass for CI/CD. |
+| `jvm install <ver> --skip-checksum` | Machine | Bypasses checksum verification if vendor hash mirror is unreachable. |
 | `jvm install <tool> [version]` | User | Installs ecosystem tool (e.g., `jvm install maven latest`, `jvm install gradle 8.9`). |
 | `jvm <tool> <version>` | User | Switches active ecosystem tool version (e.g., `jvm kotlin 2.0.20`, `jvm maven 3.9.6`). |
 | `jvm update` | Interactive | Opens the vendor-sorted update checker and patch menu. |

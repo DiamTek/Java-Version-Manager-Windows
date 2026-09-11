@@ -19,6 +19,7 @@
 <p align="center">
   <a href="#-installation">📥 Installation</a> &nbsp;•&nbsp;
   <a href="#-features">🚀 Features</a> &nbsp;•&nbsp;
+  <a href="#-enterprise--corporate-deployment">🏢 Enterprise</a> &nbsp;•&nbsp;
   <a href="#-documentation">📚 Documentation</a> &nbsp;•&nbsp;
   <a href="#-usage">🛠️ Usage</a> &nbsp;•&nbsp;
   <a href="#-version-history">📜 Version History</a> &nbsp;•&nbsp;
@@ -103,6 +104,34 @@ By navigating to the **Settings** menu, users can freely toggle between the two 
 
 You can even override your global setting dynamically on a per-command basis using the `--symlink` or `--legacy` CLI flags (e.g., `jvm 21 --legacy`).
 
+## 🏢 Enterprise & Corporate Deployment
+
+DiamTek JVM is engineered for real-world enterprise IT environments, strict security compliance standards (SecOps/EDR), and frictionless cross-platform engineering team onboarding.
+
+### 🔑 The Four Pillars of Corporate Adoption
+
+1. **Zero Admin Rights Required (Zero IT Helpdesk Tickets)**
+   - **The Enterprise Bottleneck:** On locked-down corporate laptops, developers lack local administrator privileges (`UAC`). Traditional JDK installers write to `C:\Program Files` and machine-level registry keys, requiring IT helpdesk tickets for every routine Java or build tool update.
+   - **The JVM Solution:** DiamTek JVM installs into user space (`%LOCALAPPDATA%\DiamTek\JVM`) and switches active versions using user-mode NTFS Directory Junctions (`current`). Version switching requires **0 UAC prompts**, 0 admin credentials, and 0 IT tickets. Developers control their toolchains independently while corporate endpoint policies remain intact.
+
+2. **Mixed-OS Team Onboarding (`.sdkmanrc` & `.java-version` Parity)**
+   - **Cross-Platform Repositories:** Modern engineering teams rarely use homogeneous operating systems. Repositories committed by macOS/Linux developers standardizing on SDKMAN! include `.sdkmanrc` or `.java-version` files.
+   - **Native Windows Parity:** Windows engineers run `jvm` inside any repository, and the engine automatically parses the file, translates SDKMAN! vendor strings (`-tem`, `-amzn`, `-graal`) to native Windows JDKs, and isolates required versions of Maven, Gradle, Kotlin, Scala, and Groovy in active session memory. No WSL virtualization overhead, no Git Bash quirks, and zero cross-platform friction.
+
+3. **Turnkey Fleet Management (Intune, MECM / SCCM, Group Policy)**
+   - **Silent Enterprise Distribution:** Shipped with pre-compiled, standalone WiX Toolset v4 MSIs (`x64` and `ARM64`) embedding all cabinet payloads.
+   - **Unattended Rollout:** Deploys silently via standard system management tools:
+     ```cmd
+     msiexec /i jvm-windows-1.0.0-x64.msi /qn /norestart
+     ```
+   - **Deterministic Fleet Telemetry:** Built with strict standard exit codes (`0` Success, `1` Abort/Error, `1602` Canceled, `1603` Fatal) and deterministic registry detection rules (`HKCU\Software\DiamTek\JVM`, DWORD `installed=1`) for Microsoft Intune / MECM application packaging.
+
+4. **SecOps, EDR & Audit Compliance**
+   - **Zero-File In-Memory UAC Elevation:** Never drops temporary `.bat` or `.ps1` files into `%TEMP%`. Administrative operations execute in-memory via parameterized PowerShell process APIs, eliminating Time-of-Check to Time-of-Use (TOCTOU) race conditions and Local Privilege Escalation (LPE) flags from corporate EDR agents (CrowdStrike, Microsoft Defender for Endpoint).
+   - **No 1024-Character PATH Truncation:** Completely avoids legacy `setx.exe` buffer overruns by performing all environment modifications through infinite-length `.NET` environment APIs.
+   - **Cryptographic Provenance Attestation:** Official release binaries are cryptographically signed and attested via GitHub Sigstore OIDC (`actions/attest-build-provenance`). SecOps teams can verify binary authenticity directly against the source Git commit SHA using `gh attestation verify`.
+   - **Corporate Proxy & CA Integration:** Inherits system WinINet proxy settings, supports authenticated proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`), and automatically trusts corporate root certificates (Zscaler, Netskope, Palo Alto) via the Windows Certificate Store.
+
 ## ⚡ Extreme Performance & Safety
 
 Despite being nearly 100 KB in size, the `jvm.bat` engine is mathematically optimized to bypass the notorious bottlenecks and memory leaks of standard Windows Batch scripts:
@@ -126,11 +155,11 @@ For deep technical details, CI/CD automation, and advanced usage, refer to the o
 
 | Document | Description |
 |----------|-------------|
-| [**Installation Guide**](docs/INSTALLATION.md) | PowerShell one-liners, Package Managers, MSI standalone installers, and WiX v4 build pipeline. |
+| [**Installation Guide**](docs/INSTALLATION.md) | PowerShell one-liners, Package Managers, MSI standalone installers, Enterprise Fleet Deployment (Intune/MECM), and WiX v4 build pipeline. |
 | [**Usage Guide**](docs/USAGE.md) | Semantic routing, `.java-version` isolation, BYO-JDK, and Ecosystem commands. |
 | [**Architecture**](docs/ARCHITECTURE.md) | Technical deep-dive into Directory Junctions and PowerShell Native execution. |
 | [**SDKMAN! Comparison**](docs/SDKMAN-Comparison.md)| Why this is the premier native alternative to SDKMAN! for Windows. |
-| [**FAQ**](docs/FAQ.md) | Common questions about UAC, global routing, and Windows Registry bridging. |
+| [**FAQ**](docs/FAQ.md) | Common questions about UAC-free zero-admin usage, enterprise proxies, global routing, and Windows Registry bridging. |
 | [**Changelog**](docs/CHANGELOG.md) | Detailed chronological release history and bug fixes. |
 | [**Support & Help**](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/SUPPORT.md) | Where to get help, ask questions, Discord community, and issue reporting channels. |
 | [**Contributing Guide**](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/CONTRIBUTING.md) | Development workflow, pull requests, issue templates, and coding standards. |

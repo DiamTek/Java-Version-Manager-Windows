@@ -37,6 +37,8 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **Bulk Maintenance**| Manual, tool-by-tool | **1-Click Bulk Updater** (`jvm update --all`) |
 | **OS Conflict Handling**| Passive | **Active Phantom-Path Scrubbing** |
 | **Windows Packaging**| Unofficial / None | **Winget, Scoop, Chocolatey, & Native MSI** |
+| **Enterprise Privileges**| Requires WSL/Bash setup | **Zero-Admin / 0 UAC** (Runs on locked-down corporate laptops) |
+| **Corporate Fleet Rollout**| None (Manual shell curl) | **Silent Intune, MECM & GPO MSI** (`msiexec /qn`) |
 | **Uninstallation**| Manual script deletion | **Deep UAC Uninstaller & Windows Settings Integration** |
 
 ---

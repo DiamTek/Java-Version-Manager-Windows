@@ -20,6 +20,7 @@ Getting started with the Java Version Manager for Windows takes less than 10 sec
 - [Standalone MSI Installers (WiX Toolset v4)](#standalone-msi-installers-wix-toolset-v4)
 - [Package Managers (Winget, Scoop, Chocolatey)](#package-managers)
 - [Enterprise & Silent IT Deployment (Intune, MECM, GPO)](#enterprise--silent-it-deployment-intune--mecm--gpo)
+- [Building the MSI from Source](#building-the-msi-from-source)
 - [Automated MSI Verification Suite](#automated-msi-verification-suite)
 - [Uninstallation](#uninstallation)
 - [Troubleshooting & Windows Security](#troubleshooting--windows-security)
@@ -121,28 +122,55 @@ To enable verbose installation logging for diagnostics:
 msiexec /i jvm-windows-1.0.0-x64.msi /qn /norestart /l*v "%TEMP%\jvm-install.log"
 ```
 
-#### Enterprise Endpoint Management (Intune, MECM, GPO)
-DiamTek JVM is built with a standard per-user Windows Installer architecture (`Scope="perUser"`), making it ideal for self-service or managed enterprise distribution without requiring local administrator rights.
+## Enterprise & Silent IT Deployment (Intune, MECM, GPO)
+
+DiamTek JVM is built with a standard per-user Windows Installer architecture (`Scope="perUser"`), making it ideal for self-service engineering workstations or managed enterprise fleet distribution without requiring local administrator rights.
+
+### 🏢 Corporate Zero-Admin & Standard User Strategy (Zero IT Tickets)
+
+In enterprise environments with strictly locked-down corporate laptops, developers do not possess local administrator (`UAC`) credentials:
+* **The Traditional IT Pain Point:** Standard software installations and JDK setups write to `C:\Program Files` and `HKLM`, necessitating an IT helpdesk ticket, security exception, or technician intervention for every routine Java or build tool update.
+* **The Zero-Admin JVM Architecture:** DiamTek JVM installs into the current user's local application store (`%LOCALAPPDATA%\DiamTek\JVM`) and modifies user environment variables (`HKCU`).
+* **0-UAC Version Switching:** JDK version switching leverages NTFS Directory Junctions (`%LOCALAPPDATA%\DiamTek\JVM\current`), an unprivileged user-space operation requiring **0 UAC prompts**. Developers switch between JDK 11, 17, 21, and modern build tools independently without filing IT tickets or compromising corporate endpoint security.
+
+### ⚙️ Enterprise Endpoint Management Configuration Matrix
+
+Deploy silently fleet-wide via Microsoft Intune, Microsoft Endpoint Configuration Manager (MECM / SCCM), or Active Directory Group Policy (GPO):
 
 | Setting | Configuration Value |
 |---------|---------------------|
 | **Install Command** | `msiexec /i "jvm-windows-1.0.0-x64.msi" /qn /norestart` |
 | **Uninstall Command** | `msiexec /x "jvm-windows-1.0.0-x64.msi" /qn /norestart` |
+| **Verbose Logging** | `msiexec /i "jvm-windows-1.0.0-x64.msi" /qn /norestart /l*v "%TEMP%\jvm-install.log"` |
 | **Install Behavior** | **User** (per-user context) |
 | **Device Restart** | **No specific action** (zero reboot required) |
 | **Detection Rule (Registry)** | Key: `HKCU\Software\DiamTek\JVM`<br/>Value: `installed`<br/>Data Type: `Integer (DWORD)`<br/>Operator: `Equals 1` |
 | **Detection Rule (File)** | Path: `%LOCALAPPDATA%\DiamTek\JVM\bin`<br/>File: `jvm.bat` |
+| **Return Codes** | `0` (Success), `1602` (User Canceled), `1603` (Fatal Error), `3010` (Reboot - Handled gracefully) |
 
-#### Corporate Proxies & Air-Gapped Environments
-When deploying in corporate networks behind authenticating forward proxies or air-gapped environments:
-- **Proxy Traversal**: When downloading candidate tools or JDKs, PowerShell's web engine respects standard environment proxy variables:
+### 🔒 Corporate Proxies, SSL Inspection & Internal Artifact Repositories
+
+Deploying inside corporate enterprise perimeters with deep packet inspection (Zscaler, Netskope, Palo Alto) or internal artifact repositories (Artifactory, Nexus):
+- **WinINet & System Proxy Auto-Traversal:** JVM's internal `.NET` networking stack automatically detects and routes through corporate system proxies configured in Windows Settings or deployed via PAC scripts.
+- **CLI Proxy Variables:** Standard environment variables are honored for terminal-level proxy overrides:
   ```powershell
   $env:HTTP_PROXY = "http://proxy.corporate.com:8080"
   $env:HTTPS_PROXY = "http://proxy.corporate.com:8080"
   ```
-- **Offline / Portable Deployment**: For completely air-gapped systems with no outbound internet access, download `jvm-windows-1.0.0-portable.zip` from GitHub Releases and extract it directly into `%LOCALAPPDATA%\DiamTek\JVM\`. Pre-extracted JDKs can be copied into `C:\Program Files\Java\` and linked locally using `jvm link <path> <name>`.
+- **Enterprise Root CA Trust:** Unlike Unix utilities that require manual Java truststore (`cacerts`) imports, JVM validates TLS certificates against the native **Windows Trusted Root Certification Authorities** store. Corporate root certificates deployed via Intune or GPO are trusted automatically.
+- **Internal / Pre-Approved JDKs (`jvm link`):** If enterprise policy restricts public Internet downloads, teams can stage pre-approved internal JDK builds to a corporate share or local directory and register them instantly:
+  ```cmd
+  jvm link "C:\Corporate\Java\zulu-21-approved" zulu-21
+  ```
 
-#### Building the MSI from Source
+### 📦 Air-Gapped & Offline Corporate Environments
+For secure air-gapped workstations or offline development networks with no external internet connectivity:
+1. Download `jvm-windows-1.0.0-portable.zip` from GitHub Releases on an authorized bastion machine.
+2. Extract the archive directly into `%LOCALAPPDATA%\DiamTek\JVM\` on the target workstation.
+3. Pre-extract your organization's approved JDK distributions into `C:\Program Files\Java\` or a user folder.
+4. Register them using `jvm link <path> <name>`.
+
+## Building the MSI from Source
 You can compile native, standalone MSIs locally using the WiX Toolset v4 build pipeline:
 
 **Prerequisites:**
