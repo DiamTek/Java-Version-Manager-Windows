@@ -67,13 +67,34 @@ Standalone, single-file Windows Installers are available for both **x64** (Intel
 For enterprise automation, scripts, or unattended CI environments:
 
 ```cmd
-msiexec /i jvm-windows-1.0.0-x64.msi /qn
+msiexec /i jvm-windows-1.0.0-x64.msi /qn /norestart
 ```
 
 To enable verbose installation logging for diagnostics:
 ```cmd
-msiexec /i jvm-windows-1.0.0-x64.msi /qn /l*v "%TEMP%\jvm-install.log"
+msiexec /i jvm-windows-1.0.0-x64.msi /qn /norestart /l*v "%TEMP%\jvm-install.log"
 ```
+
+#### Enterprise Endpoint Management (Intune, MECM, GPO)
+DiamTek JVM is built with a standard per-user Windows Installer architecture (`Scope="perUser"`), making it ideal for self-service or managed enterprise distribution without requiring local administrator rights.
+
+| Setting | Configuration Value |
+|---------|---------------------|
+| **Install Command** | `msiexec /i "jvm-windows-1.0.0-x64.msi" /qn /norestart` |
+| **Uninstall Command** | `msiexec /x "jvm-windows-1.0.0-x64.msi" /qn /norestart` |
+| **Install Behavior** | **User** (per-user context) |
+| **Device Restart** | **No specific action** (zero reboot required) |
+| **Detection Rule (Registry)** | Key: `HKCU\Software\DiamTek\JVM`<br/>Value: `installed`<br/>Data Type: `Integer (DWORD)`<br/>Operator: `Equals 1` |
+| **Detection Rule (File)** | Path: `%LOCALAPPDATA%\DiamTek\JVM\bin`<br/>File: `jvm.bat` |
+
+#### Corporate Proxies & Air-Gapped Environments
+When deploying in corporate networks behind authenticating forward proxies or air-gapped environments:
+- **Proxy Traversal**: When downloading candidate tools or JDKs, PowerShell's web engine respects standard environment proxy variables:
+  ```powershell
+  $env:HTTP_PROXY = "http://proxy.corporate.com:8080"
+  $env:HTTPS_PROXY = "http://proxy.corporate.com:8080"
+  ```
+- **Offline / Portable Deployment**: For completely air-gapped systems with no outbound internet access, download `jvm-windows-1.0.0-portable.zip` from GitHub Releases and extract it directly into `%LOCALAPPDATA%\DiamTek\JVM\`. Pre-extracted JDKs can be copied into `C:\Program Files\Java\` and linked locally using `jvm link <path> <name>`.
 
 #### Building the MSI from Source
 You can compile native, standalone MSIs locally using the WiX Toolset v4 build pipeline:

@@ -9,6 +9,23 @@ Instead of constantly appending and pruning your Windows `PATH` variable to poin
 
 Your system `PATH` only ever needs to contain `%LOCALAPPDATA%\DiamTek\JVM\current\bin`. When you switch Java versions, the manager simply tears down the old junction and repoints it to the target JDK directory. This provides `O(1)` symlink resolution for the OS.
 
+```mermaid
+graph TD
+    UserShell["User Shell / Terminal / IDE<br/>(CMD, PowerShell, Windows Terminal, VS Code)"]
+    PathEntry["User PATH Variable<br/>%LOCALAPPDATA%\\DiamTek\\JVM\\current\\bin"]
+    Junction["NTFS Directory Junction<br/>%LOCALAPPDATA%\\DiamTek\\JVM\\current"]
+    
+    JDK21["Adoptium JDK 21<br/>C:\\Program Files\\Java\\jdk-21.0.2"]
+    JDK17["Oracle JDK 17<br/>C:\\Program Files\\Java\\jdk-17.0.10"]
+    JDKCustom["Custom JDK / GraalVM<br/>C:\\Development\\graalvm-21"]
+
+    UserShell --> PathEntry
+    PathEntry --> Junction
+    Junction -.->|"Active Switch (O(1))"| JDK21
+    Junction -.->|"Alternative Target"| JDK17
+    Junction -.->|"BYO-JDK Link"| JDKCustom
+```
+
 ## Dual-Architecture Core (Symlink Mode vs. Legacy Registry Mode)
 The engine provides two distinct switching engines that users can toggle via the Settings menu or CLI flags:
 
@@ -21,6 +38,26 @@ The engine provides two distinct switching engines that users can toggle via the
    - **Mechanism:** Directly writes the absolute JDK path to the Machine-level Windows Registry (`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`) and updates the system-wide Machine `PATH`.
    - **Privileges:** **Requires Administrator (UAC) Elevation** on every switch, spawning an elevated background PowerShell worker via `Start-Process -Verb RunAs`.
    - **Compatibility:** 100% unbreakable fallback for legacy enterprise applications, obscure Windows service runners, or ancient classloaders that perform strict canonical path checks and cannot resolve NTFS Directory Junctions.
+
+```mermaid
+flowchart TD
+    Command["jvm switch / quick-switch command"] --> ModeCheck{"Active Mode?"}
+    
+    subgraph SymlinkMode["Symlink Mode (Default - UAC-Free)"]
+        ModeCheck -->|Symlink Mode| TearDown["Remove-Item / rmdir current"]
+        TearDown --> CreateJunction["New-Item -ItemType Junction<br/>targeting selected JDK"]
+        CreateJunction --> UpdateProfile["Invoke Set-JvmVar Hook<br/>(Updates active shell process memory)"]
+        UpdateProfile --> InstantSuccess["Instant Switch Across All Open Shells (0 UAC)"]
+    end
+    
+    subgraph RegistryMode["Registry Mode (Legacy - UAC Required)"]
+        ModeCheck -->|Registry Mode| CheckAdmin{"Running as Admin?"}
+        CheckAdmin -->|Yes| WriteHKLM["[Environment]::SetEnvironmentVariable<br/>('JAVA_HOME', target, 'Machine')"]
+        CheckAdmin -->|No| Elevate["Spawn Start-Process -Verb RunAs<br/>(Triggers Windows UAC Prompt)"]
+        Elevate --> WriteHKLM
+        WriteHKLM --> Broadcast["SendMessageTimeout<br/>(WM_SETTINGCHANGE: Environment)"]
+    end
+```
 
 ## Deep OS Environment Management
 To ensure deep OS integration without requiring users to download external binaries (like `setx` augmentations), the tool relies on inline PowerShell execution invoked seamlessly via `cmd.exe`.
@@ -70,6 +107,17 @@ To provide a first-class modern Windows developer experience while strictly main
 4. **AppUserModelID & Taskbar Mechanics**: Windows Terminal is a packaged WinUI app that hardcodes its own process-level AppUserModelID (`Microsoft.WindowsTerminal...`) on all hosting windows. By registering a dedicated profile with native icon and dropdown integration rather than forcing brittle binary wrappers, the utility respects the OS container model while maintaining a zero-binary, 100% script-based repository.
 
 ## Multi-Channel Packaging Pipelines
+
+```mermaid
+graph LR
+    Source["Source Code<br/>(jvm.bat + assets/)"] --> WixBuild["WiX Toolset v4<br/>(build-msi.ps1)"]
+    WixBuild --> OutputMSI["Standalone .msi<br/>x64 & arm64<br/>(Embedded #cab1.cab)"]
+    OutputMSI --> TestSuite["18-Point Test Suite<br/>(test-msi.ps1)"]
+    TestSuite --> Provenance["GitHub Actions<br/>SLSA Provenance<br/>(Sigstore In-Toto)"]
+    Provenance --> Release["Official Release<br/>MSIs, Zips & Checksums"]
+    Release --> PM["Package Managers<br/>(Winget, Scoop, Chocolatey)"]
+```
+
 - **Winget:** Native YAML manifest (`packages\winget\DiamTek.JVM.yaml`) declaring installer metadata and portable packaging.
 - **Scoop:** JSON manifest (`packages\scoop\jvm.json`) that automates downloading and bootstraps `install.ps1`.
 - **Chocolatey:** Package specification (`packages\choco\jvm.nuspec`) with automated `chocolateyInstall.ps1` and `chocolateyUninstall.ps1` scripts.

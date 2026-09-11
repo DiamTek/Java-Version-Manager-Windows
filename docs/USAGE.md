@@ -24,6 +24,38 @@ From here, you can visually explore installed JDKs, fetch new versions, manage e
 **Initial Setup Note:**
 If you have just downloaded the script manually, navigate to **Settings (Global Command & Setup)** (Option `3`) and select **Install Global Command** (Option `1`). Once installed globally, you can use the `jvm` command from anywhere on your system.
 
+## 📋 Command Reference Cheat Sheet
+
+| Command Syntax | Scope | Description |
+|----------------|-------|-------------|
+| `jvm` | Interactive / Session | Launches interactive menu, or auto-switches if `.java-version` / `.sdkmanrc` is present. |
+| `jvm <version>` | Global | Switches to specified JDK version (e.g., `jvm 21`, `jvm 17.0.10`). |
+| `jvm <version> --session` | Session | Switches JDK for the current terminal only without touching the Windows Registry. |
+| `jvm <version> --vendor <name>` | Global | Switches JDK with explicit vendor selection (e.g., `adoptium`, `oracle`, `corretto`). |
+| `jvm <version> --symlink` | Global | Forces switch using Symlink Mode (NTFS Directory Junction, UAC-Free). |
+| `jvm <version> --legacy` | Machine | Forces switch using Registry Mode (writes to `HKLM`, requests UAC elevation). |
+| `jvm latest` | Global | Resolves and switches to the highest installed JDK version on your machine. |
+| `jvm lts` | Global | Resolves and switches to the highest installed LTS version (e.g., 21, 17, 11). |
+| `jvm --global` | Global | Forces directory-based auto-switching (`.java-version`) to write globally to registry. |
+| `jvm install` | Interactive | Opens the interactive JDK / tool installation wizard. |
+| `jvm install <ver> [--vendor <name>]` | Machine | Downloads and installs specified JDK (e.g., `jvm install 21 --vendor adoptium`). |
+| `jvm install lts [--latest]` | Machine | Downloads newest LTS JDK release directly from vendor APIs. |
+| `jvm install <ver> -y` | Machine | Automated headless install with aggressive safety warning bypass for CI/CD. |
+| `jvm install <tool> [version]` | User | Installs ecosystem tool (e.g., `jvm install maven latest`, `jvm install gradle 8.9`). |
+| `jvm <tool> <version>` | User | Switches active ecosystem tool version (e.g., `jvm kotlin 2.0.20`, `jvm maven 3.9.6`). |
+| `jvm update` | Interactive | Opens the vendor-sorted update checker and patch menu. |
+| `jvm update --all [--vendor <name>]` | Machine | Silently checks and patches all installed JDKs and tools to latest releases. |
+| `jvm uninstall [version]` | Machine | Opens uninstaller menu or uninstalls specified version (e.g., `jvm uninstall 21`). |
+| `jvm list` | Inspection | Lists all installed JDKs, vendors, paths, and ecosystem build tools. |
+| `jvm env` | Inspection | Prints active `JAVA_HOME` path and directory junction status. |
+| `jvm link <path> <name>` | Custom | Registers an external or custom JDK (BYO-JDK / GraalVM) into the manager. |
+| `jvm unlink <name>` | Custom | Unregisters a custom linked JDK from the manager. |
+| `jvm clear` | System | Purges `JAVA_HOME` and cleanly removes JVM directory junctions from PATH. |
+| `jvm version` | Tool | Displays current JVM version, build number, and checks GitHub for updates. |
+| `jvm self-update` | Tool | Automatically downloads and atomic-swaps `jvm.bat` to the latest release. |
+| `jvm self-uninstall` | System | Triggers deep UAC-elevated system uninstaller (`uninstall.ps1`). |
+| `jvm --help` | Help | Displays formatted in-terminal command manual and flag reference (`-h`, `/?`). |
+
 ---
 
 ## ⚡ Quick-Switching (CLI)

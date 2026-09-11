@@ -79,3 +79,22 @@ The following policy criteria will be enforced:
 ✓ Verification succeeded!
 ```
 This guarantees the binary you downloaded was built directly by GitHub Actions from the audited open-source codebase and has not been altered or tampered with.
+
+### What process exit codes does the CLI and installer return for CI/CD scripting?
+All DiamTek JVM CLI commands, installer scripts, and MSI packages return standard Windows and POSIX process exit codes for deterministic automation in scripts, pipelines, and enterprise management agents:
+
+| Exit Code | Meaning | Context / Resolution |
+|:---------:|---------|----------------------|
+| `0` | **Success** | The requested command, switch, installation, or test suite completed cleanly. |
+| `1` | **General Error / Abort** | Safe abort (user selected `N` or pressed Enter on a confirmation prompt), requested JDK/tool not found, network unreachable, or invalid argument syntax. |
+| `1602` | **User Canceled** | Standard Windows Installer code returned when an interactive MSI wizard is canceled by the user. |
+| `1603` | **Fatal Error** | Standard Windows Installer error code. Typically indicates another running process is locking a destination directory; inspect verbose log (`msiexec /i ... /l*v log.txt`) for diagnostic details. |
+| `3010` | **Reboot Required** | Not emitted by JVM (JVM requires zero system reboots), but universally handled by enterprise deployment tools (Intune / MECM) as a successful installation. |
+
+In PowerShell automation scripts or CI workflows, check `$LASTEXITCODE` directly:
+```powershell
+jvm 21 --symlink
+if ($LASTEXITCODE -ne 0) {
+    throw "JVM execution failed with exit code $LASTEXITCODE"
+}
+```
