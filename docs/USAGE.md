@@ -235,6 +235,52 @@ kotlin=1.9.22
 
 ---
 
+## 🛠️ IDE & Build Tool Integration
+
+Because DiamTek JVM maintains a stable Windows Directory Junction at `%LOCALAPPDATA%\DiamTek\JVM\current`, you can configure modern Windows IDEs and build systems to point directly to this junction. Switching versions via `jvm <version>` dynamically updates your development runtime without re-indexing your IDE projects.
+
+### IntelliJ IDEA
+1. Open **File** → **Project Structure** (`Ctrl+Alt+Shift+S`) → **SDKs**.
+2. Click **+** → **Add JDK...**
+3. Navigate to and select:
+   ```text
+   %LOCALAPPDATA%\DiamTek\JVM\current
+   ```
+   *(e.g., `C:\Users\<Username>\AppData\Local\DiamTek\JVM\current`)*
+4. Name the SDK **"JVM Current"** and assign it as your Project SDK. Switching versions with `jvm 21` or `jvm 17` dynamically updates IntelliJ's underlying JDK.
+
+### Visual Studio Code (Extension Pack for Java)
+In your user or workspace `.vscode/settings.json`, configure the runtime path:
+```json
+{
+  "java.jdt.ls.java.home": "%LOCALAPPDATA%\\DiamTek\\JVM\\current"
+}
+```
+
+### Gradle
+In your user-level `~/.gradle/gradle.properties` or project root `gradle.properties`:
+```properties
+org.gradle.java.home=%LOCALAPPDATA%/DiamTek/JVM/current
+```
+
+### Apache Maven
+Maven natively respects the active `JAVA_HOME` environment variable managed by JVM. For explicit toolchain enforcement in `~/.m2/toolchains.xml`:
+```xml
+<toolchains>
+  <toolchain>
+    <type>jdk</type>
+    <provides>
+      <version>current</version>
+    </provides>
+    <configuration>
+      <jdkHome>${env.LOCALAPPDATA}\DiamTek\JVM\current</jdkHome>
+    </configuration>
+  </toolchain>
+</toolchains>
+```
+
+---
+
 ## 🧹 Global Environment Management
 
 ### Inspection Commands

@@ -9,6 +9,73 @@ In most cases, it is recognized immediately!
 - **Command Prompt (CMD):** In default **Symlink Mode**, your `PATH` points to the directory junction (`%LOCALAPPDATA%\DiamTek\JVM\current\bin`). The moment the junction target changes, all open CMD terminals resolve the new `java` binary immediately.
 - **IDE Terminals & Background Daemons:** If an application (such as an open VS Code window, IntelliJ instance, or build daemon) cached the environment variables in its own process block before the switch, restarting that terminal or reload the IDE window will ensure the updated variables are picked up.
 
+### How do I verify or manually configure the PowerShell Profile Hook?
+DiamTek JVM automatically configures both Windows PowerShell (5.1) and modern PowerShell Core (7+) profiles so that switching versions via `jvm` dynamically updates `JAVA_HOME`, toolpaths, and the active session `$env:Path` in-memory without restarting your shell.
+
+#### 1. Verifying the Hook
+To confirm that the hook is present and active in your PowerShell profile:
+```powershell
+Get-Content $PROFILE -ErrorAction SilentlyContinue | Select-String "jvm"
+```
+If properly configured, this command outputs the `# >>> jvm >>>` sentinel and the `function jvm { ... }` wrapper definition.
+
+#### 2. Manual Installation or Dotfile Configuration
+If your profile was not configured automatically (e.g., if you manage dotfiles across multiple machines via Git or use a custom `$PROFILE` location), you can inject or repair the hook at any time:
+- **Interactive Menu:** Run `jvm`, navigate to **Settings** (`3`), and select **Install Global Command & Profile Hook** (`1`).
+- **PowerShell:** Run `powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\DiamTek\JVM\install.ps1"`.
+- **Manual Setup:** Paste the wrapper function block directly into your `$PROFILE` (`notepad $PROFILE` or `code $PROFILE`):
+
+```powershell
+# >>> jvm >>>
+function jvm {
+    $bat = Get-Command jvm.bat -CommandType Application -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
+    if (-not $bat) { $bat = "$env:LOCALAPPDATA\DiamTek\JVM\bin\jvm.bat" }
+    & $bat @args
+
+    function Set-JvmVar {
+        param([string]$Name, [string]$OldValue, [string]$NewValue)
+        if ($OldValue) { $OldValue = $OldValue.TrimEnd('\') }
+        if ($NewValue) { $NewValue = $NewValue.TrimEnd('\') }
+        [Environment]::SetEnvironmentVariable($Name, $NewValue, 'Process')
+        $parts = $env:Path -split ';' | Where-Object { $_ -ne '' }
+        if (-not [string]::IsNullOrWhiteSpace($OldValue)) {
+            $parts = $parts | Where-Object { $_.TrimEnd('\') -ne "$OldValue\bin" }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($NewValue)) {
+            $parts = $parts | Where-Object { $_.TrimEnd('\') -ne "$NewValue\bin" }
+            $parts = @("$NewValue\bin") + $parts
+        }
+        $env:Path = $parts -join ';'
+    }
+
+    $sessionFile = "$env:TEMP\.jvm_session_target"
+    if (Test-Path $sessionFile) {
+        foreach ($line in (Get-Content $sessionFile)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line -match '^([^=]+)=(.*)$') {
+                $key = $matches[1]; $val = $matches[2]
+            } else {
+                $key = 'JAVA_HOME'; $val = $line
+            }
+            $old = [Environment]::GetEnvironmentVariable($key, 'Process')
+            Set-JvmVar -Name $key -OldValue $old -NewValue $val
+        }
+        Remove-Item $sessionFile -Force
+    } else {
+        foreach ($v in @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')) {
+            $old = [Environment]::GetEnvironmentVariable($v, 'Process')
+            $new = [Environment]::GetEnvironmentVariable($v, 'User')
+            if ([string]::IsNullOrEmpty($new)) {
+                $new = [Environment]::GetEnvironmentVariable($v, 'Machine')
+            }
+            if ($old -eq $new) { continue }
+            Set-JvmVar -Name $v -OldValue $old -NewValue $new
+        }
+    }
+}
+# <<< jvm <<<
+```
+
 ### Does this require Administrator (UAC) privileges?
 It depends on which architecture mode you use:
 - **Symlink Mode (Default, Recommended):** **100% UAC-Free!** It leverages a Windows Directory Junction (`%LOCALAPPDATA%\DiamTek\JVM\current`). Switching versions updates the junction pointer in user-space, requiring zero administrator privileges or UAC popups.

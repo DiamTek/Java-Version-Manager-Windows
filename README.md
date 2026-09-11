@@ -12,7 +12,7 @@
   <a href="https://github.com/DiamTek/Java-Version-Manager-Windows/actions/workflows/ci.yml"><img src="https://github.com/DiamTek/Java-Version-Manager-Windows/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/DiamTek/Java-Version-Manager-Windows/releases"><img src="https://img.shields.io/github/v/release/DiamTek/Java-Version-Manager-Windows?color=0078D6&label=release" alt="Release"></a>
   <a href="https://github.com/DiamTek/Java-Version-Manager-Windows/releases"><img src="https://img.shields.io/badge/provenance-attested-success.svg" alt="Provenance"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License"></a>
+  <a href="https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License"></a>
   <a href="https://github.com/DiamTek/Java-Version-Manager-Windows"><img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6.svg" alt="Platform"></a>
 </p>
 
@@ -236,6 +236,6 @@ Contributions, issues, and feature requests are welcome!
 ## 📄 License
 Copyright (c) 2026 DiamTek / Alexéy Shishkin.
 
-This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html). See the LICENSE file for details.
+This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html). See the [LICENSE](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/LICENSE) file for details.
 
 *Note: Oracle JDK downloads triggered by this tool are subject to the [Oracle No-Fee Terms and Conditions (NFTC)](https://www.oracle.com/downloads/licenses/no-fee-license.html).*
