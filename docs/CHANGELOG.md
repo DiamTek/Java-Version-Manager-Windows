@@ -1,13 +1,13 @@
 # Changelog
 
-<p align="center">
-  <a href="../README.md">🏠 Overview</a> &nbsp;•&nbsp;
-  <a href="INSTALLATION.md">📦 Installation</a> &nbsp;•&nbsp;
-  <a href="USAGE.md">📖 Usage</a> &nbsp;•&nbsp;
-  <a href="ARCHITECTURE.md">🏗️ Architecture</a> &nbsp;•&nbsp;
-  <a href="FAQ.md">❓ FAQ</a> &nbsp;•&nbsp;
-  <a href="SDKMAN-Comparison.md">⚖️ SDKMAN! Comparison</a> &nbsp;•&nbsp;
-  <a href="CHANGELOG.md">📜 Changelog</a>
+<p align="center" markdown="1">
+  [🏠 Overview](../README.md) &nbsp;•&nbsp;
+  [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp;
+  [📖 Usage](USAGE.md) &nbsp;•&nbsp;
+  [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp;
+  [❓ FAQ](FAQ.md) &nbsp;•&nbsp;
+  [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp;
+  [📜 Changelog](CHANGELOG.md)
 </p>
 
 ---
@@ -173,4 +173,4 @@ This milestone 1.0.0 release marks the official general availability of the Diam
 
 ---
 
-[← Back to Documentation Overview](../README.md#📚-documentation)
+[← Back to Documentation Overview](../README.md#documentation)

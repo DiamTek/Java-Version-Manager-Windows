@@ -1,5 +1,17 @@
 # Security Policy
 
+<p align="center" markdown="1">
+  [🏠 Overview](../README.md) &nbsp;•&nbsp;
+  [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp;
+  [📖 Usage](USAGE.md) &nbsp;•&nbsp;
+  [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp;
+  [❓ FAQ](FAQ.md) &nbsp;•&nbsp;
+  [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp;
+  [📜 Changelog](CHANGELOG.md)
+</p>
+
+---
+
 ## Supported Versions
 
 Currently, only the latest release of the Java Version Manager for Windows is supported with security updates.
@@ -29,3 +41,7 @@ We take security extremely seriously. We pledge to:
 * Acknowledge receipt of your vulnerability report within **48 hours**.
 * Provide a timeline for investigation and patching.
 * Credit you (if desired) in the release notes when the patch is published.
+
+---
+
+[← Back to Documentation Overview](../README.md#documentation)

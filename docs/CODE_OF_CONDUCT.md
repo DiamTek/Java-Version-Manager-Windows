@@ -1,5 +1,17 @@
 # Contributor Covenant Code of Conduct
 
+<p align="center" markdown="1">
+  [🏠 Overview](../README.md) &nbsp;•&nbsp;
+  [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp;
+  [📖 Usage](USAGE.md) &nbsp;•&nbsp;
+  [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp;
+  [❓ FAQ](FAQ.md) &nbsp;•&nbsp;
+  [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp;
+  [📜 Changelog](CHANGELOG.md)
+</p>
+
+---
+
 ## Our Pledge
 
 We as members, contributors, and leaders pledge to make participation in our
@@ -76,3 +88,7 @@ version 2.1, available at
 
 [homepage]: https://www.contributor-covenant.org
 [v2.1]: https://www.contributor-covenant.org/version/2/1/code_of_conduct.html
+
+---
+
+[← Back to Documentation Overview](../README.md#documentation)

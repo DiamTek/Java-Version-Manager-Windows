@@ -17,17 +17,19 @@
 </p>
 
 <p align="center">
-  <a href="#-installation">📥 Installation</a> &nbsp;•&nbsp;
-  <a href="#-features">🚀 Features</a> &nbsp;•&nbsp;
-  <a href="#-enterprise--corporate-deployment">🏢 Enterprise</a> &nbsp;•&nbsp;
-  <a href="#-documentation">📚 Documentation</a> &nbsp;•&nbsp;
-  <a href="#-usage">🛠️ Usage</a> &nbsp;•&nbsp;
-  <a href="#-version-history">📜 Version History</a> &nbsp;•&nbsp;
-  <a href="#-community--contributing">🤝 Community</a>
+  <a href="#installation">📥 Installation</a> &nbsp;•&nbsp;
+  <a href="#features">🚀 Features</a> &nbsp;•&nbsp;
+  <a href="#enterprise--corporate-deployment">🏢 Enterprise</a> &nbsp;•&nbsp;
+  <a href="#documentation">📚 Documentation</a> &nbsp;•&nbsp;
+  <a href="#usage">🛠️ Usage</a> &nbsp;•&nbsp;
+  <a href="#version-history">📜 Version History</a> &nbsp;•&nbsp;
+  <a href="#community--contributing">🤝 Community</a>
 </p>
 
 ---
 
+<a id="installation"></a>
+<a id="-installation"></a>
 ## 📥 Installation
 
 Open Windows PowerShell (no Administrator privileges required) and run the one-liner:
@@ -50,6 +52,8 @@ choco install jvm-windows
 ```
 *Or grab the standalone MSI installers (`x64` / `arm64`), portable `.zip`, or raw `jvm.bat` directly from [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases).*
 
+<a id="uninstallation"></a>
+<a id="-uninstallation"></a>
 ## 🗑️ Uninstallation
 
 Easily remove JVM and all associated configurations:
@@ -57,6 +61,8 @@ Easily remove JVM and all associated configurations:
 - **Start Menu:** Search **"Uninstall Java Version Manager"** and hit Enter.
 - **Terminal:** Run `jvm self-uninstall` or select Option 4 in the **Settings** menu.
 
+<a id="features"></a>
+<a id="-features"></a>
 ## 🚀 Features
 
 * **Zero Dependencies (100% Native Windows):** Unlike SDKMAN or similar Unix-ports that require heavy POSIX subsystems (WSL, MSYS2, Git Bash, `curl`, `zip`), this utility is built entirely on native Windows APIs. It leverages pure Batch and embedded `.NET` Framework endpoints for networking, zip extraction, and SHA256 cryptography to run instantly out-of-the-box on any Windows 10/11 machine.
@@ -86,6 +92,8 @@ Easily remove JVM and all associated configurations:
 * **Native Code Page Preservation:** Built for professional environments. The tool temporarily leverages code page `65001` to perfectly render extended UTF-8 ANSI graphics and UI elements, but strictly records and restores your host's original code page upon exit, guaranteeing your terminal's character rendering is never permanently altered by a session.
 * **Headless CI/CD Automation:** Every command is engineered with zero-prompt bypass flags. Run complex installations like `jvm install lts --latest --vendor oracle` or `jvm uninstall 21 --vendor adoptium` to bypass all interactive menus for frictionless integration into CI/CD pipelines, DevOps scripts, or automated machine provisioning workflows.
 
+<a id="dual-architecture-core"></a>
+<a id="-dual-architecture-core-symlink-vs-legacy"></a>
 ## 🏗️ Dual-Architecture Core (Symlink vs Legacy)
 
 Windows Directory Junctions (Symlinks) provide a massive speed and workflow improvement because they allow the script to instantly swap your Java version without ever needing Administrator privileges (UAC). By routing your User `PATH` to a single junction (`%LOCALAPPDATA%\DiamTek\JVM\current`), 99% of modern tools (Gradle, Maven, IDEs) can natively resolve the path entirely in the background.
@@ -104,6 +112,10 @@ By navigating to the **Settings** menu, users can freely toggle between the two 
 
 You can even override your global setting dynamically on a per-command basis using the `--symlink` or `--legacy` CLI flags (e.g., `jvm 21 --legacy`).
 
+<a id="enterprise"></a>
+<a id="-enterprise"></a>
+<a id="enterprise--corporate-deployment"></a>
+<a id="-enterprise--corporate-deployment"></a>
 ## 🏢 Enterprise & Corporate Deployment
 
 DiamTek JVM is engineered for real-world enterprise IT environments, strict security compliance standards (SecOps/EDR), and frictionless cross-platform engineering team onboarding.
@@ -132,6 +144,8 @@ DiamTek JVM is engineered for real-world enterprise IT environments, strict secu
    - **Cryptographic Provenance Attestation:** Official release binaries are cryptographically signed and attested via GitHub Sigstore OIDC (`actions/attest-build-provenance`). SecOps teams can verify binary authenticity directly against the source Git commit SHA using `gh attestation verify`.
    - **Corporate Proxy & CA Integration:** Inherits system WinINet proxy settings, supports authenticated proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`), and automatically trusts corporate root certificates (Zscaler, Netskope, Palo Alto) via the Windows Certificate Store.
 
+<a id="extreme-performance--safety"></a>
+<a id="-extreme-performance--safety"></a>
 ## ⚡ Extreme Performance & Safety
 
 Despite being nearly 100 KB in size, the `jvm.bat` engine is mathematically optimized to bypass the notorious bottlenecks and memory leaks of standard Windows Batch scripts:
@@ -140,6 +154,8 @@ Despite being nearly 100 KB in size, the `jvm.bat` engine is mathematically opti
 * **Bulletproof Escape Boundaries:** We utilize hexadecimal parsing and dedicated PowerShell payloads (`$null`) to ensure that `cmd.exe` never accidentally swallows caret characters (`^`), exclamation marks (`!`), or spaces when resolving UAC-elevated registry wrappers in the background.
 * **Quote-Safe PATH Export:** All `for /f` loops that transfer variables across `setlocal`/`endlocal` boundaries use a double-quote encapsulation strategy (`""!VAR!""` with `%%~A` stripping) to guarantee safe handling of `PATH` strings containing embedded double-quotes — a common Windows scenario that normally causes `cmd.exe` to misinterpret path segments as filenames.
 
+<a id="prerequisites"></a>
+<a id="-prerequisites"></a>
 ## 📋 Prerequisites
   
 | Requirement | Specification | Notes |
@@ -149,6 +165,8 @@ Despite being nearly 100 KB in size, the `jvm.bat` engine is mathematically opti
 | **Dependencies**| None | Runs purely on native CMD and PowerShell. No WSL, Cygwin, or MSYS2 required. |
 
 
+<a id="documentation"></a>
+<a id="-documentation"></a>
 ## 📚 Documentation
 
 For deep technical details, CI/CD automation, and advanced usage, refer to the official documentation:
@@ -161,10 +179,13 @@ For deep technical details, CI/CD automation, and advanced usage, refer to the o
 | [**SDKMAN! Comparison**](docs/SDKMAN-Comparison.md)| Why this is the premier native alternative to SDKMAN! for Windows. |
 | [**FAQ**](docs/FAQ.md) | Common questions about UAC-free zero-admin usage, enterprise proxies, global routing, and Windows Registry bridging. |
 | [**Changelog**](docs/CHANGELOG.md) | Detailed chronological release history and bug fixes. |
-| [**Support & Help**](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/SUPPORT.md) | Where to get help, ask questions, Discord community, and issue reporting channels. |
-| [**Contributing Guide**](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/CONTRIBUTING.md) | Development workflow, pull requests, issue templates, and coding standards. |
-| [**Code of Conduct**](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/CODE_OF_CONDUCT.md) | Standards, pledge, and reporting procedures for healthy community interaction. |
+| [**Support & Help**](docs/SUPPORT.md) | Where to get help, ask questions, Discord community, and issue reporting channels. |
+| [**Contributing Guide**](docs/CONTRIBUTING.md) | Development workflow, pull requests, issue templates, and coding standards. |
+| [**Code of Conduct**](docs/CODE_OF_CONDUCT.md) | Standards, pledge, and reporting procedures for healthy community interaction. |
+| [**Security Policy**](docs/SECURITY.md) | Vulnerability reporting procedures, supported versions, and response SLAs. |
 
+<a id="usage"></a>
+<a id="-usage"></a>
 ## 🛠️ Usage
 
 1. Launch `jvm.bat` to open the interactive menu, or run it from any terminal.
@@ -238,6 +259,8 @@ JVM supports downloading, switching, and managing tools natively alongside Java.
 | `jvm help` / `--help` / `/?` | Displays the complete CLI command reference and flag overrides. |
 | `jvm <semantic-alias>` | Routes dynamically (e.g., `jvm latest`, `jvm lts`, `jvm 21`). |
 
+<a id="interface-guide"></a>
+<a id="-interface-guide"></a>
 ## 🎨 Interface Guide
 
 The utility uses native ANSI terminal color formatting to protect system stability:
@@ -247,6 +270,8 @@ The utility uses native ANSI terminal color formatting to protect system stabili
 * 🔹 **Green `[ACTIVE]` / `[   OK   ]`** — Highlights the JDK entry currently actively powering your terminal environment, or signifies a successful operation.
 * ◽ **Gray** — Mutes absolute file paths to reduce terminal clutter.
 
+<a id="safety-defaults"></a>
+<a id="-safety-defaults"></a>
 ## 🛡️ Safety Defaults
 
 To prevent catastrophic accidental deletions on local filesystems, all critical prompts obey standard developer conventions:
@@ -254,6 +279,8 @@ To prevent catastrophic accidental deletions on local filesystems, all critical 
 * Pressing **Enter** or typing anything other than an explicit `Y`/`y` acts as an immediate safe abort.
 * Custom loops trap premature `Ctrl+C` commands gracefully, and auto-close countdowns can be interrupted with any keystroke.
 
+<a id="version-history"></a>
+<a id="-version-history"></a>
 ## 📜 Version History
 
 * **v1.0.0 (Latest):** Official General Availability release. Added complete package manager distribution (Scoop, Chocolatey, Winget, and WiX v4 MSI installer). Introduced deep UAC uninstaller engine (`uninstall.ps1`), native Windows Settings "Installed apps" integration, Start Menu uninstaller shortcuts, interactive Settings menu uninstaller, and `jvm self-uninstall` CLI command. Migrated the entire storage architecture from the user profile to `%LOCALAPPDATA%\DiamTek\JVM` for enterprise-grade path compliance. Introduced a bulletproof one-liner installation script (`install.ps1`) for frictionless setup and automatic code sanitization. Overhauled the Self-Updater to utilize the Universal Candidate Downloader engine, granting it native ANSI progress bars. Fixed critical Windows `cmd.exe` UTF-8 BOM interpretation bugs and UNIX (LF) line-ending crashes (the `cho` bug) by enforcing explicit CRLF encoding during downloads. Added native terminal code page preservation and restoration to seamlessly handle UTF-8 rendering without corrupting the user's host environment. Hardened the Global Command installer, resolved subshell variable slicing errors, and patched multiple path-parsing faults and update-checker hangs for maximum stability. Massive architecture overhaul: migrated core architecture to use Directory Junctions (`%LOCALAPPDATA%\DiamTek\JVM\current`), enabling 100% UAC-free, instantaneous version switching that dynamically syncs across all open terminal windows. Built a Dual-Architecture engine, allowing users to seamlessly toggle between the new Symlink Mode and the legacy Registry Mode directly from the Settings Menu. Re-engineered legacy Registry Mode to utilize background PowerShell wrappers, fixing a major historical bug where switching versions would fail silently for non-Admin users. Introduced dynamic Vendor grouping (Oracle, Adoptium, GraalVM, Corretto, Zulu, Microsoft) across all menus. Built an optimized, strictly in-memory Bubble Sort algorithm to organize JDKs by newest version. Added `.java-version` and `.sdkmanrc` directory-based auto-switching (defaults to session-mode isolation) with an explicit `--global` CLI override flag, support for passing full CLI flags directly inside `.java-version`, and a native `.sdkmanrc` parser to dynamically hijack cross-platform SDKMAN workflows with True Session Isolation across all ecosystem tools. Built a Universal Candidate Engine to natively support the JVM Ecosystem (Maven, Gradle, Kotlin, Scala, Groovy), downloading, extracting, and symlinking binaries with inline progress bars and dynamic SHA256/SHA512 validation (with automatic SHA1 fallback for older Maven legacy endpoints). Consolidated the Main Menu into two unified "JDK Management" and "Ecosystem Management" sub-hubs, each mirroring the same "Switch Active" / "Version Management" architecture. Engineered an interactive Ecosystem Auto-Updater with a vendor-selection menu that displays active versions, lets the user check individual tools or all at once, resolves the absolute latest releases from GitHub/Apache APIs, and seamlessly prompts to upgrade out-of-date binaries. Replaced duplicated code in UpdateJDKs and UninstallJDK with a shared generic vendor menu builder for massive code reduction. Enforced consistent, unified UI layouts (`--- Manage by Vendor/Tool ---` and `--- Actions ---`) across all JDK and Ecosystem menus. Fixed the notorious Windows `setx` 1024-character PATH truncation bug by completely replacing all environment variable updates with infinite-length `.NET` API calls. Implemented enterprise-grade SHA256 checksum verification for all JDK downloads using native `.NET` Cryptography APIs to protect against corrupted payloads. Added semantic CLI routing (`jvm latest`, `jvm lts`) and flag overrides (`--symlink`, `--legacy`, `--vendor`, `--latest`, `-y`). Added ARM64/AArch64 hardware auto-detection, routing all vendor API queries to architecture-specific download endpoints. Built a dynamic `FetchLatestVersions` resolver that queries the Adoptium API at runtime to resolve the true latest feature release and LTS version numbers, eliminating hardcoded version constants. Re-engineered the `UpdateChecker` as a fully self-contained inline PowerShell script generated at runtime for all six vendors, removing all external `.ps1` file dependencies. Added structured offline-aware error handling across all network operations with clean `[ ERROR ]` / `[ DETAIL ]` output instead of raw exception dumps. Eliminated hardcoded UI prioritization in favor of interactive vendor-selection prompts. Restored native extraction progress bars (with a forced final 100% frame to fix a rounding edge case) and stabilized interactive installer UI layout. Improved navigation speed via a smart caching `NEEDS_RESCAN` architecture. Fixed cross-architecture registry conflicts between User and Machine environment variables. Fixed UAC elevation deadlocks, delayed expansion engine parsing bugs affecting the `--global` flag and exclamation marks, character-encoding path bugs for user profiles, and critical bugs that corrupted paths containing exclamation marks (`!`). Fixed Oracle update checks crashing with `'$' is not recognized` by switching the PowerShell payload to pipe-safe string concatenation. Replaced deprecated `wmic` environment queries with direct `reg query` calls for forward compatibility with Windows 11. Hardened all `for /f` variable export loops with double-quote encapsulation to prevent `cmd.exe` from misinterpreting `PATH` strings containing embedded quotes as file lists. Added conditional `rmdir` guard to prevent extracted files from being destroyed on move failure. Added a `rem END OF SCRIPT` sentinel integrity check to the self-updater to reject truncated or corrupted downloads. Aligned all UI tags to a strict 10-character padded format. Built a seamless semantic self-updater engine (`jvm version`, `jvm self-update`) that securely compares build numbers using the native `.NET` `[version]` class before automatically downloading and atomic-swapping the core script. Patched a variable state-leak during cross-menu navigation and stabilized the back-navigation structural loop across all interactive UI hubs. Added comprehensive enterprise documentation suite across six dedicated guides (`INSTALLATION.md`, `USAGE.md`, `ARCHITECTURE.md`, `FAQ.md`, `SDKMAN-Comparison.md`, `CHANGELOG.md`), including Mermaid SVG architecture diagrams, complete IDE integration workflows (IntelliJ IDEA, VS Code, Gradle, Maven), enterprise IT deployment rules (Intune, MECM, GPO, exit codes), in-depth PATH shadowing diagnostics (`where.exe java`), script unblocking (`Unblock-File`), and Jekyll Cayman GitHub Pages portal optimization. Hardened engine security by eliminating all temporary script elevation payloads in `%TEMP%` in favor of direct in-memory parameterized execution (mitigating TOCTOU/LPE vectors), decoupling `-y` prompt bypass from checksum verification via the new `--skip-checksum` flag, and sanitizing repository `.java-version` and `.sdkmanrc` parsing against shell metacharacter injection.
@@ -264,14 +291,20 @@ To prevent catastrophic accidental deletions on local filesystems, all critical 
 * **v0.1.1:** Patched `PATH` variable corruption bugs and improved delayed-expansion safety protocols during active session switching.
 * **v0.1.0:** Initial Release.
 
+<a id="community"></a>
+<a id="-community"></a>
+<a id="community--contributing"></a>
+<a id="-community--contributing"></a>
 ## 🤝 Community & Contributing
 
 Contributions, issues, and feature requests are welcome!
-- 📖 Read the [Contributing Guide](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/CONTRIBUTING.md) to get started.
-- 🛡️ Review our [Security Policy](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/SECURITY.md) to report vulnerabilities privately.
-- 💬 Need help? Check the [Support Guide](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/SUPPORT.md), open an [Issue](https://github.com/DiamTek/Java-Version-Manager-Windows/issues), or reach out on Discord (**@thehawk01**).
-- 📜 Review our [Code of Conduct](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/CODE_OF_CONDUCT.md).
+- 📖 Read the [Contributing Guide](docs/CONTRIBUTING.md) to get started.
+- 🛡️ Review our [Security Policy](docs/SECURITY.md) to report vulnerabilities privately.
+- 💬 Need help? Check the [Support Guide](docs/SUPPORT.md), open an [Issue](https://github.com/DiamTek/Java-Version-Manager-Windows/issues), or reach out on Discord (**@thehawk01**).
+- 📜 Review our [Code of Conduct](docs/CODE_OF_CONDUCT.md).
 
+<a id="license"></a>
+<a id="-license"></a>
 ## 📄 License
 Copyright (c) 2026 DiamTek / Alexéy Shishkin.
 

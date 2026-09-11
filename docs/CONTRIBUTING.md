@@ -1,5 +1,17 @@
 # Contributing to Java Version Manager for Windows
 
+<p align="center" markdown="1">
+  [🏠 Overview](../README.md) &nbsp;•&nbsp;
+  [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp;
+  [📖 Usage](USAGE.md) &nbsp;•&nbsp;
+  [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp;
+  [❓ FAQ](FAQ.md) &nbsp;•&nbsp;
+  [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp;
+  [📜 Changelog](CHANGELOG.md)
+</p>
+
+---
+
 First off, thank you for considering contributing! It's people like you that make this tool great for the Windows developer community.
 
 ## How Can I Contribute?
@@ -42,3 +54,7 @@ Documentation improvements are always welcome! Our documentation is located in t
 
 ## Code of Conduct
 Please note that this project is released with a [Contributor Code of Conduct](CODE_OF_CONDUCT.md). By participating in this project, you agree to abide by its terms. Report any unacceptable behavior to Alexéy Shishkin via email at **salexey09@gmail.com** or Discord at **@thehawk01**.
+
+---
+
+[← Back to Documentation Overview](../README.md#documentation)
