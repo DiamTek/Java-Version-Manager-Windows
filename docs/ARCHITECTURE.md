@@ -85,7 +85,7 @@ To ensure deep OS integration without requiring users to download external binar
 ### Global/Machine State (`HKLM`)
 - Updates to the global `PATH` and `JAVA_HOME` are performed natively using the .NET framework bridging in PowerShell: 
   `[Environment]::SetEnvironmentVariable('JAVA_HOME', $target, 'Machine')`
-- The script detects if it is running in standard user space. If required, it dynamically generates an elevated PowerShell script (`jvm_elevate_XXXX.ps1`) in `%TEMP%` and executes it via `Start-Process -Verb RunAs`.
+- The script detects if it is running in standard user space. If required, it invokes an elevated background PowerShell worker via `Start-Process powershell -Verb RunAs -ArgumentList @(...)` with direct, in-memory parameterized command arguments. It never stages temporary scripts in `%TEMP%`, completely eliminating Time-of-Check to Time-of-Use (TOCTOU) race conditions and Local Privilege Escalation vectors.
 
 ### Session State Isolation
 - Updating the Windows Registry does **not** update the live, running terminal session. To solve this, the script dynamically evaluates the environment block within the execution boundary.
