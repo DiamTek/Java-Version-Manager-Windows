@@ -11,16 +11,16 @@ Your system `PATH` only ever needs to contain `%LOCALAPPDATA%\DiamTek\JVM\curren
 
 ```mermaid
 graph TD
-    UserShell["User Shell / Terminal / IDE<br/>(CMD, PowerShell, Windows Terminal, VS Code)"]
-    PathEntry["User PATH Variable<br/>%LOCALAPPDATA%\\DiamTek\\JVM\\current\\bin"]
-    Junction["NTFS Directory Junction<br/>%LOCALAPPDATA%\\DiamTek\\JVM\\current"]
+    Shell["Developer Terminal, Shell & IDE Environments<br/>PowerShell • CMD • Windows Terminal • VS Code"]
+    Path["Persistent User PATH Environment Entry<br/>%LOCALAPPDATA%\DiamTek\JVM\current\bin"]
+    Junction["NTFS Directory Junction Repointing Target<br/>%LOCALAPPDATA%\DiamTek\JVM\current"]
     
-    JDK21["Adoptium JDK 21<br/>C:\\Program Files\\Java\\jdk-21.0.2"]
-    JDK17["Oracle JDK 17<br/>C:\\Program Files\\Java\\jdk-17.0.10"]
-    JDKCustom["Custom JDK / GraalVM<br/>C:\\Development\\graalvm-21"]
+    JDK21["Adoptium OpenJDK 21 (Long-Term Support)<br/>C:\Program Files\Java\jdk-21"]
+    JDK17["Oracle JDK 17 (Long-Term Support)<br/>C:\Program Files\Java\jdk-17"]
+    JDKCustom["Custom Enterprise or GraalVM JDK<br/>C:\Development\graalvm-21"]
 
-    UserShell --> PathEntry
-    PathEntry --> Junction
+    Shell --> Path
+    Path --> Junction
     Junction -.->|"Active Switch (O(1))"| JDK21
     Junction -.->|"Alternative Target"| JDK17
     Junction -.->|"BYO-JDK Link"| JDKCustom
@@ -46,7 +46,7 @@ flowchart TD
     subgraph SymlinkMode["Symlink Mode (Default - UAC-Free)"]
         ModeCheck -->|Symlink Mode| TearDown["Remove-Item / rmdir current"]
         TearDown --> CreateJunction["New-Item -ItemType Junction<br/>targeting selected JDK"]
-        CreateJunction --> UpdateProfile["Invoke Set-JvmVar Hook<br/>(Updates active shell process memory)"]
+        CreateJunction --> UpdateProfile["Invoke PowerShell Set-JvmVar Session Hook<br/>Updates active shell process memory"]
         UpdateProfile --> InstantSuccess["Instant Switch Across All Open Shells (0 UAC)"]
     end
     
@@ -55,7 +55,7 @@ flowchart TD
         CheckAdmin -->|Yes| WriteHKLM["[Environment]::SetEnvironmentVariable<br/>('JAVA_HOME', target, 'Machine')"]
         CheckAdmin -->|No| Elevate["Spawn Start-Process -Verb RunAs<br/>(Triggers Windows UAC Prompt)"]
         Elevate --> WriteHKLM
-        WriteHKLM --> Broadcast["SendMessageTimeout<br/>(WM_SETTINGCHANGE: Environment)"]
+        WriteHKLM --> Broadcast["Broadcast Win32 SendMessageTimeout API<br/>WM_SETTINGCHANGE: Environment"]
     end
 ```
 
@@ -110,12 +110,12 @@ To provide a first-class modern Windows developer experience while strictly main
 
 ```mermaid
 graph LR
-    Source["Source Code<br/>(jvm.bat + assets/)"] --> WixBuild["WiX Toolset v4<br/>(build-msi.ps1)"]
-    WixBuild --> OutputMSI["Standalone .msi<br/>x64 & arm64<br/>(Embedded #cab1.cab)"]
+    Source["Repository Source Code<br/>(jvm.bat & assets)"] --> WixBuild["WiX Toolset v4 Engine<br/>(build-msi.ps1)"]
+    WixBuild --> OutputMSI["Standalone Dual-Architecture MSI<br/>x64 & arm64 (Embedded CAB)"]
     OutputMSI --> TestSuite["18-Point Test Suite<br/>(test-msi.ps1)"]
-    TestSuite --> Provenance["GitHub Actions<br/>SLSA Provenance<br/>(Sigstore In-Toto)"]
-    Provenance --> Release["Official Release<br/>MSIs, Zips & Checksums"]
-    Release --> PM["Package Managers<br/>(Winget, Scoop, Chocolatey)"]
+    TestSuite --> Provenance["GitHub Actions SLSA Attestation<br/>Sigstore In-Toto Provenance"]
+    Provenance --> Release["Official GitHub Production Release<br/>MSIs, Zips & Checksums"]
+    Release --> PM["Windows Package Manager Ecosystem<br/>Winget • Scoop • Chocolatey"]
 ```
 
 - **Winget:** Native YAML manifest (`packages\winget\DiamTek.JVM.yaml`) declaring installer metadata and portable packaging.
