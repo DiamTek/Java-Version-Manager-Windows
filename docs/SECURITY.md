@@ -16,10 +16,10 @@
 
 Currently, only the latest release of the Java Version Manager for Windows is supported with security updates.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| < 1.0.0 | :x:                |
+| Version | Supported |
+| :--- | :---: |
+| `1.0.x` | ✅ |
+| `< 1.0.0` | ❌ |
 
 ## Reporting a Vulnerability
 
