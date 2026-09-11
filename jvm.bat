@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260911.81"
+set "JVM_BUILD=20260911.82"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -120,6 +120,16 @@ if /i "%~1"=="--yes" (
 )
 if /i "%~1"=="-y" (
     set "FORCE_YES=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--skip-checksum" (
+    set "SKIP_CHECKSUM=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--no-verify" (
+    set "SKIP_CHECKSUM=1"
     shift
     goto :PARSE_CLI_ARGS
 )
@@ -285,7 +295,7 @@ if defined CLI_COMMAND (
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
 ) else if exist ".java-version" (
-    for /f "delims=" %%L in ('type ".java-version" 2^>nul ^| findstr /r "[0-9]"') do (
+    for /f "delims=" %%L in ('type ".java-version" 2^>nul ^| findstr /r "[0-9]" ^| findstr /v "[&|<>]"') do (
         call :ParseJavaVersion %%L
         if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
         set "SILENT_MODE=1"
@@ -293,7 +303,7 @@ if defined CLI_TARGET (
     )
 ) else if exist "%INVOCATION_DIR%\.sdkmanrc" (
     set "FOUND_SDKMANRC=1"
-    for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /i "^java="') do (
+    for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /i "^java=" ^| findstr /v "[&|<>]"') do (
         call :ParseSdkmanrc %%B
     )
     if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
@@ -361,7 +371,7 @@ if "!SESSION_MODE!"=="1" (
     )
     
     if "!FOUND_SDKMANRC!"=="1" (
-        for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /i /v "^java="') do (
+        for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /i /v "^java=" ^| findstr /v "[&|<>]"') do (
             set "ECO_CAND=%%A"
             set "ECO_VER=%%B"
             call :ProcessEcosystemSession "!ECO_CAND!" "!ECO_VER!"
@@ -1718,18 +1728,8 @@ if !ROOT_COUNT! GTR 1 (
 
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Installing !NEW_FOLDER! to system directory...
-set "ADMIN_BAT=%TEMP%\jvm_admin_!RANDOM!.bat"
-(
-    echo @echo off
-    echo if not exist "!DEST_DIR!" mkdir "!DEST_DIR!"
-    echo if exist "!DEST_DIR!\!NEW_FOLDER!" rmdir /s /q "!DEST_DIR!\!NEW_FOLDER!"
-    echo move /y "!EXTRACT_DIR!\!NEW_FOLDER!" "!DEST_DIR!\" ^>nul
-    echo if not exist "!EXTRACT_DIR!\!NEW_FOLDER!" rmdir /s /q "!EXTRACT_DIR!"
-) > "!ADMIN_BAT!"
-
 echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to move files...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '!ADMIN_BAT!' -Verb RunAs -WindowStyle Hidden -Wait"
-del "!ADMIN_BAT!"
+powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-Command', '$d = ''!DEST_DIR!''; $f = ''!NEW_FOLDER!''; $e = ''!EXTRACT_DIR!''; if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }; $t = Join-Path $d $f; if (Test-Path $t) { Remove-Item -LiteralPath $t -Recurse -Force }; Move-Item -LiteralPath (Join-Path $e $f) -Destination $d -Force; if (Test-Path $e) { Remove-Item -LiteralPath $e -Recurse -Force -ErrorAction SilentlyContinue }')"
 
 if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
     echo.
@@ -1764,45 +1764,18 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     rem Scrub any conflicting User-level JAVA_HOME that might override the Machine-level variable
     reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
     
-    set "ELEVATE_SCRIPT=%TEMP%\jvm_elevate_!RANDOM!.ps1"
-    (
-        echo $p = [Environment]::GetEnvironmentVariable^('Path', 'Machine'^)
-        echo $purges = @^('C:\Program Files\Common Files\Oracle\Java\javapath', 'C:\Program Files ^(x86^)\Common Files\Oracle\Java\javapath', 'C:\ProgramData\Oracle\Java\javapath', '%LOCALAPPDATA%\DiamTek\JVM\current\bin', '!CURRENT_JDK_PATH!\bin'^)
-        echo if ^($p^) {
-        echo     $clean = ^($p -split ';' ^| Where-Object { $_ -and $purges -notcontains $_.TrimEnd^('\'^) -and $_.TrimEnd^('\'^) -ne '%%JAVA_HOME%%\bin' }^) -join ';'
-        echo     $finalPath = '%%JAVA_HOME%%\bin;' + $clean
-        echo     [Environment]::SetEnvironmentVariable^('JAVA_HOME', '!SAFE_JDK_PATH!', 'Machine'^)
-        echo     [Environment]::SetEnvironmentVariable^('Path', $finalPath, 'Machine'^)
-        echo }
-    ) > "!ELEVATE_SCRIPT!"
-    
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""!ELEVATE_SCRIPT!""' -Verb RunAs -Wait" 2>nul
-    if exist "!ELEVATE_SCRIPT!" del "!ELEVATE_SCRIPT!"
+    powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-Command', '$p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); $purges = @(''C:\Program Files\Common Files\Oracle\Java\javapath'', ''C:\Program Files (x86)\Common Files\Oracle\Java\javapath'', ''C:\ProgramData\Oracle\Java\javapath'', ''%LOCALAPPDATA%\DiamTek\JVM\current\bin'', ''!CURRENT_JDK_PATH!\bin''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd(''\'') -and $_.TrimEnd(''\'') -ne ''%%JAVA_HOME%%\bin'' }) -join '';''; $finalPath = ''%%JAVA_HOME%%\bin;'' + $clean; [Environment]::SetEnvironmentVariable(''JAVA_HOME'', ''!SAFE_JDK_PATH!'', ''Machine''); [Environment]::SetEnvironmentVariable(''Path'', $finalPath, ''Machine'') }')" 2>nul
     
     echo %cGREEN%[   OK   ]%cRESET% JAVA_HOME and SYSTEM PATH updated successfully via UAC
 ) else (
     echo %cBLUE%[ ACTION ]%cRESET% Updating USER PATH...
     
-    set "USER_PS1=%TEMP%\jvm_user_path_!RANDOM!.ps1"
-    (
-        echo $p = [Environment]::GetEnvironmentVariable^('Path', 'User'^)
-        echo $purges = @^('C:\Program Files\Common Files\Oracle\Java\javapath', 'C:\Program Files ^(x86^)\Common Files\Oracle\Java\javapath', 'C:\ProgramData\Oracle\Java\javapath', '%LOCALAPPDATA%\DiamTek\JVM\current\bin', '!CURRENT_JDK_PATH!\bin'^)
-        echo if ^($p^) {
-        echo     $clean = ^($p -split ';' ^| Where-Object { $_ -and $purges -notcontains $_.TrimEnd^('\'^) -and $_.TrimEnd^('\'^) -ne '%%JAVA_HOME%%\bin' }^) -join ';'
-        echo     $finalPath = '%%JAVA_HOME%%\bin;' + $clean
-        echo     [Environment]::SetEnvironmentVariable^('Path', $finalPath, 'User'^)
-        echo } else {
-        echo     [Environment]::SetEnvironmentVariable^('Path', '%%JAVA_HOME%%\bin', 'User'^)
-        echo }
-    ) > "!USER_PS1!"
-    
-    powershell -NoProfile -ExecutionPolicy Bypass -File "!USER_PS1!"
+    powershell -NoProfile -Command "$p = [Environment]::GetEnvironmentVariable('Path', 'User'); $purges = @('C:\Program Files\Common Files\Oracle\Java\javapath', 'C:\Program Files (x86)\Common Files\Oracle\Java\javapath', 'C:\ProgramData\Oracle\Java\javapath', '%LOCALAPPDATA%\DiamTek\JVM\current\bin', '!CURRENT_JDK_PATH!\bin'); if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') -and $_.TrimEnd('\') -ne '%%JAVA_HOME%%\bin' }) -join ';'; $finalPath = '%%JAVA_HOME%%\bin;' + $clean; [Environment]::SetEnvironmentVariable('Path', $finalPath, 'User') } else { [Environment]::SetEnvironmentVariable('Path', '%%JAVA_HOME%%\bin', 'User') }"
     if errorlevel 1 (
         echo %cRED%[ ERROR  ]%cRESET% Failed to update USER PATH!
     ) else (
         echo %cGREEN%[   OK   ]%cRESET% USER PATH updated successfully
     )
-    if exist "!USER_PS1!" del "!USER_PS1!"
 )
 
 echo.
@@ -1868,11 +1841,7 @@ if defined SYS_PATH (
     
     echo %cBLUE%[ ACTION ]%cRESET% Requesting Administrator privileges to clear Machine Registry...
     set "SAFE_SYS_PATH=!SYS_PATH:'=''!"
-    set "ELEVATE_SCRIPT=%TEMP%\jvm_elevate_!RANDOM!.ps1"
-    echo [Environment]::SetEnvironmentVariable^('JAVA_HOME', $null, 'Machine'^) > "!ELEVATE_SCRIPT!"
-    echo [Environment]::SetEnvironmentVariable^('Path', '!SAFE_SYS_PATH!', 'Machine'^) >> "!ELEVATE_SCRIPT!"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""!ELEVATE_SCRIPT!""' -Verb RunAs -Wait" 2>nul
-    if exist "!ELEVATE_SCRIPT!" del "!ELEVATE_SCRIPT!"
+    powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-Command', '[Environment]::SetEnvironmentVariable(''JAVA_HOME'', $null, ''Machine''); [Environment]::SetEnvironmentVariable(''Path'', ''!SAFE_SYS_PATH!'', ''Machine'')')" 2>nul
 )
 
 rem Clean USER PATH
@@ -2534,24 +2503,12 @@ echo %cBLUE%[ ACTION ]%cRESET% Terminating Java processes running from this JDK.
 powershell -NoProfile -Command "Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($env:DEL_PATH, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue" >nul 2>&1
 
 echo %cBLUE%[ ACTION ]%cRESET% Deleting directory and scrubbing environment variables...
-set "ADMIN_BAT=%TEMP%\jvm_admin_!RANDOM!.bat"
-(
-    echo @echo off
-    echo setlocal enabledelayedexpansion
-    echo set "DEL_PATH=!DEL_PATH!"
-    echo powershell -NoProfile -Command "Get-Process java,javaw -ErrorAction SilentlyContinue ^| Where-Object { $_.Path -and $_.Path.StartsWith^($env:DEL_PATH, [StringComparison]::OrdinalIgnoreCase^) } ^| Stop-Process -Force -ErrorAction SilentlyContinue" ^>nul 2^>^&1
-    echo rmdir /s /q "!DEL_PATH!"
-    echo if not exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" ^(
-    echo     if exist "%LOCALAPPDATA%\DiamTek\JVM\current" rmdir "%LOCALAPPDATA%\DiamTek\JVM\current"
-    echo     reg delete "HKCU\Environment" /v JAVA_HOME /f ^>nul 2^>^&1
-    echo ^)
-    echo set "DEL_BIN=!DEL_PATH!\bin"
-    echo powershell -NoProfile -Command "$p = [Environment]::GetEnvironmentVariable('Path', 'Machine'); if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $_ -ne $env:DEL_BIN }) -join ';'; [Environment]::SetEnvironmentVariable('Path', $clean, 'Machine') }" ^>nul 2^>^&1
-) > "!ADMIN_BAT!"
-
 echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '!ADMIN_BAT!' -Verb RunAs -WindowStyle Hidden -Wait"
-del "!ADMIN_BAT!"
+powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-Command', '$del = ''!DEL_PATH!''; Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; [Environment]::SetEnvironmentVariable(''Path'', $clean, ''Machine'') }')"
+if not exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" (
+    if exist "%LOCALAPPDATA%\DiamTek\JVM\current" rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
+    reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
+)
 
 if exist "!DEL_PATH!" (
     echo %cRED%[ ERROR  ]%cRESET% Failed to completely delete directory.
@@ -2648,11 +2605,7 @@ if !sub_choice!==2 (
         )
         set "SAFE_SYS_PATH=!SYS_PATH:'=''!"
         
-        set "ELEVATE_SCRIPT=%TEMP%\jvm_scrub_!RANDOM!.ps1"
-        echo [Environment]::SetEnvironmentVariable^('JAVA_HOME', $null, 'Machine'^) > "!ELEVATE_SCRIPT!"
-        echo [Environment]::SetEnvironmentVariable^('Path', '!SAFE_SYS_PATH!', 'Machine'^) >> "!ELEVATE_SCRIPT!"
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""!ELEVATE_SCRIPT!""' -Verb RunAs -Wait" 2>nul
-        if exist "!ELEVATE_SCRIPT!" del "!ELEVATE_SCRIPT!"
+        powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-Command', '[Environment]::SetEnvironmentVariable(''JAVA_HOME'', $null, ''Machine''); [Environment]::SetEnvironmentVariable(''Path'', ''!SAFE_SYS_PATH!'', ''Machine'')')" 2>nul
     ) else (
         set "SWITCH_MODE=DIRECT"
     )
@@ -3077,6 +3030,7 @@ echo   --legacy, --registry           Force Legacy Mode ^(System HKLM Registry, 
 echo   --session                      Force True Session Isolation for the active terminal
 echo   --global                       Force global system-wide switch
 echo   --yes, -y                      Bypass interactive confirmation prompts
+echo   --skip-checksum, --no-verify   Bypass checksum verification if hash is unavailable
 goto :eof
 
 rem ============================================================
@@ -3703,11 +3657,11 @@ set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!.ps1"
     echo         }
     echo         if ^([string]::IsNullOrWhiteSpace^($expectedHash^)^) {
     echo             Write-Host '[ WARNING] Integrity verification unavailable or failed to fetch.' -ForegroundColor Yellow
-    echo             if ^('!FORCE_YES!' -ne '1'^) {
-    echo                 Write-Host '[ ERROR  ] Aborting due to security policy. Rerun with --yes or -y to bypass verification.' -ForegroundColor Red
+    echo             if ^('!SKIP_CHECKSUM!' -ne '1'^) {
+    echo                 Write-Host '[ ERROR  ] Aborting due to security policy. Rerun with --skip-checksum to bypass verification.' -ForegroundColor Red
     echo                 exit 1
     echo             }
-    echo             Write-Host '            Proceeding WITHOUT integrity verification ^(--yes flag active^).' -ForegroundColor Yellow
+    echo             Write-Host '            Proceeding WITHOUT integrity verification ^(--skip-checksum active^).' -ForegroundColor Yellow
     echo             Write-Host ""
     echo         } else {
     echo             $crypto = [System.Security.Cryptography.HashAlgorithm]::Create^($cryptoType^)

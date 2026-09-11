@@ -166,6 +166,13 @@ If you are running in a strict CI/CD pipeline, you can pass `-y` to aggressively
 jvm install 17 --vendor oracle -y
 ```
 
+**Bypassing Checksum Verification (`--skip-checksum` / `--no-verify`)**
+If you are operating in an air-gapped environment or a vendor's checksum endpoint is transiently unreachable, pass `--skip-checksum` (or `--no-verify`) to proceed with extraction if the hash cannot be resolved:
+```cmd
+jvm install 21 --vendor adoptium --skip-checksum
+```
+*(Note: `--yes` / `-y` only suppresses interactive confirmation prompts and does not disable checksum verification).*
+
 ---
 
 ## 📦 Ecosystem Build Tools (SDKMAN! Parity)
