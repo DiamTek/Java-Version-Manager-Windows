@@ -310,6 +310,7 @@ DiamTek JVM was intentionally architected from the ground up to eliminate this e
 
 This allows developers to remain productive and switch JDKs independently while preserving corporate endpoint lockdown compliance.
 
+<a id="how-does-diamtek-jvm-fit-into-enterprise-fleet-management-intune--mecm--gpo"></a>
 ### How does DiamTek JVM fit into enterprise fleet management (Intune / MECM / GPO)?
 DiamTek JVM is packaged as a native, single-file Windows Installer (`.msi`) built with WiX Toolset v4 with a per-user installation scope (`Scope="perUser"`):
 - **Silent Distribution:** Enterprise IT administrators can silently deploy the MSI across thousands of endpoints without user interruption:

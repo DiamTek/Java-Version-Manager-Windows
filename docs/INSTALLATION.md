@@ -124,6 +124,7 @@ To enable verbose installation logging for diagnostics:
 msiexec /i jvm-windows-1.0.0-x64.msi /qn /norestart /l*v "%TEMP%\jvm-install.log"
 ```
 
+<a id="enterprise--silent-it-deployment-intune--mecm--gpo"></a>
 ## Enterprise & Silent IT Deployment (Intune, MECM, GPO)
 
 DiamTek JVM is built with a standard per-user Windows Installer architecture (`Scope="perUser"`), making it ideal for self-service engineering workstations or managed enterprise fleet distribution without requiring local administrator rights.

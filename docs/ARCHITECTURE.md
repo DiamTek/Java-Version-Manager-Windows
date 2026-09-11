@@ -98,6 +98,7 @@ Like SDKMAN!, this tool intercepts commands for popular Java tools (Maven, Gradl
 3. The payloads are extracted via `Expand-Archive` and isolated in `%LOCALAPPDATA%\DiamTek\JVM\candidates\<candidate>`.
 4. Specific `<CANDIDATE>_HOME` variables are injected into the registry, mapping the ecosystem completely identically to native Java.
 
+<a id="powershell-native-dynamic-environment-injection"></a>
 ## Real-Time PowerShell Session Propagation (`Set-JvmVar`)
 Because Windows process environments cannot ordinarily be modified by a child batch process, `install.ps1` injects a native PowerShell function hook into `$PROFILE`. 
 When `jvm` switches an active tool or JDK:
@@ -126,6 +127,7 @@ To provide a first-class modern Windows developer experience while strictly main
 3. **Shortcut Synchronization**: Creates Start Menu application shortcuts targeting `wt.exe -p "Java Version Manager"` (falling back to `cmd.exe /c` on systems without Windows Terminal). During installation and self-updates, the script automatically searches `%APPDATA%\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\` to detect and update existing pinned taskbar shortcuts in place.
 4. **AppUserModelID & Taskbar Mechanics**: Windows Terminal is a packaged WinUI app that hardcodes its own process-level AppUserModelID (`Microsoft.WindowsTerminal...`) on all hosting windows. By registering a dedicated profile with native icon and dropdown integration rather than forcing brittle binary wrappers, the utility respects the OS container model while maintaining a zero-binary, 100% script-based repository.
 
+<a id="packaging-architecture--asset-distribution"></a>
 ## Multi-Channel Packaging Pipelines
 
 ```mermaid
