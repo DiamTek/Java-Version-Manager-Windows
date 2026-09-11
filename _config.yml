@@ -12,4 +12,7 @@ relative_links:
 
 include:
   - LICENSE
-  - docs
+
+kramdown:
+  input: GFM
+  parse_block_html: true
