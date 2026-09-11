@@ -46,6 +46,8 @@ In most cases, it is recognized immediately!
 - **Command Prompt (CMD):** In default **Symlink Mode**, your `PATH` points to the directory junction (`%LOCALAPPDATA%\DiamTek\JVM\current\bin`). The moment the junction target changes, all open CMD terminals resolve the new `java` binary immediately.
 - **IDE Terminals & Background Daemons:** If an application (such as an open VS Code window, IntelliJ instance, or build daemon) cached the environment variables in its own process block before the switch, restarting that terminal or reload the IDE window will ensure the updated variables are picked up.
 
+<a id="why-does-java--version-still-show-an-old-java-version-after-i-switch-path-shadowing"></a>
+<a id="why-does-java--version-still-show-an-old-version-after-i-switch-path-shadowing"></a>
 ### Why does `java -version` still show an old Java version after I switch? (PATH Shadowing)
 If switching versions with `jvm <version>` completes successfully but typing `java -version` still reports an old version (such as an ancient Oracle JRE or Chocolatey installation), you are experiencing **PATH Shadowing**.
 

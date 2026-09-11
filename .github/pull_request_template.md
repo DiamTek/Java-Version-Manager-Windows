@@ -17,7 +17,9 @@ Because `jvm.bat` operates strictly natively on Windows, please review the follo
 - [ ] I have verified that this does not break the default UAC-free **Symlink Mode**.
 - [ ] (If modifying core variables) I have verified it does not break Delayed Expansion (`!PATH!`).
 - [ ] (If parsing directories) I have verified it handles spaces in file paths correctly.
-- [ ] (If inline PowerShell is used) I have verified it does not conflict with strict Execution Policies.
+- [ ] (If inline PowerShell is used) I have verified it does not conflict with strict Execution Policies and sanitizes single quotes (`:'=''`).
+- [ ] (If modifying repository parsers) I have preserved metacharacter filtering (`| findstr /v "[&|<>]"`).
+- [ ] I have verified that `jvm.bat --version` executes cleanly with exit code `0`.
 
 ## Additional Context
 Add any other context, terminal screenshots, or tests executed about the pull request here.

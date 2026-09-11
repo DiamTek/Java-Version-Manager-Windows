@@ -103,7 +103,9 @@ scoop install jvm
 choco install jvm-windows
 ```
 
-### Windows Installer (MSI)
+<a id="standalone-msi-installers-wix-toolset-v4"></a>
+<a id="windows-installer-msi"></a>
+### Standalone MSI Installers (WiX Toolset v4)
 
 Standalone, single-file Windows Installers are available for both **x64** (Intel/AMD) and **arm64** (Qualcomm Snapdragon / Windows on ARM):
 
@@ -199,7 +201,9 @@ The resulting single-file installers are placed directly into `packages\msi\` (o
 > [!NOTE]
 > `build-msi.ps1` is fully autonomous and path-agnostic. You can run it from within the cloned repository or execute it completely standalone (e.g., downloaded directly to your `Downloads` folder). If local source files, the .NET SDK, or the WiX CLI are not present, `build-msi.ps1` automatically bootstraps a user-space .NET SDK, exports `DOTNET_ROOT`, retrieves repository assets into `%TEMP%`, and builds the single-file MSIs.
 
-#### Automated Verification Suite
+<a id="automated-msi-verification-suite"></a>
+<a id="automated-verification-suite"></a>
+### Automated MSI Verification Suite
 The MSI subsystem includes a fully autonomous, 18-point integration verification test suite (`packages\msi\test-msi.ps1`). It actively tests live operating system integration—including the Windows Installer service (`msiexec`), CLI `bin/` directory hygiene (guaranteeing internal hook scripts are isolated from `PATH`), Start Menu application and uninstaller shortcuts indexed by Windows Search, Windows Terminal `settings.json`, PowerShell `$PROFILE`, Windows Registry `PATH`, and live CLI subshell process execution (`cmd.exe /c "jvm.bat --version"`).
 
 ##### Autonomous 4-Tier Resolution Engine
@@ -291,7 +295,9 @@ You can uninstall JVM through any of the following methods:
 
 ---
 
-## Troubleshooting
+<a id="troubleshooting"></a>
+<a id="troubleshooting--windows-security"></a>
+## Troubleshooting & Windows Security
 
 ### Downloaded Script Blocked or Not Digitally Signed (Zone.Identifier)
 When downloading `.ps1` scripts, archives, or installers via a web browser (Edge, Chrome, Firefox), Windows Attachment Manager marks the files with a hidden NTFS alternate data stream: `Zone.Identifier` (`ZoneId=3` meaning "Internet").

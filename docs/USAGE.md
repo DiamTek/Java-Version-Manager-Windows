@@ -17,17 +17,20 @@ The Java Version Manager for Windows is designed to accommodate both casual deve
 This document outlines every command, flag override, and semantic route available in the engine.
 
 ### 🔍 Quick Jump
-- [Interactive UI Mode](#️-interactive-ui-mode)
-- [Command Reference Cheat Sheet](#-command-reference-cheat-sheet)
-- [Quick-Switching (CLI)](#-quick-switching-cli)
-- [Session Auto-Switching (.java-version & .sdkmanrc)](#-session-auto-switching-java-version--sdkmanrc)
-- [Universal Candidate Engine (Ecosystem Tools)](#-universal-candidate-engine-ecosystem-tools)
-- [Bring Your Own JDK (jvm link)](#-bring-your-own-jdk-jvm-link)
-- [IDE & Build Tool Integration](#️-ide--build-tool-integration)
-- [Global Environment Management](#-global-environment-management)
+- [Interactive UI Mode](#interactive-ui-mode)
+- [Command Reference Cheat Sheet](#command-reference-cheat-sheet)
+- [Quick-Switching (CLI)](#quick-switching-cli)
+- [Headless Installations](#headless-installations)
+- [Universal Candidate Engine (Ecosystem Tools)](#universal-candidate-engine-ecosystem-tools)
+- [Updates & Uninstalls](#updates--uninstalls)
+- [Directory-Based Auto-Switching (.java-version & .sdkmanrc)](#directory-based-auto-switching)
+- [IDE & Build Tool Integration](#ide--build-tool-integration)
+- [Bring Your Own JDK (jvm link)](#bring-your-own-jdk-byo-jdk)
+- [Global Environment Management](#global-environment-management)
 
 ---
 
+<a id="interactive-ui-mode"></a>
 ## 🖥️ Interactive UI Mode
 
 For the easiest, most visually appealing experience, you can rely entirely on the interactive menus.
@@ -46,6 +49,7 @@ From here, you can visually explore installed JDKs, fetch new versions, manage e
 **Initial Setup Note:**
 If you have just downloaded the script manually, navigate to **Settings (Global Command & Setup)** (Option `3`) and select **Install Global Command** (Option `1`). Once installed globally, you can use the `jvm` command from anywhere on your system.
 
+<a id="command-reference-cheat-sheet"></a>
 ## 📋 Command Reference Cheat Sheet
 
 | Command Syntax | Scope | Description |
@@ -81,6 +85,7 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 
 ---
 
+<a id="quick-switching-cli"></a>
 ## ⚡ Quick-Switching (CLI)
 
 You do not need to open the menu to change your active Java version. You can instantly update your `JAVA_HOME` and system `PATH` directly from the command line.
@@ -128,6 +133,7 @@ jvm 21 --session
 
 ---
 
+<a id="headless-installations"></a>
 ## 📥 Headless Installations
 
 The installation engine supports deep headless automation, allowing you to bypass menus incrementally—perfect for DevOps scripts and automated machine provisioning.
@@ -176,6 +182,7 @@ jvm install 21 --vendor adoptium --skip-checksum
 
 ---
 
+<a id="universal-candidate-engine-ecosystem-tools"></a>
 ## 📦 Ecosystem Build Tools (SDKMAN! Parity)
 
 JVM supports downloading, switching, and managing modern build tools natively alongside Java. You can manage these via the command line or through the interactive **Ecosystem Management** sub-menu.
@@ -199,6 +206,7 @@ jvm uninstall groovy 4.0.23
 
 ---
 
+<a id="updates--uninstalls"></a>
 ## 🔄 Updates & Uninstalls
 
 ### Updating Tools
@@ -231,6 +239,7 @@ jvm uninstall 21 --vendor oracle
 
 ---
 
+<a id="directory-based-auto-switching"></a>
 ## 📂 Directory-Based Auto-Switching
 
 Instantly configure a project's required environment by simply running the tool inside any directory containing a `.java-version` or SDKMAN `.sdkmanrc` file.
@@ -265,6 +274,7 @@ kotlin=1.9.22
 
 ---
 
+<a id="ide--build-tool-integration"></a>
 ## 🛠️ IDE & Build Tool Integration
 
 Because DiamTek JVM maintains a stable Windows Directory Junction at `%LOCALAPPDATA%\DiamTek\JVM\current`, you can configure modern Windows IDEs and build systems to point directly to this junction. Switching versions via `jvm <version>` dynamically updates your development runtime without re-indexing your IDE projects.
@@ -311,6 +321,7 @@ Maven natively respects the active `JAVA_HOME` environment variable managed by J
 
 ---
 
+<a id="global-environment-management"></a>
 ## 🧹 Global Environment Management
 
 ### Inspection Commands
@@ -335,6 +346,7 @@ Instantly wipe `JAVA_HOME` and purge Java from your Windows PATH entirely:
 jvm clear
 ```
 
+<a id="bring-your-own-jdk-byo-jdk"></a>
 ### Bring Your Own JDK (BYO-JDK)
 Manually link an existing, custom JDK directory (or GraalVM native image) into the manager. Linked JDKs automatically integrate into the interactive UI under the "Custom (Local Links)" category:
 ```cmd

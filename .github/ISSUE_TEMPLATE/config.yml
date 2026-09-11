@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 Community & Direct Support (Discord)
+    url: https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/.github/SUPPORT.md
+    about: Ask questions, get setup help, or chat directly with the maintainers (@thehawk01 on Discord).
+  - name: 📖 Official Documentation & FAQ
+    url: https://github.com/DiamTek/Java-Version-Manager-Windows#📚-documentation
+    about: Explore installation guides, CLI cheat sheets, FAQ, and enterprise architecture specs.
