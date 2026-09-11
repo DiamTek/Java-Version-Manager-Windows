@@ -1,13 +1,13 @@
-# Comparison with SDKMAN!
+<h1 align="center">Comparison with SDKMAN!</h1>
 
-<p align="center" markdown="1">
-  [🏠 Overview](../README.md) &nbsp;•&nbsp;
-  [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp;
-  [📖 Usage](USAGE.md) &nbsp;•&nbsp;
-  [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp;
-  [❓ FAQ](FAQ.md) &nbsp;•&nbsp;
-  [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp;
-  [📜 Changelog](CHANGELOG.md)
+<p align="center">
+  <a href="../README.md">🏠 Overview</a> &nbsp;•&nbsp;
+  <a href="INSTALLATION.md">📦 Installation</a> &nbsp;•&nbsp;
+  <a href="USAGE.md">📖 Usage</a> &nbsp;•&nbsp;
+  <a href="ARCHITECTURE.md">🏗️ Architecture</a> &nbsp;•&nbsp;
+  <a href="FAQ.md">❓ FAQ</a> &nbsp;•&nbsp;
+  <a href="SDKMAN-Comparison.md">⚖️ SDKMAN! Comparison</a> &nbsp;•&nbsp;
+  <a href="CHANGELOG.md">📜 Changelog</a>
 </p>
 
 ---
