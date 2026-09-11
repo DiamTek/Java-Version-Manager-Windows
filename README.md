@@ -16,6 +16,15 @@
   <a href="https://github.com/DiamTek/Java-Version-Manager-Windows"><img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6.svg" alt="Platform"></a>
 </p>
 
+<p align="center">
+  <a href="#-installation">📥 Installation</a> &nbsp;•&nbsp;
+  <a href="#-features">🚀 Features</a> &nbsp;•&nbsp;
+  <a href="#-documentation">📚 Documentation</a> &nbsp;•&nbsp;
+  <a href="#-usage">🛠️ Usage</a> &nbsp;•&nbsp;
+  <a href="#-version-history">📜 Version History</a> &nbsp;•&nbsp;
+  <a href="#-community--contributing">🤝 Community</a>
+</p>
+
 ---
 
 ## 📥 Installation

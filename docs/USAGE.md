@@ -1,8 +1,30 @@
 # Usage Guide
 
+<p align="center">
+  <a href="../README.md">🏠 Overview</a> &nbsp;•&nbsp;
+  <a href="INSTALLATION.md">📦 Installation</a> &nbsp;•&nbsp;
+  <a href="USAGE.md">📖 Usage</a> &nbsp;•&nbsp;
+  <a href="ARCHITECTURE.md">🏗️ Architecture</a> &nbsp;•&nbsp;
+  <a href="FAQ.md">❓ FAQ</a> &nbsp;•&nbsp;
+  <a href="SDKMAN-Comparison.md">⚖️ SDKMAN! Comparison</a> &nbsp;•&nbsp;
+  <a href="CHANGELOG.md">📜 Changelog</a>
+</p>
+
+---
+
 The Java Version Manager for Windows is designed to accommodate both casual developers and hardcore CI/CD engineers. It acts as both a visually guided **Interactive TUI (Terminal User Interface)** and a deeply powerful, highly-configurable **Headless CLI**.
 
 This document outlines every command, flag override, and semantic route available in the engine.
+
+### 🔍 Quick Jump
+- [Interactive UI Mode](#️-interactive-ui-mode)
+- [Command Reference Cheat Sheet](#-command-reference-cheat-sheet)
+- [Quick-Switching (CLI)](#-quick-switching-cli)
+- [Session Auto-Switching (.java-version & .sdkmanrc)](#-session-auto-switching-java-version--sdkmanrc)
+- [Universal Candidate Engine (Ecosystem Tools)](#-universal-candidate-engine-ecosystem-tools)
+- [Bring Your Own JDK (jvm link)](#-bring-your-own-jdk-jvm-link)
+- [IDE & Build Tool Integration](#️-ide--build-tool-integration)
+- [Global Environment Management](#-global-environment-management)
 
 ---
 
@@ -331,3 +353,7 @@ Display the full command-line reference, arguments, and flag overrides directly 
 jvm --help
 # Or: jvm help, jvm -h, jvm /?
 ```
+
+---
+
+[← Back to Documentation Overview](../README.md#📚-documentation)

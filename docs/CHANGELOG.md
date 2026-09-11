@@ -1,5 +1,17 @@
 # Changelog
 
+<p align="center">
+  <a href="../README.md">🏠 Overview</a> &nbsp;•&nbsp;
+  <a href="INSTALLATION.md">📦 Installation</a> &nbsp;•&nbsp;
+  <a href="USAGE.md">📖 Usage</a> &nbsp;•&nbsp;
+  <a href="ARCHITECTURE.md">🏗️ Architecture</a> &nbsp;•&nbsp;
+  <a href="FAQ.md">❓ FAQ</a> &nbsp;•&nbsp;
+  <a href="SDKMAN-Comparison.md">⚖️ SDKMAN! Comparison</a> &nbsp;•&nbsp;
+  <a href="CHANGELOG.md">📜 Changelog</a>
+</p>
+
+---
+
 All notable changes to the Java Version Manager for Windows will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to Semantic Versioning.
@@ -143,3 +155,7 @@ This milestone 1.0.0 release marks the official general availability of the Diam
 
 ### Added
 - **Initial Release**: First stable release of the Java Version Manager for Windows.
+
+---
+
+[← Back to Documentation Overview](../README.md#📚-documentation)

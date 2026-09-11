@@ -1,5 +1,35 @@
 # Frequently Asked Questions (FAQ)
 
+<p align="center">
+  <a href="../README.md">🏠 Overview</a> &nbsp;•&nbsp;
+  <a href="INSTALLATION.md">📦 Installation</a> &nbsp;•&nbsp;
+  <a href="USAGE.md">📖 Usage</a> &nbsp;•&nbsp;
+  <a href="ARCHITECTURE.md">🏗️ Architecture</a> &nbsp;•&nbsp;
+  <a href="FAQ.md">❓ FAQ</a> &nbsp;•&nbsp;
+  <a href="SDKMAN-Comparison.md">⚖️ SDKMAN! Comparison</a> &nbsp;•&nbsp;
+  <a href="CHANGELOG.md">📜 Changelog</a>
+</p>
+
+---
+
+### 🔍 Quick Jump
+- [Why use this over SDKMAN! on Windows?](#why-use-this-over-sdkman-on-windows)
+- [Why isn't `java` recognized immediately after I switch versions?](#why-isnt-java-recognized-immediately-after-i-switch-versions)
+- [How do I verify or manually configure the PowerShell Profile Hook?](#how-do-i-verify-or-manually-configure-the-powershell-profile-hook)
+- [Does this require Administrator (UAC) privileges?](#does-this-require-administrator-uac-privileges)
+- [How does it change the version globally without messing up my path?](#how-does-it-change-the-version-globally-without-messing-up-my-path)
+- [Can I use this in a CI/CD pipeline (like GitHub Actions)?](#can-i-use-this-in-a-cicd-pipeline-like-github-actions)
+- [Does it support custom JDKs or private binaries?](#does-it-support-custom-jdks-or-private-binaries)
+- [Where are my JDKs and tools actually installed?](#where-are-my-jdks-and-tools-actually-installed)
+- [How does Windows Terminal and Taskbar integration work?](#how-does-windows-terminal-and-taskbar-integration-work)
+- [How do I completely uninstall it?](#how-do-i-completely-uninstall-it)
+- [Why does Windows PowerShell say a script is not digitally signed or blocked?](#why-does-windows-powershell-say-a-script-is-not-digitally-signed-or-blocked)
+- [Does the MSI test suite test real system integration or just file creation?](#does-the-msi-test-suite-test-real-system-integration-or-just-file-creation)
+- [How do I cryptographically verify the authenticity and provenance of release binaries?](#how-do-i-cryptographically-verify-the-authenticity-and-provenance-of-release-binaries)
+- [What process exit codes does the CLI and installer return for CI/CD scripting?](#what-process-exit-codes-does-the-cli-and-installer-return-for-cicd-scripting)
+
+---
+
 ### Why use this over SDKMAN! on Windows?
 SDKMAN! is an incredible tool, but it is fundamentally built for Unix architectures (bash). Running it on Windows requires layers of virtualization like Windows Subsystem for Linux (WSL), Git Bash, or Cygwin. This Java Version Manager is built **100% natively** for Windows Command Prompt (`cmd.exe`) and PowerShell. It requires zero dependencies and directly manipulates the Windows Registry.
 
@@ -165,3 +195,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "JVM execution failed with exit code $LASTEXITCODE"
 }
 ```
+
+---
+
+[← Back to Documentation Overview](../README.md#📚-documentation)

@@ -1,5 +1,17 @@
 # Comparison with SDKMAN!
 
+<p align="center">
+  <a href="../README.md">🏠 Overview</a> &nbsp;•&nbsp;
+  <a href="INSTALLATION.md">📦 Installation</a> &nbsp;•&nbsp;
+  <a href="USAGE.md">📖 Usage</a> &nbsp;•&nbsp;
+  <a href="ARCHITECTURE.md">🏗️ Architecture</a> &nbsp;•&nbsp;
+  <a href="FAQ.md">❓ FAQ</a> &nbsp;•&nbsp;
+  <a href="SDKMAN-Comparison.md">⚖️ SDKMAN! Comparison</a> &nbsp;•&nbsp;
+  <a href="CHANGELOG.md">📜 Changelog</a>
+</p>
+
+---
+
 [SDKMAN!](https://sdkman.io/) is the industry standard for managing Java versions and ecosystem tools. However, for native Windows users, it presents strict architectural challenges.
 
 ### The Problem with SDKMAN! on Windows
@@ -42,3 +54,7 @@ This tool completely eliminates that friction. It features a native **`.sdkmanrc
 3. It instantly isolates the exact requested JDK, Maven, and Gradle versions into your *current* terminal session.
 
 You get 100% perfect environment synchronization with your Linux teammates, without ever installing a Linux subsystem on your Windows machine.
+
+---
+
+[← Back to Documentation Overview](../README.md#📚-documentation)

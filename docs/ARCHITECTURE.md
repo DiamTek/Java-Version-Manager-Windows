@@ -1,6 +1,26 @@
 # Architecture & Technical Implementation
 
+<p align="center">
+  <a href="../README.md">🏠 Overview</a> &nbsp;•&nbsp;
+  <a href="INSTALLATION.md">📦 Installation</a> &nbsp;•&nbsp;
+  <a href="USAGE.md">📖 Usage</a> &nbsp;•&nbsp;
+  <a href="ARCHITECTURE.md">🏗️ Architecture</a> &nbsp;•&nbsp;
+  <a href="FAQ.md">❓ FAQ</a> &nbsp;•&nbsp;
+  <a href="SDKMAN-Comparison.md">⚖️ SDKMAN! Comparison</a> &nbsp;•&nbsp;
+  <a href="CHANGELOG.md">📜 Changelog</a>
+</p>
+
+---
+
 This project is a zero-dependency, lightweight, native Windows implementation designed to bypass the traditional complexities of virtualized bash scripts (like SDKMAN!) on Windows operating systems.
+
+### 🔍 Quick Jump
+- [The Core Mechanism: Directory Junctions](#the-core-mechanism-directory-junctions)
+- [Dual-Architecture Core (Symlink Mode vs. Legacy Registry Mode)](#dual-architecture-core-symlink-mode-vs-legacy-registry-mode)
+- [PowerShell Native Dynamic Environment Injection](#powershell-native-dynamic-environment-injection)
+- [Packaging Architecture & Asset Distribution](#packaging-architecture--asset-distribution)
+
+---
 
 ## The Core Mechanism: Directory Junctions
 Instead of constantly appending and pruning your Windows `PATH` variable to point to different JDK folders (which quickly leads to the 1024-character `PATH` limit and environment variable bloat), the manager maintains a single **Directory Junction** (`mklink /J`) at:
@@ -133,3 +153,7 @@ graph LR
     - **Start Menu Uninstaller Shortcut**: Packages an explicit MSI shortcut targeting `[SystemFolder]msiexec.exe /x [ProductCode]` under `Start Menu\Programs\DiamTek`, allowing instant uninstallation discovery via Windows Search ("Uninstall Java Version Manager" and "Uninstall JVM").
     - **Race Condition Elimination**: The MSI uninstaller relies purely on standard Windows Installer actions (`RemoveFile`, `RemoveFolderEx`) for directory teardown, omitting background asynchronous CMD deletions to avoid file-lock race conditions (Windows Installer Error 2318).
   - **Automated Verification Suite (`packages\msi\test-msi.ps1`)**: Implements an automated 18-point synthetic integration suite designed for CI/CD pipelines and GitHub Actions build provenance attestations (`actions/attest-build-provenance`). The suite actively tests live operating system integration (Windows Installer service `msiexec`, binary layout, CLI `bin/` directory hygiene, Start Menu application and uninstaller shortcuts indexed by Windows Search, registry metadata, PATH propagation, Windows Terminal profile injection, CLI sanity subshell execution, clean uninstallation, and zero filesystem residuals). Features an autonomous 4-tier fallback engine (local MSI -> local WiX compiler -> GitHub Release binary -> remote source bootstrap + user-space .NET SDK / WiX CLI toolchain) and supports `-ShowUI` (native progress dialog `/qb`) and `-KeepInstalled` (retaining JVM post-test for direct terminal usage).
+
+---
+
+[← Back to Documentation Overview](../README.md#📚-documentation)

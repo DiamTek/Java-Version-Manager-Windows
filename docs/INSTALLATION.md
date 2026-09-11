@@ -1,6 +1,30 @@
 # Installation
 
+<p align="center">
+  <a href="../README.md">🏠 Overview</a> &nbsp;•&nbsp;
+  <a href="INSTALLATION.md">📦 Installation</a> &nbsp;•&nbsp;
+  <a href="USAGE.md">📖 Usage</a> &nbsp;•&nbsp;
+  <a href="ARCHITECTURE.md">🏗️ Architecture</a> &nbsp;•&nbsp;
+  <a href="FAQ.md">❓ FAQ</a> &nbsp;•&nbsp;
+  <a href="SDKMAN-Comparison.md">⚖️ SDKMAN! Comparison</a> &nbsp;•&nbsp;
+  <a href="CHANGELOG.md">📜 Changelog</a>
+</p>
+
+---
+
 Getting started with the Java Version Manager for Windows takes less than 10 seconds. There are no external dependencies required.
+
+### 🔍 Quick Jump
+- [Standard Installation (PowerShell)](#standard-installation-powershell)
+- [Manual Installation](#manual-installation)
+- [Standalone MSI Installers (WiX Toolset v4)](#standalone-msi-installers-wix-toolset-v4)
+- [Package Managers (Winget, Scoop, Chocolatey)](#package-managers)
+- [Enterprise & Silent IT Deployment (Intune, MECM, GPO)](#enterprise--silent-it-deployment-intune--mecm--gpo)
+- [Automated MSI Verification Suite](#automated-msi-verification-suite)
+- [Uninstallation](#uninstallation)
+- [Troubleshooting & Windows Security](#troubleshooting--windows-security)
+
+---
 
 ## Standard Installation (PowerShell)
 
@@ -255,3 +279,7 @@ To fix this, open your PowerShell terminal and run:
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 Press **Y** to confirm, then try running the installation one-liner again.
+
+---
+
+[← Back to Documentation Overview](../README.md#📚-documentation)
