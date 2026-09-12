@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md)
+[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
 
 </div>
 
@@ -135,7 +135,7 @@ This milestone 1.0.0 release marks the official general availability of the Diam
 - **UAC Elevation Refactor**: Refactored the UAC elevation block to hardcode `powershell.exe` absolute paths, preventing crashes from corrupted environment variables.
 - **UI Polish**: Polished UI aesthetics with strict ANSI color hierarchy and muted absolute file paths.
 
-## [0.4.0] - 2026-08-20
+## [0.4.0] - 2026-08-19
 
 ### Added
 - **Dynamic Scanner**: Re-engineered the JDK discovery engine to dynamically scan developer toolkits (Scoop, Gradle, IntelliJ).
@@ -148,7 +148,7 @@ This milestone 1.0.0 release marks the official general availability of the Diam
 ### Fixed
 - **Variable Scope Crashes**: Fixed critical variable scope bugs that caused silent crashes during path switching.
 
-## [0.3.0] - 2026-08-20
+## [0.3.0] - 2026-08-19
 
 ### Changed
 - **Relicensed to AGPL-3.0**: Relicensed the project from the MIT License to the GNU Affero General Public License v3.0 (AGPL-3.0).
