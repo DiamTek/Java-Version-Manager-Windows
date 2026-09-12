@@ -21,7 +21,8 @@
     max-width: 100%;
     height: auto;
   }
-  .highlighter-rouge {
+  .highlighter-rouge,
+  .code-block-container {
     position: relative;
   }
   .copy-code-btn {
@@ -41,8 +42,15 @@
     transition: opacity 0.2s ease-in-out, background-color 0.2s, color 0.2s;
     z-index: 10;
   }
-  .highlighter-rouge:hover .copy-code-btn {
+  .highlighter-rouge:hover .copy-code-btn,
+  .code-block-container:hover .copy-code-btn,
+  .copy-code-btn:focus {
     opacity: 1;
+  }
+  @media (hover: none) {
+    .copy-code-btn {
+      opacity: 0.85;
+    }
   }
   .copy-code-btn:hover {
     background-color: #e1e4e8;
@@ -184,16 +192,33 @@
       bq.insertBefore(header, bq.firstChild);
     });
 
-    // 2. One-Click Code Copy Buttons
-    document.querySelectorAll('.highlighter-rouge').forEach((block) => {
-      if (block.classList.contains('language-mermaid')) return;
+    // 2. One-Click Code Copy Buttons (Supports all syntax-highlighted and plain text pre boxes)
+    document.querySelectorAll('pre').forEach((pre) => {
+      if (pre.matches('.mermaid, .language-mermaid') || pre.closest('.mermaid') || pre.querySelector('code.language-mermaid') || pre.classList.contains('mermaid')) {
+        return;
+      }
+      const rougeParent = pre.closest('.highlighter-rouge');
+      let container = rougeParent;
+      if (!container) {
+        if (pre.parentElement && pre.parentElement.classList.contains('code-block-container')) {
+          container = pre.parentElement;
+        } else {
+          container = document.createElement('div');
+          container.className = 'code-block-container';
+          pre.parentNode.insertBefore(container, pre);
+          container.appendChild(pre);
+        }
+      }
+      if (container.querySelector('.copy-code-btn')) return;
+
       const btn = document.createElement('button');
       btn.className = 'copy-code-btn';
       btn.type = 'button';
       btn.setAttribute('aria-label', 'Copy code to clipboard');
       btn.textContent = 'Copy';
       btn.addEventListener('click', async () => {
-        const code = block.querySelector('code')?.textContent || '';
+        const codeEl = container.querySelector('code') || container.querySelector('pre');
+        const code = codeEl ? codeEl.textContent : '';
         try {
           await navigator.clipboard.writeText(code.trimEnd());
           btn.textContent = 'Copied! ✓';
@@ -207,7 +232,7 @@
           setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
         }
       });
-      block.appendChild(btn);
+      container.appendChild(btn);
     });
 
     // 3. Dynamic Mermaid Loader

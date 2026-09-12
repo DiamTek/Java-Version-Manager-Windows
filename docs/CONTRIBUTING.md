@@ -20,7 +20,7 @@ Because `jvm.bat` actively modifies system and user environment variables (`PATH
 When testing local changes in your cloned repository, invoke the script directly from your working directory rather than relying on the installed command:
 
 ```cmd
-:: In CMD or PowerShell, run the local working copy directly:
+# In CMD or PowerShell, run the local working copy directly:
 .\jvm.bat list
 .\jvm.bat current
 .\jvm.bat which
@@ -34,7 +34,7 @@ When testing local changes in your cloned repository, invoke the script directly
 Always use the `--session` flag during manual CLI testing. This mutates only the memory of the active subshell process and leaves your global Windows Registry and User environment untouched:
 
 ```cmd
-:: CMD subshell verification:
+# CMD subshell verification:
 cmd.exe /c ".\jvm.bat 21 --session && java -version"
 ```
 

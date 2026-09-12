@@ -84,17 +84,17 @@ sdk default java 17.0.10-amzn
 If you forget the vendor suffix or patch release, you are forced to run `sdk list java`, search through hundreds of lines, and copy-paste the exact string.
 
 DiamTek JVM provides **1-Word Shorthand Ergonomics** alongside transparent SDKMAN! aliases:
-```cmd
-:: DiamTek JVM (Native Windows shorthand)
+```powershell
+# DiamTek JVM (Native Windows shorthand)
 jvm 21
 jvm lts
 jvm latest
 
-:: SDKMAN! / NVM Migration Aliases (supported 1:1)
+# SDKMAN! / NVM Migration Aliases (supported 1:1)
 jvm use 21
 jvm default 21
 
-:: Session-isolated switch (matching SDKMAN 'sdk use' semantics)
+# Session-isolated switch (matching SDKMAN 'sdk use' semantics)
 jvm use 21 --session
 ```
 
@@ -108,8 +108,8 @@ JVM automatically inspects your installed versions and routes to the best instal
 In SDKMAN!, running a one-off build or test against a different JDK requires switching your current shell (`sdk use java 17...`), executing the build, and then manually switching back (`sdk use java 21...`). If the build crashes or you forget to revert, your shell remains stuck on the wrong Java version.
 
 DiamTek JVM provides native, one-line ephemeral execution:
-```cmd
-:: Runs in an ephemeral child subshell with zero global changes
+```powershell
+# Runs in an ephemeral child subshell with zero global changes
 jvm exec 17 -- mvn clean test
 # Alias: jvm run 17 mvn clean test
 ```
@@ -138,14 +138,14 @@ jvm doctor
 In SDKMAN!, locking a project to a specific runtime requires manually writing or updating a `.sdkmanrc` file by hand.
 
 DiamTek JVM provides dedicated CLI commands for project pinning:
-```cmd
-:: Lock project to JDK 21 (.java-version)
+```powershell
+# Lock project to JDK 21 (.java-version)
 jvm pin 21
 
-:: Lock with vendor flags
+# Lock with vendor flags
 jvm pin 21 --vendor adoptium
 
-:: Inspect active project pin
+# Inspect active project pin
 jvm pin
 # Alias: jvm local
 ```
@@ -157,15 +157,15 @@ Whenever a developer runs `jvm` inside that directory, JVM automatically reads t
 Finding where a JDK or build tool is physically stored on disk in Windows usually requires traversing hidden `AppData` directories or system folders.
 
 With DiamTek JVM, you can jump directly to any installed runtime or candidate folder in Windows File Explorer:
-```cmd
-:: Open active JDK directory in File Explorer
+```powershell
+# Open active JDK directory in File Explorer
 jvm open
 
-:: Open specific tool candidate folder
+# Open specific tool candidate folder
 jvm open maven
 jvm open gradle
 
-:: Open the JVM storage root
+# Open the JVM storage root
 jvm open root
 # Alias: jvm home
 ```
@@ -176,14 +176,14 @@ jvm open root
 In SDKMAN!, integrating with developer shells requires manually maintaining a `source "$HOME/.sdkman/bin/sdkman-init.sh"` block inside `.bashrc` or `.zshrc`. If that initialization script becomes corrupted, debugging it requires manual text editing.
 
 DiamTek JVM provides dedicated, one-command shell hook lifecycle management:
-```cmd
-:: Install or update the auto-sync wrapper hook in PowerShell profiles
+```powershell
+# Install or update the auto-sync wrapper hook in PowerShell profiles
 jvm hook install
 
-:: Check hook status across Windows PowerShell 5.1 and PowerShell 7+
+# Check hook status across Windows PowerShell 5.1 and PowerShell 7+
 jvm hook status
 
-:: Cleanly remove the wrapper hook without touching other profile settings
+# Cleanly remove the wrapper hook without touching other profile settings
 jvm hook remove
 ```
 - **Automated Multi-Shell Discovery:** Automatically detects and manages both Windows PowerShell (5.1) and modern PowerShell Core (7+) profiles across standard and OneDrive-redirected Documents folders.

@@ -144,14 +144,14 @@ jvm 21 --session
 
 ### SDKMAN! & NVM Migration Aliases (`jvm use` / `jvm default`)
 Developers migrating from Unix environments (SDKMAN!, nvm, fnm) can use their existing muscle memory directly without learning new syntax:
-```cmd
-:: Switch active JDK globally (identical to jvm 21)
+```powershell
+# Switch active JDK globally (identical to jvm 21)
 jvm use 21
 
-:: Set default JDK globally (identical to jvm 21)
+# Set default JDK globally (identical to jvm 21)
 jvm default 21
 
-:: Switch locally for current terminal session only (SDKMAN 'sdk use' semantics)
+# Switch locally for current terminal session only (SDKMAN 'sdk use' semantics)
 jvm use 21 --session
 ```
 
@@ -165,14 +165,14 @@ jvm use 21 --session
 Sometimes you need to run a single build, compile a test class, or invoke a diagnostic utility against a specific JDK **without** modifying your active environment, altering Directory Junctions, or changing the Windows Registry.
 
 DiamTek JVM provides high-speed ephemeral execution via `jvm exec` (or `jvm run`):
-```cmd
-:: Execute a command with JDK 21 in an isolated subshell
+```powershell
+# Execute a command with JDK 21 in an isolated subshell
 jvm exec 21 -- java -version
 
-:: Double-dash is optional for standard commands
+# Double-dash is optional for standard commands
 jvm run 17 mvn clean test
 
-:: Execute build tools against semantic targets
+# Execute build tools against semantic targets
 jvm exec lts -- gradle build
 jvm exec latest -- java -jar target/app.jar
 ```
@@ -329,15 +329,15 @@ kotlin=1.9.22
 ### 📌 Project Version Pinning (`jvm pin` / `jvm local`)
 Instead of manually creating and editing `.java-version` files by hand, you can use the `jvm pin` command (or `jvm local`) to lock the required JDK version for your repository or view the current directory lock:
 
-```cmd
-:: Pin Java 21 to the current directory (.java-version)
+```powershell
+# Pin Java 21 to the current directory (.java-version)
 jvm pin 21
 
-:: Pin with explicit vendor or architecture flags
+# Pin with explicit vendor or architecture flags
 jvm pin 21 --vendor adoptium
 jvm pin 17 --legacy
 
-:: Inspect the current directory's pinned version
+# Inspect the current directory's pinned version
 jvm pin
 # Alias: jvm local
 ```
@@ -400,7 +400,7 @@ Maven natively respects the active `JAVA_HOME` environment variable managed by J
 
 #### Comprehensive Status Overview (`jvm current` / `jvm status`)
 Displays a complete diagnostic dashboard detailing your active Java runtime, vendor metadata, `JAVA_HOME`, binary location, switching mode, directory junction pointer, and all active ecosystem build tools:
-```cmd
+```powershell
 jvm current
 # Alias: jvm status
 ```
@@ -424,11 +424,11 @@ jvm current
 
 #### Binary Path Resolution (`jvm which` / `jvm path`)
 Prints the clean absolute filesystem path of the resolved `java.exe` or candidate tool directly to `stdout`. Perfect for scripting, build automation, CI/CD runners, and IDE configurations:
-```cmd
-:: Resolve active Java binary
+```powershell
+# Resolve active Java binary
 jvm which
 
-:: Resolve specific ecosystem build tool binaries
+# Resolve specific ecosystem build tool binaries
 jvm which maven
 jvm which gradle
 jvm which kotlin
@@ -460,7 +460,7 @@ jvm list
 
 #### PATH Precedence Diagnostics (`where.exe java`)
 Inspect which `java.exe` binary Windows is actively executing in order of PATH precedence:
-```cmd
+```powershell
 where.exe java
 # In PowerShell: (Get-Command java -All).Source
 ```
@@ -489,19 +489,19 @@ jvm doctor
 <a id="explorer-directory-navigation"></a>
 #### 📂 Explorer Directory Navigation (`jvm open` / `jvm home`)
 Instantly open any JVM candidate directory or storage root in Windows File Explorer without manually typing or searching long paths:
-```cmd
-:: Open active JDK directory in File Explorer
+```powershell
+# Open active JDK directory in File Explorer
 jvm open
 
-:: Open specific candidate tool directory
+# Open specific candidate tool directory
 jvm open maven
 jvm open gradle
 jvm open kotlin
 
-:: Open specific JDK installation by version number
+# Open specific JDK installation by version number
 jvm open 21
 
-:: Jump to the JVM root storage directory
+# Jump to the JVM root storage directory
 jvm open root
 # Or: jvm home
 ```
@@ -530,15 +530,15 @@ jvm clear
 <a id="powershell-profile-hook"></a>
 #### PowerShell Profile Hook (`jvm hook`)
 Manage the lightweight PowerShell `$PROFILE` auto-sync wrapper function across Windows PowerShell 5.1 and PowerShell 7+ without opening the interactive Settings menu:
-```cmd
-:: Install or update PowerShell profile hook
+```powershell
+# Install or update PowerShell profile hook
 jvm hook
 # Or: jvm hook install
 
-:: Check profile hook status across all detected PowerShell profiles
+# Check profile hook status across all detected PowerShell profiles
 jvm hook status
 
-:: Remove PowerShell profile hook
+# Remove PowerShell profile hook
 jvm hook remove
 ```
 * **Seamless Terminal Synchronization:** Once installed, whenever you switch JDKs via `jvm <version>`, the wrapper automatically synchronizes `$env:JAVA_HOME` and `$env:Path` in the active terminal session without requiring you to restart your PowerShell window or launch a new subshell.

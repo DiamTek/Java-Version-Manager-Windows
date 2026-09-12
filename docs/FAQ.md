@@ -367,11 +367,11 @@ This prints a structured dashboard displaying:
 <a id="how-do-i-find-the-exact-executable-path-of-java-or-build-tools-for-my-idescripts"></a>
 ### How do I find the exact executable path of java or build tools for my IDE/scripts?
 Run `jvm which` (or its alias `jvm path`) to print the resolved executable path directly to `stdout`:
-```cmd
-:: Resolve active Java executable
+```powershell
+# Resolve active Java executable
 jvm which
 
-:: Resolve specific ecosystem build tool binaries
+# Resolve specific ecosystem build tool binaries
 jvm which maven
 jvm which gradle
 jvm which kotlin
@@ -422,15 +422,15 @@ If any warnings or errors are found, `jvm doctor` returns process exit code `1` 
 ### How do I pin or lock a Java version for my project? (`jvm pin` / `jvm local`)
 You can lock your repository to a specific JDK version using the `jvm pin` (or `jvm local`) command:
 
-```cmd
-:: Lock the current project directory to JDK 21
+```powershell
+# Lock the current project directory to JDK 21
 jvm pin 21
 
-:: Pin with specific vendor and architecture flags
+# Pin with specific vendor and architecture flags
 jvm pin 21 --vendor adoptium
 jvm pin 17 --legacy
 
-:: Check the current directory's pinned version
+# Check the current directory's pinned version
 jvm pin
 # Alias: jvm local
 ```
@@ -441,19 +441,19 @@ Running `jvm pin <version>` writes a standard `.java-version` file directly in y
 ### How do I jump directly to active tool folders in File Explorer? (`jvm open` / `jvm home`)
 Instead of manually navigating through hidden `%LOCALAPPDATA%` folders or deep `Program Files` directories, use `jvm open` to launch Windows File Explorer directly targeting your tools:
 
-```cmd
-:: Open active JDK directory
+```powershell
+# Open active JDK directory
 jvm open
 
-:: Open specific candidate tool directory
+# Open specific candidate tool directory
 jvm open maven
 jvm open gradle
 jvm open kotlin
 
-:: Open a specific JDK installation by version
+# Open a specific JDK installation by version
 jvm open 21
 
-:: Open the JVM root storage folder (%LOCALAPPDATA%\DiamTek\JVM)
+# Open the JVM root storage folder (%LOCALAPPDATA%\DiamTek\JVM)
 jvm open root
 # Alias: jvm home
 ```
@@ -462,14 +462,14 @@ jvm open root
 ### Are SDKMAN! commands like `sdk use` supported? (`jvm use` / `jvm default`)
 Yes! For developers transitioning from macOS or Linux who are used to SDKMAN! or nvm command patterns, DiamTek JVM provides 1:1 transparent command aliases:
 
-```cmd
-:: Switch active JDK globally (identical to jvm 21)
+```powershell
+# Switch active JDK globally (identical to jvm 21)
 jvm use 21
 
-:: Set default JDK globally (identical to jvm 21)
+# Set default JDK globally (identical to jvm 21)
 jvm default 21
 
-:: Switch locally for current terminal session only (SDKMAN 'sdk use' semantics)
+# Switch locally for current terminal session only (SDKMAN 'sdk use' semantics)
 jvm use 21 --session
 ```
 
