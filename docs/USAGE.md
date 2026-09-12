@@ -29,6 +29,8 @@ This document outlines every command, flag override, and semantic route availabl
 - [Diagnostic Health Audit (jvm doctor)](#diagnostic-health-audit)
 - [Explorer Directory Navigation (jvm open / jvm home)](#explorer-directory-navigation)
 - [PowerShell Profile Hook (jvm hook)](#powershell-profile-hook)
+- [Common Workflow Recipes](#common-workflow-recipes)
+- [CI/CD Automation Recipes](#cicd-integration-recipes)
 
 ---
 
@@ -63,7 +65,7 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm <version> --session` | Session | Switches JDK for the current terminal only without touching the Windows Registry. |
 | `jvm <version> --vendor <name>` | Global | Switches JDK with explicit vendor selection (e.g., `adoptium`, `oracle`, `corretto`). |
 | `jvm <version> --symlink` | Global | Forces switch using Symlink Mode (NTFS Directory Junction, UAC-Free). |
-| `jvm <version> --legacy` | Machine | Forces switch using Registry Mode (writes to `HKLM`, requests UAC elevation). |
+| `jvm <version> --legacy` | Machine | Forces switch using Registry Mode (writes to `HKLM`, requests UAC elevation; alias: `--registry`). |
 | `jvm latest` | Global | Resolves and switches to the highest installed JDK version on your machine. |
 | `jvm lts` | Global | Resolves and switches to the highest installed LTS version (e.g., 21, 17, 11). |
 | `jvm pin [version]` | Project | Locks or inspects directory-level `.java-version` (`jvm local`). |
@@ -74,24 +76,24 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm install lts [--latest]` | Machine | Downloads newest LTS JDK release directly from vendor APIs. |
 | `jvm install <ver> -y` | Machine | Automated headless install with aggressive safety warning bypass for CI/CD. |
 | `jvm install <ver> --skip-checksum` | Machine | Bypasses checksum verification if vendor hash mirror is unreachable. |
-| `jvm install <tool> [version]` | User | Installs ecosystem tool (e.g., `jvm install maven latest`, `jvm install gradle 8.9`). |
+| `jvm install <tool> [version]` | User | Installs ecosystem tool (e.g., `jvm install maven latest`, `jvm install gradle 8.9`; accepts `-y`). |
 | `jvm <tool> <version>` | User | Switches active ecosystem tool version (e.g., `jvm kotlin 2.0.20`, `jvm maven 3.9.6`). |
 | `jvm update` | Interactive | Opens the vendor-sorted update checker and patch menu. |
 | `jvm update --all [--vendor <name>]` | Machine | Silently checks and patches all installed JDKs and tools to latest releases. |
 | `jvm uninstall [version]` | Machine | Opens uninstaller menu or uninstalls specified version (e.g., `jvm uninstall 21`). |
 | `jvm list` | Inspection | Lists all installed JDKs, vendors, paths, and ecosystem build tools. |
-| `jvm current` | Inspection | Displays comprehensive status card: active JDK, switching mode, junction target, and tools (`jvm status`). |
+| `jvm current` | Inspection | Displays comprehensive status card: active JDK, switching mode, junction target, and tools (`jvm status`, `jvm env`). |
 | `jvm which [candidate]` | Inspection | Prints absolute filesystem path to active `java.exe` or ecosystem binary (`jvm path`). |
 | `jvm doctor` | Diagnostic | Deep system health audit: permissions, junctions, registry sync, PATH shadowing, and hooks. |
-| `jvm hook [install/remove]` | Shell | Manage PowerShell profile auto-sync wrapper hook (status, install, remove). |
+| `jvm hook [install/remove]` | Shell | Manage PowerShell profile auto-sync wrapper hook (`install`, `setup`, `status`, `check`, `remove`). |
 | `jvm open [candidate]` | Navigation | Opens active candidate, JDK, or storage root in Windows File Explorer (`jvm home`). |
 | `jvm clean` | Maintenance | Safely purges temporary download caches and extraction artifacts to reclaim disk space. |
 | `jvm clear` | System | Purges `JAVA_HOME` and cleanly removes JVM directory junctions from PATH. |
-| `jvm link <path> <name>` | Custom | Registers an external or custom JDK (BYO-JDK / GraalVM) into the manager. |
+| `jvm link [path] [name]` | Custom | Registers an external custom JDK (or lists all registered links with target paths if run without arguments). |
 | `jvm unlink <name>` | Custom | Unregisters a custom linked JDK from the manager. |
-| `jvm version` | Tool | Displays current JVM version, build number, and checks GitHub for updates. |
+| `jvm version` | Tool | Displays current JVM version, build number, and checks GitHub for updates (`--version`, `-v`). |
 | `jvm self-update` | Tool | Automatically downloads and atomic-swaps `jvm.bat` to the latest release. |
-| `jvm self-uninstall` | System | Triggers deep UAC-elevated system uninstaller (`uninstall.ps1`). |
+| `jvm self-uninstall` | System | Triggers deep UAC-elevated system uninstaller (`uninstall.ps1`, `jvm uninstall-self`). |
 | `jvm --help` | Help | Displays formatted in-terminal command manual and flag reference (`-h`, `/?`). |
 
 ---
@@ -110,30 +112,48 @@ jvm 21
 
 ### Semantic Target Routing
 You don't need to memorize exact build numbers. You can speak to the tool semantically, and it will dynamically resolve the highest installed version that matches your request:
-```cmd
+```powershell
 jvm latest
 jvm lts
 ```
+
+> [!NOTE]
+> **Recognized LTS Releases:** For offline local switching, `jvm lts` evaluates installed JDKs against the recognized Long-Term Support releases: **8, 11, 17, 21, 25, 29**. To dynamically query upstream Adoptium API for the latest production LTS release and install it, run `jvm install lts --latest`.
 
 ### Architecture & Priority Overrides
 You can chain flags to bypass prompts or override your global Settings for a single command.
 
 Override the vendor prompt to silently select Adoptium:
-```cmd
+```powershell
 jvm 21 --vendor adoptium
 ```
 Force the engine to use **Symlink Mode** (UAC-Free Directory Junctions) for this specific switch, ignoring your saved default architecture:
-```cmd
+```powershell
 jvm 21 --symlink
 ```
 Force the engine to use **Legacy Registry Mode** (Requests Administrator UAC elevation) for this specific switch:
-```cmd
+```powershell
 jvm 21 --legacy
+# Alias: jvm 21 --registry
 ```
 Semantic routing combined with a vendor override (switches to the newest installed Amazon Corretto LTS version):
-```cmd
+```powershell
 jvm lts --vendor corretto
 ```
+
+### 🏷️ Recognized Vendor Reference Table
+
+When multiple distributions of the same major version are installed, JVM prompts for your preference. You can bypass the prompt by passing `--vendor <name>`:
+
+| `--vendor` Value | Display Name | Distribution / Packaging |
+|-----------------|--------------|--------------------------|
+| `adoptium` | Eclipse Temurin | OpenJDK (Eclipse Adoptium) |
+| `oracle` | Oracle JDK | Official Oracle JDK |
+| `corretto` | Amazon Corretto | OpenJDK (Amazon Corretto) |
+| `graalvm` | GraalVM CE | Oracle GraalVM Community Edition |
+| `zulu` | Azul Zulu | OpenJDK (Azul Systems) |
+| `microsoft` | Microsoft Build | OpenJDK (Microsoft Build of OpenJDK) |
+| `custom` | Custom | Locally linked JDKs via `jvm link` |
 
 ### True Session Isolation
 If you only want to change the Java version for your *current* terminal window (without permanently altering your global Windows Registry or affecting background services), use the session flag:
@@ -238,22 +258,33 @@ jvm install 21 --vendor adoptium --skip-checksum
 <a id="universal-candidate-engine-ecosystem-tools"></a>
 ## 📦 Ecosystem Build Tools (SDKMAN! Parity)
 
-JVM supports downloading, switching, and managing modern build tools natively alongside Java. You can manage these via the command line or through the interactive **Ecosystem Management** sub-menu.
+JVM supports downloading, switching, and managing modern build tools natively alongside Java. You can manage these via the command line or through the interactive **Ecosystem Management** sub-menu. Supported candidates include `maven`, `gradle`, `kotlin`, `scala`, and `groovy`.
 
 Install the absolute newest version of Maven directly from Apache:
-```cmd
+```powershell
 jvm install maven latest
 ```
-Install a specific legacy version of Gradle:
-```cmd
-jvm install gradle 8.9
+Install a specific legacy version of Gradle headless without overwrite prompts:
+```powershell
+jvm install gradle 8.9 -y
 ```
+> [!NOTE]
+> **First-Install Auto-Activation:** The first time you install any ecosystem candidate tool on your workstation, JVM automatically activates it as your current version immediately without requiring a secondary switch command.
+
 Instantly switch your active `KOTLIN_HOME` (and system PATH) to the specified version:
-```cmd
+```powershell
 jvm kotlin 2.0.20
 ```
+
+**Double-Dash Candidate Flags (Scripting Precision):**
+In shell scripts and automated tasks, you can also specify the target candidate using double-dash prefix flags (`--java`, `--maven`, `--gradle`, `--kotlin`, `--scala`, `--groovy`):
+```powershell
+jvm --maven 3.9.6
+jvm --gradle 8.5
+```
+
 Safely uninstall a specific tool and cleanly scrub its environment variables from your registry:
-```cmd
+```powershell
 jvm uninstall groovy 4.0.23
 ```
 
@@ -325,6 +356,20 @@ gradle=8.5
 kotlin=1.9.22
 ```
 
+#### SDKMAN! Vendor Suffix Mapping Table
+
+When reading a `.sdkmanrc` file, JVM dynamically translates Unix SDKMAN! vendor tags to native Windows distributions:
+
+| `.sdkmanrc` Suffix | Target Distribution | Resolved JVM Vendor | Example Entry |
+|---|---|---|---|
+| `-tem` | Eclipse Temurin | `adoptium` | `java=21.0.2-tem` |
+| `-amzn` | Amazon Corretto | `corretto` | `java=17.0.10-amzn` |
+| `-graal` / `-graalce` | GraalVM CE | `graalvm` | `java=21.0.2-graal` |
+| `-zulu` | Azul Zulu | `zulu` | `java=17.0.10-zulu` |
+| `-ms` / `-msft` | Microsoft OpenJDK | `microsoft` | `java=21.0.2-ms` |
+| *(bare number)* | Standard OpenJDK / Oracle | `oracle` / any installed | `java=21` |
+
+
 <a id="project-version-pinning"></a>
 ### 📌 Project Version Pinning (`jvm pin` / `jvm local`)
 Instead of manually creating and editing `.java-version` files by hand, you can use the `jvm pin` command (or `jvm local`) to lock the required JDK version for your repository or view the current directory lock:
@@ -391,6 +436,23 @@ Maven natively respects the active `JAVA_HOME` environment variable managed by J
 </toolchains>
 ```
 
+### Eclipse IDE
+1. Open **Window** → **Preferences** → **Java** → **Installed JREs**.
+2. Click **Add...** → **Standard VM** → **Next**.
+3. Set **JRE home** to:
+   ```text
+   %LOCALAPPDATA%\DiamTek\JVM\current
+   ```
+4. Name the entry **"JVM Current"** and check the box to set it as your workspace default. All Eclipse projects inheriting the workspace default will dynamically follow `jvm <version>` switches.
+
+### Android Studio
+1. Open **File** → **Settings** (or **Preferences**) → **Build, Execution, Deployment** → **Build Tools** → **Gradle**.
+2. Under **Gradle JDK**, open the dropdown and select **Add JDK...**
+3. Browse to `%LOCALAPPDATA%\DiamTek\JVM\current` and name it **"JVM Current"**.
+
+### JetBrains Toolbox
+If you manage your JetBrains IDEs or JDKs using JetBrains Toolbox, Toolbox stores runtimes inside `%USERPROFILE%\.jdks`. DiamTek JVM automatically scans this folder upon startup. All Toolbox-downloaded JDKs appear in `jvm list` and can be switched into directly with `jvm <version>`.
+
 ---
 
 <a id="global-environment-management"></a>
@@ -398,11 +460,11 @@ Maven natively respects the active `JAVA_HOME` environment variable managed by J
 
 ### Inspection & Status Commands
 
-#### Comprehensive Status Overview (`jvm current` / `jvm status`)
+#### Comprehensive Status Overview (`jvm current` / `jvm status` / `jvm env`)
 Displays a complete diagnostic dashboard detailing your active Java runtime, vendor metadata, `JAVA_HOME`, binary location, switching mode, directory junction pointer, and all active ecosystem build tools:
 ```powershell
 jvm current
-# Alias: jvm status
+# Aliases: jvm status, jvm env
 ```
 
 **Example Output:**
@@ -522,21 +584,23 @@ jvm clean
 
 #### Environment Slate Wipe (`jvm clear`)
 Instantly wipes `JAVA_HOME` and cleanly removes JVM directory junctions and legacy Oracle `javapath` entries from your PATH:
-```cmd
+```powershell
 jvm clear
 ```
 * **Automated Safety Backup:** Before executing destructive registry scrubs, `jvm clear` automatically exports a timestamped `.reg` backup of both User (`HKCU`) and Machine (`HKLM`) environment registries to `%TEMP%`.
+* **Restoring from Registry Backup:** If you ever need to roll back a clear operation, open `%TEMP%` in File Explorer (`explorer.exe $env:TEMP`), find `jvm_env_backup_<timestamp>.reg`, and double-click it to re-import your previous registry state.
 
 <a id="powershell-profile-hook"></a>
 #### PowerShell Profile Hook (`jvm hook`)
 Manage the lightweight PowerShell `$PROFILE` auto-sync wrapper function across Windows PowerShell 5.1 and PowerShell 7+ without opening the interactive Settings menu:
 ```powershell
 # Install or update PowerShell profile hook
-jvm hook
-# Or: jvm hook install
+jvm hook install
+# Aliases: jvm hook, jvm hook setup
 
 # Check profile hook status across all detected PowerShell profiles
 jvm hook status
+# Alias: jvm hook check
 
 # Remove PowerShell profile hook
 jvm hook remove
@@ -546,35 +610,167 @@ jvm hook remove
 <a id="bring-your-own-jdk-byo-jdk"></a>
 ### Bring Your Own JDK (BYO-JDK)
 Manually link an existing, custom JDK directory (or GraalVM native image) into the manager. Linked JDKs automatically integrate into the interactive UI under the "Custom (Local Links)" category:
-```cmd
+```powershell
+# List all registered custom JDK links, targets, and integrity status:
+jvm link
+
+# Link a custom JDK directory into the manager:
 jvm link C:\my-custom-jdk my-jdk
-```
-Remove a custom linked JDK from the manager:
-```cmd
+
+# Remove a custom linked JDK:
 jvm unlink my-jdk
 ```
+> [!NOTE]
+> Custom links are stored as NTFS directory junctions in `%LOCALAPPDATA%\JavaVersionManager\links`.
 
 ### Self-Updating
 Display your current `jvm.bat` build number and compare it against the latest release on GitHub to check for engine updates:
-```cmd
+```powershell
 jvm version
+# Aliases: jvm --version, jvm -v
 ```
 Automatically download and atomic-swap the core `jvm.bat` script if a newer version is available on GitHub:
-```cmd
+```powershell
 jvm self-update
 ```
 
 ### Self-Uninstallation
 Launch the deep uninstallation process directly from the CLI to wipe JVM, environment variables, AppData caches, and installed tools:
-```cmd
+```powershell
 jvm self-uninstall
+# Alias: jvm uninstall-self
 ```
 
 ### Help & Command Reference
 Display the full command-line reference, arguments, and flag overrides directly in your terminal:
-```cmd
+```powershell
 jvm --help
 # Or: jvm help, jvm -h, jvm /?
+```
+
+---
+
+<a id="common-workflow-recipes"></a>
+## 💡 Common Developer Workflow Recipes
+
+### 1. Setting Up a Fresh Developer Workstation
+Install the latest long-term support JDK and build tools in seconds without clicking through web portals:
+```powershell
+# Install latest LTS JDK (e.g. Adoptium OpenJDK 21) headless
+jvm install lts --latest --vendor adoptium -y
+
+# Activate it globally
+jvm lts
+
+# Install primary build tools
+jvm install maven latest -y
+jvm install gradle latest -y
+
+# Verify complete environment health
+jvm doctor
+```
+
+### 2. Switching Between Multiple Projects
+When switching from an older Java 11 / 17 legacy monolith to a Java 21 microservice:
+```powershell
+# Move into project directory
+cd C:\Projects\service-order
+
+# Lock project to Java 21 with Adoptium
+jvm pin 21 --vendor adoptium
+
+# Any team member entering this directory simply runs:
+jvm
+# -> Automatically reads .java-version and activates JDK 21 for that session!
+```
+
+### 3. Ephemeral Testing Across Multiple JDKs
+Verify that tests pass under multiple JDK versions without modifying global workstation state:
+```powershell
+# Run Maven test suite against JDK 17
+jvm exec 17 -- mvn test
+
+# Run the exact same suite against JDK 21
+jvm exec 21 -- mvn test
+```
+
+### 4. Auditing and Pruning Workstation Disk Space
+Keep your machine clean after major releases or batch updates:
+```powershell
+# Check for outdated packages and patch them
+jvm update --all
+
+# Prune intermediate downloads and cached installers
+jvm clean
+
+# Run health diagnostics
+jvm doctor
+```
+
+---
+
+<a id="cicd-integration-recipes"></a>
+## 🤖 CI/CD Automation Recipes
+
+Because DiamTek JVM is 100% native Windows with zero Bash or WSL dependencies, it integrates cleanly into Windows CI runners (such as GitHub Actions `windows-latest` or Azure DevOps pipelines).
+
+### GitHub Actions Workflow Example
+```yaml
+name: Windows Build & Verification
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install DiamTek JVM
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1" -OutFile "$env:TEMP\install.ps1"
+          & "$env:TEMP\install.ps1" -Silent
+
+      - name: Pre-Flight Environment Health Check
+        shell: cmd
+        run: |
+          jvm doctor
+          if %ERRORLEVEL% NEQ 0 exit /b 1
+
+      - name: Headless Toolchain Provisioning
+        shell: cmd
+        run: |
+          jvm install 21 --vendor adoptium -y
+          jvm 21
+          jvm install maven latest -y
+
+      - name: Matrix Test Execution via Ephemeral Subshell
+        shell: cmd
+        run: |
+          jvm exec 21 -- mvn test
+```
+
+### Exporting `JAVA_HOME` into Pipeline Output in PowerShell
+```powershell
+# Query exact java binary path using jvm which
+$JavaBin = jvm which
+$JavaHome = Split-Path -Parent (Split-Path -Parent $JavaBin)
+
+# Expose to subsequent GitHub Actions steps
+Write-Output "JAVA_HOME=$JavaHome" | Out-File -FilePath $env:GITHUB_ENV -Append
+Write-Output "Resolved JAVA_HOME to: $JavaHome"
+```
+
+### Checking Process Exit Codes in Automation Scripts
+```powershell
+# jvm doctor returns 0 for clean health, 1 if warnings/conflicts detected
+jvm doctor
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Pre-flight JVM environment audit failed with warnings!"
+    exit 1
+}
 ```
 
 ---

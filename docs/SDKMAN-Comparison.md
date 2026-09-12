@@ -122,7 +122,7 @@ jvm exec 17 -- mvn clean test
 Windows developers frequently face silent environment breaks caused by rogue MSI installers, broken directory junctions, or mismatched User/Machine registries. SDKMAN! has no diagnostic command to analyze underlying OS health or identify why a tool is malfunctioning.
 
 DiamTek JVM includes `jvm doctor`—an automated 7-point health auditor:
-```cmd
+```powershell
 jvm doctor
 ```
 - Audits AppData local storage permissions.

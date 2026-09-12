@@ -207,7 +207,7 @@ Instantly update your `JAVA_HOME` and system PATH without opening menus. If ther
 | `jvm default 21` | Set default JDK 21 globally (SDKMAN alias). |
 | `jvm 21 --session` | Switch *locally* for the current terminal only (requires PowerShell Profile hook). |
 | `jvm 21 --symlink` | Force switch using Symlink Mode (UAC-Free) for this command. |
-| `jvm 21 --legacy` | Force switch using Registry Mode (Requests UAC) for this command. |
+| `jvm 21 --legacy` | Force switch using Registry Mode (Requests UAC) for this command (alias: `--registry`). |
 | `jvm 21 --vendor adoptium` | Override priority and explicitly switch to Adoptium's JDK 21. |
 | `jvm latest` | Dynamically switch to the absolute highest installed JDK version. |
 | `jvm lts` | Dynamically switch to the highest installed LTS version. |
@@ -258,19 +258,19 @@ JVM supports downloading, switching, and managing tools natively alongside Java.
 | Command | Action / Description |
 |---------|----------------------|
 | `jvm list` | Lists all installed JDKs (version, vendor, path), highlighting the `[ACTIVE]` one. |
-| `jvm current` | Displays comprehensive status card: active JDK, switching mode, junction target, and tools (`jvm status`). |
+| `jvm current` | Displays comprehensive status card: active JDK, switching mode, junction target, and tools (`jvm status`, `jvm env`). |
 | `jvm which [candidate]` | Prints absolute filesystem path to active `java.exe` or ecosystem binary (`jvm path`). |
 | `jvm doctor` | Deep diagnostic health audit and conflict scanner (permissions, junctions, PATH shadowing, hooks). |
-| `jvm hook [install/remove]` | Manage PowerShell profile auto-sync wrapper hook (status, install, remove). |
+| `jvm hook [install/remove]` | Manage PowerShell profile auto-sync wrapper hook (`install`, `setup`, `status`, `check`, `remove`). |
 | `jvm open [candidate]` | Instantly opens active candidate, JDK, or root in Windows File Explorer (`jvm home`). |
 | `jvm clean` | Safely purges temporary installer caches and extraction artifacts to reclaim disk space. |
 | `jvm clear` | Instantly wipes `JAVA_HOME` and purges Java from your PATH. |
-| `jvm env` | Displays current environment variables and status card. |
-| `jvm link <path> [name]` | Manually links a custom JDK directory (e.g., `jvm link C:\my-jdk jdk-custom`). |
+| `jvm env` | Displays current environment variables and status card (alias for `jvm current`). |
+| `jvm link [path] [name]` | Manually links a custom JDK directory (or lists all registered custom links if run with no arguments). |
 | `jvm unlink <name>` | Removes a custom linked JDK. |
-| `jvm version` | Checks your current `jvm.bat` build number against GitHub for updates. |
+| `jvm version` | Checks your current `jvm.bat` build number against GitHub for updates (`--version`, `-v`). |
 | `jvm self-update` | Automatically downloads and atomic-swaps the core script if an update exists. |
-| `jvm self-uninstall` | Launches the deep uninstaller with UAC elevation (full system wipe). |
+| `jvm self-uninstall` | Launches the deep uninstaller with UAC elevation (full system wipe; alias: `jvm uninstall-self`). |
 | `jvm help` / `--help` / `/?` | Displays the complete CLI command reference and flag overrides. |
 | `jvm <semantic-alias>` | Routes dynamically (e.g., `jvm latest`, `jvm lts`, `jvm 21`). |
 

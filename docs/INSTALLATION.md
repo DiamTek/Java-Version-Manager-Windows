@@ -19,6 +19,7 @@ Getting started with the Java Version Manager for Windows takes less than 10 sec
 - [Enterprise & Silent IT Deployment (Intune, MECM, GPO)](#enterprise--silent-it-deployment-intune--mecm--gpo)
 - [Building the MSI from Source](#building-the-msi-from-source)
 - [Automated MSI Verification Suite](#automated-msi-verification-suite)
+- [Windows Terminal Integration](#windows-terminal-integration)
 - [Uninstallation](#uninstallation)
 - [Troubleshooting & Windows Security](#troubleshooting--windows-security)
 
@@ -273,6 +274,18 @@ The following policy criteria will be validated:
 - Source repository must match: DiamTek/Java-Version-Manager-Windows
 Verification succeeded!
 ```
+
+---
+
+<a id="windows-terminal-integration"></a>
+## 🪟 Windows Terminal Integration
+
+During installation via `install.ps1` or the official WiX MSI installer, DiamTek JVM automatically inspects your Windows Terminal settings across Stable, Preview, and Unpackaged installations (`settings.json`).
+
+- **Dedicated Dropdown Profile:** JVM registers a dedicated profile named **"Java Version Manager"** with a unique GUID (`{b20650a4-4212-4d64-9edf-744e9285e2be}`) and high-resolution branding icon.
+- **Accessing via Terminal:** In Windows Terminal, click the **`+`** (new tab) dropdown arrow and select **Java Version Manager** to launch the interactive TUI directly.
+- **Clean Tab Exit:** The profile is configured with `closeOnExit: always`. When you exit the interactive menu (press `0` or select Exit), the hosting shell process terminates cleanly, signaling Windows Terminal to automatically close the tab without lingering blank prompts.
+- **Taskbar Integration:** The installer places a Start Menu shortcut and updates pinned taskbar shortcuts targeting `wt.exe -p "Java Version Manager"` (with a graceful fallback to `cmd.exe` on machines without Windows Terminal).
 
 ---
 

@@ -26,6 +26,21 @@ Instead of constantly appending and pruning your Windows `PATH` variable to poin
 
 Your system `PATH` only ever needs to contain `%LOCALAPPDATA%\DiamTek\JVM\current\bin`. When you switch Java versions, the manager simply tears down the old junction and repoints it to the target JDK directory. This provides `O(1)` symlink resolution for the OS.
 
+### JDK Discovery Engine & Scanned Locations
+During startup, inventory listing (`jvm list`), and quick-switching, the discovery engine scans all recognized local storage locations for valid `bin\java.exe` targets. It dynamically queries 7 fixed filesystem locations plus user-space package manager directories:
+
+| Discovered Location | Target Distribution / Managing Tool | Discovery Mode |
+|---|---|---|
+| `C:\Program Files\Java\*` | Standard Oracle, Adoptium, Microsoft, Corretto MSI installs | Automatic Scan |
+| `C:\Program Files (x86)\Java\*` | Legacy 32-bit JDKs and JREs | Automatic Scan |
+| `C:\Java\*` | Enterprise standard root installations | Automatic Scan |
+| `%USERPROFILE%\.jdks\*` | IntelliJ IDEA / JetBrains Toolbox managed JDKs | Automatic Scan |
+| `%USERPROFILE%\.gradle\jdks\*` | Gradle automated toolchain downloads | Automatic Scan |
+| `%USERPROFILE%\scoop\apps\*` | Scoop package manager Java installations (`apps\*\current\bin\java.exe`) | Dynamic Scan |
+| `%LOCALAPPDATA%\JavaVersionManager\links\*` | Bring Your Own JDK (`jvm link`) custom junctions | Link Store Scan |
+
+The discovery engine extracts release metadata (vendor, version, release type) from `release` files or parses binary headers, cataloging each JDK into memory without writing temporary files.
+
 ```mermaid
 graph TD
     Shell["Developer Terminal, Shell & IDE Environments<br/>PowerShell • CMD • Windows Terminal • VS Code"]
@@ -52,9 +67,12 @@ The engine provides two distinct switching engines that users can toggle via the
    - **Compatibility:** Native for 99% of modern tools (Maven, Gradle, IntelliJ IDEA, VS Code, Eclipse).
 
 2. **Registry Mode (Legacy, UAC Required):**
-   - **Mechanism:** Directly writes the absolute JDK path to the Machine-level Windows Registry (`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`) and updates the system-wide Machine `PATH`.
+   - **Mechanism:** Directly writes the absolute JDK path to the Machine-level Windows Registry (`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`) and updates the system-wide Machine `PATH`. Invoked on the CLI via `--legacy` or `--registry`.
    - **Privileges:** **Requires Administrator (UAC) Elevation** on every switch, spawning an elevated background PowerShell worker via `Start-Process -Verb RunAs`.
    - **Compatibility:** 100% unbreakable fallback for legacy enterprise applications, obscure Windows service runners, or ancient classloaders that perform strict canonical path checks and cannot resolve NTFS Directory Junctions.
+
+> [!NOTE]
+> **Internal Mode Sentinel:** The user's active mode preference is persisted in `%LOCALAPPDATA%\DiamTek\JVM\mode.txt`. Internally, `mode.txt` stores either `SYMLINK` (Symlink Mode) or `DIRECT` (Registry Mode, activated via `--legacy` or `--registry`).
 
 ```mermaid
 flowchart TD
@@ -96,6 +114,11 @@ Like SDKMAN!, this tool intercepts commands for popular Java tools (Maven, Gradl
 2. It executes a PowerShell `Invoke-RestMethod` to the respective API (Adoptium, GitHub Releases, Azul, etc.) to securely resolve the download URL and SHA-256 checksums.
 3. The payloads are extracted via `Expand-Archive` and isolated in `%LOCALAPPDATA%\DiamTek\JVM\candidates\<candidate>`.
 4. Specific `<CANDIDATE>_HOME` variables are injected into the registry, mapping the ecosystem completely identically to native Java.
+
+### LTS Target Resolution Architecture
+The `lts` semantic target operates under two complementary models depending on the operation:
+- **Local JDK Switching (`jvm lts`):** Operates 100% offline. The switcher matches installed JDKs against a recognized Long-Term Support release table: **8, 11, 17, 21, 25, 29**. It resolves to the highest major LTS version currently present on disk.
+- **Remote JDK Installation (`jvm install lts --latest`):** Operates dynamically by querying the live Eclipse Adoptium v3 API (`/v3/info/available_releases`) to detect the newest official production LTS release published upstream before initiating the download.
 
 <a id="powershell-native-dynamic-environment-injection"></a>
 ## Real-Time PowerShell Session Propagation (`Set-JvmVar`)

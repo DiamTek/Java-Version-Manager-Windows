@@ -158,14 +158,14 @@ It depends on which architecture mode you use:
 Instead of adding a new folder to your system `PATH` every time you install a JDK, this tool adds one single entry: `%LOCALAPPDATA%\DiamTek\JVM\current\bin`. This is a Directory Junction. When you switch Java versions, the tool just changes where that junction points. Your actual `PATH` variable stays completely clean and bloat-free.
 
 ### Can I use this in a CI/CD pipeline (like GitHub Actions)?
-Yes! The tool supports headless execution. You can bypass the interactive menu entirely by passing arguments directly, for example: `jvm install java 21` or `jvm 21`.
+Yes! The tool supports headless execution. You can bypass the interactive menu entirely by passing arguments directly, for example: `jvm install 21 -y` or `jvm 21`.
 
 ### Can I temporarily run a build with a specific Java version without altering my global environment?
 Yes! DiamTek JVM provides clean options depending on whether you want one-off ephemeral execution, directory pinning, or session isolation:
 
 1. **Ephemeral One-Off Subshell Runner (`jvm exec` / `jvm run` — Recommended):**
    Execute any build or command directly in an isolated child subshell with zero impact on your global environment, active Directory Junction (`current`), or other open terminal windows:
-   ```cmd
+   ```powershell
    jvm exec 17 -- gradlew build
    # Or without double-dash:
    jvm run 21 mvn clean package
@@ -196,8 +196,13 @@ Yes! DiamTek JVM provides clean options depending on whether you want one-off ep
 ### Does it support custom JDKs or private binaries?
 Yes! You can use `jvm link <path> [name]` to register any custom or private JDK into the manager. It will integrate seamlessly into the dynamic menus and CLI routing.
 
+To view an inventory of all currently linked custom JDKs (including junction targets and integrity status), run:
+```powershell
+jvm link
+```
+
 ### Where are my JDKs and tools actually installed?
-By default, auto-downloaded JDKs are installed to `C:\Program Files\Java\<vendor-jdk>`, and ecosystem tools (Maven, Gradle, Kotlin, Scala, Groovy) are securely stored and cached in `%LOCALAPPDATA%\DiamTek\JVM\candidates\<tool>`.
+By default, auto-downloaded JDKs are installed to `C:\Program Files\Java\<vendor-jdk>`, and ecosystem tools (Maven, Gradle, Kotlin, Scala, Groovy) are securely stored and cached in `%LOCALAPPDATA%\DiamTek\JVM\candidates\<tool>`. Custom Bring Your Own JDKs (`jvm link`) are cataloged as directory junctions in `%LOCALAPPDATA%\JavaVersionManager\links`. Additionally, JVM automatically scans and discovers pre-existing JDKs in `C:\Java`, `%USERPROFILE%\.jdks` (IntelliJ IDEA), `%USERPROFILE%\.gradle\jdks` (Gradle toolchains), and `%USERPROFILE%\scoop\apps\*` (Scoop).
 
 ### How do I use JVM behind a corporate proxy or enterprise firewall?
 DiamTek JVM's networking leverages native Windows `.NET` APIs, which automatically respect enterprise network configurations:
@@ -493,15 +498,38 @@ You can inspect, install, or remove the wrapper function at any time without tou
 ```powershell
 # Check hook status across Windows PowerShell and PowerShell 7+ profiles
 jvm hook status
+# Alias: jvm hook check
 
 # Re-install or update the hook
 jvm hook install
-# Or simply: jvm hook
+# Aliases: jvm hook, jvm hook setup
 
 # Safely remove the hook from all profiles
 jvm hook remove
 ```
 You can also toggle the hook directly from the interactive TUI by navigating to **Settings** (`3`) -> **Option 2** (`PowerShell Profile Hook`).
+
+<a id="how-do-i-free-up-disk-space-from-downloaded-jdk-installers-jvm-clean-vs-jvm-clear"></a>
+<a id="what-is-the-difference-between-jvm-clean-and-jvm-clear"></a>
+### How do I free up disk space from downloaded JDK installers? (jvm clean vs jvm clear)
+Both commands maintain system hygiene, but they target different layers:
+
+- **`jvm clean` (Cache Pruner):** Safely deletes temporary installer archives (`%TEMP%\jdk_*_download.*`), intermediate extract workspaces (`%TEMP%\jdk_*_extract`), and stale download helper scripts. It never touches your installed JDKs, candidate tools, directory junctions, or registry settings.
+  ```powershell
+  jvm clean
+  ```
+
+- **`jvm clear` (Environment Slate Wipe):** Completely unbinds `JAVA_HOME`, scrubs JVM directory junctions, and removes rogue legacy Oracle `javapath` entries from your system PATH.
+  ```powershell
+  jvm clear
+  ```
+
+> [!TIP]
+> **Restoring from Automated Registry Backup:** Before executing any destructive registry modifications, `jvm clear` automatically exports timestamped `.reg` backup files of both User (`HKCU`) and Machine (`HKLM`) environment variables to `%TEMP%`.
+> If you ever need to restore your previous environment state:
+> 1. Open File Explorer to `%TEMP%` (or run `explorer.exe $env:TEMP`).
+> 2. Locate the backup file named `jvm_env_backup_<timestamp>.reg` (or `jvm_user_env_backup_<timestamp>.reg`).
+> 3. Double-click the file and confirm the Windows prompt to re-import your previous registry state.
 
 ---
 
