@@ -53,12 +53,116 @@
     border-color: #34d058;
     background-color: #dcffe4;
   }
+
+  /* GitHub Alert Callouts (GFM Polyfill for Jekyll Cayman) */
+  .gh-alert {
+    padding: 12px 16px;
+    margin: 18px 0;
+    border-left: 4px solid;
+    border-radius: 6px;
+    color: #24292e;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .gh-alert p {
+    color: #24292e;
+    margin-bottom: 8px;
+  }
+  .gh-alert p:last-child {
+    margin-bottom: 0;
+  }
+  .gh-alert-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .gh-alert-title svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+  .gh-alert-note {
+    border-left-color: #0969da;
+    background-color: #f0f7ff;
+  }
+  .gh-alert-note .gh-alert-title {
+    color: #0969da;
+  }
+  .gh-alert-tip {
+    border-left-color: #1a7f37;
+    background-color: #f0fff4;
+  }
+  .gh-alert-tip .gh-alert-title {
+    color: #1a7f37;
+  }
+  .gh-alert-important {
+    border-left-color: #8250df;
+    background-color: #fbf5ff;
+  }
+  .gh-alert-important .gh-alert-title {
+    color: #8250df;
+  }
+  .gh-alert-warning {
+    border-left-color: #9a6700;
+    background-color: #fff8eb;
+  }
+  .gh-alert-warning .gh-alert-title {
+    color: #9a6700;
+  }
+  .gh-alert-caution {
+    border-left-color: #d1242f;
+    background-color: #fff5f5;
+  }
+  .gh-alert-caution .gh-alert-title {
+    color: #d1242f;
+  }
 </style>
 
-<!-- Custom Scripts: Mermaid.js Dynamic Loader & 1-Click Code Copy -->
+<!-- Custom Scripts: Mermaid.js Dynamic Loader, 1-Click Code Copy, & GitHub Alerts Polyfill -->
 <script>
   document.addEventListener('DOMContentLoaded', async () => {
-    // 1. One-Click Code Copy Buttons
+    // 1. GitHub Alert Callout Transformer ([!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION])
+    const alertIcons = {
+      NOTE: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>',
+      TIP: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.25-.095.115-.184.22-.268.319-.18.213-.362.434-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5Zm1 3h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1 0-1.5Z"></path></svg>',
+      IMPORTANT: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H9.06l-2.573 2.573A1.458 1.458 0 0 1 4 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2.5a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>',
+      WARNING: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"></path></svg>',
+      CAUTION: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6a.749.749 0 0 1-.22.53l-4.25 4.25A.749.749 0 0 1 11 16H5a.749.749 0 0 1-.53-.22L.22 11.53A.749.749 0 0 1 0 11V5c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>'
+    };
+
+    const alertTitles = {
+      NOTE: 'Note',
+      TIP: 'Tip',
+      IMPORTANT: 'Important',
+      WARNING: 'Warning',
+      CAUTION: 'Caution'
+    };
+
+    document.querySelectorAll('blockquote').forEach((bq) => {
+      const firstP = bq.querySelector('p') || bq;
+      const html = firstP.innerHTML;
+      const match = html.match(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s*<br\s*\/?>|\s+)?/i);
+      if (!match) return;
+
+      const type = match[1].toUpperCase();
+      firstP.innerHTML = html.replace(/^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s*<br\s*\/?>|\s+)?/i, '');
+      if (firstP.innerHTML.trim() === '') {
+        firstP.remove();
+      }
+
+      bq.classList.add('gh-alert', `gh-alert-${type.toLowerCase()}`);
+
+      const header = document.createElement('div');
+      header.className = 'gh-alert-title';
+      header.innerHTML = `${alertIcons[type]}<span>${alertTitles[type]}</span>`;
+
+      bq.insertBefore(header, bq.firstChild);
+    });
+
+    // 2. One-Click Code Copy Buttons
     document.querySelectorAll('.highlighter-rouge').forEach((block) => {
       if (block.classList.contains('language-mermaid')) return;
       const btn = document.createElement('button');
@@ -84,7 +188,7 @@
       block.appendChild(btn);
     });
 
-    // 2. Dynamic Mermaid Loader
+    // 3. Dynamic Mermaid Loader
     const mermaidCodeBlocks = document.querySelectorAll('code.language-mermaid');
     if (mermaidCodeBlocks.length === 0) return;
 
