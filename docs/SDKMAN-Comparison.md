@@ -24,19 +24,26 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 |---------|----------------------|--------------------------------|
 | **Runtime** | Bash / `curl` / `zip` | Native Batch / PowerShell / `.NET` |
 | **Dependencies** | WSL, Cygwin, or Git Bash | **None** (Works out-of-the-box) |
+| **Supported Shells** | Bash / Zsh only (inside compatibility layer) | **CMD, Windows PowerShell, PS Core, Windows Terminal** |
 | **I/O Speed** | Slower (Virtualization boundary) | **Maximum** (Native NTFS) |
 | **Integration** | `.bash_profile` / `.zshrc` | Windows Registry (`JAVA_HOME`, `PATH`) |
+| **Switching Engine** | POSIX Symlinks (requires Developer Mode) | **Dual Engine:** UAC-Free NTFS Junctions & Registry Mode |
+| **Live Broadcasting** | Shell-only (requires `source` or restart) | **Win32 `WM_SETTINGCHANGE` + Live In-Memory Hot Patch** |
 | **IDE Support** | Requires WSL bridges | **100% Native** (IntelliJ, Eclipse, VS Code) |
+| **Windows Services & GUI**| Inaccessible to Windows services | **Full System Visibility** (Jenkins, SonarQube, Task Scheduler, Start Menu) |
+| **Project File Support** | `.sdkmanrc` only | **Dual Support:** `.jvmrc` & Auto **`.sdkmanrc` Translation** |
 | **User Interface** | CLI Only (Manual typing) | **Interactive TUI** & Headless CLI |
-| **System Injection**| Shell-only | **Global Registry Hot-Swapping** |
-| **Security Validation**| Basic (`curl` downloads) | **Strict `.NET` SHA256/SHA512 Cryptography** |
-| **CPU Architecture**| Manual configuration | **Native x64 / ARM64 Auto-Detection** |
-| **Bulk Maintenance**| Manual, tool-by-tool | **1-Click Bulk Updater** (`jvm update --all`) |
+| **Archive Extraction** | Requires external `zip` / `tar` binaries | **Native `.NET System.IO.Compression`** |
+| **Security Validation** | Basic (`curl` downloads) | **Strict `.NET` SHA256/SHA512 Cryptography** |
+| **CPU Architecture** | Manual configuration | **Native x64 / ARM64 Auto-Detection** |
+| **Bulk Maintenance** | Manual, tool-by-tool | **1-Click Bulk Updater** (`jvm update --all`) |
 | **OS Conflict Handling**| Passive | **Active Phantom-Path Scrubbing** |
-| **Windows Packaging**| Unofficial / None | **Winget, Scoop, Chocolatey, & Native MSI** |
+| **Environment De-activation**| Manual `.bashrc` editing (no de-activate command) | **1-Click Deep Slate Wipe** (`jvm clear`) |
+| **Enterprise Proxies** | Manual `http_proxy` env exports | **Native Windows WinINet & Corporate Certificate Store** |
+| **Windows Packaging** | Unofficial / None | **Winget, Scoop, Chocolatey, & Native MSI** |
 | **Enterprise Privileges**| Requires WSL/Bash setup | **Zero-Admin / 0 UAC** (Runs on locked-down corporate laptops) |
 | **Corporate Fleet Rollout**| None (Manual shell curl) | **Silent Intune, MECM & GPO MSI** (`msiexec /qn`) |
-| **Uninstallation**| Manual script deletion | **Deep UAC Uninstaller & Windows Settings Integration** |
+| **Uninstallation** | Manual script deletion | **Deep UAC Uninstaller & Windows Settings Integration** |
 
 ---
 
