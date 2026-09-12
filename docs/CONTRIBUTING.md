@@ -22,7 +22,8 @@ When testing local changes in your cloned repository, invoke the script directly
 ```cmd
 :: In CMD or PowerShell, run the local working copy directly:
 .\jvm.bat list
-.\jvm.bat env
+.\jvm.bat current
+.\jvm.bat which
 .\jvm.bat 21 --session
 ```
 

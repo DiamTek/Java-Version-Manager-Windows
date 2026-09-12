@@ -29,7 +29,7 @@ Before opening a support ticket, check this rapid decision tree for the four mos
 
 ### 2. "I keep getting Windows UAC administrator elevation prompts"
 - **Root Cause:** Your active configuration is set to legacy **Registry Mode** instead of the default UAC-free **Symlink Mode**. In Registry Mode, switching JDKs requires writing to Machine-level registry (`HKLM`), triggering Windows Administrator elevation prompts.
-- **Diagnosis:** Run `jvm env` to check your active mode (`SWITCH_MODE: DIRECT` indicates Registry Mode; `SYMLINK` indicates Symlink Mode).
+- **Diagnosis:** Run `jvm current` to check your active mode (`Mode: [Registry Mode]` indicates Registry Mode; `[Symlink Mode]` indicates Symlink Mode).
 - **Resolution:**
   - **Via CLI:** Run any switch command with `--symlink`:
     ```cmd
@@ -40,6 +40,10 @@ Before opening a support ticket, check this rapid decision tree for the four mos
 ### 3. "Network connection failed / You appear to be offline"
 - **Root Cause:** Corporate firewall, SSL-intercepting proxy (e.g. Zscaler, Netskope), or air-gapped network blocking vendor CDN endpoints.
 - **Resolution:**
+  - **Clean Corrupted Caches:** If an earlier download was interrupted or corrupted, purge stale cache files:
+    ```cmd
+    jvm clean
+    ```
   - **Set Proxy Variables:** JVM inherits standard environment proxies in your active session:
     ```powershell
     $env:HTTP_PROXY  = "http://proxy.corp.internal:8080"
@@ -71,16 +75,19 @@ Before opening a support ticket, check this rapid decision tree for the four mos
 
 ## 📋 Standard Diagnostic Bundle
 
-When opening a support request or asking for assistance on Discord, running these three diagnostic commands and attaching their output will accelerate resolution by 10x:
+When opening a support request or asking for assistance on Discord, running these diagnostic commands and attaching their output will accelerate resolution by 10x:
 
 ```powershell
-# 1. Active JVM environment and configuration pointers:
-jvm env
+# 1. Active JVM environment and configuration dashboard:
+jvm current
 
-# 2. All java.exe binaries discovered in active PATH order:
+# 2. Exact executable binary resolved by JVM:
+jvm which
+
+# 3. All java.exe binaries discovered in active PATH order:
 where.exe java
 
-# 3. Environment PATH entries filtered for Java/JVM:
+# 4. Environment PATH entries filtered for Java/JVM:
 ($env:Path -split ';') | Where-Object { $_ -match 'Java|JVM|jdk|Oracle' }
 ```
 

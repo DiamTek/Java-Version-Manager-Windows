@@ -23,6 +23,9 @@
 - [How do I use JVM behind a corporate proxy or enterprise firewall?](#how-do-i-use-jvm-behind-a-corporate-proxy-or-enterprise-firewall)
 - [How does Windows Terminal and Taskbar integration work?](#how-does-windows-terminal-and-taskbar-integration-work)
 - [How do I completely uninstall it?](#how-do-i-completely-uninstall-it)
+- [How do I check my current active Java version and environment status?](#how-do-i-check-my-current-active-java-version-and-environment-status)
+- [How do I find the exact executable path of java or build tools for my IDE/scripts?](#how-do-i-find-the-exact-executable-path-of-java-or-build-tools-for-my-idescripts)
+- [How do I free up disk space from downloaded JDK installers? (jvm clean vs jvm clear)](#how-do-i-free-up-disk-space-from-downloaded-jdk-installers-jvm-clean-vs-jvm-clear)
 - [Why does Windows PowerShell say a script is not digitally signed or blocked?](#why-does-windows-powershell-say-a-script-is-not-digitally-signed-or-blocked)
 - [What should I do if Windows Defender SmartScreen warns about an "Unknown Publisher"?](#what-should-i-do-if-windows-defender-smartscreen-warns-about-an-unknown-publisher)
 - [Does the MSI test suite test real system integration or just file creation?](#does-the-msi-test-suite-test-real-system-integration-or-just-file-creation)
@@ -327,6 +330,55 @@ DiamTek JVM is packaged as a native, single-file Windows Installer (`.msi`) buil
   msiexec /x jvm-windows-1.0.0-x64.msi /qn /norestart
   ```
 - **Zero Reboot Footprint:** Installation, version switches, and uninstallation never require a workstation restart, preventing disruption to active corporate workflows.
+
+<a id="how-do-i-check-my-current-active-java-version-and-environment-status"></a>
+### How do I check my current active Java version and environment status?
+Run `jvm current` (or its alias `jvm status`) from any CMD, PowerShell, or Windows Terminal window:
+```cmd
+jvm current
+```
+This prints a structured dashboard displaying:
+1. **Java Version & Vendor:** Exact distribution name and version number (e.g., `Eclipse Adoptium 21.0.12.1`).
+2. **`JAVA_HOME` Path:** The directory currently designated as your active Java home.
+3. **Executable Binary:** The absolute path to the active `java.exe` binary.
+4. **Switching Mode:** Indicates whether you are running in `[Symlink Mode] (User Junction, UAC Free)` or `[Registry Mode] (Machine HKLM)`.
+5. **Junction Link:** The real-time target pointed to by `%LOCALAPPDATA%\DiamTek\JVM\current`.
+6. **Ecosystem Build Tools:** Live status of installed tools such as Maven, Gradle, and Kotlin.
+
+<a id="how-do-i-find-the-exact-executable-path-of-java-or-build-tools-for-my-idescripts"></a>
+### How do I find the exact executable path of java or build tools for my IDE/scripts?
+Run `jvm which` (or its alias `jvm path`) to print the resolved executable path directly to `stdout`:
+```cmd
+:: Resolve active Java executable
+jvm which
+
+:: Resolve specific ecosystem build tool binaries
+jvm which maven
+jvm which gradle
+jvm which kotlin
+```
+Because `jvm which` prints only the raw path and returns standard exit codes (`0` on success, `1` on error), it is ideal for scripting:
+```powershell
+# PowerShell automation
+$javaPath = (jvm which)
+& $javaPath -version
+```
+
+<a id="how-do-i-free-up-disk-space-from-downloaded-jdk-installers-jvm-clean-vs-jvm-clear"></a>
+### How do I free up disk space from downloaded JDK installers? (jvm clean vs jvm clear)
+DiamTek JVM provides two distinct maintenance commands designed for different purposes:
+
+* **`jvm clean` (Disk Cache Pruner):** 
+  Use `jvm clean` when you want to reclaim disk space. It safely purges temporary `.zip` and `.tar.gz` downloads, stale extraction workspaces (`%TEMP%\jdk_*_extract`), and failed candidate builds from `%TEMP%` and `%LOCALAPPDATA%\DiamTek\JVM`. It reports the exact number of files deleted and megabytes reclaimed. It is **100% safe** and never modifies your installed JDKs, settings, or environment variables.
+  ```cmd
+  jvm clean
+  ```
+
+* **`jvm clear` (Environment Slate Wipe):**
+  Use `jvm clear` when you want to completely de-activate Java from your environment (e.g., to troubleshoot PATH shadowing, remove legacy Oracle `javapath` registry entries, or wipe `JAVA_HOME`). It automatically writes a backup `.reg` file to `%TEMP%` before executing.
+  ```cmd
+  jvm clear
+  ```
 
 ---
 

@@ -249,8 +249,11 @@ JVM supports downloading, switching, and managing tools natively alongside Java.
 | Command | Action / Description |
 |---------|----------------------|
 | `jvm list` | Lists all installed JDKs (version, vendor, path), highlighting the `[ACTIVE]` one. |
-| `jvm env` | Displays the current `JAVA_HOME` environment variable path. |
+| `jvm current` | Displays comprehensive status card: active JDK, switching mode, junction target, and tools (`jvm status`). |
+| `jvm which [candidate]` | Prints absolute filesystem path to active `java.exe` or ecosystem binary (`jvm path`). |
+| `jvm clean` | Safely purges temporary installer caches and extraction artifacts to reclaim disk space. |
 | `jvm clear` | Instantly wipes `JAVA_HOME` and purges Java from your PATH. |
+| `jvm env` | Displays current environment variables and status card. |
 | `jvm link <path> [name]` | Manually links a custom JDK directory (e.g., `jvm link C:\my-jdk jdk-custom`). |
 | `jvm unlink <name>` | Removes a custom linked JDK. |
 | `jvm version` | Checks your current `jvm.bat` build number against GitHub for updates. |
@@ -258,6 +261,8 @@ JVM supports downloading, switching, and managing tools natively alongside Java.
 | `jvm self-uninstall` | Launches the deep uninstaller with UAC elevation (full system wipe). |
 | `jvm help` / `--help` / `/?` | Displays the complete CLI command reference and flag overrides. |
 | `jvm <semantic-alias>` | Routes dynamically (e.g., `jvm latest`, `jvm lts`, `jvm 21`). |
+
+> **Pro Tip:** Use `jvm current` for an instant diagnostic overview of your active JDK and ecosystem tools, `jvm which` to dynamically feed the active `java.exe` path into scripts/IDE configurations, and `jvm clean` to sweep orphaned download archives without touching installed runtimes.
 
 <a id="interface-guide"></a>
 <a id="-interface-guide"></a>

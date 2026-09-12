@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260912.93"
+set "JVM_BUILD=20260912.94"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -228,6 +228,31 @@ if /i "%~1"=="list" (
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="current" (
+    set "CLI_COMMAND=current"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="status" (
+    set "CLI_COMMAND=current"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="clean" (
+    set "CLI_COMMAND=clean"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="which" (
+    set "CLI_COMMAND=which"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="path" (
+    set "CLI_COMMAND=which"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="help" (
     set "CLI_COMMAND=help"
     set "SILENT_MODE=1"
@@ -265,6 +290,10 @@ if /i "%CLI_COMMAND%"=="version" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="self-update" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="self-uninstall" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="help" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="current" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="status" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="clean" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="which" set "WANT_UTF8=1"
 if "%WANT_UTF8%"=="1" chcp 65001 >nul
 if "%SILENT_MODE%"=="0" title Java Version Manager
 
@@ -282,6 +311,10 @@ set "SKIP_HEADER=0"
 if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="list" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="env" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="current" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="status" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="clean" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="which" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="self-update" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="self-uninstall" set "SKIP_HEADER=1"
@@ -319,6 +352,10 @@ if "%SESSION_MODE%"=="1" goto :SKIP_ADMIN_CHECK
 if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="list" goto :SKIP_ADMIN_CHECK
     if /i "%CLI_COMMAND%"=="env" goto :SKIP_ADMIN_CHECK
+    if /i "%CLI_COMMAND%"=="current" goto :SKIP_ADMIN_CHECK
+    if /i "%CLI_COMMAND%"=="status" goto :SKIP_ADMIN_CHECK
+    if /i "%CLI_COMMAND%"=="clean" goto :SKIP_ADMIN_CHECK
+    if /i "%CLI_COMMAND%"=="which" goto :SKIP_ADMIN_CHECK
 )
 rem By default, run everything inline without Admin. We only elevate for specific file/registry operations.
 goto :SKIP_ADMIN_CHECK
@@ -713,15 +750,23 @@ if defined CLI_COMMAND (
         goto :eof
     )
     if /i "!CLI_COMMAND!"=="env" (
-        echo.
-        echo %cBLUE%[  INFO  ]%cRESET% Java Environment Variables:
-        echo ============================================================
-        if defined JAVA_HOME (
-            echo JAVA_HOME = !JAVA_HOME!
-        ) else (
-            echo JAVA_HOME is NOT SET
-        )
-        echo ============================================================
+        call :ShowCurrentStatus
+        goto :eof
+    )
+    if /i "!CLI_COMMAND!"=="current" (
+        call :ShowCurrentStatus
+        goto :eof
+    )
+    if /i "!CLI_COMMAND!"=="status" (
+        call :ShowCurrentStatus
+        goto :eof
+    )
+    if /i "!CLI_COMMAND!"=="clean" (
+        call :CleanCache
+        goto :eof
+    )
+    if /i "!CLI_COMMAND!"=="which" (
+        call :WhichBinary
         goto :eof
     )
     if /i "!CLI_COMMAND!"=="install" (
@@ -3012,8 +3057,11 @@ echo   jvm ^<candidate^> ^<version^>      Switch ecosystem tool ^(e.g. jvm maven
 echo.
 echo Management Commands:
 echo   jvm list                       List all installed JDKs and Ecosystem tools
-echo   jvm env                        Display currently active JAVA_HOME
+echo   jvm current, status            Display active JDK, mode, and ecosystem status
+echo   jvm which [candidate]          Display absolute binary path to active java/tool
+echo   jvm clean                      Purge temporary download caches and extraction artifacts
 echo   jvm clear                      Purge JAVA_HOME and remove Java from PATH
+echo   jvm env                        Display current environment variables
 echo   jvm install ^<candidate^> ^<ver^>  Download and install a tool or JDK
 echo   jvm uninstall ^<ver^>           Uninstall a specific JDK
 echo   jvm update --all               Update all installed tools and JDKs
@@ -3035,6 +3083,184 @@ echo   --global                       Force global system-wide switch
 echo   --yes, -y                      Bypass interactive confirmation prompts
 echo   --skip-checksum, --no-verify   Bypass checksum verification if hash is unavailable
 goto :eof
+
+rem ============================================================
+rem SHOW CURRENT STATUS / ENVIRONMENT
+rem ============================================================
+:ShowCurrentStatus
+echo.
+echo %cBLUE%[  INFO  ]%cRESET% Current JVM Environment Status:
+echo ============================================================
+
+set "CURR_JAVA_VER="
+set "CURR_JAVA_BIN="
+set "CURR_JAVA_VENDOR="
+
+if defined JAVA_HOME (
+    if exist "!JAVA_HOME!\release" (
+        for /f "tokens=1,* delims==" %%A in ('type "!JAVA_HOME!\release" 2^>nul ^| findstr /i "^JAVA_VERSION= ^IMPLEMENTOR="') do (
+            if /i "%%A"=="JAVA_VERSION" set "CURR_JAVA_VER=%%~B"
+            if /i "%%A"=="IMPLEMENTOR" set "CURR_JAVA_VENDOR=%%~B"
+        )
+    )
+    if exist "!JAVA_HOME!\bin\java.exe" (
+        set "CURR_JAVA_BIN=!JAVA_HOME!\bin\java.exe"
+    )
+)
+
+if not defined CURR_JAVA_BIN (
+    for /f "delims=" %%A in ('where.exe java 2^>nul') do (
+        if not defined CURR_JAVA_BIN set "CURR_JAVA_BIN=%%A"
+    )
+)
+
+if not defined CURR_JAVA_VER (
+    if defined CURR_JAVA_BIN (
+        for /f "tokens=3" %%A in ('"!CURR_JAVA_BIN!" -version 2^>^&1 ^| findstr /i "version"') do (
+            set "CURR_JAVA_VER=%%~A"
+        )
+    )
+)
+
+echo  Java Configuration:
+if defined CURR_JAVA_VER (
+    if defined CURR_JAVA_VENDOR (
+        echo    - Version:       !CURR_JAVA_VENDOR! !CURR_JAVA_VER!
+    ) else (
+        echo    - Version:       Java !CURR_JAVA_VER!
+    )
+) else (
+    echo    - Version:       Not Active / Not Found
+)
+
+if defined JAVA_HOME (
+    echo    - JAVA_HOME:     !JAVA_HOME!
+) else (
+    echo    - JAVA_HOME:     NOT SET
+)
+
+if defined CURR_JAVA_BIN (
+    echo    - Binary:        !CURR_JAVA_BIN!
+) else (
+    echo    - Binary:        NOT FOUND
+)
+
+if /i "!SWITCH_MODE!"=="DIRECT" (
+    echo    - Mode:          [Registry Mode] ^(Machine HKLM^)
+) else (
+    echo    - Mode:          [Symlink Mode] ^(User Junction, UAC Free^)
+    set "JUNCTION_TARGET="
+    if exist "%LOCALAPPDATA%\DiamTek\JVM\current" (
+        for /f "delims=" %%A in ('powershell -NoProfile -Command "(Get-Item -LiteralPath '%LOCALAPPDATA%\DiamTek\JVM\current' -ErrorAction SilentlyContinue).Target" 2^>nul') do set "JUNCTION_TARGET=%%A"
+    )
+    if defined JUNCTION_TARGET (
+        echo    - Junction:      %LOCALAPPDATA%\DiamTek\JVM\current -^> !JUNCTION_TARGET!
+    ) else (
+        echo    - Junction:      %LOCALAPPDATA%\DiamTek\JVM\current ^(Inactive^)
+    )
+)
+
+echo.
+echo  Ecosystem Tools:
+set "ECO_FOUND=0"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates" (
+    for /d %%C in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\*") do (
+        set "C_NAME=%%~nxC"
+        set "C_TARGET="
+        if exist "%%C\current" (
+            for /f "delims=" %%A in ('powershell -NoProfile -Command "(Get-Item -LiteralPath '%%C\current' -ErrorAction SilentlyContinue).Target" 2^>nul') do set "C_TARGET=%%A"
+            if defined C_TARGET (
+                set "ECO_FOUND=1"
+                for /f "delims=" %%V in ("!C_TARGET!") do (
+                    echo    - !C_NAME!:         %%~nxV %cGREEN%[ACTIVE]%cRESET%
+                )
+            )
+        )
+    )
+)
+if "!ECO_FOUND!"=="0" (
+    echo    - ^(None active. Use 'jvm ^<tool^> install' to install candidates^)
+)
+echo ============================================================
+exit /b 0
+
+rem ============================================================
+rem CLEAN CACHE AND TEMPORARY ARTIFACTS
+rem ============================================================
+:CleanCache
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Scanning temporary files, installer archives, and cache...
+set "FREED_MB=0"
+set "FREED_COUNT=0"
+set "CLEAN_CMD=$temp = [System.IO.Path]::GetTempPath(); $appdata = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM'); $patterns = @((Join-Path $temp 'jdk_*_download.*'), (Join-Path $temp 'jdk_*_extract'), (Join-Path $temp 'jvm_dl_*.ps1'), (Join-Path $temp 'jvm_updater_*.bat'), (Join-Path $temp 'jvm_install_*.ps1'), (Join-Path $temp 'jvm_uninstall_*.bat'), (Join-Path $temp 'jvm_uninstall_*.ps1'), (Join-Path $temp '.jvm_session_target'), (Join-Path $appdata 'downloads\*'), (Join-Path $appdata 'candidates\*\temp_*')); $totalBytes = 0; $fileCount = 0; foreach ($p in $patterns) { Get-Item $p -ErrorAction SilentlyContinue | ForEach-Object { if ($_.PSIsContainer) { $subFiles = Get-ChildItem $_.FullName -Recurse -File -ErrorAction SilentlyContinue; foreach ($sf in $subFiles) { $totalBytes += $sf.Length; $fileCount++ }; Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } else { $totalBytes += $_.Length; $fileCount++; Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }; $mb = [math]::Round($totalBytes / 1MB, 2); Write-Output ('FREED_MB=' + $mb); Write-Output ('FREED_COUNT=' + $fileCount)"
+for /f "tokens=1,2 delims==" %%A in ('powershell -NoProfile -Command "!CLEAN_CMD!"') do (
+    if "%%A"=="FREED_MB" set "FREED_MB=%%B"
+    if "%%A"=="FREED_COUNT" set "FREED_COUNT=%%B"
+)
+
+if defined FREED_COUNT (
+    if !FREED_COUNT! GTR 0 (
+        echo %cGREEN%[   OK   ]%cRESET% Successfully cleaned !FREED_COUNT! temporary files ^(reclaimed !FREED_MB! MB^).
+    ) else (
+        echo %cGREEN%[   OK   ]%cRESET% Cache is already clean. Zero orphaned files detected.
+    )
+) else (
+    echo %cGREEN%[   OK   ]%cRESET% Cache is already clean.
+)
+exit /b 0
+
+rem ============================================================
+rem RESOLVE BINARY PATH
+rem ============================================================
+:WhichBinary
+set "WHICH_TARGET=!TARGET_CANDIDATE!"
+if defined CLI_TARGET (
+    if /i not "!CLI_TARGET!"=="SKIP_JAVA" (
+        set "WHICH_TARGET=!CLI_TARGET!"
+    )
+)
+if not defined WHICH_TARGET set "WHICH_TARGET=java"
+
+if /i "!WHICH_TARGET!"=="java" (
+    if defined JAVA_HOME (
+        if exist "!JAVA_HOME!\bin\java.exe" (
+            echo !JAVA_HOME!\bin\java.exe
+            exit /b 0
+        )
+    )
+    for /f "delims=" %%A in ('where.exe java 2^>nul') do (
+        echo %%A
+        exit /b 0
+    )
+    >&2 echo %cRED%[ ERROR  ]%cRESET% No java executable found in JAVA_HOME or PATH.
+    exit /b 1
+)
+
+set "CAND_ROOT=%LOCALAPPDATA%\DiamTek\JVM\candidates\!WHICH_TARGET!\current\bin"
+if exist "!CAND_ROOT!" (
+    if /i "!WHICH_TARGET!"=="maven" (
+        for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\mvn.cmd" "!CAND_ROOT!\mvn.bat" 2^>nul') do (
+            echo %%A
+            exit /b 0
+        )
+    )
+    if /i "!WHICH_TARGET!"=="kotlin" (
+        for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\kotlinc.bat" 2^>nul') do (
+            echo %%A
+            exit /b 0
+        )
+    )
+    for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\!WHICH_TARGET!*.exe" "!CAND_ROOT!\!WHICH_TARGET!*.bat" "!CAND_ROOT!\!WHICH_TARGET!*.cmd" 2^>nul') do (
+        echo %%A
+        exit /b 0
+    )
+    for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\*.cmd" "!CAND_ROOT!\*.bat" "!CAND_ROOT!\*.exe" 2^>nul') do (
+        echo %%A
+        exit /b 0
+    )
+)
+>&2 echo %cRED%[ ERROR  ]%cRESET% Candidate '!WHICH_TARGET!' is not installed or active.
+exit /b 1
 
 rem ============================================================
 rem JVM Version / About Menu
@@ -3275,6 +3501,10 @@ if /i "!CLI_COMMAND!"=="install" (
 )
 if /i "!CLI_COMMAND!"=="uninstall" (
     call :UninstallCandidate
+    exit /b 0
+)
+if /i "!CLI_COMMAND!"=="which" (
+    call :WhichBinary
     exit /b 0
 )
 if /i "!CLI_COMMAND!"=="" (

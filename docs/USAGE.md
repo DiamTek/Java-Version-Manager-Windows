@@ -71,10 +71,12 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm update --all [--vendor <name>]` | Machine | Silently checks and patches all installed JDKs and tools to latest releases. |
 | `jvm uninstall [version]` | Machine | Opens uninstaller menu or uninstalls specified version (e.g., `jvm uninstall 21`). |
 | `jvm list` | Inspection | Lists all installed JDKs, vendors, paths, and ecosystem build tools. |
-| `jvm env` | Inspection | Prints active `JAVA_HOME` path and directory junction status. |
+| `jvm current` | Inspection | Displays comprehensive status card: active JDK, switching mode, junction target, and tools (`jvm status`). |
+| `jvm which [candidate]` | Inspection | Prints absolute filesystem path to active `java.exe` or ecosystem binary (`jvm path`). |
+| `jvm clean` | Maintenance | Safely purges temporary download caches and extraction artifacts to reclaim disk space. |
+| `jvm clear` | System | Purges `JAVA_HOME` and cleanly removes JVM directory junctions from PATH. |
 | `jvm link <path> <name>` | Custom | Registers an external or custom JDK (BYO-JDK / GraalVM) into the manager. |
 | `jvm unlink <name>` | Custom | Unregisters a custom linked JDK from the manager. |
-| `jvm clear` | System | Purges `JAVA_HOME` and cleanly removes JVM directory junctions from PATH. |
 | `jvm version` | Tool | Displays current JVM version, build number, and checks GitHub for updates. |
 | `jvm self-update` | Tool | Automatically downloads and atomic-swaps `jvm.bat` to the latest release. |
 | `jvm self-uninstall` | System | Triggers deep UAC-elevated system uninstaller (`uninstall.ps1`). |
@@ -321,27 +323,96 @@ Maven natively respects the active `JAVA_HOME` environment variable managed by J
 <a id="global-environment-management"></a>
 ## 🧹 Global Environment Management
 
-### Inspection Commands
-List all installed JDKs with their version, vendor, and path. The currently active JDK is highlighted with `[ACTIVE]`. (Scroll to the bottom to see installed Ecosystem tools).
+### Inspection & Status Commands
+
+#### Comprehensive Status Overview (`jvm current` / `jvm status`)
+Displays a complete diagnostic dashboard detailing your active Java runtime, vendor metadata, `JAVA_HOME`, binary location, switching mode, directory junction pointer, and all active ecosystem build tools:
+```cmd
+jvm current
+# Alias: jvm status
+```
+
+**Example Output:**
+```text
+[  INFO  ] Current JVM Environment Status:
+============================================================
+ Java Configuration:
+   - Version:       Eclipse Adoptium 21.0.12.1
+   - JAVA_HOME:     C:\Users\<User>\AppData\Local\DiamTek\JVM\current
+   - Binary:        C:\Users\<User>\AppData\Local\DiamTek\JVM\current\bin\java.exe
+   - Mode:          [Symlink Mode] (User Junction, UAC Free)
+   - Junction:      C:\Users\<User>\AppData\Local\DiamTek\JVM\current -> C:\Program Files\Java\jdk-21.0.12.1+1
+
+ Ecosystem Tools:
+   - maven:         3.9.6 [ACTIVE]
+   - gradle:        8.5 [ACTIVE]
+============================================================
+```
+
+#### Binary Path Resolution (`jvm which` / `jvm path`)
+Prints the clean absolute filesystem path of the resolved `java.exe` or candidate tool directly to `stdout`. Perfect for scripting, build automation, CI/CD runners, and IDE configurations:
+```cmd
+:: Resolve active Java binary
+jvm which
+
+:: Resolve specific ecosystem build tool binaries
+jvm which maven
+jvm which gradle
+jvm which kotlin
+```
+
+**Using `jvm which` in Scripts:**
+
+* **In PowerShell:**
+  ```powershell
+  $javaBin = (jvm which)
+  & $javaBin -version
+  ```
+
+* **In Command Prompt (Batch):**
+  ```cmd
+  for /f "delims=" %%i in ('jvm which') do set "JAVA_BIN=%%i"
+  "!JAVA_BIN!" -version
+  ```
+
+* **Exit Codes for CI/CD Automation:**
+  * `0`: Binary successfully located and returned.
+  * `1`: Candidate is not installed or active (error details sent to `stderr`).
+
+#### Installed JDK & Candidate Inventory (`jvm list`)
+Lists all installed JDKs (version, vendor, filesystem path), highlighting the currently active one with `[ACTIVE]`. Ecosystem tools and their active versions are listed at the bottom:
 ```cmd
 jvm list
 ```
-Display the exact path your current `JAVA_HOME` environment variable is pointing to:
-```cmd
-jvm env
-```
+
+#### PATH Precedence Diagnostics (`where.exe java`)
 Inspect which `java.exe` binary Windows is actively executing in order of PATH precedence:
 ```cmd
 where.exe java
 # In PowerShell: (Get-Command java -All).Source
 ```
-*(If an old Oracle `javapath` appears above `%LOCALAPPDATA%\DiamTek\JVM\current\bin`, run `jvm clear` or use the UI to purge rogue paths, then re-activate with `jvm <version>`).*
+*(If an old Oracle `javapath` appears above `%LOCALAPPDATA%\DiamTek\JVM\current\bin`, run `jvm clear` to purge rogue paths, then re-activate with `jvm <version>`).*
 
-### System Scrubbing
-Instantly wipe `JAVA_HOME` and purge Java from your Windows PATH entirely:
+### System & Cache Maintenance
+
+#### Cache & Artifact Pruning (`jvm clean`)
+Safely purges temporary installation archives, failed download caches, and orphaned extraction artifacts to reclaim disk space:
+```cmd
+jvm clean
+```
+* **What it cleans:**
+  * `%TEMP%\jdk_*_download.zip` and `.tar.gz` installer archives.
+  * Stale `%TEMP%\jdk_*_extract` extraction workspaces.
+  * Intermediate `%TEMP%\jvm_dl_*.ps1` PowerShell downloaders.
+  * Orphaned `%LOCALAPPDATA%\DiamTek\JVM\candidates\*\temp_*` directories.
+* **Safety Guarantee:** `jvm clean` is completely non-destructive. It never modifies your active JDKs, candidate tools, directory junctions, or Windows Registry settings.
+
+#### Environment Slate Wipe (`jvm clear`)
+Instantly wipes `JAVA_HOME` and cleanly removes JVM directory junctions and legacy Oracle `javapath` entries from your PATH:
 ```cmd
 jvm clear
 ```
+* **Automated Safety Backup:** Before executing destructive registry scrubs, `jvm clear` automatically exports a timestamped `.reg` backup of both User (`HKCU`) and Machine (`HKLM`) environment registries to `%TEMP%`.
 
 <a id="bring-your-own-jdk-byo-jdk"></a>
 ### Bring Your Own JDK (BYO-JDK)
