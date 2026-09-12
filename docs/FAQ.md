@@ -26,6 +26,10 @@
 - [How do I check my current active Java version and environment status?](#how-do-i-check-my-current-active-java-version-and-environment-status)
 - [How do I find the exact executable path of java or build tools for my IDE/scripts?](#how-do-i-find-the-exact-executable-path-of-java-or-build-tools-for-my-idescripts)
 - [How do I free up disk space from downloaded JDK installers? (jvm clean vs jvm clear)](#how-do-i-free-up-disk-space-from-downloaded-jdk-installers-jvm-clean-vs-jvm-clear)
+- [What is `jvm doctor` and how does it diagnose system conflicts?](#what-is-jvm-doctor-and-how-does-it-diagnose-system-conflicts)
+- [How do I pin or lock a Java version for my project? (`jvm pin` / `jvm local`)](#how-do-i-pin-or-lock-a-java-version-for-my-project-jvm-pin--jvm-local)
+- [How do I jump directly to active tool folders in File Explorer? (`jvm open` / `jvm home`)](#how-do-i-jump-directly-to-active-tool-folders-in-file-explorer-jvm-open--jvm-home)
+- [Are SDKMAN! commands like `sdk use` supported? (`jvm use` / `jvm default`)](#are-sdkman-commands-like-sdk-use-supported-jvm-use--jvm-default)
 - [Why does Windows PowerShell say a script is not digitally signed or blocked?](#why-does-windows-powershell-say-a-script-is-not-digitally-signed-or-blocked)
 - [What should I do if Windows Defender SmartScreen warns about an "Unknown Publisher"?](#what-should-i-do-if-windows-defender-smartscreen-warns-about-an-unknown-publisher)
 - [Does the MSI test suite test real system integration or just file creation?](#does-the-msi-test-suite-test-real-system-integration-or-just-file-creation)
@@ -34,6 +38,7 @@
 - [What process exit codes does the CLI and installer return for CI/CD scripting?](#what-process-exit-codes-does-the-cli-and-installer-return-for-cicd-scripting)
 - [Can my engineering team adopt JVM on locked-down corporate laptops without IT admin tickets?](#can-my-engineering-team-adopt-jvm-on-locked-down-corporate-laptops-without-it-admin-tickets)
 - [How does DiamTek JVM fit into enterprise fleet management (Intune / MECM / GPO)?](#how-does-diamtek-jvm-fit-into-enterprise-fleet-management-intune--mecm--gpo)
+- [What is the PowerShell Profile hook and how do I manage it? (`jvm hook`)](#what-is-the-powershell-profile-hook-and-how-do-i-manage-it-jvm-hook)
 
 ---
 
@@ -74,7 +79,11 @@ If you see an entry like `C:\Program Files\Common Files\Oracle\Java\javapath\jav
 DiamTek JVM automatically configures both Windows PowerShell (5.1) and modern PowerShell Core (7+) profiles so that switching versions via `jvm` dynamically updates `JAVA_HOME`, toolpaths, and the active session `$env:Path` in-memory without restarting your shell.
 
 #### 1. Verifying the Hook
-To confirm that the hook is present and active in your PowerShell profile:
+To check profile hook status across all detected PowerShell profiles (Windows PowerShell 5.1 and PowerShell 7+):
+```cmd
+jvm hook status
+```
+*(You can also run `jvm doctor` to audit the hook alongside your overall system health).* In PowerShell, you can also query `$PROFILE` directly:
 ```powershell
 Get-Content $PROFILE -ErrorAction SilentlyContinue | Select-String "jvm"
 ```
@@ -82,7 +91,8 @@ If properly configured, this command outputs the `# >>> jvm >>>` sentinel and th
 
 #### 2. Manual Installation or Dotfile Configuration
 If your profile was not configured automatically (e.g., if you manage dotfiles across multiple machines via Git or use a custom `$PROFILE` location), you can inject or repair the hook at any time:
-- **Interactive Menu:** Run `jvm`, navigate to **Settings** (`3`), and select **Install Global Command & Profile Hook** (`1`).
+- **CLI Command:** Run `jvm hook` (or `jvm hook install`). You can also inspect with `jvm hook status` or cleanly remove it with `jvm hook remove`.
+- **Interactive Menu:** Run `jvm`, navigate to **Settings** (`3`), and select **PowerShell Profile Hook** (`2`).
 - **PowerShell:** Run `powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\DiamTek\JVM\install.ps1"`.
 - **Manual Setup:** Paste the wrapper function block directly into your `$PROFILE` (`notepad $PROFILE` or `code $PROFILE`):
 
@@ -151,13 +161,22 @@ Instead of adding a new folder to your system `PATH` every time you install a JD
 Yes! The tool supports headless execution. You can bypass the interactive menu entirely by passing arguments directly, for example: `jvm install java 21` or `jvm 21`.
 
 ### Can I temporarily run a build with a specific Java version without altering my global environment?
-Yes! DiamTek JVM provides clean options depending on whether you want true per-process isolation or sequential command execution:
+Yes! DiamTek JVM provides clean options depending on whether you want one-off ephemeral execution, directory pinning, or session isolation:
 
-1. **True Session Isolation via `.java-version` (Recommended):**
-   Place a `.java-version` file in the root of your project directory containing the desired version (e.g., `21`). When you run `jvm` in that directory, it activates Java 21 **only for that active terminal process memory**—leaving the shared NTFS Directory Junction (`%LOCALAPPDATA%\DiamTek\JVM\current`), other open terminals, and your Windows Registry completely untouched.
+1. **Ephemeral One-Off Subshell Runner (`jvm exec` / `jvm run` — Recommended):**
+   Execute any build or command directly in an isolated child subshell with zero impact on your global environment, active Directory Junction (`current`), or other open terminal windows:
+   ```cmd
+   jvm exec 17 -- gradlew build
+   # Or without double-dash:
+   jvm run 21 mvn clean package
+   ```
+   The child subshell runs with `%JAVA_HOME%` and `%PATH%` configured specifically for the requested JDK, executes your command with full argument fidelity, and returns the command's exact exit code directly to the host shell.
 
-2. **In-Process Environment Overrides (Subshell):**
-   To execute a single build against a specific JDK path without changing any global state:
+2. **True Session Isolation via `.java-version` (`jvm pin`):**
+   Lock the project to a specific JDK using `jvm pin <version>`. When you run `jvm` in that directory, it activates the pinned Java version **only for that active terminal process memory**—leaving the shared NTFS Directory Junction (`%LOCALAPPDATA%\DiamTek\JVM\current`), other open terminals, and your Windows Registry completely untouched.
+
+3. **In-Process Environment Overrides (Manual Subshell):**
+   To execute a single build against a specific JDK path manually:
    - **Command Prompt:**
      ```cmd
      cmd.exe /c "set JAVA_HOME=C:\Program Files\Java\jdk-17&& set PATH=C:\Program Files\Java\jdk-17\bin;%PATH%&& gradlew build"
@@ -167,12 +186,12 @@ Yes! DiamTek JVM provides clean options depending on whether you want true per-p
      & { $env:JAVA_HOME = "C:\Program Files\Java\jdk-17"; $env:Path = "$env:JAVA_HOME\bin;$env:Path"; ./gradlew build }
      ```
 
-3. **Sequential Execution (`&&`):**
+4. **Sequential Execution (`&&`):**
    You can also chain commands sequentially:
    ```cmd
    jvm 17 && gradlew build
    ```
-   *(Note: Because `&&` runs two commands in sequence, `jvm 17` first updates your active Directory Junction to JDK 17, and then `gradlew build` runs using that newly activated version).*
+   *(Note: Because `&&` runs two commands in sequence, `jvm 17` first updates your active Directory Junction to JDK 17 globally, and then `gradlew build` runs using that newly activated version).*
 
 ### Does it support custom JDKs or private binaries?
 Yes! You can use `jvm link <path> [name]` to register any custom or private JDK into the manager. It will integrate seamlessly into the dynamic menus and CLI routing.
@@ -379,6 +398,110 @@ DiamTek JVM provides two distinct maintenance commands designed for different pu
   ```cmd
   jvm clear
   ```
+
+<a id="what-is-jvm-doctor-and-how-does-it-diagnose-system-conflicts"></a>
+### What is `jvm doctor` and how does it diagnose system conflicts?
+`jvm doctor` is an automated, all-in-one system diagnostic audit command. It performs a comprehensive 7-point health check to detect configuration errors, corrupted directory junctions, and environment shadowing before they cause build failures:
+
+```cmd
+jvm doctor
+```
+
+It analyzes:
+1. **Storage Root Accessibility:** Verifies that `%LOCALAPPDATA%\DiamTek\JVM` exists and is writable.
+2. **Architecture Mode & Junction Integrity:** Checks if Symlink Mode is active and validates that `%LOCALAPPDATA%\DiamTek\JVM\current` points to a valid JDK directory containing `bin\java.exe`.
+3. **Registry Synchronization:** Checks both User (`HKCU\Environment`) and Machine (`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`) registries for `JAVA_HOME`.
+4. **PATH Precedence & Shadowing:** Runs `where.exe java` to detect rogue Oracle `javapath` or `System32\java.exe` shims overriding JVM in your system `PATH`.
+5. **PowerShell Profile Hook:** Checks whether the `# >>> jvm >>>` function wrapper is present in `$PROFILE`.
+6. **CPU Architecture:** Confirms native architecture matches (`x64` or `ARM64`).
+7. **Discovered JDK Inventory:** Reports the total number of installed and recognized JDKs.
+
+If any warnings or errors are found, `jvm doctor` returns process exit code `1` and offers actionable remediation steps (e.g. running `jvm clear`). If everything is clean, it returns exit code `0`.
+
+<a id="how-do-i-pin-or-lock-a-java-version-for-my-project-jvm-pin--jvm-local"></a>
+### How do I pin or lock a Java version for my project? (`jvm pin` / `jvm local`)
+You can lock your repository to a specific JDK version using the `jvm pin` (or `jvm local`) command:
+
+```cmd
+:: Lock the current project directory to JDK 21
+jvm pin 21
+
+:: Pin with specific vendor and architecture flags
+jvm pin 21 --vendor adoptium
+jvm pin 17 --legacy
+
+:: Check the current directory's pinned version
+jvm pin
+# Alias: jvm local
+```
+
+Running `jvm pin <version>` writes a standard `.java-version` file directly in your current directory. When any developer runs `jvm` inside that directory, DiamTek JVM reads the file and activates that version locally with True Session Isolation (without modifying the global Windows Registry).
+
+<a id="how-do-i-jump-directly-to-active-tool-folders-in-file-explorer-jvm-open--jvm-home"></a>
+### How do I jump directly to active tool folders in File Explorer? (`jvm open` / `jvm home`)
+Instead of manually navigating through hidden `%LOCALAPPDATA%` folders or deep `Program Files` directories, use `jvm open` to launch Windows File Explorer directly targeting your tools:
+
+```cmd
+:: Open active JDK directory
+jvm open
+
+:: Open specific candidate tool directory
+jvm open maven
+jvm open gradle
+jvm open kotlin
+
+:: Open a specific JDK installation by version
+jvm open 21
+
+:: Open the JVM root storage folder (%LOCALAPPDATA%\DiamTek\JVM)
+jvm open root
+# Alias: jvm home
+```
+
+<a id="are-sdkman-commands-like-sdk-use-supported-jvm-use--jvm-default"></a>
+### Are SDKMAN! commands like `sdk use` supported? (`jvm use` / `jvm default`)
+Yes! For developers transitioning from macOS or Linux who are used to SDKMAN! or nvm command patterns, DiamTek JVM provides 1:1 transparent command aliases:
+
+```cmd
+:: Switch active JDK globally (identical to jvm 21)
+jvm use 21
+
+:: Set default JDK globally (identical to jvm 21)
+jvm default 21
+
+:: Switch locally for current terminal session only (SDKMAN 'sdk use' semantics)
+jvm use 21 --session
+```
+
+Both `jvm use` and `jvm default` support semantic routing (`jvm use latest`, `jvm use lts`) and all flag overrides (`--vendor`, `--symlink`, `--legacy`).
+
+**What is the difference between `jvm use` and `jvm default`?**
+In SDKMAN!, `sdk use` applies strictly to the current shell while `sdk default` alters the global symlink. In DiamTek JVM, standard switches (`jvm 21`, `jvm use 21`, `jvm default 21`) switch the active JDK globally via the Directory Junction to match the Windows `nvm-windows` convention. If you want SDKMAN's session-isolated behavior, pass `--session` (`jvm use 21 --session`).
+
+<a id="what-is-the-powershell-profile-hook-and-how-do-i-manage-it-jvm-hook"></a>
+### What is the PowerShell Profile hook and how do I manage it? (`jvm hook`)
+Because a child process in Windows cannot directly alter its parent shell's environment variables, running `jvm <version>` updates your Windows Registry and Directory Junctions, but would normally require restarting your terminal window for the current session to inherit the changes.
+
+The **PowerShell Profile hook** eliminates this friction. It adds a lightweight, non-invasive wrapper function to your `$PROFILE` that intercepts `jvm` commands:
+1. When you switch versions (`jvm 21`), the engine writes the target environment variables to a temporary session file.
+2. The PowerShell wrapper reads the session file, calls `Set-JvmVar`, and updates `$env:JAVA_HOME` and `$env:Path` **live in memory** inside your current PowerShell session.
+3. This provides instantaneous, seamless runtime updates across all your open PowerShell tabs with zero restarts.
+
+#### Managing the Hook (`jvm hook`)
+You can inspect, install, or remove the wrapper function at any time without touching your global User `PATH`:
+
+```powershell
+# Check hook status across Windows PowerShell and PowerShell 7+ profiles
+jvm hook status
+
+# Re-install or update the hook
+jvm hook install
+# Or simply: jvm hook
+
+# Safely remove the hook from all profiles
+jvm hook remove
+```
+You can also toggle the hook directly from the interactive TUI by navigating to **Settings** (`3`) -> **Option 2** (`PowerShell Profile Hook`).
 
 ---
 

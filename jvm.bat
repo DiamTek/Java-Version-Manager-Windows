@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260912.95"
+set "JVM_BUILD=20260912.96"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -95,6 +95,13 @@ set "CLI_VENDOR="
 set "TARGET_CANDIDATE=java"
 :PARSE_CLI_ARGS
 if "%~1"=="" goto :PARSE_DONE
+if /i "%~1"=="use" ( shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="default" ( shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="pin" ( shift & goto :PARSE_PIN_ARGS )
+if /i "%~1"=="local" ( shift & goto :PARSE_PIN_ARGS )
+if /i "%~1"=="hook" ( shift & goto :PARSE_HOOK_ARGS )
+if /i "%~1"=="exec" ( shift & goto :PARSE_EXEC_ARGS )
+if /i "%~1"=="run" ( shift & goto :PARSE_EXEC_ARGS )
 if /i "%~1"=="java" ( set "TARGET_CANDIDATE=java" & shift & goto :PARSE_CLI_ARGS )
 if /i "%~1"=="--java" ( set "TARGET_CANDIDATE=java" & shift & goto :PARSE_CLI_ARGS )
 if /i "%~1"=="maven" ( set "TARGET_CANDIDATE=maven" & shift & goto :PARSE_CLI_ARGS )
@@ -253,6 +260,21 @@ if /i "%~1"=="list" (
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="doctor" (
+    set "CLI_COMMAND=doctor"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="open" (
+    set "CLI_COMMAND=open"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="home" (
+    set "CLI_COMMAND=open"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="help" (
     set "CLI_COMMAND=help"
     set "SILENT_MODE=1"
@@ -282,6 +304,97 @@ if /i "%~1"=="list" (
     goto :PARSE_CLI_ARGS
 )
 
+:PARSE_HOOK_ARGS
+set "CLI_COMMAND=hook"
+set "SILENT_MODE=1"
+set "SKIP_HEADER=1"
+if /i "%~1"=="install" ( set "CLI_TARGET=install" & shift )
+if /i "%~1"=="setup" ( set "CLI_TARGET=install" & shift )
+if /i "%~1"=="remove" ( set "CLI_TARGET=remove" & shift )
+if /i "%~1"=="uninstall" ( set "CLI_TARGET=remove" & shift )
+if /i "%~1"=="status" ( set "CLI_TARGET=status" & shift )
+if /i "%~1"=="check" ( set "CLI_TARGET=status" & shift )
+goto :PARSE_DONE
+
+:PARSE_PIN_ARGS
+set "PIN_VAL=%~1"
+if not defined PIN_VAL (
+    if exist "%INVOCATION_DIR%\.java-version" (
+        echo.
+        echo %cBLUE%[  INFO  ]%cRESET% Current pinned Java version in this directory:
+        echo ============================================================
+        type "%INVOCATION_DIR%\.java-version"
+        echo.
+        echo ============================================================
+        if defined ORIG_CP chcp !ORIG_CP! >nul
+        exit /b 0
+    ) else (
+        echo.
+        echo %cYELLOW%[ WARNING]%cRESET% No .java-version file exists in this directory.
+        echo             Usage: jvm pin ^<version^> [flags]
+        echo             Example: jvm pin 21
+        if defined ORIG_CP chcp !ORIG_CP! >nul
+        exit /b 1
+    )
+)
+
+set "PIN_CONTENT="
+:COLLECT_PIN_LOOP
+if "%~1"=="" goto :DO_PIN_WRITE
+if not defined PIN_CONTENT (
+    set "PIN_CONTENT=%~1"
+) else (
+    set "PIN_CONTENT=!PIN_CONTENT! %~1"
+)
+shift
+goto :COLLECT_PIN_LOOP
+
+:DO_PIN_WRITE
+>"%INVOCATION_DIR%\.java-version" echo !PIN_CONTENT!
+echo.
+echo %cGREEN%[   OK   ]%cRESET% Successfully pinned Java version '!PIN_CONTENT!' to:
+echo            %INVOCATION_DIR%\.java-version
+if defined ORIG_CP chcp !ORIG_CP! >nul
+exit /b 0
+
+:PARSE_EXEC_ARGS
+set "EXEC_TARGET=%~1"
+if not defined EXEC_TARGET (
+    echo.
+    >&2 echo %cRED%[ ERROR  ]%cRESET% Missing target version for exec.
+    >&2 echo            Usage: jvm exec ^<version^> [--] ^<command^> [args...]
+    >&2 echo            Example: jvm exec 21 -- java -version
+    if defined ORIG_CP chcp !ORIG_CP! >nul
+    exit /b 1
+)
+shift
+if "%~1"=="--" shift
+if "%~1"=="" (
+    echo.
+    >&2 echo %cRED%[ ERROR  ]%cRESET% No command specified to execute.
+    >&2 echo            Usage: jvm exec ^<version^> [--] ^<command^> [args...]
+    >&2 echo            Example: jvm exec 21 -- java -version
+    if defined ORIG_CP chcp !ORIG_CP! >nul
+    exit /b 1
+)
+
+set "EXEC_CMD="
+:COLLECT_EXEC_LOOP
+if "%~1"=="" goto :DO_EXEC_RUN
+if not defined EXEC_CMD (
+    set "EXEC_CMD=%1"
+) else (
+    set "EXEC_CMD=!EXEC_CMD! %1"
+)
+shift
+goto :COLLECT_EXEC_LOOP
+
+:DO_EXEC_RUN
+set "CLI_COMMAND=exec"
+set "SILENT_MODE=1"
+set "SKIP_HEADER=1"
+goto :MAIN_LOOP
+
 :PARSE_DONE
 
 set "WANT_UTF8=0"
@@ -294,6 +407,9 @@ if /i "%CLI_COMMAND%"=="current" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="status" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="clean" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="which" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="doctor" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="open" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="hook" set "WANT_UTF8=1"
 if "%WANT_UTF8%"=="1" chcp 65001 >nul
 if "%SILENT_MODE%"=="0" title Java Version Manager
 
@@ -315,6 +431,10 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="status" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="clean" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="which" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="doctor" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="open" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="exec" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="hook" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="self-update" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="self-uninstall" set "SKIP_HEADER=1"
@@ -356,6 +476,9 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="status" goto :SKIP_ADMIN_CHECK
     if /i "%CLI_COMMAND%"=="clean" goto :SKIP_ADMIN_CHECK
     if /i "%CLI_COMMAND%"=="which" goto :SKIP_ADMIN_CHECK
+    if /i "%CLI_COMMAND%"=="doctor" goto :SKIP_ADMIN_CHECK
+    if /i "%CLI_COMMAND%"=="open" goto :SKIP_ADMIN_CHECK
+    if /i "%CLI_COMMAND%"=="exec" goto :SKIP_ADMIN_CHECK
 )
 rem By default, run everything inline without Admin. We only elevate for specific file/registry operations.
 goto :SKIP_ADMIN_CHECK
@@ -385,6 +508,7 @@ rem If CURRENT_JDK_PATH is not set, the user chose the Exit option (unless purel
 if not defined CURRENT_JDK_PATH (
     if not "!FOUND_SDKMANRC!"=="1" (
         if defined ORIG_CP chcp !ORIG_CP! >nul
+        if defined CMD_EXIT_CODE exit /B !CMD_EXIT_CODE!
         exit /B 0
     )
 )
@@ -509,15 +633,20 @@ java -version >nul 2>&1
 if errorlevel 1 (
     echo %cBLUE%[  INFO  ]%cRESET% Java may not work until you restart command prompt.
 ) else (
-    echo %cGREEN%[   OK   ]%cRESET% Java is working correctly!
+    echo %cGREEN%[   OK   ]%cRESET% Java is working correctly.
 )
 echo.
 if "%SESSION_MODE%"=="1" (
-    echo %cBLUE%[  INFO  ]%cRESET% Session PATH has been updated with %%JAVA_HOME%%\bin
+    echo %cBLUE%[  INFO  ]%cRESET% Session PATH has been updated with %%JAVA_HOME%%\bin.
     echo            This change is temporary for this terminal only.
 ) else (
-    echo %cBLUE%[  INFO  ]%cRESET% System PATH has been updated with %%JAVA_HOME%%\bin
-    echo            Open a new command prompt for changes to take full effect globally.
+    if /i "!SWITCH_MODE!"=="DIRECT" (
+        echo %cBLUE%[  INFO  ]%cRESET% System PATH has been updated in the Machine registry.
+        echo            Open a new terminal for non-hooked applications to refresh environment.
+    ) else (
+        echo %cBLUE%[  INFO  ]%cRESET% Active JDK switched via Directory Junction.
+        echo            Changes take effect immediately across all terminals.
+    )
 )
 echo.
 echo ============================================================
@@ -767,6 +896,37 @@ if defined CLI_COMMAND (
     )
     if /i "!CLI_COMMAND!"=="which" (
         call :WhichBinary
+        set "CMD_EXIT_CODE=!errorlevel!"
+        goto :eof
+    )
+    if /i "!CLI_COMMAND!"=="doctor" (
+        call :DoctorDiagnostics
+        set "CMD_EXIT_CODE=!errorlevel!"
+        goto :eof
+    )
+    if /i "!CLI_COMMAND!"=="open" (
+        call :OpenFolderInExplorer
+        set "CMD_EXIT_CODE=!errorlevel!"
+        goto :eof
+    )
+    if /i "!CLI_COMMAND!"=="exec" (
+        call :ExecuteEphemeralCommand
+        set "CMD_EXIT_CODE=!errorlevel!"
+        goto :eof
+    )
+    if /i "!CLI_COMMAND!"=="hook" (
+        if /i "!CLI_TARGET!"=="remove" (
+            call :RemovePowerShellHook
+        ) else if /i "!CLI_TARGET!"=="uninstall" (
+            call :RemovePowerShellHook
+        ) else if /i "!CLI_TARGET!"=="status" (
+            call :CheckPowerShellHookStatus
+        ) else if /i "!CLI_TARGET!"=="check" (
+            call :CheckPowerShellHookStatus
+        ) else (
+            call :InstallPowerShellHook
+        )
+        set "CMD_EXIT_CODE=!errorlevel!"
         goto :eof
     )
     if /i "!CLI_COMMAND!"=="install" (
@@ -1813,20 +1973,20 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     
     powershell -NoProfile -Command "Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-Command', '$p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); $purges = @(''C:\Program Files\Common Files\Oracle\Java\javapath'', ''C:\Program Files (x86)\Common Files\Oracle\Java\javapath'', ''C:\ProgramData\Oracle\Java\javapath'', ''%LOCALAPPDATA%\DiamTek\JVM\current\bin'', ''!SAFE_JDK_PATH!\bin''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd(''\'') -and $_.TrimEnd(''\'') -ne ''%%JAVA_HOME%%\bin'' }) -join '';''; $finalPath = ''%%JAVA_HOME%%\bin;'' + $clean; [Environment]::SetEnvironmentVariable(''JAVA_HOME'', ''!SAFE_JDK_PATH!'', ''Machine''); [Environment]::SetEnvironmentVariable(''Path'', $finalPath, ''Machine'') }')" 2>nul
     
-    echo %cGREEN%[   OK   ]%cRESET% JAVA_HOME and SYSTEM PATH updated successfully via UAC
+    echo %cGREEN%[   OK   ]%cRESET% JAVA_HOME and SYSTEM PATH updated successfully via UAC.
 ) else (
     echo %cBLUE%[ ACTION ]%cRESET% Updating USER PATH...
     
     powershell -NoProfile -Command "$p = [Environment]::GetEnvironmentVariable('Path', 'User'); $purges = @('C:\Program Files\Common Files\Oracle\Java\javapath', 'C:\Program Files (x86)\Common Files\Oracle\Java\javapath', 'C:\ProgramData\Oracle\Java\javapath', '%LOCALAPPDATA%\DiamTek\JVM\current\bin', '!SAFE_JDK_PATH!\bin'); if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') -and $_.TrimEnd('\') -ne '%%JAVA_HOME%%\bin' }) -join ';'; $finalPath = '%%JAVA_HOME%%\bin;' + $clean; [Environment]::SetEnvironmentVariable('Path', $finalPath, 'User') } else { [Environment]::SetEnvironmentVariable('Path', '%%JAVA_HOME%%\bin', 'User') }"
     if errorlevel 1 (
-        echo %cRED%[ ERROR  ]%cRESET% Failed to update USER PATH!
+        echo %cRED%[ ERROR  ]%cRESET% Failed to update USER PATH.
     ) else (
-        echo %cGREEN%[   OK   ]%cRESET% USER PATH updated successfully
+        echo %cGREEN%[   OK   ]%cRESET% USER PATH updated successfully.
     )
 )
 
 echo.
-echo %cGREEN%[   OK   ]%cRESET% PATH update complete!
+echo %cGREEN%[   OK   ]%cRESET% PATH update complete.
 endlocal
 goto :eof
 
@@ -2603,36 +2763,46 @@ if defined USER_PATH (
     )
 )
 
+set "HOOK_IN_PROFILE=0"
+for /f "delims=" %%P in ('powershell -NoProfile -Command "$userProfile = [Environment]::GetFolderPath('UserProfile'); $myDocs = [Environment]::GetFolderPath('MyDocuments'); $docPaths = @($myDocs, (Join-Path $userProfile 'Documents')) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique; $p = @($PROFILE); foreach ($doc in $docPaths) { $p += (Join-Path $doc 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'); $p += (Join-Path $doc 'PowerShell\Microsoft.PowerShell_profile.ps1') }; foreach ($f in ($p | Select-Object -Unique)) { if ($f -and (Test-Path $f) -and (Select-String -Path $f -Pattern '# >>> jvm >>>' -Quiet)) { Write-Output 'FOUND'; break } }" 2^>nul') do (
+    if "%%P"=="FOUND" set "HOOK_IN_PROFILE=1"
+)
+
 echo Please choose an option:
 echo.
 
 if "!IN_PATH!"=="1" (
     echo 1. Remove JVM from User PATH ^(Global Command^) %cGREEN%[INSTALLED]%cRESET%
 ) else (
-    echo 1. Install JVM to User PATH ^(Global Command^)
+    echo 1. Install JVM to User PATH ^(Global Command^) %cYELLOW%[NOT INSTALLED]%cRESET%
+)
+if "!HOOK_IN_PROFILE!"=="1" (
+    echo 2. Remove PowerShell Profile Hook %cGREEN%[INSTALLED]%cRESET%
+) else (
+    echo 2. Install PowerShell Profile Hook %cYELLOW%[NOT INSTALLED]%cRESET%
 )
 if /i "!SWITCH_MODE!"=="DIRECT" (
-    echo 2. Architecture: %cRED%[Registry Mode]%cRESET% ^(UAC Required^) - Click to use Symlink
+    echo 3. Architecture: %cRED%[Registry Mode]%cRESET% ^(UAC Required^) - Click to use Symlink
 ) else (
-    echo 2. Architecture: %cGREEN%[Symlink Mode]%cRESET% ^(UAC Free^) - Click to use Registry
+    echo 3. Architecture: %cGREEN%[Symlink Mode]%cRESET% ^(UAC Free^) - Click to use Registry
 )
-echo 3. About JVM ^& Updates
-echo 4. %cRED%Uninstall JVM Completely%cRESET% ^(Full System Wipe^)
-echo 5. Back to Main Menu
+echo 4. About JVM ^& Updates
+echo 5. %cRED%Uninstall JVM Completely%cRESET% ^(Full System Wipe^)
+echo 6. Back to Main Menu
 echo.
 
-choice /C 12345 /N /M "Enter your choice (1-5): "
+choice /C 123456 /N /M "Enter your choice (1-6): "
 set "sub_choice=!errorlevel!"
 
-if !sub_choice!==5 goto :eof
-if !sub_choice!==4 (
+if !sub_choice!==6 goto :eof
+if !sub_choice!==5 (
     goto :UninstallJVM_Complete
 )
-if !sub_choice!==3 (
+if !sub_choice!==4 (
     call :AboutMenu
     goto :SettingsMenu
 )
-if !sub_choice!==2 (
+if !sub_choice!==3 (
     if /i "!SWITCH_MODE!"=="DIRECT" (
         set "SWITCH_MODE=SYMLINK"
         echo.
@@ -2662,6 +2832,14 @@ if !sub_choice!==2 (
     echo.
     echo %cGREEN%[   OK   ]%cRESET% Switched mode to !SWITCH_MODE!.
     timeout /t 2 >nul
+    goto SettingsMenu
+)
+if !sub_choice!==2 (
+    if "!HOOK_IN_PROFILE!"=="1" (
+        call :RemovePowerShellHook
+    ) else (
+        call :InstallPowerShellHook
+    )
     goto SettingsMenu
 )
 if !sub_choice!==1 (
@@ -2695,20 +2873,17 @@ rem Offload string manipulation to PowerShell to prevent delayed expansion corru
 set "SAFE_TARGET=!SCRIPT_DIR!"
 powershell -NoProfile -Command "$p = (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'Path').Path; if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $_ -ne $env:SAFE_TARGET }) -join ';'; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $clean -Type ExpandString }"
 
-rem Clean PowerShell Profile hook
-powershell -NoProfile -Command "$profiles = @($PROFILE, (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'), (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1')) | Select-Object -Unique; $utf8 = New-Object System.Text.UTF8Encoding($true); foreach ($prof in $profiles) { if ($prof -and (Test-Path -LiteralPath $prof)) { $c = [System.IO.File]::ReadAllText($prof, [System.Text.Encoding]::UTF8); $m = [Regex]::Match($c, '(?s)# >>> jvm >>>.*?# <<< jvm <<<'); if ($m.Success) { $c = ($c.Substring(0, $m.Index) + $c.Substring($m.Index + $m.Length)).Trim(); if ([string]::IsNullOrWhiteSpace($c)) { Remove-Item -LiteralPath $prof -Force } else { [System.IO.File]::WriteAllText($prof, $c, $utf8) } } } }"
-
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
 ) else (
     powershell -NoProfile -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Env { [DllImport(\"user32.dll\", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult); }'; $res = [IntPtr]::Zero; [Env]::SendMessageTimeout([IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res) | Out-Null"
-    echo %cGREEN%[   OK   ]%cRESET% User PATH and PowerShell profile hook successfully updated.
+    echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated.
 )
 
 echo.
 echo ============================================================
-echo %cGREEN%[   OK   ]%cRESET% Removal Complete!
-echo %cBLUE%[  INFO  ]%cRESET% You will no longer be able to launch 'jvm' globally.
+echo %cGREEN%[   OK   ]%cRESET% Removal Complete.
+echo %cBLUE%[  INFO  ]%cRESET% You will no longer be able to launch 'jvm' globally via PATH.
 echo ============================================================
 echo.
 echo Press any key to return...
@@ -2717,7 +2892,7 @@ goto :eof
 
 
 rem ============================================================
-rem GLOBAL COMMAND INSTALLER (Native & Safe via Temp PS1)
+rem GLOBAL COMMAND INSTALLER
 rem ============================================================
 :InstallGlobalCommand
 rem cls
@@ -2743,8 +2918,8 @@ if defined USER_PATH (
 
 if "!ALREADY_INSTALLED!"=="1" (
     echo.
-    echo %cGREEN%[   OK   ]%cRESET% The Java Version Manager is already installed in your system PATH!
-    echo              You can run 'jvm' from any terminal.
+    echo %cGREEN%[   OK   ]%cRESET% The Java Version Manager is already in your User PATH:
+    echo              !SCRIPT_DIR!
     echo.
     echo Press any key to return...
     pause >nul
@@ -2769,9 +2944,24 @@ if errorlevel 1 (
     echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated and broadcasted to OS.
 )
 
-rem Install/update PowerShell profile hooks reliably via UTF-8 PowerShell script
+echo.
+echo ============================================================
+echo %cGREEN%[   OK   ]%cRESET% Installation Complete.
+echo %cBLUE%[  INFO  ]%cRESET% You can now type 'jvm' from any new command prompt or terminal.
+echo ============================================================
+echo.
+echo Press any key to return...
+pause >nul
+goto :eof
+
+rem ============================================================
+rem POWERSHELL PROFILE HOOK INSTALLER
+rem ============================================================
+:InstallPowerShellHook
+echo %cBLUE%[ ACTION ]%cRESET% Configuring JVM wrapper function in PowerShell profiles...
+
 set "SAFE_TARGET=!SCRIPT_DIR!"
-set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
+set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
 (
     echo $targetBat = Join-Path $env:SAFE_TARGET 'jvm.bat'
     echo $hook = @'
@@ -2832,11 +3022,14 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
     echo(
     echo $hook = $hook.Replace^('__FALLBACK_BAT__', $targetBat^)
     echo $userProfile = [Environment]::GetFolderPath^('UserProfile'^)
-    echo $profiles = @^(
-    echo     $PROFILE,
-    echo     ^(Join-Path $userProfile 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'^),
-    echo     ^(Join-Path $userProfile 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1'^)
-    echo ^) ^| Select-Object -Unique
+    echo $myDocs = [Environment]::GetFolderPath^('MyDocuments'^)
+    echo $docPaths = @^($myDocs, ^(Join-Path $userProfile 'Documents'^)^) ^| Where-Object { $_ -and ^(Test-Path $_^) } ^| Select-Object -Unique
+    echo $profiles = @^($PROFILE^)
+    echo foreach ^($doc in $docPaths^) {
+    echo     $profiles += ^(Join-Path $doc 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'^)
+    echo     $profiles += ^(Join-Path $doc 'PowerShell\Microsoft.PowerShell_profile.ps1'^)
+    echo }
+    echo $profiles = $profiles ^| Where-Object { $_ } ^| Select-Object -Unique
     echo $utf8 = New-Object System.Text.UTF8Encoding^($true^)
     echo foreach ^($p in $profiles^) {
     echo     if ^([string]::IsNullOrWhiteSpace^($p^)^) { continue }
@@ -2852,6 +3045,8 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_!RANDOM!.ps1"
     echo         $profContent = if ^([string]::IsNullOrWhiteSpace^($profContent^)^) { $hook } else { "$profContent`r`n`r`n$hook" }
     echo     }
     echo     [System.IO.File]::WriteAllText^($p, $profContent, $utf8^)
+    echo     $esc = [char]27
+    echo     Write-Host "$esc[92m[   OK   ]$esc[0m Hook configured in: $p"
     echo }
 ) > "!INSTALL_PS1!"
 
@@ -2859,14 +3054,103 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!"
 if exist "!INSTALL_PS1!" del "!INSTALL_PS1!" >nul 2>&1
 
 echo.
-echo ============================================================
-echo %cGREEN%[   OK   ]%cRESET% Installation Complete!
-echo %cBLUE%[  INFO  ]%cRESET% You can now type 'jvm' from any new command prompt or the Windows Run dialog.
-echo ============================================================
+echo %cGREEN%[   OK   ]%cRESET% PowerShell profile hook successfully configured.
+echo %cBLUE%[  INFO  ]%cRESET% Environment variables and PATH will now sync seamlessly across all PowerShell tabs.
+if "!CLI_COMMAND!"=="" (
+    echo.
+    echo Press any key to return...
+    pause >nul
+)
+exit /b 0
+
+rem ============================================================
+rem POWERSHELL PROFILE HOOK REMOVER
+rem ============================================================
+:RemovePowerShellHook
+echo %cBLUE%[ ACTION ]%cRESET% Removing JVM wrapper function from PowerShell profiles...
+
+set "REMOVE_PS1=%TEMP%\jvm_remove_hook_!RANDOM!.ps1"
+(
+    echo $userProfile = [Environment]::GetFolderPath^('UserProfile'^)
+    echo $myDocs = [Environment]::GetFolderPath^('MyDocuments'^)
+    echo $docPaths = @^($myDocs, ^(Join-Path $userProfile 'Documents'^)^) ^| Where-Object { $_ -and ^(Test-Path $_^) } ^| Select-Object -Unique
+    echo $profiles = @^($PROFILE^)
+    echo foreach ^($doc in $docPaths^) {
+    echo     $profiles += ^(Join-Path $doc 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'^)
+    echo     $profiles += ^(Join-Path $doc 'PowerShell\Microsoft.PowerShell_profile.ps1'^)
+    echo }
+    echo $profiles = $profiles ^| Where-Object { $_ } ^| Select-Object -Unique
+    echo $utf8 = New-Object System.Text.UTF8Encoding^($true^)
+    echo $esc = [char]27
+    echo foreach ^($prof in $profiles^) {
+    echo     if ^($prof -and ^(Test-Path -LiteralPath $prof^)^) {
+    echo         $c = [System.IO.File]::ReadAllText^($prof, [System.Text.Encoding]::UTF8^)
+    echo         $m = [Regex]::Match^($c, '^(?s^)# ^>^>^> jvm ^>^>^>.*?# ^<^<^< jvm ^<^<^<'^)
+    echo         if ^($m.Success^) {
+    echo             $c = ^($c.Substring^(0, $m.Index^) + $c.Substring^($m.Index + $m.Length^)^).Trim^(^)
+    echo             if ^([string]::IsNullOrWhiteSpace^($c^)^) {
+    echo                 Remove-Item -LiteralPath $prof -Force
+    echo                 Write-Host "$esc[92m[   OK   ]$esc[0m Cleaned empty profile: $prof"
+    echo             } else {
+    echo                 [System.IO.File]::WriteAllText^($prof, $c, $utf8^)
+    echo                 Write-Host "$esc[92m[   OK   ]$esc[0m Removed hook from: $prof"
+    echo             }
+    echo         }
+    echo     }
+    echo }
+) > "!REMOVE_PS1!"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "!REMOVE_PS1!"
+if exist "!REMOVE_PS1!" del "!REMOVE_PS1!" >nul 2>&1
+
 echo.
-echo Press any key to return...
-pause >nul
-goto :eof
+echo %cGREEN%[   OK   ]%cRESET% PowerShell profile hook successfully removed.
+if "!CLI_COMMAND!"=="" (
+    echo.
+    echo Press any key to return...
+    pause >nul
+)
+exit /b 0
+
+rem ============================================================
+rem POWERSHELL PROFILE HOOK STATUS CHECKER
+rem ============================================================
+:CheckPowerShellHookStatus
+echo %cBLUE%[ ACTION ]%cRESET% Checking JVM PowerShell Profile Hook status...
+echo ============================================================
+
+set "STATUS_PS1=%TEMP%\jvm_status_hook_!RANDOM!.ps1"
+(
+    echo $userProfile = [Environment]::GetFolderPath^('UserProfile'^)
+    echo $myDocs = [Environment]::GetFolderPath^('MyDocuments'^)
+    echo $docPaths = @^($myDocs, ^(Join-Path $userProfile 'Documents'^)^) ^| Where-Object { $_ -and ^(Test-Path $_^) } ^| Select-Object -Unique
+    echo $profiles = @^($PROFILE^)
+    echo foreach ^($doc in $docPaths^) {
+    echo     $profiles += ^(Join-Path $doc 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'^)
+    echo     $profiles += ^(Join-Path $doc 'PowerShell\Microsoft.PowerShell_profile.ps1'^)
+    echo }
+    echo $profiles = $profiles ^| Where-Object { $_ } ^| Select-Object -Unique
+    echo $foundCount = 0
+    echo $esc = [char]27
+    echo foreach ^($prof in $profiles^) {
+    echo     if ^($prof -and ^(Test-Path -LiteralPath $prof^)^) {
+    echo         if ^(Select-String -Path $prof -Pattern '# ^>^>^> jvm ^>^>^>' -Quiet^) {
+    echo             Write-Host "$esc[92m[   OK   ]$esc[0m Active in: $prof"
+    echo             $foundCount++
+    echo         } else {
+    echo             Write-Host "$esc[96m[  INFO  ]$esc[0m Profile exists ^(hook not present^): $prof"
+    echo         }
+    echo     } else {
+    echo         Write-Host "$esc[96m[  INFO  ]$esc[0m Profile file not yet created: $prof"
+    echo     }
+    echo }
+) > "!STATUS_PS1!"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "!STATUS_PS1!"
+if exist "!STATUS_PS1!" del "!STATUS_PS1!" >nul 2>&1
+
+echo ============================================================
+exit /b 0
 
 rem ============================================================
 rem COMPLETE UNINSTALLER (Calls uninstall.ps1)
@@ -3059,6 +3343,10 @@ echo Management Commands:
 echo   jvm list                       List all installed JDKs and Ecosystem tools
 echo   jvm current, status            Display active JDK, mode, and ecosystem status
 echo   jvm which [candidate]          Display absolute binary path to active java/tool
+echo   jvm use, default ^<version^>     Switch active JDK ^(SDKMAN/nvm alias^)
+echo   jvm pin, local [version]       Lock or display directory-level .java-version
+echo   jvm exec, run ^<ver^> [--] ^<cmd^> Run command in ephemeral isolated JDK subshell
+echo   jvm open, home [candidate]     Open active candidate or root in File Explorer
 echo   jvm clean                      Purge temporary download caches and extraction artifacts
 echo   jvm clear                      Purge JAVA_HOME and remove Java from PATH
 echo   jvm env                        Display current environment variables
@@ -3069,6 +3357,8 @@ echo   jvm link ^<path^> [name]         Register an external JDK directory
 echo   jvm unlink ^<name^>              Unregister an external JDK directory
 echo.
 echo System ^& Maintenance Commands:
+echo   jvm doctor                     Deep diagnostic health audit and conflict scanner
+echo   jvm hook [install^|remove]      Manage PowerShell profile auto-sync wrapper hook
 echo   jvm version, -v                Display version, build, and check for updates
 echo   jvm self-update                Automatically download and install the latest JVM update
 echo   jvm self-uninstall             Launch the deep uninstaller ^(full system wipe^)
@@ -3261,6 +3551,219 @@ if exist "!CAND_ROOT!" (
 )
 >&2 echo %cRED%[ ERROR  ]%cRESET% Candidate '!WHICH_TARGET!' is not installed or active.
 exit /b 1
+
+rem ============================================================
+rem DOCTOR - SYSTEM HEALTH AUDIT & DIAGNOSTICS
+rem ============================================================
+:DoctorDiagnostics
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Running DiamTek JVM System Health Audit...
+echo ============================================================
+
+set "DOC_ISSUES=0"
+
+rem 1. Storage Root & Permissions
+set "DOC_APPDIR=%LOCALAPPDATA%\DiamTek\JVM"
+if exist "!DOC_APPDIR!" (
+    set "DOC_TESTFILE=!DOC_APPDIR!\.health_check_!RANDOM!"
+    copy /y nul "!DOC_TESTFILE!" >nul 2>&1
+    if exist "!DOC_TESTFILE!" (
+        del "!DOC_TESTFILE!" >nul 2>&1
+        echo %cGREEN%[   OK   ]%cRESET% Storage Root:        !DOC_APPDIR! ^(Writable^)
+    ) else (
+        echo %cRED%[ ERROR  ]%cRESET% Storage Root:        !DOC_APPDIR! ^(Read-Only / Permission Denied^)
+        set /a DOC_ISSUES+=1
+    )
+) else (
+    echo %cYELLOW%[ WARNING]%cRESET% Storage Root:        !DOC_APPDIR! ^(Missing - run install.ps1^)
+    set /a DOC_ISSUES+=1
+)
+
+rem 2. Mode & Junction Health
+if /i "!SWITCH_MODE!"=="DIRECT" (
+    echo %cBLUE%[  INFO  ]%cRESET% Architecture Mode:   [Registry Mode] ^(UAC Required for switches^)
+) else (
+    echo %cGREEN%[   OK   ]%cRESET% Architecture Mode:   [Symlink Mode] ^(User Junction, UAC-Free^)
+    set "DOC_JUNC=%LOCALAPPDATA%\DiamTek\JVM\current"
+    if exist "!DOC_JUNC!" (
+        if exist "!DOC_JUNC!\bin\java.exe" (
+            echo %cGREEN%[   OK   ]%cRESET% Directory Junction:  !DOC_JUNC! -^> !RESOLVED_JAVA_HOME!
+        ) else (
+            echo %cRED%[ ERROR  ]%cRESET% Directory Junction:  !DOC_JUNC! is broken ^(target missing java.exe^)
+            set /a DOC_ISSUES+=1
+        )
+    ) else (
+        echo %cYELLOW%[ WARNING]%cRESET% Directory Junction:  !DOC_JUNC! not initialized ^(switch with 'jvm ^<ver^>'^)
+        set /a DOC_ISSUES+=1
+    )
+)
+
+rem 3. JAVA_HOME Configuration & Sync
+set "HKCU_JH="
+for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "HKCU_JH=%%B"
+set "HKLM_JH="
+for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME 2^>nul') do set "HKLM_JH=%%B"
+
+if defined HKCU_JH (
+    echo %cGREEN%[   OK   ]%cRESET% User JAVA_HOME:      !HKCU_JH!
+) else if defined HKLM_JH (
+    echo %cBLUE%[  INFO  ]%cRESET% Machine JAVA_HOME:   !HKLM_JH!
+) else (
+    echo %cYELLOW%[ WARNING]%cRESET% JAVA_HOME:           Not set in User or Machine registry
+    set /a DOC_ISSUES+=1
+)
+
+rem 4. PATH Precedence & Shadowing Check
+set "FIRST_JAVA="
+set "SHADOW_FOUND=0"
+for /f "delims=" %%A in ('where.exe java 2^>nul') do (
+    if not defined FIRST_JAVA (
+        set "FIRST_JAVA=%%A"
+        echo %%A | findstr /i "Common.Files\\Oracle\\Java\\javapath" >nul 2>&1 && set "SHADOW_FOUND=1"
+        echo %%A | findstr /i "ProgramData\\Oracle\\Java\\javapath" >nul 2>&1 && set "SHADOW_FOUND=1"
+        echo %%A | findstr /i "System32\\java.exe" >nul 2>&1 && set "SHADOW_FOUND=1"
+    )
+)
+
+if not defined FIRST_JAVA (
+    echo %cRED%[ ERROR  ]%cRESET% Active Binary:       'java.exe' not found in PATH
+    set /a DOC_ISSUES+=1
+) else if "!SHADOW_FOUND!"=="1" (
+    echo %cYELLOW%[ WARNING]%cRESET% PATH Shadowing:      Rogue path found before JVM: !FIRST_JAVA!
+    echo                        ^(Run 'jvm clear' to purge legacy Oracle javapath entries^)
+    set /a DOC_ISSUES+=1
+) else (
+    echo %cGREEN%[   OK   ]%cRESET% PATH Precedence:     !FIRST_JAVA! ^(Clean^)
+)
+
+rem 5. PowerShell Profile Hook Check
+set "DOC_HOOK_OK=0"
+for /f "delims=" %%P in ('powershell -NoProfile -Command "$userProfile = [Environment]::GetFolderPath('UserProfile'); $myDocs = [Environment]::GetFolderPath('MyDocuments'); $docPaths = @($myDocs, (Join-Path $userProfile 'Documents')) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique; $p = @($PROFILE); foreach ($doc in $docPaths) { $p += (Join-Path $doc 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'); $p += (Join-Path $doc 'PowerShell\Microsoft.PowerShell_profile.ps1') }; foreach ($f in ($p | Select-Object -Unique)) { if ($f -and (Test-Path $f) -and (Select-String -Path $f -Pattern '# >>> jvm >>>' -Quiet)) { Write-Output 'FOUND'; break } }" 2^>nul') do (
+    if "%%P"=="FOUND" set "DOC_HOOK_OK=1"
+)
+if "!DOC_HOOK_OK!"=="1" (
+    echo %cGREEN%[   OK   ]%cRESET% PowerShell Hook:     Active in $PROFILE
+) else (
+    echo %cBLUE%[  INFO  ]%cRESET% PowerShell Hook:     Not installed ^(run 'jvm hook' or Settings -^> 2^)
+)
+
+rem 6. Hardware Architecture Match
+echo %cGREEN%[   OK   ]%cRESET% CPU Architecture:    !SYS_ARCH! ^(Native %PROCESSOR_ARCHITECTURE% detected^)
+
+rem 7. Installed JDK Inventory
+echo %cGREEN%[   OK   ]%cRESET% Discovered JDKs:     !JDK_COUNT! installed distributions detected
+
+echo ============================================================
+if !DOC_ISSUES! EQU 0 (
+    echo %cGREEN%[   OK   ]%cRESET% All diagnostic health checks passed. Zero conflicts detected.
+    exit /b 0
+) else (
+    echo %cYELLOW%[ WARNING]%cRESET% Health check complete: !DOC_ISSUES! potential issues or warnings detected.
+    exit /b 1
+)
+
+rem ============================================================
+rem EPHEMERAL ONE-OFF COMMAND EXECUTION
+rem ============================================================
+:ExecuteEphemeralCommand
+set "FOUND_EXEC_JDK="
+if /i "!EXEC_TARGET!"=="latest" (
+    if !LATEST_VER_NUM! GTR 0 set "FOUND_EXEC_JDK=!LATEST_JDK_PATH!"
+) else if /i "!EXEC_TARGET!"=="lts" (
+    if !LATEST_LTS_NUM! GTR 0 (
+        for /l %%k in (1,1,!JDK_COUNT!) do (
+            if "!JDK_MAJOR_%%k!"=="!LATEST_LTS_NUM!" (
+                if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
+            )
+        )
+    )
+)
+
+if not defined FOUND_EXEC_JDK (
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        if "!JDK_MAJOR_%%k!"=="!EXEC_TARGET!" (
+            if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
+        )
+        if /i "!JDK_NAME_%%k!"=="!EXEC_TARGET!" (
+            if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
+        )
+    )
+)
+
+if not defined FOUND_EXEC_JDK (
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        echo !JDK_PATH_%%k! | findstr /i "!EXEC_TARGET!" >nul 2>&1 && (
+            if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
+        )
+    )
+)
+
+if not defined FOUND_EXEC_JDK (
+    echo.
+    >&2 echo %cRED%[ ERROR  ]%cRESET% JDK '!EXEC_TARGET!' not found among installed JDKs.
+    >&2 echo             Run 'jvm list' to view installed versions.
+    exit /b 1
+)
+
+set "JAVA_HOME=!FOUND_EXEC_JDK!"
+set "PATH=!FOUND_EXEC_JDK!\bin;!PATH!"
+
+call !EXEC_CMD!
+set "EXEC_EXIT_CODE=!errorlevel!"
+exit /b !EXEC_EXIT_CODE!
+
+rem ============================================================
+rem OPEN DIRECTORY IN FILE EXPLORER
+rem ============================================================
+:OpenFolderInExplorer
+set "OPEN_PATH="
+if /i "!CLI_TARGET!"=="root" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM"
+if /i "!CLI_TARGET!"=="appdata" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM"
+if /i "!CLI_TARGET!"=="candidates" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates"
+
+if not defined OPEN_PATH (
+    if /i not "!TARGET_CANDIDATE!"=="java" (
+        set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\current"
+        if not exist "!OPEN_PATH!" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
+    ) else if defined CLI_TARGET (
+        if /i "!CLI_TARGET!"=="maven" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\maven\current"
+        if /i "!CLI_TARGET!"=="gradle" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\gradle\current"
+        if /i "!CLI_TARGET!"=="kotlin" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\kotlin\current"
+        if /i "!CLI_TARGET!"=="scala" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\scala\current"
+        if /i "!CLI_TARGET!"=="groovy" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\groovy\current"
+    )
+)
+
+if not defined OPEN_PATH (
+    if defined CLI_TARGET (
+        for /l %%k in (1,1,!JDK_COUNT!) do (
+            if "!JDK_MAJOR_%%k!"=="!CLI_TARGET!" set "OPEN_PATH=!JDK_PATH_%%k!"
+            if /i "!JDK_NAME_%%k!"=="!CLI_TARGET!" set "OPEN_PATH=!JDK_PATH_%%k!"
+        )
+    )
+)
+
+if not defined OPEN_PATH (
+    if defined RESOLVED_JAVA_HOME (
+        set "OPEN_PATH=!RESOLVED_JAVA_HOME!"
+    ) else if defined JAVA_HOME (
+        set "OPEN_PATH=!JAVA_HOME!"
+    ) else if exist "%LOCALAPPDATA%\DiamTek\JVM\current" (
+        set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\current"
+    ) else (
+        set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM"
+    )
+)
+
+if not exist "!OPEN_PATH!" (
+    echo.
+    >&2 echo %cRED%[ ERROR  ]%cRESET% Target path does not exist: !OPEN_PATH!
+    exit /b 1
+)
+
+echo %cBLUE%[ ACTION ]%cRESET% Opening File Explorer: !OPEN_PATH!
+start "" explorer.exe "!OPEN_PATH!"
+exit /b 0
 
 rem ============================================================
 rem JVM Version / About Menu
@@ -3505,7 +4008,11 @@ if /i "!CLI_COMMAND!"=="uninstall" (
 )
 if /i "!CLI_COMMAND!"=="which" (
     call :WhichBinary
-    exit /b 0
+    exit /b !errorlevel!
+)
+if /i "!CLI_COMMAND!"=="open" (
+    call :OpenFolderInExplorer
+    exit /b !errorlevel!
 )
 if /i "!CLI_COMMAND!"=="" (
     if defined CLI_TARGET (

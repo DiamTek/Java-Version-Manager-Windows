@@ -60,6 +60,17 @@ If you prefer not to use the automated PowerShell script and understand the risk
 5. Navigate to **Settings** (`3`) -> **Install Global Command** (`1`).
 6. The script will dynamically inject its current folder into your Windows User PATH.
 7. Restart your terminal and type `jvm`.
+8. *(Optional)* To enable automatic real-time `JAVA_HOME` and `PATH` synchronization across PowerShell tabs without restarting terminal windows, configure the PowerShell wrapper hook:
+   ```cmd
+   jvm hook
+   ```
+   *(Or navigate to **Settings** (`3`) -> **Install PowerShell Profile Hook** (`2`)).*
+
+### Verifying Your Installation (`jvm doctor`)
+Once installed, run the built-in system health auditor to verify that storage roots, directory junction permissions, registry states, and shell hooks are configured properly:
+```cmd
+jvm doctor
+```
 
 ### Local Script Installation (`install.ps1`)
 

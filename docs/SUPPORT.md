@@ -14,7 +14,14 @@ Thank you for using Java Version Manager! We want to ensure you have the best po
 
 ## 🔍 Self-Service Diagnostic Triage
 
-Before opening a support ticket, check this rapid decision tree for the four most common operational scenarios:
+Before opening a support ticket, check this rapid decision tree for the most common operational scenarios:
+
+### 0. "Check my entire system health automatically" (`jvm doctor`)
+- **Action:** Run the automated 7-point health check in any terminal:
+  ```cmd
+  jvm doctor
+  ```
+- **What it does:** Automatically audits `%LOCALAPPDATA%` storage permissions, junction target validity, User/Machine registry synchronization, `where.exe java` PATH precedence, rogue Oracle `javapath` shadowing, and PowerShell `$PROFILE` hooks. If any conflicts exist, `jvm doctor` identifies the exact root cause and outputs direct remediation steps.
 
 ### 1. "I switched versions, but `java -version` didn't change" (PATH Shadowing)
 - **Root Cause:** A rogue installer (e.g. older Oracle JDK MSI, Chocolatey shim, or IDE installer) forcefully injected a hardcoded path ahead of JVM in your system `PATH`.
@@ -75,16 +82,19 @@ Before opening a support ticket, check this rapid decision tree for the four mos
 When opening a support request or asking for assistance on Discord, running these diagnostic commands and attaching their output will accelerate resolution by 10x:
 
 ```powershell
-# 1. Active JVM environment and configuration dashboard:
+# 1. Automated all-in-one system health audit:
+jvm doctor
+
+# 2. Active JVM environment and configuration dashboard:
 jvm current
 
-# 2. Exact executable binary resolved by JVM:
+# 3. Exact executable binary resolved by JVM:
 jvm which
 
-# 3. All java.exe binaries discovered in active PATH order:
+# 4. All java.exe binaries discovered in active PATH order:
 where.exe java
 
-# 4. Environment PATH entries filtered for Java/JVM:
+# 5. Environment PATH entries filtered for Java/JVM:
 ($env:Path -split ';') | Where-Object { $_ -match 'Java|JVM|jdk|Oracle' }
 ```
 

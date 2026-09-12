@@ -44,6 +44,12 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **OS Conflict Handling**| Passive | **Active Phantom-Path Scrubbing** |
 | **Status & Binary Inspection**| `sdk current` (POSIX shell string) | **`jvm current` & `jvm which`** (Full status card + binary resolver) |
 | **Cache & Slate Cleaning**| `sdk flush` (basic temp deletion) | **`jvm clean` & `jvm clear`** (Deep cache purge & registry slate wipe) |
+| **Ephemeral Subshell Runner** | None (must switch shell and restore) | **`jvm exec <ver> [--] <cmd>` / `jvm run`** (zero global changes, accurate exit codes) |
+| **Diagnostic Health Audit** | None | **`jvm doctor`** (7-point deep conflict, junction, & shadowing analysis) |
+| **Project Pinning CLI** | Manual `.sdkmanrc` editing | **`jvm pin [ver]` / `jvm local`** (instant lock writing & display) |
+| **Migration Muscle Memory**| `sdk use` / `sdk default` | **`jvm use` / `jvm default`** (1:1 transparent compatible aliases) |
+| **File Explorer Jump** | Manual path navigation | **`jvm open [candidate]` / `jvm home`** (Instant GUI explorer jump) |
+| **Shell Wrapper Hook** | Manual `source` line in `.bashrc`/`.zshrc` | **`jvm hook`** (Automated install, status, and removal for PS 5.1 & PS 7+) |
 | **Enterprise Proxies** | Manual `http_proxy` env exports | **Native Windows WinINet & Corporate Certificate Store** |
 | **Windows Packaging** | Unofficial / None | **Winget, Scoop, Chocolatey, & Native MSI** |
 | **Enterprise Privileges**| Requires WSL/Bash setup | **Zero-Admin / 0 UAC** (Runs on locked-down corporate laptops) |
@@ -77,14 +83,111 @@ sdk default java 17.0.10-amzn
 ```
 If you forget the vendor suffix or patch release, you are forced to run `sdk list java`, search through hundreds of lines, and copy-paste the exact string.
 
-DiamTek JVM provides **1-Word Shorthand Ergonomics**:
+DiamTek JVM provides **1-Word Shorthand Ergonomics** alongside transparent SDKMAN! aliases:
 ```cmd
-:: DiamTek JVM (Native Windows)
+:: DiamTek JVM (Native Windows shorthand)
 jvm 21
 jvm lts
 jvm latest
+
+:: SDKMAN! / NVM Migration Aliases (supported 1:1)
+jvm use 21
+jvm default 21
+
+:: Session-isolated switch (matching SDKMAN 'sdk use' semantics)
+jvm use 21 --session
 ```
+
+> **Note on `jvm use` vs `jvm default`:** In SDKMAN!, `sdk use` applies strictly to the current shell while `sdk default` changes the global symlink. In DiamTek JVM, standard switches (`jvm 21`, `jvm use 21`, `jvm default 21`) switch the active JDK globally via the Directory Junction to match the Windows `nvm-windows` convention. To get SDKMAN's session-isolated behavior, simply pass `--session` (`jvm use 21 --session`).
+
 JVM automatically inspects your installed versions and routes to the best installed candidate. If you have multiple distributions installed for the same major version (e.g., both Oracle JDK 21 and Eclipse Temurin 21), JVM pauses and displays an interactive prompt asking you to pick your preferred vendor—or you can override it directly via `--vendor` (e.g., `jvm 21 --vendor adoptium`).
+
+---
+
+## 🚀 Ephemeral Subshell Runner vs Manual SDK Toggling (`jvm exec`)
+In SDKMAN!, running a one-off build or test against a different JDK requires switching your current shell (`sdk use java 17...`), executing the build, and then manually switching back (`sdk use java 21...`). If the build crashes or you forget to revert, your shell remains stuck on the wrong Java version.
+
+DiamTek JVM provides native, one-line ephemeral execution:
+```cmd
+:: Runs in an ephemeral child subshell with zero global changes
+jvm exec 17 -- mvn clean test
+# Alias: jvm run 17 mvn clean test
+```
+- **Zero Global Side Effects:** Leaves your active Directory Junction (`current`), global Windows Registry, and other terminal windows completely untouched.
+- **Strict Exit Code Fidelity:** Captures and propagates the child process's exact exit code (`0` or non-zero) back to the calling shell, ensuring CI/CD and automation runners fail accurately when builds break.
+
+---
+
+## 🩺 Proactive Health Audits vs Silent Breakages (`jvm doctor`)
+Windows developers frequently face silent environment breaks caused by rogue MSI installers, broken directory junctions, or mismatched User/Machine registries. SDKMAN! has no diagnostic command to analyze underlying OS health or identify why a tool is malfunctioning.
+
+DiamTek JVM includes `jvm doctor`—an automated 7-point health auditor:
+```cmd
+jvm doctor
+```
+- Audits AppData local storage permissions.
+- Verifies Directory Junction integrity and `bin\java.exe` target reachability.
+- Synchronizes User (`HKCU`) and Machine (`HKLM`) registry states.
+- Scans `where.exe java` for legacy Oracle `javapath` and `System32` shadowing.
+- Verifies PowerShell `$PROFILE` hook status.
+- Returns standard exit code `0` on clean health or `1` on warnings, making it an ideal pre-flight check for enterprise deployment scripts.
+
+---
+
+## 📌 Instant Project Pinning (`jvm pin` / `jvm local`)
+In SDKMAN!, locking a project to a specific runtime requires manually writing or updating a `.sdkmanrc` file by hand.
+
+DiamTek JVM provides dedicated CLI commands for project pinning:
+```cmd
+:: Lock project to JDK 21 (.java-version)
+jvm pin 21
+
+:: Lock with vendor flags
+jvm pin 21 --vendor adoptium
+
+:: Inspect active project pin
+jvm pin
+# Alias: jvm local
+```
+Whenever a developer runs `jvm` inside that directory, JVM automatically reads the `.java-version` file and locks the terminal session to that version without touching the global registry.
+
+---
+
+## 📂 Direct Windows File Explorer Navigation (`jvm open` / `jvm home`)
+Finding where a JDK or build tool is physically stored on disk in Windows usually requires traversing hidden `AppData` directories or system folders.
+
+With DiamTek JVM, you can jump directly to any installed runtime or candidate folder in Windows File Explorer:
+```cmd
+:: Open active JDK directory in File Explorer
+jvm open
+
+:: Open specific tool candidate folder
+jvm open maven
+jvm open gradle
+
+:: Open the JVM storage root
+jvm open root
+# Alias: jvm home
+```
+
+---
+
+## ⚡ Automated Shell Hook Management (`jvm hook` vs POSIX `source`)
+In SDKMAN!, integrating with developer shells requires manually maintaining a `source "$HOME/.sdkman/bin/sdkman-init.sh"` block inside `.bashrc` or `.zshrc`. If that initialization script becomes corrupted, debugging it requires manual text editing.
+
+DiamTek JVM provides dedicated, one-command shell hook lifecycle management:
+```cmd
+:: Install or update the auto-sync wrapper hook in PowerShell profiles
+jvm hook install
+
+:: Check hook status across Windows PowerShell 5.1 and PowerShell 7+
+jvm hook status
+
+:: Cleanly remove the wrapper hook without touching other profile settings
+jvm hook remove
+```
+- **Automated Multi-Shell Discovery:** Automatically detects and manages both Windows PowerShell (5.1) and modern PowerShell Core (7+) profiles across standard and OneDrive-redirected Documents folders.
+- **In-Memory Session Sync:** Whenever you switch JDKs (`jvm 21`), the hook dynamically updates `$env:JAVA_HOME` and `$env:Path` in-memory across the active shell session without restarting your terminal window.
 
 ---
 

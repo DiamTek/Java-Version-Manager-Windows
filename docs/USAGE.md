@@ -17,13 +17,18 @@ This document outlines every command, flag override, and semantic route availabl
 - [Interactive UI Mode](#interactive-ui-mode)
 - [Command Reference Cheat Sheet](#command-reference-cheat-sheet)
 - [Quick-Switching (CLI)](#quick-switching-cli)
+- [Ephemeral Command Execution (jvm exec / jvm run)](#ephemeral-command-execution)
 - [Headless Installations](#headless-installations)
 - [Universal Candidate Engine (Ecosystem Tools)](#universal-candidate-engine-ecosystem-tools)
 - [Updates & Uninstalls](#updates--uninstalls)
 - [Directory-Based Auto-Switching (.java-version & .sdkmanrc)](#directory-based-auto-switching)
+- [Project Version Pinning (jvm pin / jvm local)](#project-version-pinning)
 - [IDE & Build Tool Integration](#ide--build-tool-integration)
 - [Bring Your Own JDK (jvm link)](#bring-your-own-jdk-byo-jdk)
 - [Global Environment Management](#global-environment-management)
+- [Diagnostic Health Audit (jvm doctor)](#diagnostic-health-audit)
+- [Explorer Directory Navigation (jvm open / jvm home)](#explorer-directory-navigation)
+- [PowerShell Profile Hook (jvm hook)](#powershell-profile-hook)
 
 ---
 
@@ -53,12 +58,16 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 |----------------|-------|-------------|
 | `jvm` | Interactive / Session | Launches interactive menu, or auto-switches if `.java-version` / `.sdkmanrc` is present. |
 | `jvm <version>` | Global | Switches to specified JDK version (e.g., `jvm 21`, `jvm 17.0.10`). |
+| `jvm use <version>` | Global | Switches to specified JDK version (SDKMAN/nvm compatible alias). |
+| `jvm default <version>` | Global | Sets default JDK version globally (SDKMAN alias). |
 | `jvm <version> --session` | Session | Switches JDK for the current terminal only without touching the Windows Registry. |
 | `jvm <version> --vendor <name>` | Global | Switches JDK with explicit vendor selection (e.g., `adoptium`, `oracle`, `corretto`). |
 | `jvm <version> --symlink` | Global | Forces switch using Symlink Mode (NTFS Directory Junction, UAC-Free). |
 | `jvm <version> --legacy` | Machine | Forces switch using Registry Mode (writes to `HKLM`, requests UAC elevation). |
 | `jvm latest` | Global | Resolves and switches to the highest installed JDK version on your machine. |
 | `jvm lts` | Global | Resolves and switches to the highest installed LTS version (e.g., 21, 17, 11). |
+| `jvm pin [version]` | Project | Locks or inspects directory-level `.java-version` (`jvm local`). |
+| `jvm exec <ver> [--] <cmd>` | Subshell | Executes command in ephemeral isolated JDK subshell without changing system state (`jvm run`). |
 | `jvm --global` | Global | Forces directory-based auto-switching (`.java-version`) to write globally to registry. |
 | `jvm install` | Interactive | Opens the interactive JDK / tool installation wizard. |
 | `jvm install <ver> [--vendor <name>]` | Machine | Downloads and installs specified JDK (e.g., `jvm install 21 --vendor adoptium`). |
@@ -73,6 +82,9 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm list` | Inspection | Lists all installed JDKs, vendors, paths, and ecosystem build tools. |
 | `jvm current` | Inspection | Displays comprehensive status card: active JDK, switching mode, junction target, and tools (`jvm status`). |
 | `jvm which [candidate]` | Inspection | Prints absolute filesystem path to active `java.exe` or ecosystem binary (`jvm path`). |
+| `jvm doctor` | Diagnostic | Deep system health audit: permissions, junctions, registry sync, PATH shadowing, and hooks. |
+| `jvm hook [install/remove]` | Shell | Manage PowerShell profile auto-sync wrapper hook (status, install, remove). |
+| `jvm open [candidate]` | Navigation | Opens active candidate, JDK, or storage root in Windows File Explorer (`jvm home`). |
 | `jvm clean` | Maintenance | Safely purges temporary download caches and extraction artifacts to reclaim disk space. |
 | `jvm clear` | System | Purges `JAVA_HOME` and cleanly removes JVM directory junctions from PATH. |
 | `jvm link <path> <name>` | Custom | Registers an external or custom JDK (BYO-JDK / GraalVM) into the manager. |
@@ -128,7 +140,49 @@ If you only want to change the Java version for your *current* terminal window (
 ```cmd
 jvm 21 --session
 ```
-*(Note: This feature requires the PowerShell Profile hook to be installed via the Settings menu).*
+*(Note: This feature requires the PowerShell Profile hook to be installed via `jvm hook` or the Settings menu).*
+
+### SDKMAN! & NVM Migration Aliases (`jvm use` / `jvm default`)
+Developers migrating from Unix environments (SDKMAN!, nvm, fnm) can use their existing muscle memory directly without learning new syntax:
+```cmd
+:: Switch active JDK globally (identical to jvm 21)
+jvm use 21
+
+:: Set default JDK globally (identical to jvm 21)
+jvm default 21
+
+:: Switch locally for current terminal session only (SDKMAN 'sdk use' semantics)
+jvm use 21 --session
+```
+
+> **Note on `jvm use` vs `jvm default`:** In SDKMAN!, `sdk use` applies strictly to the current shell while `sdk default` alters the global symlink. In DiamTek JVM, standard switches (`jvm 21`, `jvm use 21`, `jvm default 21`) switch the active JDK globally via the Directory Junction (matching the Windows `nvm-windows` convention). To isolate a switch to the current terminal only, simply pass `--session` (`jvm use 21 --session`).
+
+---
+
+<a id="ephemeral-command-execution"></a>
+## 🚀 Ephemeral Command Execution (`jvm exec` / `jvm run`)
+
+Sometimes you need to run a single build, compile a test class, or invoke a diagnostic utility against a specific JDK **without** modifying your active environment, altering Directory Junctions, or changing the Windows Registry.
+
+DiamTek JVM provides high-speed ephemeral execution via `jvm exec` (or `jvm run`):
+```cmd
+:: Execute a command with JDK 21 in an isolated subshell
+jvm exec 21 -- java -version
+
+:: Double-dash is optional for standard commands
+jvm run 17 mvn clean test
+
+:: Execute build tools against semantic targets
+jvm exec lts -- gradle build
+jvm exec latest -- java -jar target/app.jar
+```
+
+### How Ephemeral Execution Works:
+1. Resolves the requested version (e.g. `21`, `17.0.10`, `latest`, `lts`, or vendor name) from your installed JDK inventory.
+2. Spawns an isolated child subshell with local `JAVA_HOME` pointing directly to the target JDK and prepends its `bin\` folder to the local `PATH`.
+3. Executes your command with 100% of its original arguments intact.
+4. Leaves the active Directory Junction (`%LOCALAPPDATA%\DiamTek\JVM\current`), Windows Registry, and all other terminal windows completely untouched.
+5. Captures and propagates the child process's exact exit code back to the caller (ensuring CI/CD pipelines fail accurately on build errors).
 
 ---
 
@@ -271,6 +325,25 @@ gradle=8.5
 kotlin=1.9.22
 ```
 
+<a id="project-version-pinning"></a>
+### 📌 Project Version Pinning (`jvm pin` / `jvm local`)
+Instead of manually creating and editing `.java-version` files by hand, you can use the `jvm pin` command (or `jvm local`) to lock the required JDK version for your repository or view the current directory lock:
+
+```cmd
+:: Pin Java 21 to the current directory (.java-version)
+jvm pin 21
+
+:: Pin with explicit vendor or architecture flags
+jvm pin 21 --vendor adoptium
+jvm pin 17 --legacy
+
+:: Inspect the current directory's pinned version
+jvm pin
+# Alias: jvm local
+```
+
+When you or a teammate runs `jvm` inside that directory, JVM immediately activates the pinned version with True Session Isolation.
+
 ---
 
 <a id="ide--build-tool-integration"></a>
@@ -393,6 +466,46 @@ where.exe java
 ```
 *(If an old Oracle `javapath` appears above `%LOCALAPPDATA%\DiamTek\JVM\current\bin`, run `jvm clear` to purge rogue paths, then re-activate with `jvm <version>`).*
 
+<a id="diagnostic-health-audit"></a>
+#### 🩺 Diagnostic Health Audit (`jvm doctor`)
+Runs a comprehensive, automated 7-point health check across your entire Windows operating system and JVM installation environment:
+```cmd
+jvm doctor
+```
+
+**What `jvm doctor` Verifies:**
+1. **Storage Root Accessibility:** Verifies that `%LOCALAPPDATA%\DiamTek\JVM` exists and has unrestricted read/write permissions.
+2. **Architecture Mode & Junction Integrity:** Validates whether Symlink Mode or Registry Mode is active. For Symlink Mode, checks that `%LOCALAPPDATA%\DiamTek\JVM\current` exists, points to a valid target directory, and contains a working `bin\java.exe`.
+3. **Registry Synchronization:** Queries both User (`HKCU\Environment`) and Machine (`HKLM\...`) registries to verify `JAVA_HOME` configuration consistency.
+4. **PATH Precedence & Shadowing:** Evaluates `where.exe java` to detect rogue paths (such as legacy Oracle `javapath` or `System32\java.exe`) that might intercept `java` commands before JVM.
+5. **PowerShell Profile Hook:** Inspects `$PROFILE` across Windows PowerShell (5.1) and PowerShell Core (7+) for the active `# >>> jvm >>>` hook.
+6. **Hardware CPU Architecture:** Confirms native architecture detection (`x64` vs `ARM64`).
+7. **JDK Inventory Count:** Scans and counts all locally discovered and managed JDK distributions.
+
+**Exit Codes for Automated Health Checks:**
+- `0`: All diagnostic health checks passed with zero conflicts.
+- `1`: One or more warnings or misconfigurations detected.
+
+<a id="explorer-directory-navigation"></a>
+#### 📂 Explorer Directory Navigation (`jvm open` / `jvm home`)
+Instantly open any JVM candidate directory or storage root in Windows File Explorer without manually typing or searching long paths:
+```cmd
+:: Open active JDK directory in File Explorer
+jvm open
+
+:: Open specific candidate tool directory
+jvm open maven
+jvm open gradle
+jvm open kotlin
+
+:: Open specific JDK installation by version number
+jvm open 21
+
+:: Jump to the JVM root storage directory
+jvm open root
+# Or: jvm home
+```
+
 ### System & Cache Maintenance
 
 #### Cache & Artifact Pruning (`jvm clean`)
@@ -413,6 +526,22 @@ Instantly wipes `JAVA_HOME` and cleanly removes JVM directory junctions and lega
 jvm clear
 ```
 * **Automated Safety Backup:** Before executing destructive registry scrubs, `jvm clear` automatically exports a timestamped `.reg` backup of both User (`HKCU`) and Machine (`HKLM`) environment registries to `%TEMP%`.
+
+<a id="powershell-profile-hook"></a>
+#### PowerShell Profile Hook (`jvm hook`)
+Manage the lightweight PowerShell `$PROFILE` auto-sync wrapper function across Windows PowerShell 5.1 and PowerShell 7+ without opening the interactive Settings menu:
+```cmd
+:: Install or update PowerShell profile hook
+jvm hook
+# Or: jvm hook install
+
+:: Check profile hook status across all detected PowerShell profiles
+jvm hook status
+
+:: Remove PowerShell profile hook
+jvm hook remove
+```
+* **Seamless Terminal Synchronization:** Once installed, whenever you switch JDKs via `jvm <version>`, the wrapper automatically synchronizes `$env:JAVA_HOME` and `$env:Path` in the active terminal session without requiring you to restart your PowerShell window or launch a new subshell.
 
 <a id="bring-your-own-jdk-byo-jdk"></a>
 ### Bring Your Own JDK (BYO-JDK)

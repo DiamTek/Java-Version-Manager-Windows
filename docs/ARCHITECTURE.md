@@ -106,6 +106,22 @@ When `jvm` switches an active tool or JDK:
 3. `Set-JvmVar` surgically strips the old `\bin` directory from `$env:Path` and prepends the new `\bin` directory directly into the current PowerShell process memory.
 4. It updates `$env:JAVA_HOME` (or corresponding tool variables) live, providing instantaneous switching without reopening terminal tabs.
 
+### Decoupled Profile Hook Management (`jvm hook`)
+The PowerShell profile wrapper is decoupled from global User `PATH` installation. Developers can manage the hook independently via `jvm hook [install|remove|status]` or via Option 2 in the interactive Settings menu. The hook automatically discovers and synchronizes both Windows PowerShell 5.1 and modern PowerShell 7+ profiles across standard or redirected Documents directories (`[Environment]::GetFolderPath('MyDocuments')`).
+
+## Automated Health Diagnostics & Shadow Detection (`jvm doctor`)
+The `jvm doctor` diagnostic engine runs a deterministic 7-point system health audit across:
+1. **Storage Root Accessibility:** Verifies `%LOCALAPPDATA%\DiamTek\JVM` exists and has NTFS write permissions.
+2. **Directory Junction Target Validity:** Validates that `%LOCALAPPDATA%\DiamTek\JVM\current` points to an active JDK containing `bin\java.exe`.
+3. **Registry Synchronization:** Cross-references User (`HKCU`) and Machine (`HKLM`) `JAVA_HOME` variables.
+4. **PATH Precedence & Rogue Shadowing:** Scans `where.exe java` to detect legacy Oracle `javapath` or `System32\java.exe` shims overriding JVM in your system PATH.
+5. **PowerShell `$PROFILE` Hook:** Audits wrapper function presence across detected PowerShell profiles.
+6. **CPU Architecture:** Confirms native architecture matches (`x64` / `ARM64`).
+7. **Discovered JDK Distribution Inventory:** Audits recognized runtimes on disk.
+
+## Ephemeral Execution Architecture (`jvm exec` / `jvm run`)
+Unlike persistent switching which mutates directory junctions or registries, `jvm exec` / `jvm run` resolves the requested JDK build, spawns an isolated child subshell with local `JAVA_HOME` and prepended `bin\` in `PATH`, invokes the user command, and propagates the child process's exact exit code back to the host shell prompt, leaving global OS state 100% untouched.
+
 ## Bulletproof Batch Heredoc Escaping
 Windows `cmd.exe` does not natively support Bash-style heredocs (`cat <<EOF`). Embedding multi-line PowerShell scripts inside a batch `( ... ) > script.ps1` redirection block requires careful escaping:
 - Redirection operators (`<`, `>`) are escaped as `^<`, `^>`.
