@@ -25,6 +25,10 @@
   .code-block-container {
     position: relative;
   }
+  .highlighter-rouge pre,
+  .code-block-container pre {
+    padding-right: 60px;
+  }
   .copy-code-btn {
     position: absolute;
     top: 8px;
@@ -41,6 +45,10 @@
     opacity: 0;
     transition: opacity 0.2s ease-in-out, background-color 0.2s, color 0.2s;
     z-index: 10;
+  }
+  .is-single-line .copy-code-btn {
+    top: 50%;
+    transform: translateY(-50%);
   }
   .highlighter-rouge:hover .copy-code-btn,
   .code-block-container:hover .copy-code-btn,
@@ -211,14 +219,19 @@
       }
       if (container.querySelector('.copy-code-btn')) return;
 
+      const codeEl = container.querySelector('code') || container.querySelector('pre');
+      const code = codeEl ? codeEl.textContent : '';
+      const trimmedCode = code.trim();
+      if (trimmedCode.length > 0 && !trimmedCode.includes('\n')) {
+        container.classList.add('is-single-line');
+      }
+
       const btn = document.createElement('button');
       btn.className = 'copy-code-btn';
       btn.type = 'button';
       btn.setAttribute('aria-label', 'Copy code to clipboard');
       btn.textContent = 'Copy';
       btn.addEventListener('click', async () => {
-        const codeEl = container.querySelector('code') || container.querySelector('pre');
-        const code = codeEl ? codeEl.textContent : '';
         try {
           await navigator.clipboard.writeText(code.trimEnd());
           btn.textContent = 'Copied! ✓';
