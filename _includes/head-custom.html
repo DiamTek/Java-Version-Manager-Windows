@@ -47,8 +47,13 @@
     z-index: 10;
   }
   .is-single-line .copy-code-btn {
-    top: 11px;
     right: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .is-single-line.has-h-scroll .copy-code-btn {
+    top: 11px;
+    transform: none;
   }
   .highlighter-rouge:hover .copy-code-btn,
   .code-block-container:hover .copy-code-btn,
@@ -224,6 +229,9 @@
       const trimmedCode = code.trim();
       if (trimmedCode.length > 0 && !trimmedCode.includes('\n')) {
         container.classList.add('is-single-line');
+        if (pre.scrollWidth > pre.clientWidth) {
+          container.classList.add('has-h-scroll');
+        }
       }
 
       const btn = document.createElement('button');
