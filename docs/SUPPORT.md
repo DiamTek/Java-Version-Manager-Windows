@@ -6,45 +6,99 @@
 
 </div>
 
+---
+
+Thank you for using Java Version Manager! We want to ensure you have the best possible experience managing JDKs and JVM tools on Windows.
 
 ---
 
-Thank you for using Java Version Manager! We want to make sure you have the best possible experience managing Java and JVM tools on Windows.
+## 🔍 Self-Service Diagnostic Triage
+
+Before opening a support ticket, check this rapid decision tree for the four most common operational scenarios:
+
+### 1. "I switched versions, but `java -version` didn't change" (PATH Shadowing)
+- **Root Cause:** A rogue installer (e.g. older Oracle JDK MSI, Chocolatey shim, or IDE installer) forcefully injected a hardcoded path ahead of JVM in your system `PATH`.
+- **Diagnosis:** Run `where.exe java` in your terminal:
+  ```cmd
+  where.exe java
+  ```
+- **Resolution:**
+  - If you see `C:\Program Files (x86)\Common Files\Oracle\Java\javapath\java.exe` listed before `%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe`:
+  - Run `jvm clear` followed by your desired version switch (e.g., `jvm 21`). JVM will hunt down and scrub the phantom path from your registry.
+  - Close and reopen your terminal window to refresh active process memory.
+
+### 2. "I keep getting Windows UAC administrator elevation prompts"
+- **Root Cause:** Your active configuration is set to legacy **Registry Mode** instead of the default UAC-free **Symlink Mode**. In Registry Mode, switching JDKs requires writing to Machine-level registry (`HKLM`), triggering Windows Administrator elevation prompts.
+- **Diagnosis:** Run `jvm env` to check your active mode (`SWITCH_MODE: DIRECT` indicates Registry Mode; `SYMLINK` indicates Symlink Mode).
+- **Resolution:**
+  - **Via CLI:** Run any switch command with `--symlink`:
+    ```cmd
+    jvm 21 --symlink
+    ```
+  - **Via Interactive Menu:** Launch `jvm` -> Navigate to **Settings** (`3`) -> Press **`2`** to toggle Architecture from `[Registry Mode]` back to `[Symlink Mode] (UAC Free)`.
+
+### 3. "Network connection failed / You appear to be offline"
+- **Root Cause:** Corporate firewall, SSL-intercepting proxy (e.g. Zscaler, Netskope), or air-gapped network blocking vendor CDN endpoints.
+- **Resolution:**
+  - **Set Proxy Variables:** JVM inherits standard environment proxies in your active session:
+    ```powershell
+    $env:HTTP_PROXY  = "http://proxy.corp.internal:8080"
+    $env:HTTPS_PROXY = "http://proxy.corp.internal:8080"
+    ```
+  - **Bypass Hash Verification (Air-Gapped):** If your proxy allows the binary download but blocks raw vendor hash mirrors, pass:
+    ```cmd
+    jvm install 21 --skip-checksum
+    ```
+  - **Bring Your Own JDK (Offline):** Pre-extract any zip/tarball to disk and link it locally without network access:
+    ```cmd
+    jvm link "D:\OfflineStore\jdk-21.0.2" jdk-21-offline
+    ```
+
+### 4. "PowerShell session switching doesn't update my current terminal"
+- **Root Cause:** Standard batch files executed in PowerShell run inside an isolated child `cmd.exe` subshell, which cannot mutate parent process memory without the PowerShell Profile wrapper hook.
+- **Resolution:**
+  - **Via Interactive Menu:** Launch `jvm` -> Navigate to **Settings** (`3`) -> Select **Option 1** (`Install JVM to User PATH (Global Command)`), which automatically registers the profile hook.
+  - **Via CLI:** Re-run the automated setup script to inject the wrapper into `$PROFILE`:
+    ```powershell
+    powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\DiamTek\JVM\install.ps1"
+    ```
+  - **Via Dotfiles / Manual Setup:** Append the hook initialization directly to your `$PROFILE`:
+    ```powershell
+    Invoke-Expression (& jvm hook powershell)
+    ```
 
 ---
 
-## 1. Check the Documentation First
+## 📋 Standard Diagnostic Bundle
 
-Most common setup issues, syntax questions, and switching scenarios are covered in detail within our documentation:
+When opening a support request or asking for assistance on Discord, running these three diagnostic commands and attaching their output will accelerate resolution by 10x:
 
-* [**Installation Guide**](INSTALLATION.md) — One-line PowerShell install, MSI installers, WiX v4 build commands, and quiet unattended flags.
-* [**Usage Guide**](USAGE.md) — CLI quick-switching, `.java-version` and `.sdkmanrc` auto-switching, BYO-JDK linking, and headless automation.
-* [**Frequently Asked Questions (FAQ)**](FAQ.md) — Answers to UAC elevation, Symlink vs Registry mode, path persistence, and build attestation.
-* [**Architecture Overview**](ARCHITECTURE.md) — Deep technical mechanics of Directory Junctions, PowerShell wrappers, and uninstaller isolation.
-* [**SDKMAN! Comparison**](SDKMAN-Comparison.md) — Why and how this project delivers native Windows parity without Linux subsystems.
+```powershell
+# 1. Active JVM environment and configuration pointers:
+jvm env
 
----
+# 2. All java.exe binaries discovered in active PATH order:
+where.exe java
 
-## 2. Community & Direct Maintainer Support
-
-If the documentation doesn't resolve your question, or if you want to discuss a new idea:
-
-* **Discord**: Reach out to the lead maintainer directly on Discord at **@thehawk01**.
-* **Email**: Send questions to **salexey09@gmail.com**.
-* **GitHub Discussions / Issues**: Open a ticket on the [Issues Tracker](https://github.com/DiamTek/Java-Version-Manager-Windows/issues).
+# 3. Environment PATH entries filtered for Java/JVM:
+($env:Path -split ';') | Where-Object { $_ -match 'Java|JVM|jdk|Oracle' }
+```
 
 ---
 
-## 3. Reporting Bugs & Feature Requests
+## 💬 Community & Direct Maintainer Support
 
-* **Bugs**: If you encountered a bug, please open a [Bug Report](https://github.com/DiamTek/Java-Version-Manager-Windows/issues/new?template=bug_report.md) with your Windows version, terminal host (CMD, PowerShell, Windows Terminal), and reproduction steps.
-* **Feature Requests**: If you would like a new vendor, candidate tool, or CLI flag, open a [Feature Request](https://github.com/DiamTek/Java-Version-Manager-Windows/issues/new?template=feature_request.md).
+If self-service triage doesn't solve your issue, we are here to help:
+
+* **Discord (Fastest Response):** Reach out directly to the lead maintainer on Discord at **@thehawk01**.
+* **Email Support:** Send detailed logs and diagnostic bundles to **salexey09@gmail.com**.
+* **GitHub Issues:** Open an issue on the [Bug Tracker](https://github.com/DiamTek/Java-Version-Manager-Windows/issues/new?template=bug_report.md) or request enhancements via [Feature Requests](https://github.com/DiamTek/Java-Version-Manager-Windows/issues/new?template=feature_request.md).
 
 ---
 
-## 4. Security Vulnerabilities
+## 🛡️ Security Vulnerabilities
 
-Please **do not** file public GitHub issues for security vulnerabilities. Review our [Security Policy](SECURITY.md) and report privately via [GitHub Security Advisories](https://github.com/DiamTek/Java-Version-Manager-Windows/security/advisories) or directly via email.
+Please **do not** file public GitHub issues for security vulnerabilities. Review our [Security Policy](SECURITY.md) and report privately via [GitHub Security Advisories](https://github.com/DiamTek/Java-Version-Manager-Windows/security/advisories/new) or directly via email.
 
 ---
 
