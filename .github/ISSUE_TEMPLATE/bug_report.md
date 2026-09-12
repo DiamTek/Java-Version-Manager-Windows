@@ -40,7 +40,7 @@ A clear and concise description of what you expected to happen.
 
 Please provide as much information about your environment as possible:
 
-- **JVM Version & Build**: `[Run 'jvm version' or 'jvm.bat --version', e.g., 1.0.0, Build 20260912.94]`
+- **JVM Version & Build**: `[Run 'jvm version' or 'jvm.bat --version', e.g., 1.0.0, Build 20260912.95]`
 - **OS Version & Build**: `[e.g., Windows 11 23H2 (Build 22631.3007), Windows 10 22H2]`
 - **CPU Architecture**: `[e.g., x64, ARM64]`
 - **Installation Method**: `[e.g., PowerShell one-liner (install.ps1), Standalone MSI (x64/arm64), Winget, Scoop, Chocolatey, Portable Zip]`
@@ -77,7 +77,7 @@ To accelerate resolution, please paste the output of the following commands:
 </details>
 
 <details>
-<summary><b>3. Active Session PATH (optional)</b></summary>
+<summary><b>4. Active Session PATH (optional)</b></summary>
 
 ```powershell
 # In PowerShell:

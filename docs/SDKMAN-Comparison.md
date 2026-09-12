@@ -32,7 +32,7 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **Live Broadcasting** | Shell-only (requires `source` or restart) | **Win32 `WM_SETTINGCHANGE` + Live In-Memory Hot Patch** |
 | **IDE Support** | Requires WSL bridges | **100% Native** (IntelliJ, Eclipse, VS Code) |
 | **Windows Services & GUI**| Inaccessible to Windows services | **Full System Visibility** (Jenkins, SonarQube, Task Scheduler, Start Menu) |
-| **Project File Support** | `.sdkmanrc` only | **Dual Support:** `.jvmrc` & Auto **`.sdkmanrc` Translation** |
+| **Project File Support** | `.sdkmanrc` only | **Dual Support:** `.java-version` & Auto **`.sdkmanrc` Translation** |
 | **Local JDK Discovery** | Cannot scan Windows folders | **Automatic Local Discovery** (scans `Program Files` for existing JDKs) |
 | **Offline Operation** | May lag on remote API latency | **Zero-Ping Local Switching** (100% offline, instant) |
 | **Pre-Change Safety** | None (overwrites shell files) | **Automated Registry Backups** (exports `.reg` to `%TEMP%`) |

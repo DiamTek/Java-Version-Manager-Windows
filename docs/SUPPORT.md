@@ -66,10 +66,7 @@ Before opening a support ticket, check this rapid decision tree for the four mos
     ```powershell
     powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\DiamTek\JVM\install.ps1"
     ```
-  - **Via Dotfiles / Manual Setup:** Append the hook initialization directly to your `$PROFILE`:
-    ```powershell
-    Invoke-Expression (& jvm hook powershell)
-    ```
+  - **Via Dotfiles / Manual Setup:** Open your `$PROFILE` (`notepad $PROFILE`) and paste the official `function jvm { ... }` wrapper block documented in the [FAQ](FAQ.md#how-do-i-verify-or-manually-configure-the-powershell-profile-hook).
 
 ---
 
