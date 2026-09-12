@@ -224,6 +224,16 @@ DiamTek JVM's networking leverages native Windows `.NET` APIs, which automatical
 3. **Corporate Root SSL Certificates (Zscaler, Netskope, Palo Alto):**
    Unlike Unix tools that require manually importing corporate root CAs into custom Java `cacerts` truststores, JVM's internal downloader validates certificates against the native **Windows Trusted Root Certification Authorities** store. Any enterprise root certificate deployed via Group Policy (GPO) or Intune is trusted automatically.
 
+4. **GitHub API Rate Limiting Bypass (`GITHUB_TOKEN`):**
+   When querying latest releases for ecosystem candidates (Maven, Gradle, Kotlin, Scala, Groovy), JVM contacts GitHub's Releases API. GitHub restricts unauthenticated queries to 60 requests/hour per public IP address. If you encounter `[ ERROR  ] GitHub API Rate Limit reached`, simply set your personal GitHub token:
+   ```powershell
+   $env:GITHUB_TOKEN = "ghp_your_personal_access_token"
+   ```
+   Or in Command Prompt:
+   ```cmd
+   set GITHUB_TOKEN=ghp_your_personal_access_token
+   ```
+
 ### How does Windows Terminal and Taskbar integration work?
 The installer automatically integrates DiamTek JVM into Windows Terminal by registering a dedicated profile in `settings.json`:
 - **Custom Branding**: Displays the high-resolution DiamTek JVM icon on the terminal tab, header, and the `+` new tab dropdown menu.
@@ -393,13 +403,13 @@ $javaPath = (jvm which)
 DiamTek JVM provides two distinct maintenance commands designed for different purposes:
 
 * **`jvm clean` (Disk Cache Pruner):** 
-  Use `jvm clean` when you want to reclaim disk space. It safely purges temporary `.zip` and `.tar.gz` downloads, stale extraction workspaces (`%TEMP%\jdk_*_extract`), and failed candidate builds from `%TEMP%` and `%LOCALAPPDATA%\DiamTek\JVM`. It reports the exact number of files deleted and megabytes reclaimed. It is **100% safe** and never modifies your installed JDKs, settings, or environment variables.
+  Use `jvm clean` when you want to reclaim disk space. It safely purges temporary `.zip` and `.tar.gz` downloads, stale extraction workspaces (`%TEMP%\jdk_*_extract`), transient script artifacts (`%TEMP%\jvm_dl_*.ps1`, `%TEMP%\jvm_install_*.ps1`, `%TEMP%\jvm_updater_*.bat`, `%TEMP%\jvm_uninstall_*`), `%LOCALAPPDATA%\DiamTek\JVM\downloads\*`, and candidate temporary staging folders. It reports the exact number of files deleted and megabytes reclaimed. It is **100% safe** and never modifies your installed JDKs, settings, or environment variables.
   ```cmd
   jvm clean
   ```
 
 * **`jvm clear` (Environment Slate Wipe):**
-  Use `jvm clear` when you want to completely de-activate Java from your environment (e.g., to troubleshoot PATH shadowing, remove legacy Oracle `javapath` registry entries, or wipe `JAVA_HOME`). It automatically writes a backup `.reg` file to `%TEMP%` before executing.
+  Use `jvm clear` when you want to completely de-activate Java from your environment (e.g., to troubleshoot PATH shadowing, remove legacy Oracle `javapath` registry entries, or wipe `JAVA_HOME`). It automatically writes a timestamped backup `.reg` file to `%LOCALAPPDATA%\DiamTek\JVM\backups\` before executing.
   ```cmd
   jvm clear
   ```
@@ -525,10 +535,10 @@ Both commands maintain system hygiene, but they target different layers:
   ```
 
 > [!TIP]
-> **Restoring from Automated Registry Backup:** Before executing any destructive registry modifications, `jvm clear` automatically exports timestamped `.reg` backup files of both User (`HKCU`) and Machine (`HKLM`) environment variables to `%TEMP%`.
+> **Restoring from Automated Registry Backup:** Before executing any destructive registry modifications, `jvm clear` automatically exports timestamped `.reg` backup files of both User (`HKCU`) and Machine (`HKLM`) environment variables to `%LOCALAPPDATA%\DiamTek\JVM\backups\`.
 > If you ever need to restore your previous environment state:
-> 1. Open File Explorer to `%TEMP%` (or run `explorer.exe $env:TEMP`).
-> 2. Locate the backup file named `jvm_env_backup_<timestamp>.reg` (or `jvm_user_env_backup_<timestamp>.reg`).
+> 1. Open File Explorer to `%LOCALAPPDATA%\DiamTek\JVM\backups` (or run `explorer.exe "$env:LOCALAPPDATA\DiamTek\JVM\backups"`).
+> 2. Locate the backup files named `sys_env_<date>_<time>.reg` (Machine registry) or `usr_env_<date>_<time>.reg` (User registry).
 > 3. Double-click the file and confirm the Windows prompt to re-import your previous registry state.
 
 ---

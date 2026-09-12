@@ -246,12 +246,12 @@ JVM supports downloading, switching, and managing tools natively alongside Java.
 
 | Command | Action / Description |
 |---------|----------------------|
-| `jvm update` | Opens the dynamic, vendor-sorted Updater menu UI. |
+| `jvm update <version>` | Automatically checks and updates a specific installed JDK (e.g., `jvm update 21`). |
 | `jvm update --all` | Silently patches all installed JDKs and Ecosystem Tools to their newest releases. |
 | `jvm update --all --vendor oracle` | Silently checks and automatically patches *only* your Oracle JDKs. |
-| `jvm uninstall` | Opens the dynamic, vendor-sorted Uninstaller menu UI. |
-| `jvm uninstall 21` | Headless uninstallation for JDK 21. Pauses if multiple vendors exist. |
-| `jvm uninstall 21 --vendor oracle` | 100% headless uninstallation targeting Oracle (bypasses all prompts). |
+| `jvm uninstall <version>` | Headless uninstallation for a JDK (e.g., `jvm uninstall 21`). Pauses if multiple vendors exist. |
+| `jvm uninstall <version> --vendor oracle` | 100% headless uninstallation targeting Oracle (bypasses all prompts). |
+| `jvm` *(no args)* | Opens the interactive terminal dashboard (access interactive Uninstaller and Updater sub-menus). |
 
 ### 🧹 Global Environment Management
 
@@ -261,15 +261,15 @@ JVM supports downloading, switching, and managing tools natively alongside Java.
 | `jvm current` | Displays comprehensive status card: active JDK, switching mode, junction target, and tools (`jvm status`, `jvm env`). |
 | `jvm which [candidate]` | Prints absolute filesystem path to active `java.exe` or ecosystem binary (`jvm path`). |
 | `jvm doctor` | Deep diagnostic health audit and conflict scanner (permissions, junctions, PATH shadowing, hooks). |
-| `jvm hook [install/remove]` | Manage PowerShell profile auto-sync wrapper hook (`install`, `setup`, `status`, `check`, `remove`). |
-| `jvm open [candidate]` | Instantly opens active candidate, JDK, or root in Windows File Explorer (`jvm home`). |
+| `jvm hook [action]` | Manage PowerShell profile auto-sync wrapper hook (`install`, `setup`, `status`, `check`, `remove`, `uninstall`). |
+| `jvm open [candidate]` | Instantly opens candidate (`maven`, `gradle`), installed JDK version (`21`), `candidates`, or root in File Explorer (`jvm home`). |
 | `jvm clean` | Safely purges temporary installer caches and extraction artifacts to reclaim disk space. |
 | `jvm clear` | Instantly wipes `JAVA_HOME` and purges Java from your PATH. |
 | `jvm env` | Displays current environment variables and status card (alias for `jvm current`). |
 | `jvm link [path] [name]` | Manually links a custom JDK directory (or lists all registered custom links if run with no arguments). |
 | `jvm unlink <name>` | Removes a custom linked JDK. |
 | `jvm version` | Checks your current `jvm.bat` build number against GitHub for updates (`--version`, `-v`). |
-| `jvm self-update` | Automatically downloads and atomic-swaps the core script if an update exists. |
+| `jvm self-update [-y]` | Automatically downloads and atomic-swaps the core script if an update exists (`-y`/`--yes` bypasses confirmation). |
 | `jvm self-uninstall` | Launches the deep uninstaller with UAC elevation (full system wipe; alias: `jvm uninstall-self`). |
 | `jvm help` / `--help` / `/?` | Displays the complete CLI command reference and flag overrides. |
 | `jvm <semantic-alias>` | Routes dynamically (e.g., `jvm latest`, `jvm lts`, `jvm 21`). |

@@ -198,7 +198,7 @@ jvm exec latest -- java -jar target/app.jar
 ```
 
 ### How Ephemeral Execution Works:
-1. Resolves the requested version (e.g. `21`, `17.0.10`, `latest`, `lts`, or vendor name) from your installed JDK inventory.
+1. Resolves the requested version (e.g. `21`, `17.0.10`, `latest`, `lts`, or vendor name) from your installed JDK inventory. If an exact major version or folder name match is not found, JVM performs an intelligent case-insensitive substring match across all installed JDK directory paths.
 2. Spawns an isolated child subshell with local `JAVA_HOME` pointing directly to the target JDK and prepends its `bin\` folder to the local `PATH`.
 3. Executes your command with 100% of its original arguments intact.
 4. Leaves the active Directory Junction (`%LOCALAPPDATA%\DiamTek\JVM\current`), Windows Registry, and all other terminal windows completely untouched.
@@ -274,6 +274,8 @@ jvm install gradle 8.9 -y
 Instantly switch your active `KOTLIN_HOME` (and system PATH) to the specified version:
 ```powershell
 jvm kotlin 2.0.20
+# Or dynamically switch to the highest locally installed release:
+jvm maven latest
 ```
 
 **Double-Dash Candidate Flags (Scripting Precision):**
@@ -286,7 +288,15 @@ jvm --gradle 8.5
 Safely uninstall a specific tool and cleanly scrub its environment variables from your registry:
 ```powershell
 jvm uninstall groovy 4.0.23
+# Or uninstall the latest installed candidate version:
+jvm uninstall maven latest
 ```
+
+> [!TIP]
+> **GitHub API Rate Limit Bypass (`GITHUB_TOKEN`):** When discovering and installing the latest releases of ecosystem build tools, JVM queries GitHub Releases APIs. Unauthenticated queries share an IP quota of 60 requests/hour. To avoid rate limits in CI/CD or shared offices, set `$env:GITHUB_TOKEN`:
+> ```powershell
+> $env:GITHUB_TOKEN = "ghp_your_personal_access_token"
+> ```
 
 ---
 
@@ -294,9 +304,9 @@ jvm uninstall groovy 4.0.23
 ## 🔄 Updates & Uninstalls
 
 ### Updating Tools
-Open the dynamic, vendor-sorted Updater menu UI:
+Update a specific installed JDK to its latest vendor patch release:
 ```cmd
-jvm update
+jvm update 21
 ```
 **Bulk Updating:** Silently check and automatically patch *all* installed JDKs and Ecosystem Tools (Maven, Gradle, etc.) to their absolute newest releases:
 ```cmd
@@ -307,11 +317,10 @@ Silently check and automatically patch *only* your installed Oracle JDKs:
 jvm update --all --vendor oracle
 ```
 
+> [!NOTE]
+> **Interactive Updater Menu:** When invoked from the CLI, `jvm update` requires a version target (e.g. `21`) or `--all`. To open the interactive, vendor-sorted visual Updater menu, launch `jvm` without arguments and navigate to **JDK Menu** (`1`) -> **Check for JDK Updates** (`5`).
+
 ### Uninstalling Tools
-Open the dynamic, vendor-sorted Uninstaller menu UI:
-```cmd
-jvm uninstall
-```
 Headless uninstallation for JDK 21. If multiple vendors are found for the same version, it safely pauses to ask you which vendor you want to remove:
 ```cmd
 jvm uninstall 21
@@ -320,6 +329,13 @@ jvm uninstall 21
 ```cmd
 jvm uninstall 21 --vendor oracle
 ```
+Uninstall a specific ecosystem build tool:
+```cmd
+jvm uninstall maven 3.9.6
+```
+
+> [!NOTE]
+> **Interactive Uninstaller Menu:** When invoked from the CLI, `jvm uninstall` requires a version argument. To open the interactive, vendor-sorted visual Uninstaller menu, launch `jvm` without arguments and navigate to **JDK Menu** (`1`) -> **Uninstall JDKs** (`4`).
 
 ---
 
@@ -560,12 +576,15 @@ jvm open maven
 jvm open gradle
 jvm open kotlin
 
-# Open specific JDK installation by version number
+# Open the candidates base directory (%LOCALAPPDATA%\DiamTek\JVM\candidates)
+jvm open candidates
+
+# Open specific JDK installation by version number or folder name
 jvm open 21
 
-# Jump to the JVM root storage directory
+# Jump to the JVM root AppData directory (%LOCALAPPDATA%\DiamTek\JVM)
 jvm open root
-# Or: jvm home
+# Aliases: jvm open appdata, jvm home
 ```
 
 ### System & Cache Maintenance
@@ -578,8 +597,10 @@ jvm clean
 * **What it cleans:**
   * `%TEMP%\jdk_*_download.zip` and `.tar.gz` installer archives.
   * Stale `%TEMP%\jdk_*_extract` extraction workspaces.
-  * Intermediate `%TEMP%\jvm_dl_*.ps1` PowerShell downloaders.
-  * Orphaned `%LOCALAPPDATA%\DiamTek\JVM\candidates\*\temp_*` directories.
+  * Transient script artifacts: `%TEMP%\jvm_dl_*.ps1`, `%TEMP%\jvm_install_*.ps1`, `%TEMP%\jvm_updater_*.bat`, `%TEMP%\jvm_uninstall_*.bat`, and `%TEMP%\jvm_uninstall_*.ps1`.
+  * Staged candidate temporary directories: `%LOCALAPPDATA%\DiamTek\JVM\candidates\*\temp_*`.
+  * Temporary download staging files: `%LOCALAPPDATA%\DiamTek\JVM\downloads\*`.
+  * Ephemeral session cache targets: `%TEMP%\.jvm_session_target`.
 * **Safety Guarantee:** `jvm clean` is completely non-destructive. It never modifies your active JDKs, candidate tools, directory junctions, or Windows Registry settings.
 
 #### Environment Slate Wipe (`jvm clear`)
@@ -587,8 +608,8 @@ Instantly wipes `JAVA_HOME` and cleanly removes JVM directory junctions and lega
 ```powershell
 jvm clear
 ```
-* **Automated Safety Backup:** Before executing destructive registry scrubs, `jvm clear` automatically exports a timestamped `.reg` backup of both User (`HKCU`) and Machine (`HKLM`) environment registries to `%TEMP%`.
-* **Restoring from Registry Backup:** If you ever need to roll back a clear operation, open `%TEMP%` in File Explorer (`explorer.exe $env:TEMP`), find `jvm_env_backup_<timestamp>.reg`, and double-click it to re-import your previous registry state.
+* **Automated Safety Backup:** Before executing destructive registry scrubs, `jvm clear` automatically exports a timestamped `.reg` backup of both User (`HKCU`) and Machine (`HKLM`) environment registries to `%LOCALAPPDATA%\DiamTek\JVM\backups\`.
+* **Restoring from Registry Backup:** If you ever need to roll back a clear operation, open `%LOCALAPPDATA%\DiamTek\JVM\backups` in File Explorer (or run `explorer.exe "$env:LOCALAPPDATA\DiamTek\JVM\backups"`), locate `sys_env_<date>_<time>.reg` and `usr_env_<date>_<time>.reg`, and double-click to re-import your previous registry state.
 
 <a id="powershell-profile-hook"></a>
 #### PowerShell Profile Hook (`jvm hook`)
@@ -604,6 +625,7 @@ jvm hook status
 
 # Remove PowerShell profile hook
 jvm hook remove
+# Alias: jvm hook uninstall
 ```
 * **Seamless Terminal Synchronization:** Once installed, whenever you switch JDKs via `jvm <version>`, the wrapper automatically synchronizes `$env:JAVA_HOME` and `$env:Path` in the active terminal session without requiring you to restart your PowerShell window or launch a new subshell.
 
@@ -621,7 +643,7 @@ jvm link C:\my-custom-jdk my-jdk
 jvm unlink my-jdk
 ```
 > [!NOTE]
-> Custom links are stored as NTFS directory junctions in `%LOCALAPPDATA%\JavaVersionManager\links`.
+> Custom links are stored as NTFS directory junctions in `%LOCALAPPDATA%\JavaVersionManager\links`. If a linked JDK directory is later deleted or moved, running `jvm link` detects the missing `bin\java.exe` and marks it with a red `[BROKEN]` status indicator.
 
 ### Self-Updating
 Display your current `jvm.bat` build number and compare it against the latest release on GitHub to check for engine updates:
@@ -632,6 +654,9 @@ jvm version
 Automatically download and atomic-swap the core `jvm.bat` script if a newer version is available on GitHub:
 ```powershell
 jvm self-update
+# Or bypass confirmation prompt for automated CI/maintenance scripts:
+jvm self-update -y
+# Alias: jvm self-update --yes
 ```
 
 ### Self-Uninstallation

@@ -45,11 +45,15 @@ Before opening a support ticket, check this rapid decision tree for the most com
     ```powershell
     jvm 21 --symlink
     ```
-  - **Via Interactive Menu:** Launch `jvm` -> Navigate to **Settings** (`3`) -> Press **`2`** to toggle Architecture from `[Registry Mode]` back to `[Symlink Mode] (UAC Free)`.
+  - **Via Interactive Menu:** Launch `jvm` -> Navigate to **Settings** (`3`) -> Press **`3`** to toggle Architecture from `[Registry Mode]` back to `[Symlink Mode] (UAC Free)`.
 
 ### 3. "Network connection failed / You appear to be offline"
-- **Root Cause:** Corporate firewall, SSL-intercepting proxy (e.g. Zscaler, Netskope), or air-gapped network blocking vendor CDN endpoints.
+- **Root Cause:** Corporate firewall, SSL-intercepting proxy (e.g. Zscaler, Netskope), air-gapped network, or GitHub API rate limiting on ecosystem tool queries.
 - **Resolution:**
+  - **GitHub API Rate Limiting (Ecosystem Tools):** If you see `[ ERROR  ] GitHub API Rate Limit reached`, set the `GITHUB_TOKEN` environment variable in your session to bypass GitHub's 60 req/hr IP quota:
+    ```powershell
+    $env:GITHUB_TOKEN = "ghp_your_personal_access_token"
+    ```
   - **Clean Corrupted Caches:** If an earlier download was interrupted or corrupted, purge stale cache files:
     ```powershell
     jvm clean
@@ -90,6 +94,7 @@ Before opening a support ticket, check this rapid decision tree for the most com
 | Constant UAC elevation prompts | Active mode set to legacy Registry Mode (`HKLM`) | `jvm current` | `jvm <version> --symlink` |
 | PowerShell session variables not updating live | PowerShell Profile auto-sync hook not installed | `jvm hook status` | `jvm hook install` |
 | Corrupted download / hash mismatch / network drop | Stale extraction workspaces or cache in `%TEMP%` | `jvm doctor` | `jvm clean` |
+| `GitHub API Rate Limit reached` | GitHub unauthenticated 60 req/hr API quota exhausted | None | `$env:GITHUB_TOKEN = "<token>"` |
 | Air-gapped / proxy hash mirror blocked | Proxy allows binary download but blocks checksum | `jvm doctor` | `jvm install <version> --skip-checksum` |
 | Command `jvm` not recognized in new terminal | JVM directory missing from User PATH | `where.exe jvm` | Settings (`3`) → Option 1 (`Install to User PATH`) |
 | Directory junction broken or points to missing JDK | JDK was manually deleted from disk | `jvm doctor` | `jvm link` (to inspect) or `jvm <version>` (to re-point) |

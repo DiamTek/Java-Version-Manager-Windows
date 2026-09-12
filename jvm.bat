@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260912.97"
+set "JVM_BUILD=20260912.98"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3988,6 +3988,7 @@ for /f "tokens=1,2 delims=-" %%V in ("%~1") do (
     if /i "%%W"=="amzn" set "CLI_VENDOR=Corretto"
     if /i "%%W"=="zulu" set "CLI_VENDOR=Zulu"
     if /i "%%W"=="ms" set "CLI_VENDOR=Microsoft"
+    if /i "%%W"=="msft" set "CLI_VENDOR=Microsoft"
     if /i "%%W"=="open" set "CLI_VENDOR=Oracle"
     if /i "%%W"=="graal" set "CLI_VENDOR=GraalVM"
     if /i "%%W"=="graalce" set "CLI_VENDOR=GraalVM"
