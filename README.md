@@ -305,9 +305,16 @@ Contributions, issues, and feature requests are welcome!
 
 <a id="license"></a>
 <a id="-license"></a>
-## 📄 License
+<a id="license--legal-notices"></a>
+<a id="-license--legal-notices"></a>
+## 📄 License & Legal Notices
+
 Copyright (c) 2026 DiamTek / Alexéy Shishkin.
 
 This project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html). See the [LICENSE](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/LICENSE) file for details.
 
-*Note: Oracle JDK downloads triggered by this tool are subject to the [Oracle No-Fee Terms and Conditions (NFTC)](https://www.oracle.com/downloads/licenses/no-fee-license.html).*
+### Third-Party Software & Trademarks
+* **Oracle JDK**: Downloads triggered by this tool are subject to the [Oracle No-Fee Terms and Conditions (NFTC)](https://www.oracle.com/downloads/licenses/no-fee-license.html) or [Oracle Technology Network (OTN)](https://www.oracle.com/legal/terms.html) license depending on the selected version. End users are solely responsible for compliance with Oracle's licensing terms in their respective environments.
+* **OpenJDK Distributions**: Builds provided by Adoptium (Eclipse Temurin), Amazon Corretto, Microsoft Build of OpenJDK, Azul Zulu, and GraalVM Community Edition are distributed under the [GNU General Public License v2 with Classpath Exception (GPLv2+CE)](https://openjdk.org/legal/gplv2+ce.html).
+* **JVM Ecosystem Build Tools**: Apache Maven, Gradle, Kotlin Compiler, Scala, and Apache Groovy are distributed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+* **Trademarks**: Java, OpenJDK, and the Duke mascot are trademarks or registered trademarks of Oracle Corporation. Windows is a registered trademark of Microsoft Corporation. SDKMAN! is an independent project by Marco Vermeulen and community contributors. All other product names, logos, and brands are property of their respective owners and used solely for identification. DiamTek JVM is an independent open-source utility and is not affiliated with, sponsored by, or endorsed by these entities.

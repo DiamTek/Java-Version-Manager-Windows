@@ -12,6 +12,8 @@ relative_links:
 
 include:
   - LICENSE
+  - docs/CONTRIBUTING.md
+  - docs/CODE_OF_CONDUCT.md
 
 kramdown:
   input: GFM
