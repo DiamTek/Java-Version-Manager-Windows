@@ -39,6 +39,11 @@
 - [Can my engineering team adopt JVM on locked-down corporate laptops without IT admin tickets?](#can-my-engineering-team-adopt-jvm-on-locked-down-corporate-laptops-without-it-admin-tickets)
 - [How does DiamTek JVM fit into enterprise fleet management (Intune / MECM / GPO)?](#how-does-diamtek-jvm-fit-into-enterprise-fleet-management-intune--mecm--gpo)
 - [What is the PowerShell Profile hook and how do I manage it? (`jvm hook`)](#what-is-the-powershell-profile-hook-and-how-do-i-manage-it-jvm-hook)
+- [How do I enable and use dynamic Tab-Completion in PowerShell?](#how-do-i-enable-and-use-dynamic-tab-completion-in-powershell)
+- [How do I use JVM in CI/CD pipelines without ANSI color code artifacts? (NO_COLOR)](#how-do-i-use-jvm-in-cicd-pipelines-without-ansi-color-code-artifacts-no_color)
+- [What shorthand CLI aliases does JVM support? (jvm ls, jvm rm, jvm info)](#what-shorthand-cli-aliases-does-jvm-support-jvm-ls-jvm-rm-jvm-info)
+- [How do I automatically switch Java versions when navigating into a project directory? (cd auto-switching)](#how-do-i-automatically-switch-java-versions-when-navigating-into-a-project-directory-cd-auto-switching)
+- [Which JDK vendors are supported, and how do BellSoft Liberica and IBM Semeru differ?](#which-jdk-vendors-are-supported-and-how-do-bellsoft-liberica-and-ibm-semeru-differ)
 
 ---
 
@@ -399,20 +404,95 @@ $javaPath = (jvm which)
 ```
 
 <a id="how-do-i-free-up-disk-space-from-downloaded-jdk-installers-jvm-clean-vs-jvm-clear"></a>
+<a id="what-is-the-difference-between-jvm-clean-and-jvm-clear"></a>
 ### How do I free up disk space from downloaded JDK installers? (jvm clean vs jvm clear)
-DiamTek JVM provides two distinct maintenance commands designed for different purposes:
+Modern Java Development Kit (JDK) distributions (Adoptium Temurin, Oracle JDK, Amazon Corretto, Azul Zulu, Microsoft Build of OpenJDK, GraalVM) and JVM ecosystem build tools (Apache Maven, Gradle, Kotlin, Scala, Apache Groovy) range from 150 MB to over 450 MB per archive. Over time, frequent version updates and multi-vendor experimentation can leave gigabytes of compressed installer archives, intermediate extraction workspaces, and temporary staging artifacts cluttering your Windows workstation.
 
-* **`jvm clean` (Disk Cache Pruner):** 
-  Use `jvm clean` when you want to reclaim disk space. It safely purges temporary `.zip` and `.tar.gz` downloads, stale extraction workspaces (`%TEMP%\jdk_*_extract`), transient script artifacts (`%TEMP%\jvm_dl_*.ps1`, `%TEMP%\jvm_install_*.ps1`, `%TEMP%\jvm_updater_*.bat`, `%TEMP%\jvm_uninstall_*`), `%LOCALAPPDATA%\DiamTek\JVM\downloads\*`, and candidate temporary staging folders. It reports the exact number of files deleted and megabytes reclaimed. It is **100% safe** and never modifies your installed JDKs, settings, or environment variables.
-  ```cmd
-  jvm clean
-  ```
+DiamTek Java Version Manager cleanly bifurcates maintenance workflows into two specialized, purpose-built commands: **`jvm clean`** (for non-destructive filesystem cache and disk space reclamation) and **`jvm clear`** (for environment variable resets, PATH shadowing remediation, and registry slate sanitization).
 
-* **`jvm clear` (Environment Slate Wipe):**
-  Use `jvm clear` when you want to completely de-activate Java from your environment (e.g., to troubleshoot PATH shadowing, remove legacy Oracle `javapath` registry entries, or wipe `JAVA_HOME`). It automatically writes a timestamped backup `.reg` file to `%LOCALAPPDATA%\DiamTek\JVM\backups\` before executing.
-  ```cmd
-  jvm clear
-  ```
+---
+
+#### 1. `jvm clean` — Disk Cache Pruner & Storage Reclamation
+Use `jvm clean` whenever you want to reclaim local disk space without modifying active Java runtimes, ecosystem tool configurations, or environment settings. When you install or update JDKs and build tools, JVM downloads compressed `.zip` or `.tar.gz` archives, extracts them into intermediate staging workspaces, verifies SHA256/SHA512 checksums, and deploys the runtimes into their permanent locations (`C:\Program Files\Java` or `%LOCALAPPDATA%\DiamTek\JVM\candidates`).
+
+Running `jvm clean` executes a thorough, automated garbage-collection sweep across all temporary directories:
+
+```cmd
+jvm clean
+```
+
+##### 🧹 Complete Artifact Purge Scope:
+* **Temporary Installer Archives:** Purges all cached `.zip` and `.tar.gz` downloads in `%TEMP%\jdk_*_download.*`.
+* **Intermediate Extraction Workspaces:** Recursively removes orphaned `%TEMP%\jdk_*_extract` extraction directory trees left behind from completed or interrupted unpack operations.
+* **Transient Helper Scripts:** Sweeps temporary PowerShell download runners and handoff batch scripts (`%TEMP%\jvm_dl_*.ps1`, `%TEMP%\jvm_install_*.ps1`, `%TEMP%\jvm_updater_*.bat`, `%TEMP%\jvm_uninstall_*.bat`, `%TEMP%\jvm_uninstall_*.ps1`).
+* **Candidate Tool Download Cache:** Empties `%LOCALAPPDATA%\DiamTek\JVM\downloads\*` where candidate tool zip payloads are staged during installation.
+* **Candidate Staging Directories:** Cleans transient extraction workspaces in `%LOCALAPPDATA%\DiamTek\JVM\candidates\*\temp_*`.
+* **Process Communication Files:** Removes stale `%TEMP%\.jvm_session_target` process session exchange files.
+
+##### 🛡️ Safety & Non-Destructive Guarantee:
+* **100% Non-Destructive:** `jvm clean` never deletes installed JDK runtimes (`C:\Program Files\Java`), never removes registered ecosystem tools (`%LOCALAPPDATA%\DiamTek\JVM\candidates`), never breaks active Directory Junctions (`%LOCALAPPDATA%\DiamTek\JVM\current`), and never alters your Windows Registry (`PATH`, `JAVA_HOME`).
+* **Live Storage Reclamation Reporting:** Dynamically calculates and displays the exact number of files deleted and total megabytes (MB) of storage reclaimed on disk.
+
+---
+
+#### 2. `jvm clear` — Environment Variable & Registry Slate Reset
+Use `jvm clear` when you need to completely de-activate Java from your system environment or troubleshoot stubborn configuration conflicts, such as rogue installers overriding your selected version:
+
+```cmd
+jvm clear
+```
+
+##### 🎯 Key Problems Solved: PATH Shadowing & Ghost Registries:
+* **Phantom Oracle Path Elimination:** Legacy MSI installers from Oracle Java frequently inject hardcoded shortcut directories into the front of the Machine `PATH` (such as `C:\Program Files\Common Files\Oracle\Java\javapath` or `C:\ProgramData\Oracle\Java\javapath`). Because Windows evaluates Machine paths before User environment variables, `java -version` can remain stuck on an obsolete JRE even after switching versions in JVM. `jvm clear` actively hunts down and scrubs these rogue Oracle paths from both Machine and User registries.
+* **Directory Junction Teardown:** Cleanly removes the `%LOCALAPPDATA%\DiamTek\JVM\current\bin` directory junction from your User and System `PATH`.
+* **JAVA_HOME Unsetting:** Completely unbinds and wipes `JAVA_HOME` across both User (`HKCU\Environment`) and Machine (`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`) scopes.
+* **Clean Baseline Reset:** After executing `jvm clear`, running `jvm <version>` (e.g., `jvm 21`) reinstates a pristine, conflict-free environment where your chosen JDK holds 100% priority.
+
+---
+
+#### 📊 Architectural Comparison: `jvm clean` vs `jvm clear`
+
+| Feature / Attribute | `jvm clean` (Disk Cache Pruner) | `jvm clear` (Environment Slate Wipe) |
+|---|---|---|
+| **Primary Objective** | Reclaim local disk space from cached archives | Reset Java environment variables and fix PATH shadowing |
+| **Filesystem Action** | Deletes temporary `.zip`, `.tar.gz`, extract trees, and helper scripts | Tears down directory junction and removes phantom shortcuts |
+| **Registry Action** | **None** (zero registry modifications) | Purges `JAVA_HOME`, scrubs `PATH`, removes rogue Oracle entries |
+| **Installed JDKs Impact** | **Untouched** (all runtimes in `Program Files` and AppData remain safe) | **Untouched** (runtimes remain on disk, but environment bindings are cleared) |
+| **Ecosystem Tools Impact** | Purges download cache only; installed versions remain intact | Clears active session variables; tool directories remain intact |
+| **Privileges Required** | Standard User (zero UAC elevation required) | Standard User for User PATH; requests UAC only if cleaning Machine registry |
+| **Automated Backup** | Not required (only temporary cache files deleted) | **Automatic timestamped `.reg` export** to AppData before changes |
+| **Reversibility** | Files deleted; archives re-downloaded if needed | **100% reversible** via one-click `.reg` import or running `jvm <version>` |
+| **When to Run** | Routine maintenance, after large installations, or low disk space | When `java -version` reports the wrong version, or resetting environment |
+
+---
+
+#### 💾 Automated Safety Backups & Rollback Walkthrough
+To guarantee total peace of mind before executing any destructive registry modifications, `jvm clear` automatically exports full timestamped `.reg` backup files before touching a single environment variable:
+
+* **Backup Destination:** `%LOCALAPPDATA%\DiamTek\JVM\backups\`
+* **Machine Registry Snapshot:** `sys_env_<date>_<time>.reg` (Backs up `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`)
+* **User Registry Snapshot:** `usr_env_<date>_<time>.reg` (Backs up `HKCU\Environment`)
+
+##### How to Restore Your Environment from Backup:
+If you ever need to restore your workstation's previous environment state after running `jvm clear`:
+
+1. **Via Windows File Explorer (GUI):**
+   - Press **Win + R**, paste `%LOCALAPPDATA%\DiamTek\JVM\backups`, and hit **Enter** (or run `explorer.exe "$env:LOCALAPPDATA\DiamTek\JVM\backups"` from PowerShell).
+   - Locate the generated `.reg` files matching the date and time of your operation.
+   - Double-click `usr_env_<date>_<time>.reg` (and `sys_env_<date>_<time>.reg` if Machine variables were altered).
+   - Click **Yes** when Windows Registry Editor prompts to merge the keys, then restart your terminal.
+
+2. **Via Command Prompt (CMD):**
+   ```cmd
+   reg import "%LOCALAPPDATA%\DiamTek\JVM\backups\usr_env_<date>_<time>.reg"
+   reg import "%LOCALAPPDATA%\DiamTek\JVM\backups\sys_env_<date>_<time>.reg"
+   ```
+
+3. **Via PowerShell:**
+   ```powershell
+   reg import "$env:LOCALAPPDATA\DiamTek\JVM\backups\usr_env_<date>_<time>.reg"
+   reg import "$env:LOCALAPPDATA\DiamTek\JVM\backups\sys_env_<date>_<time>.reg"
+   ```
 
 <a id="what-is-jvm-doctor-and-how-does-it-diagnose-system-conflicts"></a>
 ### What is `jvm doctor` and how does it diagnose system conflicts?
@@ -519,27 +599,124 @@ jvm hook remove
 ```
 You can also toggle the hook directly from the interactive TUI by navigating to **Settings** (`3`) -> **Option 2** (`PowerShell Profile Hook`).
 
-<a id="how-do-i-free-up-disk-space-from-downloaded-jdk-installers-jvm-clean-vs-jvm-clear"></a>
-<a id="what-is-the-difference-between-jvm-clean-and-jvm-clear"></a>
-### How do I free up disk space from downloaded JDK installers? (jvm clean vs jvm clear)
-Both commands maintain system hygiene, but they target different layers:
+<a id="how-do-i-enable-and-use-dynamic-tab-completion-in-powershell"></a>
+### How do I enable and use dynamic Tab-Completion in PowerShell?
+DiamTek JVM provides native, sub-millisecond tab-completion for **Windows PowerShell 5.1** and modern **PowerShell 7+ (`pwsh`)** using .NET's `Register-ArgumentCompleter` API.
 
-- **`jvm clean` (Cache Pruner):** Safely deletes temporary installer archives (`%TEMP%\jdk_*_download.*`), intermediate extract workspaces (`%TEMP%\jdk_*_extract`), and stale download helper scripts. It never touches your installed JDKs, candidate tools, directory junctions, or registry settings.
-  ```powershell
-  jvm clean
-  ```
+#### 1. Setup & Reloading
+Dynamic completion is installed automatically when configuring the PowerShell hook:
+```powershell
+jvm hook
+```
+Once installed, open a fresh terminal tab or reload your active profile in your current shell:
+```powershell
+. $PROFILE
+```
 
-- **`jvm clear` (Environment Slate Wipe):** Completely unbinds `JAVA_HOME`, scrubs JVM directory junctions, and removes rogue legacy Oracle `javapath` entries from your system PATH.
-  ```powershell
-  jvm clear
-  ```
+#### 2. Features & Context Awareness
+- **Universal Invocation Completion:** Autocompletion triggers whether you type `jvm <Tab>`, `jvm.bat <Tab>`, or `.\jvm.bat <Tab>`, guaranteeing friction-free ergonomics across both installed PATH commands and local repository checkouts.
+- **Command & Tool Completion:** Typing `jvm ` and hitting `<Tab>` cycles through all canonical commands (`list`, `install`, `uninstall`, `use`, `pin`, `current`, `doctor`, `clean`, `update`, etc.), ergonomic shorthand aliases (`ls`, `rm`, `info`, `whoami`, `check`, `prune`, `path`, `home`, `local`, `run`), and ecosystem candidate tools (`java`, `maven`, `gradle`, `kotlin`, `scala`, `groovy`).
+- **Installed Version Cycling:** When typing `jvm use `, `jvm default `, `jvm pin `, or `jvm uninstall `, pressing `<Tab>` queries `%LOCALAPPDATA%\JavaVersionManager\links` and `%USERPROFILE%\.jdks` to suggest installed JDK versions (e.g. `21`, `17`, `11`).
+- **Vendor Filtering (All 8 Distributions):** `jvm install 21 --vendor <Tab>` autocompletes `adoptium`, `temurin`, `oracle`, `corretto`, `zulu`, `microsoft`, `graalvm`, `liberica`, `bellsoft`, `semeru`, `ibm`, `openj9`.
+- **Target Folder Completion:** `jvm open <Tab>` autocompletes `home`, `dir`, `bin`, `config`, `cache`, `downloads`, `backup`, `backups`, `links`.
+- **Flag Overrides:** `jvm --<Tab>` autocompletes all supported command flags (`--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--version`, `--help`).
 
-> [!TIP]
-> **Restoring from Automated Registry Backup:** Before executing any destructive registry modifications, `jvm clear` automatically exports timestamped `.reg` backup files of both User (`HKCU`) and Machine (`HKLM`) environment variables to `%LOCALAPPDATA%\DiamTek\JVM\backups\`.
-> If you ever need to restore your previous environment state:
-> 1. Open File Explorer to `%LOCALAPPDATA%\DiamTek\JVM\backups` (or run `explorer.exe "$env:LOCALAPPDATA\DiamTek\JVM\backups"`).
-> 2. Locate the backup files named `sys_env_<date>_<time>.reg` (Machine registry) or `usr_env_<date>_<time>.reg` (User registry).
-> 3. Double-click the file and confirm the Windows prompt to re-import your previous registry state.
+<a id="how-do-i-use-jvm-in-cicd-pipelines-without-ansi-color-code-artifacts-no_color"></a>
+### How do I use JVM in CI/CD pipelines without ANSI color code artifacts? (NO_COLOR)
+When redirecting command output to text files (`jvm list > jdks.txt`) or running in automated CI runners (GitHub Actions, Azure DevOps, Jenkins, GitLab CI), terminal color codes can pollute raw logs with escape sequences like `←[92m`.
+
+DiamTek JVM adheres 100% to the cross-industry [NO_COLOR specification](https://no-color.org):
+1. **Via Environment Variable:** If `$env:NO_COLOR` is defined and non-empty, all ANSI color codes are completely suppressed.
+   ```yaml
+   # GitHub Actions Workflow
+   env:
+     NO_COLOR: "1"
+   ```
+2. **Via CLI Flag:** Pass `--no-color` to any command:
+   ```cmd
+   jvm list --no-color
+   jvm doctor --no-color
+   ```
+3. **Clean Redirection:**
+   ```powershell
+   jvm list --no-color | Out-File -FilePath jdks.txt -Encoding utf8
+   ```
+
+<a id="what-shorthand-cli-aliases-does-jvm-support-jvm-ls-jvm-rm-jvm-info"></a>
+### What shorthand CLI aliases does JVM support? (jvm ls, jvm rm, jvm info)
+To minimize friction for developers accustomed to Linux, macOS, Docker, Git, or SDKMAN!, JVM supports the following command aliases:
+
+| Habit / Shorthand Alias | Canonical Command | Description |
+|-------------------------|-------------------|-------------|
+| `jvm ls` | `jvm list` | Lists all installed JDKs, toolchains, and vendors |
+| `jvm rm <version>` | `jvm uninstall <version>` | Uninstalls a specific JDK release or tool |
+| `jvm remove <version>` | `jvm uninstall <version>` | Alternative uninstall alias |
+| `jvm info` | `jvm current` | Displays detailed status card for active JDK and ecosystem tools |
+| `jvm whoami` | `jvm current` | Identity check showing which binary owns the shell |
+| `jvm check` | `jvm doctor` | Performs comprehensive pre-flight health diagnostic audit |
+| `jvm prune` | `jvm clean` | Purges download cache and extraction artifacts |
+| `jvm path` | `jvm which` | Displays exact filesystem path to active binary |
+| `jvm home` | `jvm open` | Opens active candidate or root in File Explorer |
+| `jvm local [version]` | `jvm pin [version]` | Reads or locks directory-level `.java-version` file |
+| `jvm run <ver> <cmd>` | `jvm exec <ver> <cmd>` | Runs command in ephemeral isolated subshell |
+
+<a id="how-do-i-automatically-switch-java-versions-when-navigating-into-a-project-directory-cd-auto-switching"></a>
+### How do I automatically switch Java versions when navigating into a project directory? (cd auto-switching)
+Whenever you run `jvm` in any directory containing a `.java-version` or `.sdkmanrc` file, the manager automatically evaluates the file and switches your current shell session to that version without opening interactive menus.
+
+For full automatic switching upon changing directories (`cd`), you can add a lightweight prompt hook to your PowerShell `$PROFILE`:
+
+```powershell
+# Add to your Microsoft.PowerShell_profile.ps1:
+function Invoke-JvmAutoEnv {
+    if (Test-Path -LiteralPath ".java-version") {
+        $pinned = (Get-Content ".java-version" -First 1).Trim()
+        if ($pinned -and ($env:JAVA_HOME -notmatch [regex]::Escape($pinned))) {
+            jvm $pinned --session
+        }
+    } elseif (Test-Path -LiteralPath ".sdkmanrc") {
+        $sdkVer = (Get-Content ".sdkmanrc" | Where-Object { $_ -match '^java=' } | ForEach-Object { ($_ -split '=')[1] }).Trim()
+        if ($sdkVer) {
+            jvm $sdkVer --session
+        }
+    }
+}
+
+# Attach to PowerShell prompt function
+if (Test-Path function:prompt) {
+    $existingPrompt = $function:prompt
+    function prompt {
+        Invoke-JvmAutoEnv
+        & $existingPrompt
+    }
+}
+```
+This guarantees that whenever you `cd` into any repository with a `.java-version` or `.sdkmanrc` file, your `JAVA_HOME` and `PATH` are instantly configured for that session.
+
+<a id="which-jdk-vendors-are-supported-and-how-do-bellsoft-liberica-and-ibm-semeru-differ"></a>
+### Which JDK vendors are supported, and how do BellSoft Liberica and IBM Semeru differ?
+DiamTek JVM provides first-class native support for **8 upstream JDK distribution vendors**:
+
+1. **Oracle OpenJDK / Standard** — Upstream reference implementation directly from Oracle Corporation, providing rapid access to the newest six-month feature releases.
+2. **Adoptium (Eclipse Temurin)** — Industry-standard, multi-platform OpenJDK distribution maintained by the Eclipse Foundation and the Adoptium Working Group. Ideal default choice for general Java development and enterprise workloads.
+3. **GraalVM CE** — Oracle Labs high-performance Polyglot runtime featuring `native-image` Ahead-Of-Time (AOT) compilation, producing lightning-fast native Windows executables (`.exe`).
+4. **Amazon Corretto** — Production-ready, multi-platform distribution maintained by Amazon Web Services, backed by long-term enterprise support and hardened for AWS cloud workloads.
+5. **Azul Zulu** — Fully certified, 100% TCK-compliant OpenJDK builds from Azul Systems, offering deep backward compatibility across legacy and modern Java versions (8 through 25+).
+6. **Microsoft Build of OpenJDK** — Enterprise LTS distribution built and supported by Microsoft, optimized for Windows native architecture and Azure cloud services.
+7. **BellSoft Liberica** — The official standard base runtime image for the Spring Boot framework. Liberica provides 100% TCK-verified OpenJDK builds with both standard HotSpot and full JavaFX / LibericaFX graphical desktop library bundles, compact memory footprints, and enterprise performance.
+8. **IBM Semeru Runtimes** — Powered by the **Eclipse OpenJ9** virtual machine rather than the conventional OpenJDK HotSpot engine. Semeru Runtimes excel in memory-constrained cloud environments, container deployments, and high-density microservices.
+
+#### Why Choose BellSoft Liberica?
+- **Spring Framework First:** Chosen by VMware/Spring as the default JVM provider for Spring Boot container images due to its minimal startup footprint and rigorous TCK compliance.
+- **Desktop & JavaFX Ready:** Liberica includes full runtime support for JavaFX, making it the premier choice for cross-platform desktop UI development on Windows without needing external OpenJFX modules.
+- **Dual Architecture:** Fully supports both Windows x64 and Windows ARM64 hardware out of the box.
+- **Install command:** `jvm install 21 --vendor liberica`
+
+#### Why Choose IBM Semeru (OpenJ9)?
+- **Radical RAM Savings:** The Eclipse OpenJ9 runtime uses up to **50% less physical memory (RSS)** after startup compared to standard HotSpot engines, allowing significantly higher container and process density on the same hardware.
+- **Fast Ramp-Up & Startup:** Leverages shared class caches and dynamic Ahead-of-Time (AOT) compilation to achieve swift startup times without sacrificing throughput.
+- **Cloud Microservices:** Unbeatable for memory-sensitive environments, microservice clusters, and Docker/Kubernetes container pods on Windows.
+- **Install command:** `jvm install 21 --vendor semeru`
 
 ---
 

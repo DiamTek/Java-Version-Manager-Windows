@@ -28,7 +28,7 @@ When testing local changes in your cloned repository, invoke the script directly
 ```
 
 > [!NOTE]
-> **Remember:** If you already have JVM installed and present in your system `PATH`, simply typing `jvm` will invoke the **globally installed** executable rather than your local working copy. When developing and testing locally, always prefix the command with `.\` (e.g. `.\jvm.bat list` or `.\jvm.bat 21 --session`). Once installed into `PATH`, standard users run `jvm` without prefixes from any directory.
+> **Remember:** If you already have JVM installed and present in your system `PATH`, simply typing `jvm` will invoke the **globally installed** executable rather than your local working copy. When developing and testing locally, always prefix the command with `.\` (e.g. `.\jvm.bat list` or `.\jvm.bat 21 --session`). PowerShell argument tab-completion natively supports all three invocation styles: `jvm <Tab>`, `jvm.bat <Tab>`, and `.\jvm.bat <Tab>`! Once installed into `PATH`, standard users run `jvm` without prefixes from any directory.
 
 ### 2. Testing Session Switching (Zero System Impact)
 Always use the `--session` flag during manual CLI testing. This mutates only the memory of the active subshell process and leaves your global Windows Registry and User environment untouched:

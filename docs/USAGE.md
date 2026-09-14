@@ -16,6 +16,8 @@ This document outlines every command, flag override, and semantic route availabl
 ### 🔍 Quick Jump
 - [Interactive UI Mode](#interactive-ui-mode)
 - [Command Reference Cheat Sheet](#command-reference-cheat-sheet)
+- [PowerShell Dynamic Tab-Completion](#powershell-dynamic-tab-completion)
+- [CLI Ergonomics & Shorthand Aliases](#cli-ergonomics--shorthand-aliases)
 - [Quick-Switching (CLI)](#quick-switching-cli)
 - [Ephemeral Command Execution (jvm exec / jvm run)](#ephemeral-command-execution)
 - [Headless Installations](#headless-installations)
@@ -78,23 +80,100 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm install <ver> --skip-checksum` | Machine | Bypasses checksum verification if vendor hash mirror is unreachable. |
 | `jvm install <tool> [version]` | User | Installs ecosystem tool (e.g., `jvm install maven latest`, `jvm install gradle 8.9`; accepts `-y`). |
 | `jvm <tool> <version>` | User | Switches active ecosystem tool version (e.g., `jvm kotlin 2.0.20`, `jvm maven 3.9.6`). |
-| `jvm update` | Interactive | Opens the vendor-sorted update checker and patch menu. |
+| `jvm update <version>` | Machine | Checks for and applies vendor patches to a specific installed JDK (e.g., `jvm update 21`). |
 | `jvm update --all [--vendor <name>]` | Machine | Silently checks and patches all installed JDKs and tools to latest releases. |
-| `jvm uninstall [version]` | Machine | Opens uninstaller menu or uninstalls specified version (e.g., `jvm uninstall 21`). |
-| `jvm list` | Inspection | Lists all installed JDKs, vendors, paths, and ecosystem build tools. |
-| `jvm current` | Inspection | Displays comprehensive status card: active JDK, switching mode, junction target, and tools (`jvm status`, `jvm env`). |
-| `jvm which [candidate]` | Inspection | Prints absolute filesystem path to active `java.exe` or ecosystem binary (`jvm path`). |
-| `jvm doctor` | Diagnostic | Deep system health audit: permissions, junctions, registry sync, PATH shadowing, and hooks. |
+| `jvm uninstall <version>` | Machine | Uninstalls a specific installed JDK (aliases: `jvm rm <version>`, `jvm remove <version>`). |
+| `jvm list` | Inspection | Lists all installed JDKs, vendors, paths, and ecosystem build tools (alias: `jvm ls`). |
+| `jvm current` | Inspection | Displays comprehensive status card: active JDK, mode, junction target, and tools (aliases: `jvm status`, `jvm info`, `jvm whoami`, `jvm env`). |
+| `jvm which [candidate]` | Inspection | Prints absolute filesystem path to active `java.exe` or ecosystem binary (alias: `jvm path`). |
+| `jvm doctor` | Diagnostic | Deep system health audit: permissions, junctions, registry sync, PATH shadowing, and hooks (alias: `jvm check`). |
 | `jvm hook [install/remove]` | Shell | Manage PowerShell profile auto-sync wrapper hook (`install`, `setup`, `status`, `check`, `remove`). |
-| `jvm open [candidate]` | Navigation | Opens active candidate, JDK, or storage root in Windows File Explorer (`jvm home`). |
-| `jvm clean` | Maintenance | Safely purges temporary download caches and extraction artifacts to reclaim disk space. |
+| `jvm open [candidate]` | Navigation | Opens active candidate, JDK, or storage root in Windows File Explorer (alias: `jvm home`). |
+| `jvm clean` | Maintenance | Safely purges temporary download caches and extraction artifacts to reclaim disk space (alias: `jvm prune`). |
 | `jvm clear` | System | Purges `JAVA_HOME` and cleanly removes JVM directory junctions from PATH. |
 | `jvm link [path] [name]` | Custom | Registers an external custom JDK (or lists all registered links with target paths if run without arguments). |
 | `jvm unlink <name>` | Custom | Unregisters a custom linked JDK from the manager. |
 | `jvm version` | Tool | Displays current JVM version, build number, and checks GitHub for updates (`--version`, `-v`). |
 | `jvm self-update` | Tool | Automatically downloads and atomic-swaps `jvm.bat` to the latest release. |
 | `jvm self-uninstall` | System | Triggers deep UAC-elevated system uninstaller (`uninstall.ps1`, `jvm uninstall-self`). |
+| `jvm <command> --no-color` | Flag | Suppresses ANSI color codes for clean redirection and CI/CD logs (also honors `NO_COLOR` env). |
 | `jvm --help` | Help | Displays formatted in-terminal command manual and flag reference (`-h`, `/?`). |
+
+*Note: Running bare `jvm` launches the interactive dashboard to access visual Updater and Uninstaller sub-menus.*
+
+---
+
+<a id="powershell-dynamic-tab-completion"></a>
+## ⌨️ PowerShell Dynamic Tab-Completion
+
+DiamTek JVM provides native, intelligent tab-completion for both **Windows PowerShell 5.1** and modern cross-platform **PowerShell 7+ (`pwsh`)**. Powered by the .NET runtime's native `Register-ArgumentCompleter` engine, it requires zero external modules, third-party packages, or slow subprocesses.
+
+When you install or activate the PowerShell profile hook (`jvm hook` or via `install.ps1`), dynamic tab completion is automatically embedded inside your `$PROFILE`.
+
+### Autocompletion Capabilities Matrix
+
+| Input Context | Tab Behavior | Autocompleted Values |
+|---------------|--------------|----------------------|
+| `jvm <Tab>` / `jvm.bat <Tab>` / `.\jvm.bat <Tab>` | Subcommands, candidates, & global flags | `list`, `ls`, `install`, `uninstall`, `rm`, `use`, `pin`, `current`, `doctor`, `clean`, `java`, `maven`, `gradle`, etc. |
+| `jvm open <Tab>` | Known filesystem navigation targets | `home`, `dir`, `bin`, `config`, `cache`, `downloads`, `backup`, `backups`, `links` |
+| `jvm hook <Tab>` | Profile hook lifecycle management actions | `install`, `status`, `check`, `remove`, `uninstall` |
+| `jvm --vendor <Tab>` | Certified JDK upstream distribution vendors | `adoptium`, `temurin`, `oracle`, `corretto`, `zulu`, `microsoft`, `graalvm`, `liberica`, `bellsoft`, `semeru`, `ibm`, `openj9` |
+| `jvm use <Tab>` | Dynamically discovered installed versions | Scans `%LOCALAPPDATA%\JavaVersionManager\links` and `%USERPROFILE%\.jdks` in real-time |
+| `jvm pin <Tab>` | Dynamically discovered installed versions | Autocompletes installed JDK version tags for `.java-version` creation |
+| `jvm uninstall <Tab>` | Installed JDKs and candidates | Autocompletes installed version tags for targeted uninstallation |
+| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--version`, `--help` |
+
+### Interactive Tab Session Examples
+
+```powershell
+# 1. Autocompleting commands by prefix across all invocation styles
+jvm ins<Tab>                  # Expands to: jvm install
+jvm.bat ins<Tab>              # Expands to: jvm.bat install
+.\jvm.bat ins<Tab>            # Expands to: .\jvm.bat install
+
+# 2. Cycling through installed JDK versions without typing them manually
+jvm use <Tab>                 # Cycles through: 21, 17, 11, 8, java, maven, gradle...
+
+# 3. Filtering by vendor (all 8 distributions supported)
+jvm install 21 --ven<Tab>     # Expands to: jvm install 21 --vendor
+jvm install 21 --vendor <Tab> # Cycles: adoptium, temurin, oracle, corretto, zulu, microsoft, graalvm, liberica, bellsoft, semeru, ibm, openj9
+
+# 4. Opening specific application data directories
+jvm open do<Tab>              # Expands to: jvm open downloads
+```
+
+### Enabling and Verifying Tab-Completion
+If tab-completion is not active in your current PowerShell session, simply run:
+```powershell
+jvm hook
+```
+This inspects all standard PowerShell profile locations (`WindowsPowerShell\Microsoft.PowerShell_profile.ps1` and `PowerShell\Microsoft.PowerShell_profile.ps1`) and injects the completion handler registered simultaneously for `jvm`, `jvm.bat`, and `.\jvm.bat`. Open a new terminal tab or run `. $PROFILE` to start using dynamic completion immediately.
+
+---
+
+<a id="cli-ergonomics--shorthand-aliases"></a>
+## 🏎️ CLI Ergonomics & Shorthand Aliases
+
+To maximize developer velocity and eliminate muscle-memory friction when switching between Linux, macOS, and Windows environments, DiamTek JVM includes built-in ergonomic aliases for all primary operations.
+
+### Muscle-Memory Alias Mapping
+
+| Shorthand Alias | Canonical Command | Ecosystem Origin | Functional Description |
+|-----------------|-------------------|------------------|------------------------|
+| `jvm ls` | `jvm list` | Unix / Linux / `ls` | Lists all installed JDKs, vendors, paths, and ecosystem build tools. |
+| `jvm rm <ver>` | `jvm uninstall <ver>` | Unix / Docker / Git | Uninstalls a specific installed JDK (e.g., `jvm rm 21`) or candidate tool. |
+| `jvm remove <ver>` | `jvm uninstall <ver>` | Package Managers | Uninstalls a specific installed JDK (e.g., `jvm remove 17`). |
+| `jvm info` | `jvm current` | Homebrew / Scoop | Displays active JDK, switching mode, junction target, and tools status card. |
+| `jvm whoami` | `jvm current` | POSIX / Linux | Identity query displaying which Java binary and version currently owns the shell. |
+| `jvm check` | `jvm doctor` | Rust `cargo check` | Runs full pre-flight diagnostic health audit and conflict scanner. |
+| `jvm prune` | `jvm clean` | Docker / Git `prune` | Safely purges temporary download caches and extraction artifacts. |
+| `jvm path` | `jvm which` | Windows CLI | Prints absolute filesystem path to active `java.exe` or candidate tool. |
+| `jvm home` | `jvm open` | SDKMAN! / macOS | Opens candidate installation directory or storage root in File Explorer. |
+| `jvm local [ver]` | `jvm pin [ver]` | pyenv / rbenv / asdf | Locks directory-level `.java-version` file for automated project switching. |
+| `jvm run <ver> <cmd>` | `jvm exec <ver> <cmd>`| npm / Cargo | Executes command in ephemeral isolated JDK subshell without altering global state. |
+| `jvm status` | `jvm current` | Git / systemd | Displays full environment card. |
+
+All aliases support the full spectrum of CLI flags (`--session`, `--symlink`, `--vendor`, `--no-color`, `-y`).
 
 ---
 
@@ -147,12 +226,14 @@ When multiple distributions of the same major version are installed, JVM prompts
 
 | `--vendor` Value | Display Name | Distribution / Packaging |
 |-----------------|--------------|--------------------------|
-| `adoptium` | Eclipse Temurin | OpenJDK (Eclipse Adoptium) |
 | `oracle` | Oracle JDK | Official Oracle JDK |
+| `adoptium` | Eclipse Temurin | OpenJDK (Eclipse Adoptium) |
 | `corretto` | Amazon Corretto | OpenJDK (Amazon Corretto) |
 | `graalvm` | GraalVM CE | Oracle GraalVM Community Edition |
 | `zulu` | Azul Zulu | OpenJDK (Azul Systems) |
 | `microsoft` | Microsoft Build | OpenJDK (Microsoft Build of OpenJDK) |
+| `liberica` | BellSoft Liberica | OpenJDK (BellSoft Liberica / FX) |
+| `semeru` | IBM Semeru | IBM Semeru Runtime (Eclipse OpenJ9) |
 | `custom` | Custom | Locally linked JDKs via `jvm link` |
 
 ### True Session Isolation
@@ -252,6 +333,21 @@ If you are operating in an air-gapped environment or a vendor's checksum endpoin
 jvm install 21 --vendor adoptium --skip-checksum
 ```
 *(Note: `--yes` / `-y` only suppresses interactive confirmation prompts and does not disable checksum verification).*
+
+### Supported JDK Distribution Vendors (8 Native Upstream Ecosystems)
+
+DiamTek JVM connects directly to official upstream vendor APIs to resolve, download, verify, and extract verified production JDKs. You can specify any of the 8 supported distributions using `--vendor <name>`:
+
+| Vendor Identifier | Canonical Name | Upstream Source / Engine | Primary Strengths & Use Cases | Example Installation |
+|---|---|---|---|---|
+| `oracle` | Oracle OpenJDK | Oracle Corporation (HotSpot) | Reference OpenJDK implementation, newest feature releases. | `jvm install 21 --vendor oracle` |
+| `adoptium` / `temurin` | Eclipse Temurin | Eclipse Foundation (HotSpot) | General purpose, industry-standard LTS enterprise builds. | `jvm install 21 --vendor adoptium` |
+| `graalvm` | GraalVM CE | Oracle Labs (SubstrateVM) | Ahead-Of-Time (AOT) compilation, native executable binaries. | `jvm install 21 --vendor graalvm` |
+| `corretto` | Amazon Corretto | Amazon Web Services (HotSpot) | Production-grade AWS environments, multi-platform reliability. | `jvm install 21 --vendor corretto` |
+| `zulu` | Azul Zulu | Azul Systems (HotSpot) | Certified TCK compliance, legacy Java 8/11/17 compatibility. | `jvm install 21 --vendor zulu` |
+| `microsoft` / `ms` | Microsoft OpenJDK | Microsoft (HotSpot) | Azure-optimized cloud workloads, Windows native architecture. | `jvm install 21 --vendor microsoft` |
+| `liberica` / `bellsoft`| BellSoft Liberica | BellSoft (HotSpot / FX) | Spring Boot default base image, standard HotSpot with full TCK verification, JavaFX / LibericaFX support, compact lightweight footprints. | `jvm install 21 --vendor liberica` |
+| `semeru` / `ibm` / `openj9` | IBM Semeru Runtimes | IBM (Eclipse OpenJ9) | Eclipse OpenJ9 virtual machine, drastically lower memory footprint (up to 50% less RAM), rapid container startup times, dynamic AOT. | `jvm install 21 --vendor semeru` |
 
 ---
 
@@ -383,6 +479,8 @@ When reading a `.sdkmanrc` file, JVM dynamically translates Unix SDKMAN! vendor 
 | `-graal` / `-graalce` | GraalVM CE | `graalvm` | `java=21.0.2-graal` |
 | `-zulu` | Azul Zulu | `zulu` | `java=17.0.10-zulu` |
 | `-ms` / `-msft` | Microsoft OpenJDK | `microsoft` | `java=21.0.2-ms` |
+| `-librca` / `-nik` | BellSoft Liberica | `liberica` | `java=21.0.2-librca` |
+| `-sem` / `-semeru` | IBM Semeru (OpenJ9) | `semeru` | `java=21.0.2-sem` |
 | *(bare number)* | Standard OpenJDK / Oracle | `oracle` / any installed | `java=21` |
 
 
@@ -797,6 +895,30 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 ```
+
+### ANSI Color Suppression in CI Logs & File Redirection (`NO_COLOR`)
+Modern CI/CD runners (GitHub Actions, Azure DevOps, GitLab CI, Jenkins) and automated parsing scripts require clean text output without ANSI terminal color codes (like `ESC[92m`).
+
+DiamTek JVM adheres strictly to the cross-tool [NO_COLOR specification](https://no-color.org). When the `NO_COLOR` environment variable is present and non-empty (or when the `--no-color` CLI flag is used), all ANSI formatting is completely disabled:
+
+```powershell
+# Option 1: Global CI environment variable in GitHub Actions / Azure Pipelines
+env:
+  NO_COLOR: "1"
+
+# Option 2: Headless command-line flag override
+jvm list --no-color
+
+# Option 3: Redirecting clean output to a file without escape sequence pollution
+jvm list --no-color > installed-jdks.txt
+```
+
+### Automating Per-Directory Environment Reloads (`jvm env`)
+In headless automation scripts or local development flows that traverse multiple repositories, you can instantly refresh the terminal's `JAVA_HOME` and `PATH` to match the current directory's `.java-version` or `.sdkmanrc` by running:
+```powershell
+jvm env
+```
+This inspects the active directory tree and applies the pinned version to the current process without opening interactive dialogs or requiring administrator elevation.
 
 ---
 

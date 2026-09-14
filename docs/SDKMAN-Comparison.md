@@ -35,7 +35,7 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **Project File Support** | `.sdkmanrc` only | **Dual Support:** `.java-version` & Auto **`.sdkmanrc` Translation** |
 | **Local JDK Discovery** | Cannot scan Windows folders | **Automatic Local Discovery** (scans `Program Files` for existing JDKs) |
 | **Offline Operation** | May lag on remote API latency | **Zero-Ping Local Switching** (100% offline, instant) |
-| **Pre-Change Safety** | None (overwrites shell files) | **Automated Registry Backups** (exports `.reg` to `%TEMP%`) |
+| **Pre-Change Safety** | None (overwrites shell files) | **Automated Registry Backups** (exports `.reg` to `%LOCALAPPDATA%\DiamTek\JVM\backups\`) |
 | **User Interface** | CLI Only (Manual typing) | **Interactive TUI** & Headless CLI |
 | **Archive Extraction** | Requires external `zip` / `tar` binaries | **Native `.NET System.IO.Compression`** |
 | **Security Validation** | Basic (`curl` downloads) | **Strict `.NET` SHA256/SHA512 Cryptography** |
@@ -67,7 +67,7 @@ The biggest hurdle for Windows developers is collaborating on repositories maint
 
 This tool completely eliminates that friction. It features a native **`.sdkmanrc` parser** that dynamically "hijacks" SDKMAN! workflows:
 1. When you run `jvm` in a folder with a `.sdkmanrc` file, it reads the exact versions requested by the Linux team.
-2. It translates SDKMAN! vendor strings (e.g., `17-tem` or `21-amzn`) into their native Windows equivalents (Adoptium, Corretto).
+2. It translates SDKMAN! vendor strings (e.g., `17-tem`, `21-amzn`, `21-librca`, or `21-sem`) into their native Windows equivalents (Adoptium, Corretto, Liberica, Semeru).
 3. It instantly isolates the exact requested JDK, Maven, and Gradle versions into your *current* terminal session.
 
 You get 100% perfect environment synchronization with your Linux teammates, without ever installing a Linux subsystem on your Windows machine.
@@ -210,12 +210,12 @@ Managing development environments requires both disk space hygiene and environme
 
 DiamTek JVM cleanly decouples these two maintenance workflows:
 1. **`jvm clean` (Disk Cache Pruner):** Safely sweeps `%TEMP%` and `%LOCALAPPDATA%\DiamTek\JVM` to purge orphaned `.zip` and `.tar.gz` downloads, temporary extraction trees, and obsolete updater scripts. It calculates and reports the exact number of files deleted and megabytes reclaimed without touching active JDKs or settings.
-2. **`jvm clear` (Environment Slate Wipe):** Performs a deep system reset. It removes `JAVA_HOME`, scrubs rogue Oracle `javapath` entries and broken junctions from both User and Machine `PATH`, and restores a clean baseline. To ensure complete safety, `jvm clear` automatically exports a timestamped `.reg` registry backup to `%TEMP%` before executing.
+2. **`jvm clear` (Environment Slate Wipe):** Performs a deep system reset. It removes `JAVA_HOME`, scrubs rogue Oracle `javapath` entries and broken junctions from both User and Machine `PATH`, and restores a clean baseline. To ensure complete safety, `jvm clear` automatically exports a timestamped `.reg` registry backup to `%LOCALAPPDATA%\DiamTek\JVM\backups\` before executing.
 
 ---
 
 ## 🛡️ Zero-Risk Backups & 100% Offline Execution
-* **Pre-Change Safety:** Unlike POSIX shell scripts that directly overwrite `.bashrc` or `.zshrc`, DiamTek JVM automatically creates a timestamped `.reg` backup in `%TEMP%` before making destructive registry modifications or clearing paths. If you ever need to roll back, simply double-click the `.reg` file to restore your previous environment state.
+* **Pre-Change Safety:** Unlike POSIX shell scripts that directly overwrite `.bashrc` or `.zshrc`, DiamTek JVM automatically creates a timestamped `.reg` backup in `%LOCALAPPDATA%\DiamTek\JVM\backups\` before making destructive registry modifications or clearing paths. If you ever need to roll back, simply double-click the `.reg` file to restore your previous environment state.
 * **Zero-Ping Local Switching:** SDKMAN! can occasionally lag or stall on poor network connections when running version queries against remote servers. DiamTek JVM executes local version switches 100% offline with zero network latency, making it completely reliable in air-gapped corporate environments, remote locations, and on planes.
 
 ---

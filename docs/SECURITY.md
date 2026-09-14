@@ -37,7 +37,7 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
 ### 2. Download Verification & Payload Integrity
 - **Vulnerability Mitigated:** Incomplete downloads, transit corruption, CDN cache poisoning, or malicious mirror swapping.
 - **Architectural Defense:** 
-  - Every remote JDK payload is cryptographically validated against vendor SHA256/SHA512 checksum endpoints using native .NET Cryptography APIs (`System.Security.Cryptography.SHA256` / `SHA512`).
+  - Every remote JDK payload is cryptographically validated against vendor SHA256/SHA512 (and SHA1 for BellSoft Liberica) checksum endpoints using native .NET Cryptography APIs (`System.Security.Cryptography.SHA256` / `SHA512` / `SHA1`).
   - Checksum validation is strictly decoupled from interactive prompts: passing `-y` / `--yes` only suppresses confirmation dialogs and will **never** bypass integrity verification.
   - Bypassing checksum validation requires an explicit, intentional `--skip-checksum` (or `--no-verify`) flag for air-gapped or legacy mirrors without published hashes.
 
@@ -69,7 +69,7 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
 | **Path Traversal (Zip Slip)** | Archive extraction writing files outside `%LOCALAPPDATA%\DiamTek\JVM` | User explicitly running `jvm link` pointing to a compromised local directory |
 | **Privilege Escalation** | Bypassing standard user boundaries to gain Administrator rights without UAC consent | Attacker already having elevated Administrator or SYSTEM privileges on the machine |
 | **Command Injection** | Injecting commands via `.java-version`, `.sdkmanrc`, or CLI argument parsing | Manually editing the `jvm.bat` file on local disk |
-| **Transport Security** | Silent acceptance of tampered/corrupted downloads when checksum is expected | Network denial-of-service or outages on vendor APIs (Adoptium, Oracle, GitHub) |
+| **Transport Security** | Silent acceptance of tampered/corrupted downloads when checksum is expected | Network denial-of-service or outages on vendor APIs (Adoptium, Oracle, GitHub, BellSoft) |
 
 ---
 

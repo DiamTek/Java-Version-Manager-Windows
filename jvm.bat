@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260912.98"
+set "JVM_BUILD=20260914.99"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -39,6 +39,18 @@ set "cBLUE=%ESC%[96m"
 set "cGRAY=%ESC%[90m"
 set "cRESET=%ESC%[0m"
 
+rem Respect industry-standard NO_COLOR environment variable (https://no-color.org)
+if defined NO_COLOR (
+    if not "%NO_COLOR%"=="" (
+        set "cRED="
+        set "cGREEN="
+        set "cYELLOW="
+        set "cBLUE="
+        set "cGRAY="
+        set "cRESET="
+    )
+)
+
 rem Define base JDK search locations BEFORE delayed expansion to prevent exclamation mark corruption
 set "LOCATIONS[0]=C:\Program Files\Java"
 set "LOCATIONS[1]=C:\Program Files (x86)\Java"
@@ -46,9 +58,15 @@ set "LOCATIONS[2]=C:\Java"
 set "LOCATIONS[3]=%USERPROFILE%\.jdks"
 set "LOCATIONS[4]=%USERPROFILE%\.gradle\jdks"
 set "LOCATIONS[5]=%LOCALAPPDATA%\JavaVersionManager\links"
+set "LOCATIONS[6]=C:\Program Files\Eclipse Adoptium"
+set "LOCATIONS[7]=C:\Program Files\Amazon Corretto"
+set "LOCATIONS[8]=C:\Program Files\Zulu"
+set "LOCATIONS[9]=C:\Program Files\BellSoft"
+set "LOCATIONS[10]=C:\Program Files\Semeru"
+set "LOCATIONS[11]=C:\Program Files\Microsoft"
 
 setlocal enabledelayedexpansion
-set "LOC_IDX=6"
+set "LOC_IDX=12"
 if exist "!USERPROFILE!\scoop\apps" (
     for /d %%A in ("!USERPROFILE!\scoop\apps\*") do (
         if exist "%%A\current\bin\java.exe" (
@@ -170,12 +188,27 @@ if /i "%~1"=="--global" (
     shift
     goto :PARSE_CLI_ARGS
 )
+if /i "%~1"=="--no-color" (
+    set "cRED="
+    set "cGREEN="
+    set "cYELLOW="
+    set "cBLUE="
+    set "cGRAY="
+    set "cRESET="
+    shift
+    goto :PARSE_CLI_ARGS
+)
 if /i "%~1"=="--admin-run" (
     set "IS_ADMIN_RUN=1"
     shift
     goto :PARSE_CLI_ARGS
 )
 if /i "%~1"=="list" (
+    set "CLI_COMMAND=list"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="ls" (
     set "CLI_COMMAND=list"
     set "SILENT_MODE=1"
     shift
@@ -201,6 +234,16 @@ if /i "%~1"=="list" (
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="uninstall" (
+    set "CLI_COMMAND=uninstall"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="rm" (
+    set "CLI_COMMAND=uninstall"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="remove" (
     set "CLI_COMMAND=uninstall"
     set "SILENT_MODE=1"
     shift
@@ -245,7 +288,22 @@ if /i "%~1"=="list" (
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="info" (
+    set "CLI_COMMAND=current"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="whoami" (
+    set "CLI_COMMAND=current"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="clean" (
+    set "CLI_COMMAND=clean"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="prune" (
     set "CLI_COMMAND=clean"
     set "SILENT_MODE=1"
     shift
@@ -261,6 +319,11 @@ if /i "%~1"=="list" (
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="doctor" (
+    set "CLI_COMMAND=doctor"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="check" (
     set "CLI_COMMAND=doctor"
     set "SILENT_MODE=1"
     shift
@@ -766,6 +829,10 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                                 echo !VENDOR_RAW! | find /i "Amazon" >nul && set "VENDOR_STR=Corretto"
                                 echo !VENDOR_RAW! | find /i "Azul" >nul && set "VENDOR_STR=Zulu"
                                 echo !VENDOR_RAW! | find /i "Microsoft" >nul && set "VENDOR_STR=Microsoft"
+                                echo !VENDOR_RAW! | find /i "BellSoft" >nul && set "VENDOR_STR=Liberica"
+                                echo !VENDOR_RAW! | find /i "Liberica" >nul && set "VENDOR_STR=Liberica"
+                                echo !VENDOR_RAW! | find /i "IBM" >nul && set "VENDOR_STR=Semeru"
+                                echo !VENDOR_RAW! | find /i "Semeru" >nul && set "VENDOR_STR=Semeru"
                             )
                         )
                         if not defined VER (
@@ -1705,17 +1772,27 @@ if "!CLI_VENDOR!"=="" (
     echo 4. Amazon Corretto
     echo 5. Azul Zulu
     echo 6. Microsoft Build of OpenJDK
-    echo 7. Cancel
+    echo 7. BellSoft Liberica
+    echo 8. IBM Semeru ^(OpenJ9^)
+    echo 9. Cancel
     echo.
-    choice /C 1234567 /N /M "Select vendor (1-7): "
-    if !errorlevel!==7 goto :eof
+    choice /C 123456789 /N /M "Select vendor (1-9): "
+    if !errorlevel!==9 goto :eof
     if !errorlevel!==1 set "CLI_VENDOR=Oracle"
     if !errorlevel!==2 set "CLI_VENDOR=Adoptium"
     if !errorlevel!==3 set "CLI_VENDOR=GraalVM"
     if !errorlevel!==4 set "CLI_VENDOR=Corretto"
     if !errorlevel!==5 set "CLI_VENDOR=Zulu"
     if !errorlevel!==6 set "CLI_VENDOR=Microsoft"
+    if !errorlevel!==7 set "CLI_VENDOR=Liberica"
+    if !errorlevel!==8 set "CLI_VENDOR=Semeru"
 )
+
+rem Normalize vendor aliases
+if /i "!CLI_VENDOR!"=="bellsoft" set "CLI_VENDOR=Liberica"
+if /i "!CLI_VENDOR!"=="ibm" set "CLI_VENDOR=Semeru"
+if /i "!CLI_VENDOR!"=="openj9" set "CLI_VENDOR=Semeru"
+if /i "!CLI_VENDOR!"=="temurin" set "CLI_VENDOR=Adoptium"
 
 rem Check if this vendor and major version combination is already installed
 if "!IS_UPDATER!" NEQ "1" (
@@ -1765,7 +1842,7 @@ if !DL_VERSION! LEQ 16 (
     if /i "!CLI_VENDOR!"=="oracle" (
         echo.
         echo %cRED%[ ERROR  ]%cRESET% Oracle Java 16 and below are locked behind an authentication wall.
-        echo            Please use Adoptium/GraalVM for these versions.
+        echo            Please use Adoptium, GraalVM, Liberica, or Semeru for these versions.
         if "!CLI_COMMAND!"=="" pause
         goto :eof
     )
@@ -1793,6 +1870,8 @@ if /i "!CLI_VENDOR!"=="graalvm" goto :Resolve_GraalVM
 if /i "!CLI_VENDOR!"=="corretto" goto :Resolve_Corretto
 if /i "!CLI_VENDOR!"=="zulu" goto :Resolve_Zulu
 if /i "!CLI_VENDOR!"=="microsoft" goto :Resolve_Microsoft
+if /i "!CLI_VENDOR!"=="liberica" goto :Resolve_Liberica
+if /i "!CLI_VENDOR!"=="semeru" goto :Resolve_Semeru
 if "!API_URL!"=="" (
     echo %cRED%[ ERROR  ]%cRESET% Unknown or unsupported vendor: !CLI_VENDOR!
     if "!CLI_COMMAND!"=="" pause
@@ -1853,12 +1932,34 @@ set "API_SHA256_URL=https://aka.ms/download-jdk/microsoft-jdk-!DL_VERSION!-windo
 set "API_SHA256="
 goto :FetchAndExtract
 
+:Resolve_Liberica
+set "DL_VENDOR=Liberica"
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Querying BellSoft Liberica API for latest JDK !DL_VERSION! release...
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.bell-sw.com/v1/liberica/releases?version-feature=!DL_VERSION!&version-modifier=latest&bitness=64&os=windows&arch=!ZULU_ARCH!&package-type=zip&bundle-type=jdk' -UseBasicParsing; if (-not $res -or -not $res[0].downloadUrl) { exit 1 }; Write-Output ('API_URL='+$res[0].downloadUrl); if ($res[0].sha1) { Write-Output ('API_SHA1='+$res[0].sha1) } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
+goto Run_API_Query
+
+:Resolve_Semeru
+set "DL_VENDOR=Semeru"
+if /i "!SYS_ARCH!" NEQ "x64" (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% IBM Semeru ^(OpenJ9^) does not publish Windows ARM64 builds.
+    echo            Please use Adoptium, Zulu, or Microsoft for Windows ARM64.
+    if "!CLI_COMMAND!"=="" pause
+    goto :eof
+)
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Querying IBM Semeru GitHub API for latest JDK !DL_VERSION! release...
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/ibmruntimes/semeru!DL_VERSION!-binaries/releases/latest' -UseBasicParsing; if (-not $res -or -not $res.assets) { exit 1 }; $u = $null; $s = $null; foreach ($a in $res.assets) { if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip\.sha256\.txt$') { $s = $a.browser_download_url } }; if ($u) { Write-Output ('API_URL='+$u); if ($s) { Write-Output ('API_SHA256_URL='+$s) } } else { exit 1 } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
+goto Run_API_Query
+
 :Run_API_Query
-set "API_URL=" & set "API_SHA256=" & set "API_SHA256_URL=" & set "API_ERROR="
+set "API_URL=" & set "API_SHA256=" & set "API_SHA256_URL=" & set "API_SHA1=" & set "API_ERROR="
 for /f "tokens=1,* delims==" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do (
     if "%%A"=="API_URL" set "API_URL=%%B"
     if "%%A"=="API_SHA256" set "API_SHA256=%%B"
     if "%%A"=="API_SHA256_URL" set "API_SHA256_URL=%%B"
+    if "%%A"=="API_SHA1" set "API_SHA1=%%B"
     if "%%A"=="API_ERROR" set "API_ERROR=%%B"
 )
 
@@ -1899,6 +2000,10 @@ set "DL_EXTRACT=!EXTRACT_DIR!"
 set "DL_CHKSUM_URL=!API_SHA256_URL!"
 set "DL_CHKSUM_VAL=!API_SHA256!"
 set "DL_CHKSUM_TYPE=SHA256"
+if defined API_SHA1 (
+    set "DL_CHKSUM_VAL=!API_SHA1!"
+    set "DL_CHKSUM_TYPE=SHA1"
+)
 set "DL_STRIP_ROOT=0"
 
 call :ExecuteSharedDownloader
@@ -2142,6 +2247,8 @@ set "HAS_GRAALVM=0"
 set "HAS_CORRETTO=0"
 set "HAS_ZULU=0"
 set "HAS_MICROSOFT=0"
+set "HAS_LIBERICA=0"
+set "HAS_SEMERU=0"
 set "HAS_CUSTOM=0"
 
 for /l %%k in (1,1,!JDK_COUNT!) do (
@@ -2151,6 +2258,8 @@ for /l %%k in (1,1,!JDK_COUNT!) do (
     if /i "!JDK_VENDOR_%%k!"=="Corretto" set "HAS_CORRETTO=1"
     if /i "!JDK_VENDOR_%%k!"=="Zulu" set "HAS_ZULU=1"
     if /i "!JDK_VENDOR_%%k!"=="Microsoft" set "HAS_MICROSOFT=1"
+    if /i "!JDK_VENDOR_%%k!"=="Liberica" set "HAS_LIBERICA=1"
+    if /i "!JDK_VENDOR_%%k!"=="Semeru" set "HAS_SEMERU=1"
     if /i "!JDK_VENDOR_%%k!"=="Custom" set "HAS_CUSTOM=1"
 )
 
@@ -2186,6 +2295,16 @@ if "!HAS_MICROSOFT!"=="1" (
     set /a P_OPT+=1
     set "OPT_P_MICROSOFT=!P_OPT!"
     echo !OPT_P_MICROSOFT!. Microsoft
+)
+if "!HAS_LIBERICA!"=="1" (
+    set /a P_OPT+=1
+    set "OPT_P_LIBERICA=!P_OPT!"
+    echo !OPT_P_LIBERICA!. Liberica
+)
+if "!HAS_SEMERU!"=="1" (
+    set /a P_OPT+=1
+    set "OPT_P_SEMERU=!P_OPT!"
+    echo !OPT_P_SEMERU!. Semeru
 )
 if "!HAS_CUSTOM!"=="1" (
     set /a P_OPT+=1
@@ -2236,6 +2355,8 @@ if defined OPT_P_GRAALVM if !v_choice!==!OPT_P_GRAALVM! set "TARGET_VENDOR=Graal
 if defined OPT_P_CORRETTO if !v_choice!==!OPT_P_CORRETTO! set "TARGET_VENDOR=Corretto"
 if defined OPT_P_ZULU if !v_choice!==!OPT_P_ZULU! set "TARGET_VENDOR=Zulu"
 if defined OPT_P_MICROSOFT if !v_choice!==!OPT_P_MICROSOFT! set "TARGET_VENDOR=Microsoft"
+if defined OPT_P_LIBERICA if !v_choice!==!OPT_P_LIBERICA! set "TARGET_VENDOR=Liberica"
+if defined OPT_P_SEMERU if !v_choice!==!OPT_P_SEMERU! set "TARGET_VENDOR=Semeru"
 if defined OPT_P_CUSTOM if !v_choice!==!OPT_P_CUSTOM! set "TARGET_VENDOR=Custom"
 
 :PathEnvironmentMenu_Vendor
@@ -2392,9 +2513,10 @@ set /a BV_OPT=0
 set "BV_OPT_ALL=" & set "BV_OPT_CANCEL="
 set "BV_HAS_ORACLE=0" & set "BV_HAS_ADOPTIUM=0" & set "BV_HAS_GRAALVM=0"
 set "BV_HAS_CORRETTO=0" & set "BV_HAS_ZULU=0" & set "BV_HAS_MICROSOFT=0"
+set "BV_HAS_LIBERICA=0" & set "BV_HAS_SEMERU=0"
 
 for /l %%k in (1,1,!JDK_COUNT!) do (
-    for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft) do (
+    for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru) do (
         if /i "!JDK_VENDOR_%%k!"=="%%V" set "BV_HAS_%%V=1"
     )
 )
@@ -2407,7 +2529,7 @@ if "%~1"=="SHOW_ALL" (
 )
 echo.
 echo %cGRAY%--- Manage by Vendor ---%cRESET%
-for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft) do (
+for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru) do (
     if "!BV_HAS_%%V!"=="1" (
         set /a BV_OPT+=1
         set "BV_MAP_!BV_OPT!=%%V"
@@ -2490,7 +2612,7 @@ echo ------------------------------------------------------------
 echo %cBLUE%[ ACTION ]%cRESET% Analyzing !UP_NAME! ^(!UP_VENDOR!^)...
 
 set "VENDOR_SUPPORTED="
-for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft) do (
+for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru) do (
     if /i "!UP_VENDOR!"=="%%V" set "VENDOR_SUPPORTED=1"
 )
 if not defined VENDOR_SUPPORTED (
@@ -2546,6 +2668,12 @@ set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!.ps1"
     echo         $req.Timeout = 5000
     echo         $res = $req.GetResponse^(^)
     echo         if ^($res.Headers["Location"] -match "jdk-([^^/-]+)-"^) { $remoteVersion = $matches[1] }
+    echo     } elseif ^($Vendor -eq "Liberica"^) {
+    echo         $res = Invoke-RestMethod -Uri "https://api.bell-sw.com/v1/liberica/releases?version-feature=$Major&version-modifier=latest&bitness=64&os=windows&arch=!ZULU_ARCH!&package-type=zip&bundle-type=jdk" -UseBasicParsing -TimeoutSec 5
+    echo         if ^($res -and $res[0].version^) { $remoteVersion = $res[0].version }
+    echo     } elseif ^($Vendor -eq "Semeru"^) {
+    echo         $res = Invoke-RestMethod -Uri "https://api.github.com/repos/ibmruntimes/semeru$Major-binaries/releases/latest" -UseBasicParsing -TimeoutSec 5
+    echo         if ^($res -and $res.tag_name^) { $remoteVersion = $res.tag_name -replace "^^jdk-", "" }
     echo     }
     echo } catch {
     echo     Write-Output "ERROR|$($_.Exception.Message)"
@@ -2631,7 +2759,7 @@ if defined CLI_COMMAND (
 
 :TriggerUpdateDownload
 set "VENDOR_SUPPORTED="
-for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft) do (
+for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru) do (
     if /i "!UP_VENDOR!"=="%%V" set "VENDOR_SUPPORTED=1"
 )
 if not defined VENDOR_SUPPORTED (
@@ -2960,6 +3088,11 @@ rem ============================================================
 :InstallPowerShellHook
 echo %cBLUE%[ ACTION ]%cRESET% Configuring JVM wrapper function in PowerShell profiles...
 
+rem Switch to UTF-8 code page temporarily so file and path encoding is pristine
+set "ORIG_HOOK_CP="
+for /f "tokens=2 delims=:" %%A in ('chcp 2^>nul') do set "ORIG_HOOK_CP=%%A"
+chcp 65001 >nul
+
 set "SAFE_TARGET=!SCRIPT_DIR!"
 set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
 (
@@ -3017,6 +3150,60 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
     echo(        }
     echo(    }
     echo(}
+    echo(
+    echo(if ^(Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue^) {
+    echo(    Register-ArgumentCompleter -Native -CommandName @^('jvm', 'jvm.bat', '.\jvm.bat'^) -ScriptBlock {
+    echo(        param^($wordToComplete, $commandAst, $cursorPosition^)
+    echo(        $subcommands = @^(
+    echo(            'list', 'ls', 'install', 'uninstall', 'rm', 'remove', 'use', 'default',
+    echo(            'pin', 'local', 'current', 'status', 'info', 'whoami', 'which', 'path',
+    echo(            'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
+    echo(            'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
+    echo(            'link', 'unlink', 'version', 'help'
+    echo(        ^)
+    echo(        $candidates = @^('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy'^)
+    echo(        $vendors = @^('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9'^)
+    echo(        $openTargets = @^('home', 'dir', 'bin', 'config', 'cache', 'downloads', 'backup', 'backups', 'links'^)
+    echo(        $hookTargets = @^('install', 'status', 'check', 'remove', 'uninstall'^)
+    echo(        $flags = @^(
+    echo(            '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
+    echo(            '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
+    echo(            '--version', '-v', '--help', '-h'
+    echo(        ^)
+    echo(
+    echo(        $elements = @^($commandAst.CommandElements ^| ForEach-Object { $_.Extent.Text }^)
+    echo(        $count = $elements.Count
+    echo(        $prev = if ^($wordToComplete -and $count -ge 2^) { $elements[-2] } elseif ^(-not $wordToComplete -and $count -ge 1^) { $elements[-1] } else { '' }
+    echo(
+    echo(        $completions = @^(^)
+    echo(        if ^($prev -in @^('--vendor'^)^) {
+    echo(            $completions = $vendors
+    echo(        } elseif ^($prev -in @^('open', 'home'^)^) {
+    echo(            $completions = $openTargets
+    echo(        } elseif ^($prev -in @^('hook'^)^) {
+    echo(            $completions = $hookTargets
+    echo(        } elseif ^($prev -in @^('use', 'default', 'pin', 'local', 'uninstall', 'rm', 'remove', 'which', 'path'^)^) {
+    echo(            $installed = @^(^)
+    echo(            $linksDir = "$env:LOCALAPPDATA\JavaVersionManager\links"
+    echo(            if ^(Test-Path -LiteralPath $linksDir^) {
+    echo(                $installed += @^(Get-ChildItem -LiteralPath $linksDir -ErrorAction SilentlyContinue ^| Select-Object -ExpandProperty Name^)
+    echo(            }
+    echo(            $jdksDir = "$env:USERPROFILE\.jdks"
+    echo(            if ^(Test-Path -LiteralPath $jdksDir^) {
+    echo(                $installed += @^(Get-ChildItem -LiteralPath $jdksDir -ErrorAction SilentlyContinue ^| Select-Object -ExpandProperty Name^)
+    echo(            }
+    echo(            $completions = @^($installed ^| Select-Object -Unique^) + $candidates
+    echo(        } elseif ^($wordToComplete -like '-*'^) {
+    echo(            $completions = $flags
+    echo(        } else {
+    echo(            $completions = $subcommands + $candidates + $flags
+    echo(        }
+    echo(
+    echo(        $completions ^| Where-Object { $_ -like "$wordToComplete*" } ^| ForEach-Object {
+    echo(            [System.Management.Automation.CompletionResult]::new^($_, $_, 'ParameterValue', $_^)
+    echo(        }
+    echo(    }
+    echo(}
     echo(# ^<^<^< jvm ^<^<^<
     echo('@
     echo(
@@ -3052,6 +3239,7 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!"
 if exist "!INSTALL_PS1!" del "!INSTALL_PS1!" >nul 2>&1
+if defined ORIG_HOOK_CP chcp !ORIG_HOOK_CP! >nul
 
 echo.
 echo %cGREEN%[   OK   ]%cRESET% PowerShell profile hook successfully configured.
@@ -3340,24 +3528,24 @@ echo   jvm ^<version^>                  Switch active JDK ^(e.g. jvm 21, jvm lat
 echo   jvm ^<candidate^> ^<version^>      Switch ecosystem tool ^(e.g. jvm maven 3.9.6, jvm gradle 8.5^)
 echo.
 echo Management Commands:
-echo   jvm list                       List all installed JDKs and Ecosystem tools
-echo   jvm current, status            Display active JDK, mode, and ecosystem status
-echo   jvm which [candidate]          Display absolute binary path to active java/tool
+echo   jvm list, ls                   List all installed JDKs and Ecosystem tools
+echo   jvm current, status, info      Display active JDK, mode, and ecosystem status
+echo   jvm which, path [candidate]    Display absolute binary path to active java/tool
 echo   jvm use, default ^<version^>     Switch active JDK ^(SDKMAN/nvm alias^)
 echo   jvm pin, local [version]       Lock or display directory-level .java-version
 echo   jvm exec, run ^<ver^> [--] ^<cmd^> Run command in ephemeral isolated JDK subshell
 echo   jvm open, home [candidate]     Open active candidate or root in File Explorer
-echo   jvm clean                      Purge temporary download caches and extraction artifacts
+echo   jvm clean, prune               Purge temporary download caches and extraction artifacts
 echo   jvm clear                      Purge JAVA_HOME and remove Java from PATH
 echo   jvm env                        Display current environment variables
-echo   jvm install ^<candidate^> ^<ver^>  Download and install a tool or JDK
-echo   jvm uninstall ^<ver^>           Uninstall a specific JDK
-echo   jvm update --all               Update all installed tools and JDKs
+echo   jvm install ^<candidate^> ^<ver^>  Download and install a tool or JDK ^(8 vendors supported^)
+echo   jvm uninstall, rm [cand] ^<ver^> Uninstall a specific JDK or candidate tool
+echo   jvm update ^<ver^> ^| --all       Check for and apply vendor patches to JDKs / tools
 echo   jvm link ^<path^> [name]         Register an external JDK directory
 echo   jvm unlink ^<name^>              Unregister an external JDK directory
 echo.
 echo System ^& Maintenance Commands:
-echo   jvm doctor                     Deep diagnostic health audit and conflict scanner
+echo   jvm doctor, check              Deep diagnostic health audit and conflict scanner
 echo   jvm hook [install^|remove]      Manage PowerShell profile auto-sync wrapper hook
 echo   jvm version, -v                Display version, build, and check for updates
 echo   jvm self-update                Automatically download and install the latest JVM update
@@ -3365,13 +3553,14 @@ echo   jvm self-uninstall             Launch the deep uninstaller ^(full system 
 echo   jvm help, --help, -h, /?       Show this help message
 echo.
 echo Flag Overrides:
-echo   --vendor ^<name^>                Filter or target a specific vendor ^(oracle, adoptium, etc.^)
+echo   --vendor ^<name^>                Filter or target vendor ^(oracle, adoptium, graalvm, corretto, zulu, ms, liberica, semeru^)
 echo   --symlink                      Force Symlink Mode ^(UAC-Free Directory Junction^)
 echo   --legacy, --registry           Force Legacy Mode ^(System HKLM Registry, requires UAC^)
 echo   --session                      Force True Session Isolation for the active terminal
 echo   --global                       Force global system-wide switch
 echo   --yes, -y                      Bypass interactive confirmation prompts
 echo   --skip-checksum, --no-verify   Bypass checksum verification if hash is unavailable
+echo   --no-color                     Disable ANSI colors ^(also respects NO_COLOR env^)
 goto :eof
 
 rem ============================================================
@@ -3993,6 +4182,11 @@ for /f "tokens=1,2 delims=-" %%V in ("%~1") do (
     if /i "%%W"=="graal" set "CLI_VENDOR=GraalVM"
     if /i "%%W"=="graalce" set "CLI_VENDOR=GraalVM"
     if /i "%%W"=="oracle" set "CLI_VENDOR=Oracle"
+    if /i "%%W"=="librca" set "CLI_VENDOR=Liberica"
+    if /i "%%W"=="nik" set "CLI_VENDOR=Liberica"
+    if /i "%%W"=="liberica" set "CLI_VENDOR=Liberica"
+    if /i "%%W"=="sem" set "CLI_VENDOR=Semeru"
+    if /i "%%W"=="semeru" set "CLI_VENDOR=Semeru"
 )
 exit /b 0
 rem ============================================================

@@ -27,12 +27,18 @@ Instead of constantly appending and pruning your Windows `PATH` variable to poin
 Your system `PATH` only ever needs to contain `%LOCALAPPDATA%\DiamTek\JVM\current\bin`. When you switch Java versions, the manager simply tears down the old junction and repoints it to the target JDK directory. This provides `O(1)` symlink resolution for the OS.
 
 ### JDK Discovery Engine & Scanned Locations
-During startup, inventory listing (`jvm list`), and quick-switching, the discovery engine scans all recognized local storage locations for valid `bin\java.exe` targets. It dynamically queries 7 fixed filesystem locations plus user-space package manager directories:
+During startup, inventory listing (`jvm list`), and quick-switching, the discovery engine scans all recognized local storage locations for valid `bin\java.exe` targets. It dynamically queries 13 fixed filesystem locations plus user-space package manager directories:
 
 | Discovered Location | Target Distribution / Managing Tool | Discovery Mode |
 |---|---|---|
-| `C:\Program Files\Java\*` | Standard Oracle, Adoptium, Microsoft, Corretto MSI installs | Automatic Scan |
+| `C:\Program Files\Java\*` | Standard Oracle, Adoptium, Microsoft, Corretto, Liberica, Semeru installs | Automatic Scan |
 | `C:\Program Files (x86)\Java\*` | Legacy 32-bit JDKs and JREs | Automatic Scan |
+| `C:\Program Files\Eclipse Adoptium\*` | Official Eclipse Adoptium / Temurin installer root | Automatic Scan |
+| `C:\Program Files\Amazon Corretto\*` | Official Amazon Corretto installer root | Automatic Scan |
+| `C:\Program Files\Zulu\*` | Official Azul Zulu OpenJDK installer root | Automatic Scan |
+| `C:\Program Files\BellSoft\*` | Official BellSoft Liberica OpenJDK installer root | Automatic Scan |
+| `C:\Program Files\Semeru\*` | Official IBM Semeru Runtime (OpenJ9) installer root | Automatic Scan |
+| `C:\Program Files\Microsoft\*` | Official Microsoft Build of OpenJDK installer root | Automatic Scan |
 | `C:\Java\*` | Enterprise standard root installations | Automatic Scan |
 | `%USERPROFILE%\.jdks\*` | IntelliJ IDEA / JetBrains Toolbox managed JDKs | Automatic Scan |
 | `%USERPROFILE%\.gradle\jdks\*` | Gradle automated toolchain downloads | Automatic Scan |
@@ -111,7 +117,7 @@ To ensure deep OS integration without requiring users to download external binar
 ## Ecosystem Routing (Universal Candidate Engine)
 Like SDKMAN!, this tool intercepts commands for popular Java tools (Maven, Gradle, Kotlin, Scala, Groovy). The CLI acts as a universal router:
 1. It intercepts the `jvm install <candidate> <version>` command.
-2. It executes a PowerShell `Invoke-RestMethod` to the respective API (Adoptium, GitHub Releases, Azul, etc.) to securely resolve the download URL and SHA-256 checksums.
+2. It executes a PowerShell `Invoke-RestMethod` to the respective API (Adoptium, GitHub Releases, Azul, BellSoft, IBM, etc.) to securely resolve the download URL and SHA-256 / SHA-1 checksums.
 3. The payloads are extracted via `Expand-Archive` and isolated in `%LOCALAPPDATA%\DiamTek\JVM\candidates\<candidate>`.
 4. Specific `<CANDIDATE>_HOME` variables are injected into the registry, mapping the ecosystem completely identically to native Java.
 

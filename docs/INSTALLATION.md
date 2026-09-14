@@ -42,7 +42,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-M
 1. It downloads the latest `jvm.bat` core engine and companion branding assets (`icon.ico`, `icon.png`) from the repository.
 2. It provisions the `%LOCALAPPDATA%\DiamTek\JVM\bin` and `assets` directory structure on your system.
 3. It securely writes the `jvm.bat` executable into that binary path.
-4. It dynamically injects the path into your PowerShell `$PROFILE` and standard Windows Registry `PATH` so the `jvm` command is available immediately across all shells.
+4. It dynamically injects the path into your PowerShell `$PROFILE` and standard Windows Registry `PATH` so the `jvm` command is available immediately across all shells, registering dynamic multi-invocation tab-completion (`jvm`, `jvm.bat`, `.\jvm.bat`).
 5. It registers a dedicated **Windows Terminal Profile** with custom branding, launching `cmd.exe /c` with `closeOnExit: always` so tabs close cleanly on exit.
 6. It creates a Start Menu application shortcut and automatically updates any pinned Taskbar shortcuts.
 7. It registers into Windows Settings ("Installed apps") with an accurate dynamic `EstimatedSize` footprint calculation.

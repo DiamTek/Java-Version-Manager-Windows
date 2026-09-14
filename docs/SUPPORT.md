@@ -84,6 +84,16 @@ Before opening a support ticket, check this rapid decision tree for the most com
   - **Via Interactive Menu:** Launch `jvm` -> Navigate to **Settings** (`3`) -> Select **Option 2** (`PowerShell Profile Hook: [INSTALL]`), which injects the auto-sync wrapper function into your PowerShell profiles.
   - **Via Dotfiles / Manual Setup:** Open your `$PROFILE` (`notepad $PROFILE`) and paste the official `function jvm { ... }` wrapper block documented in the [FAQ](FAQ.md#how-do-i-verify-or-manually-configure-the-powershell-profile-hook).
 
+### 5. "PowerShell tab completion does not suggest commands, vendors, or versions"
+- **Root Cause:** The active PowerShell session has not reloaded `$PROFILE` after running `jvm hook` or `install.ps1`, or argument completion is not yet loaded into the shell process memory.
+- **Resolution:**
+  - In your active terminal, reload your profile immediately:
+    ```powershell
+    . $PROFILE
+    ```
+  - Alternatively, close and reopen your PowerShell terminal window.
+  - Verify that the hook is registered: `jvm hook status`. Tab completion is natively registered across all three invocation forms: `jvm <Tab>`, `jvm.bat <Tab>`, and `.\jvm.bat <Tab>`.
+
 ---
 
 ## ⚡ Troubleshooting Quick-Reference Table
@@ -93,6 +103,7 @@ Before opening a support ticket, check this rapid decision tree for the most com
 | `java -version` does not change after switch | Phantom Oracle path or rogue MSI shadowing in PATH | `where.exe java` | `jvm clear` followed by `jvm <version>` |
 | Constant UAC elevation prompts | Active mode set to legacy Registry Mode (`HKLM`) | `jvm current` | `jvm <version> --symlink` |
 | PowerShell session variables not updating live | PowerShell Profile auto-sync hook not installed | `jvm hook status` | `jvm hook install` |
+| PowerShell tab completion not working | Profile not reloaded in active shell session | `jvm hook status` | `. $PROFILE` or reopen terminal |
 | Corrupted download / hash mismatch / network drop | Stale extraction workspaces or cache in `%TEMP%` | `jvm doctor` | `jvm clean` |
 | `GitHub API Rate Limit reached` | GitHub unauthenticated 60 req/hr API quota exhausted | None | `$env:GITHUB_TOKEN = "<token>"` |
 | Air-gapped / proxy hash mirror blocked | Proxy allows binary download but blocks checksum | `jvm doctor` | `jvm install <version> --skip-checksum` |

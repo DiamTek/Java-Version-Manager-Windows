@@ -1,4 +1,4 @@
-﻿# Java Version Manager
+# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -214,6 +214,60 @@ function jvm {
             }
             if ($old -eq $new) { continue }
             Set-JvmVar -Name $v -OldValue $old -NewValue $new
+        }
+    }
+}
+
+if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
+    Register-ArgumentCompleter -Native -CommandName @('jvm', 'jvm.bat', '.\jvm.bat') -ScriptBlock {
+        param($wordToComplete, $commandAst, $cursorPosition)
+        $subcommands = @(
+            'list', 'ls', 'install', 'uninstall', 'rm', 'remove', 'use', 'default',
+            'pin', 'local', 'current', 'status', 'info', 'whoami', 'which', 'path',
+            'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
+            'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
+            'link', 'unlink', 'version', 'help'
+        )
+        $candidates = @('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy')
+        $vendors = @('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9')
+        $openTargets = @('home', 'dir', 'bin', 'config', 'cache', 'downloads', 'backup', 'backups', 'links')
+        $hookTargets = @('install', 'status', 'check', 'remove', 'uninstall')
+        $flags = @(
+            '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
+            '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
+            '--version', '-v', '--help', '-h'
+        )
+
+        $elements = @($commandAst.CommandElements | ForEach-Object { $_.Extent.Text })
+        $count = $elements.Count
+        $prev = if ($wordToComplete -and $count -ge 2) { $elements[-2] } elseif (-not $wordToComplete -and $count -ge 1) { $elements[-1] } else { '' }
+
+        $completions = @()
+        if ($prev -in @('--vendor')) {
+            $completions = $vendors
+        } elseif ($prev -in @('open', 'home')) {
+            $completions = $openTargets
+        } elseif ($prev -in @('hook')) {
+            $completions = $hookTargets
+        } elseif ($prev -in @('use', 'default', 'pin', 'local', 'uninstall', 'rm', 'remove', 'which', 'path')) {
+            $installed = @()
+            $linksDir = "$env:LOCALAPPDATA\JavaVersionManager\links"
+            if (Test-Path -LiteralPath $linksDir) {
+                $installed += @(Get-ChildItem -LiteralPath $linksDir -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)
+            }
+            $jdksDir = "$env:USERPROFILE\.jdks"
+            if (Test-Path -LiteralPath $jdksDir) {
+                $installed += @(Get-ChildItem -LiteralPath $jdksDir -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)
+            }
+            $completions = @($installed | Select-Object -Unique) + $candidates
+        } elseif ($wordToComplete -like '-*') {
+            $completions = $flags
+        } else {
+            $completions = $subcommands + $candidates + $flags
+        }
+
+        $completions | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
         }
     }
 }
