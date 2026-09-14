@@ -19,7 +19,8 @@ param(
     [switch]$Quiet,
     [switch]$Update,
     [string]$TargetDir,
-    [string]$Branch
+    [string]$Branch,
+    [string]$Channel = "Stable"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -60,21 +61,51 @@ $batPath = Join-Path $installDir "jvm.bat"
 $repoRoot = if ($installDir.EndsWith("\bin", [StringComparison]::OrdinalIgnoreCase)) { Split-Path $installDir -Parent } else { $installDir }
 
 Update-Progress -Percent 15 -Activity "Resolving latest release from GitHub..."
-$rawBranch = if ($Branch) { $Branch } else { "main" }
-if (-not $Branch) {
-    try {
-        $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main")
-        $apiReq.UserAgent = "DiamTek-JVM"
-        $apiReq.Timeout = 3000
-        $apiRes = $apiReq.GetResponse()
-        $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
-        $json = $sr.ReadToEnd()
-        $sr.Close(); $apiRes.Close()
-        if ($json -match '"sha":\s*"([0-9a-f]{40})"') {
-            $rawBranch = $matches[1]
+$rawBranch = if ($Branch) { $Branch } else { "" }
+if (-not $rawBranch) {
+    if ($Channel -ne "Nightly") {
+        try {
+            $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/latest")
+            $apiReq.UserAgent = "DiamTek-JVM"
+            $apiReq.Timeout = 3000
+            $apiRes = $apiReq.GetResponse()
+            $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
+            $json = $sr.ReadToEnd()
+            $sr.Close(); $apiRes.Close()
+            if ($json -match '"tag_name":\s*"([^"]+)"') {
+                $rawBranch = $matches[1]
+            }
+        } catch {}
+        if (-not $rawBranch) {
+            try {
+                $redirReq = [Net.HttpWebRequest]::Create("https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest")
+                $redirReq.AllowAutoRedirect = $false
+                $redirReq.UserAgent = "DiamTek-JVM"
+                $redirReq.Timeout = 4000
+                $redirRes = $redirReq.GetResponse()
+                $loc = $redirRes.GetResponseHeader("Location")
+                $redirRes.Close()
+                if ($loc -and $loc -match '/releases/tag/([^/]+)$') {
+                    $rawBranch = $matches[1]
+                }
+            } catch {}
         }
-    } catch {
-        $rawBranch = "HEAD"
+    }
+    if (-not $rawBranch) {
+        try {
+            $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main")
+            $apiReq.UserAgent = "DiamTek-JVM"
+            $apiReq.Timeout = 3000
+            $apiRes = $apiReq.GetResponse()
+            $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
+            $json = $sr.ReadToEnd()
+            $sr.Close(); $apiRes.Close()
+            if ($json -match '"sha":\s*"([0-9a-f]{40})"') {
+                $rawBranch = $matches[1]
+            }
+        } catch {
+            $rawBranch = "HEAD"
+        }
     }
 }
 
@@ -86,19 +117,83 @@ Update-Progress -Percent 35 -Activity "Fetching core JVM engine..."
 if (-not $Update -and (Test-Path "$PSScriptRoot\jvm.bat")) {
     $content = [System.IO.File]::ReadAllText("$PSScriptRoot\jvm.bat")
 } else {
-    $content = (Invoke-WebRequest -Uri $url -Headers $noCacheHeaders -UseBasicParsing).Content
+    $content = $null
+    try {
+        $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=$rawBranch")
+        $apiReq.Method = "GET"
+        $apiReq.Timeout = 4000
+        $apiReq.UserAgent = "DiamTek-JVM"
+        $apiReq.Accept = "application/vnd.github.v3.raw"
+        $apiReq.Headers.Add("Cache-Control", "no-cache")
+        $apiReq.Headers.Add("Pragma", "no-cache")
+        $apiRes = $apiReq.GetResponse()
+        $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
+        $content = $sr.ReadToEnd()
+        $sr.Close(); $apiRes.Close()
+    } catch {
+        try {
+            $content = (Invoke-WebRequest -Uri $url -Headers $noCacheHeaders -UseBasicParsing -TimeoutSec 5).Content
+        } catch {}
+    }
 }
 
 # 2. Integrity Check
-if ($content.Length -eq 0 -or $content -notmatch "rem END OF SCRIPT") {
+if (-not $content -or $content.Length -eq 0 -or $content -notmatch "rem END OF SCRIPT") {
     Write-Host ""
     Write-Host "[ ERROR  ] Download failed integrity check. File is empty or truncated." -ForegroundColor Red
     exit 1
 }
 
+# Fetch SHA256SUMS.txt if on Stable channel / tagged release
+$shaHashMap = @{}
+if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
+    try {
+        $shaText = $null
+        try {
+            $shaText = (Invoke-WebRequest -Uri "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/$rawBranch/SHA256SUMS.txt" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -UseBasicParsing -TimeoutSec 5).Content
+        } catch {
+            try {
+                $relJson = (Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/$rawBranch" -UserAgent "DiamTek-JVM")
+                $asset = $relJson.assets | Where-Object { $_.name -eq "SHA256SUMS.txt" } | Select-Object -First 1
+                if ($asset) {
+                    $shaText = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent "DiamTek-JVM" -UseBasicParsing -TimeoutSec 5).Content
+                }
+            } catch {}
+        }
+        if ($shaText) {
+            foreach ($sLine in ($shaText -split "`r?`n")) {
+                if ($sLine -match '^([0-9a-fA-F]{64})\s+[\*]?(.+)$') {
+                    $shaHashMap[$matches[2].Trim()] = $matches[1].ToLower()
+                }
+            }
+        }
+    } catch {}
+}
+
 Update-Progress -Percent 50 -Activity "Sanitizing code format and encoding..."
 $lines = ($content.Replace([char]160, ' ') -split "\r?\n")
 [System.IO.File]::WriteAllLines($batPath, $lines, (New-Object System.Text.UTF8Encoding($false)))
+
+# Verify jvm.bat SHA256 integrity
+$actualJvmHash = (Get-FileHash -Path $batPath -Algorithm SHA256).Hash.ToLower()
+if ($shaHashMap.ContainsKey("jvm.bat")) {
+    $expectedJvmHash = $shaHashMap["jvm.bat"]
+    if ($actualJvmHash -ne $expectedJvmHash) {
+        Write-Host ""
+        Write-Host "[ ERROR  ] Cryptographic integrity check failed for jvm.bat!" -ForegroundColor Red
+        Write-Host "           Expected: $expectedJvmHash" -ForegroundColor Red
+        Write-Host "           Computed: $actualJvmHash" -ForegroundColor Red
+        Write-Host "           Installation aborted to prevent untrusted execution." -ForegroundColor Red
+        Remove-Item -Path $batPath -Force -ErrorAction SilentlyContinue
+        exit 1
+    }
+} elseif ($Channel -ne "Nightly" -and $rawBranch -match '^v?[1-9]') {
+    Write-Host ""
+    Write-Host "[ ERROR  ] Cryptographic integrity manifest (SHA256SUMS.txt) required for official release $rawBranch on Stable channel." -ForegroundColor Red
+    Write-Host "           Could not verify jvm.bat hash against release manifest. Aborting installation." -ForegroundColor Red
+    Remove-Item -Path $batPath -Force -ErrorAction SilentlyContinue
+    exit 1
+}
 
 Update-Progress -Percent 65 -Activity "Fetching documentation, license, & uninstaller..."
 if (-not (Test-Path $repoRoot)) { New-Item -ItemType Directory -Path $repoRoot -Force | Out-Null }
@@ -126,6 +221,24 @@ foreach ($cf in $companionFiles) {
                 }
             }
         }
+        if ($downloadSuccess -and (Test-Path $destFile)) {
+            $baseName = Split-Path $destFile -Leaf
+            if ($shaHashMap.ContainsKey($baseName)) {
+                $actualCfHash = (Get-FileHash -Path $destFile -Algorithm SHA256).Hash.ToLower()
+                $expectedCfHash = $shaHashMap[$baseName]
+                if ($actualCfHash -ne $expectedCfHash) {
+                    Write-Host ""
+                    Write-Host "           [ ERROR  ] Integrity check failed for $baseName (SHA256 mismatch)!" -ForegroundColor Red
+                    Write-Host "                      Expected: $expectedCfHash" -ForegroundColor Red
+                    Write-Host "                      Computed: $actualCfHash" -ForegroundColor Red
+                    Remove-Item -Path $destFile -Force -ErrorAction SilentlyContinue
+                    if ($baseName -eq "uninstall.ps1" -and $Channel -ne "Nightly") {
+                        Write-Host "           [ FATAL  ] Security-critical uninstaller failed integrity verification. Aborting." -ForegroundColor Red
+                        exit 1
+                    }
+                }
+            }
+        }
     }
 }
 if ($installDir -ne $repoRoot) {
@@ -133,6 +246,11 @@ if ($installDir -ne $repoRoot) {
     if (Test-Path $legacyUninstall) {
         Remove-Item $legacyUninstall -Force -ErrorAction SilentlyContinue
     }
+}
+$channelFile = Join-Path $repoRoot "channel.txt"
+if (-not (Test-Path $channelFile)) {
+    $cVal = if ($Channel -eq "Nightly") { "NIGHTLY" } else { "STABLE" }
+    [System.IO.File]::WriteAllText($channelFile, "$cVal`r`n")
 }
 
 # 3. Safe REG_EXPAND_SZ Path Injection

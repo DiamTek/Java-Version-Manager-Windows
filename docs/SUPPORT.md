@@ -49,8 +49,7 @@ Before opening a support ticket, check this rapid decision tree for the most com
 
 ### 3. "Network connection failed / You appear to be offline"
 - **Root Cause:** Corporate firewall, SSL-intercepting proxy (e.g. Zscaler, Netskope), air-gapped network, or GitHub API rate limiting on ecosystem tool queries.
-- **Resolution:**
-  - **GitHub API Rate Limiting (Ecosystem Tools):** If you see `[ ERROR  ] GitHub API Rate Limit reached`, set the `GITHUB_TOKEN` environment variable in your session to bypass GitHub's 60 req/hr IP quota:
+  - **GitHub API Rate Limiting (Ecosystem Tools):** When resolving latest versions for GitHub-backed tools (Maven, Kotlin, Scala), JVM queries GitHub APIs (60 req/hr IP limit). JVM automatically attempts a zero-quota **HTTP 302 redirect fallback** (`[ WARNING] GitHub API Rate Limit reached. Trying redirect fallback...`). If redirect fallback fails or if operating in strict CI/CD pipelines, set the `GITHUB_TOKEN` environment variable in your session:
     ```powershell
     $env:GITHUB_TOKEN = "ghp_your_personal_access_token"
     ```
@@ -105,10 +104,12 @@ Before opening a support ticket, check this rapid decision tree for the most com
 | PowerShell session variables not updating live | PowerShell Profile auto-sync hook not installed | `jvm hook status` | `jvm hook install` |
 | PowerShell tab completion not working | Profile not reloaded in active shell session | `jvm hook status` | `. $PROFILE` or reopen terminal |
 | Corrupted download / hash mismatch / network drop | Stale extraction workspaces or cache in `%TEMP%` | `jvm doctor` | `jvm clean` |
-| `GitHub API Rate Limit reached` | GitHub unauthenticated 60 req/hr API quota exhausted | None | `$env:GITHUB_TOKEN = "<token>"` |
+| `GitHub API Rate Limit reached` | GitHub unauthenticated 60 req/hr API quota exhausted | None | Automatically handled by HTTP 302 redirect fallback; set `$env:GITHUB_TOKEN = "<token>"` if fallback is blocked |
 | Air-gapped / proxy hash mirror blocked | Proxy allows binary download but blocks checksum | `jvm doctor` | `jvm install <version> --skip-checksum` |
 | Command `jvm` not recognized in new terminal | JVM directory missing from User PATH | `where.exe jvm` | Settings (`3`) → Option 1 (`Install to User PATH`) |
 | Directory junction broken or points to missing JDK | JDK was manually deleted from disk | `jvm doctor` | `jvm link` (to inspect) or `jvm <version>` (to re-point) |
+| Self-updater skips: "newer local build" | Local `JVM_BUILD` is newer than GitHub release or main branch | `jvm current` | Expected for local dev builds; use `jvm self-update --force` to override |
+| Want to switch between Stable and Nightly | Channel configuration set to alternative channel | `jvm channel` | `jvm channel stable` or `jvm channel nightly` |
 | System environment uncertain / multiple conflicts | General configuration drift | `jvm doctor` | Follow remediation output in `jvm doctor` |
 
 ---

@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260914.99"
+set "JVM_BUILD=20260914.100"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -36,6 +36,8 @@ set "cRED=%ESC%[91m"
 set "cGREEN=%ESC%[92m"
 set "cYELLOW=%ESC%[93m"
 set "cBLUE=%ESC%[96m"
+set "cPURPLE=%ESC%[95m"
+set "cMAGENTA=%ESC%[95m"
 set "cGRAY=%ESC%[90m"
 set "cRESET=%ESC%[0m"
 
@@ -46,6 +48,8 @@ if defined NO_COLOR (
         set "cGREEN="
         set "cYELLOW="
         set "cBLUE="
+        set "cPURPLE="
+        set "cMAGENTA="
         set "cGRAY="
         set "cRESET="
     )
@@ -91,6 +95,12 @@ if exist "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" (
     set /p SWITCH_MODE=<"%LOCALAPPDATA%\DiamTek\JVM\mode.txt"
 )
 if /i not "!SWITCH_MODE!"=="DIRECT" set "SWITCH_MODE=SYMLINK"
+
+set "UPDATE_CHANNEL=STABLE"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" (
+    for /f "usebackq tokens=* delims= " %%A in ("%LOCALAPPDATA%\DiamTek\JVM\channel.txt") do set "UPDATE_CHANNEL=%%A"
+)
+if /i not "!UPDATE_CHANNEL!"=="NIGHTLY" set "UPDATE_CHANNEL=STABLE"
 
 if /i "%~1"=="link" (
     call :HANDLE_LINKS %*
@@ -193,8 +203,26 @@ if /i "%~1"=="--no-color" (
     set "cGREEN="
     set "cYELLOW="
     set "cBLUE="
+    set "cPURPLE="
+    set "cMAGENTA="
     set "cGRAY="
     set "cRESET="
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--channel" (
+    set "UPDATE_CHANNEL=%~2"
+    shift
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--nightly" (
+    set "UPDATE_CHANNEL=NIGHTLY"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--stable" (
+    set "UPDATE_CHANNEL=STABLE"
     shift
     goto :PARSE_CLI_ARGS
 )
@@ -275,6 +303,11 @@ if /i "%~1"=="list" (
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="clear" (
     set "CLI_COMMAND=clear"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="channel" (
+    set "CLI_COMMAND=channel"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
@@ -473,6 +506,7 @@ if /i "%CLI_COMMAND%"=="which" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="doctor" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="open" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="hook" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="channel" set "WANT_UTF8=1"
 if "%WANT_UTF8%"=="1" chcp 65001 >nul
 if "%SILENT_MODE%"=="0" title Java Version Manager
 
@@ -498,6 +532,7 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="open" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="exec" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="hook" set "SKIP_HEADER=1"
+    if /i "%CLI_COMMAND%"=="channel" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="update" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="self-update" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="self-uninstall" set "SKIP_HEADER=1"
@@ -542,6 +577,7 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="doctor" goto :SKIP_ADMIN_CHECK
     if /i "%CLI_COMMAND%"=="open" goto :SKIP_ADMIN_CHECK
     if /i "%CLI_COMMAND%"=="exec" goto :SKIP_ADMIN_CHECK
+    if /i "%CLI_COMMAND%"=="channel" goto :SKIP_ADMIN_CHECK
 )
 rem By default, run everything inline without Admin. We only elevate for specific file/registry operations.
 goto :SKIP_ADMIN_CHECK
@@ -556,9 +592,14 @@ set "CURRENT_JDK_PATH="
 
 rem Reload config in case it was changed inside a setlocal block
 if exist "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" (
-    set /p SWITCH_MODE=<"%LOCALAPPDATA%\DiamTek\JVM\mode.txt"
+    for /f "usebackq tokens=* delims= " %%A in ("%LOCALAPPDATA%\DiamTek\JVM\mode.txt") do set "SWITCH_MODE=%%A"
 )
 if /i not "!SWITCH_MODE!"=="DIRECT" set "SWITCH_MODE=SYMLINK"
+
+if exist "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" (
+    for /f "usebackq tokens=* delims= " %%A in ("%LOCALAPPDATA%\DiamTek\JVM\channel.txt") do set "UPDATE_CHANNEL=%%A"
+)
+if /i not "!UPDATE_CHANNEL!"=="NIGHTLY" set "UPDATE_CHANNEL=STABLE"
 
 if defined SWITCH_MODE_OVERRIDE (
     set "SWITCH_MODE=%SWITCH_MODE_OVERRIDE%"
@@ -734,6 +775,14 @@ setlocal enabledelayedexpansion
 
 :RESCAN_MENU
 set "NEEDS_RESCAN=0"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" (
+    for /f "usebackq tokens=* delims= " %%A in ("%LOCALAPPDATA%\DiamTek\JVM\channel.txt") do set "UPDATE_CHANNEL=%%A"
+)
+if /i not "!UPDATE_CHANNEL!"=="NIGHTLY" set "UPDATE_CHANNEL=STABLE"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" (
+    for /f "usebackq tokens=* delims= " %%A in ("%LOCALAPPDATA%\DiamTek\JVM\mode.txt") do set "SWITCH_MODE=%%A"
+)
+if /i not "!SWITCH_MODE!"=="DIRECT" set "SWITCH_MODE=SYMLINK"
 set "JAVA_HOME="
 for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "JAVA_HOME=%%B"
 if not defined JAVA_HOME (
@@ -1170,6 +1219,11 @@ if defined CLI_COMMAND (
 
     if /i "!CLI_COMMAND!"=="clear" (
         call :ClearJavaEnvironment
+        goto :eof
+    )
+
+    if /i "!CLI_COMMAND!"=="channel" (
+        call :HandleChannelCommand !CLI_TARGET!
         goto :eof
     )
 
@@ -1934,6 +1988,8 @@ goto :FetchAndExtract
 
 :Resolve_Liberica
 set "DL_VENDOR=Liberica"
+rem BellSoft official REST API exclusively distributes SHA1 checksums.
+rem jvm verifies the provided SHA1 hash directly against the downloaded payload.
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying BellSoft Liberica API for latest JDK !DL_VERSION! release...
 set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.bell-sw.com/v1/liberica/releases?version-feature=!DL_VERSION!&version-modifier=latest&bitness=64&os=windows&arch=!ZULU_ARCH!&package-type=zip&bundle-type=jdk' -UseBasicParsing; if (-not $res -or -not $res[0].downloadUrl) { exit 1 }; Write-Output ('API_URL='+$res[0].downloadUrl); if ($res[0].sha1) { Write-Output ('API_SHA1='+$res[0].sha1) } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
@@ -2093,6 +2149,41 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
 echo.
 echo %cGREEN%[   OK   ]%cRESET% PATH update complete.
 endlocal
+goto :eof
+
+rem ============================================================
+rem UPDATE CHANNEL HANDLER
+rem ============================================================
+:HandleChannelCommand
+if "%~1"=="" (
+    if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
+        echo Current Update Channel: %cPURPLE%[Nightly]%cRESET%
+        echo Description: Receiving cutting-edge builds directly from the 'main' branch.
+    ) else (
+        echo Current Update Channel: %cGREEN%[Stable]%cRESET%
+        echo Description: Receiving official tagged releases ^(Recommended^).
+    )
+    echo.
+    echo Usage:
+    echo   jvm channel stable    - Switch to %cGREEN%[Stable]%cRESET% official releases channel
+    echo   jvm channel nightly   - Switch to %cPURPLE%[Nightly]%cRESET% cutting-edge main branch channel
+    goto :eof
+)
+if /i "%~1"=="stable" (
+    set "UPDATE_CHANNEL=STABLE"
+    if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM"
+    > "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" echo STABLE
+    echo %cGREEN%[   OK   ]%cRESET% Switched update channel to %cGREEN%[Stable]%cRESET% ^(Official Releases^).
+    goto :eof
+)
+if /i "%~1"=="nightly" (
+    set "UPDATE_CHANNEL=NIGHTLY"
+    if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM"
+    > "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" echo NIGHTLY
+    echo %cGREEN%[   OK   ]%cRESET% Switched update channel to %cPURPLE%[Nightly]%cRESET% ^(Cutting-edge main branch^).
+    goto :eof
+)
+echo %cRED%[ ERROR  ]%cRESET% Unknown channel '%~1'. Valid options are 'stable' or 'nightly'.
 goto :eof
 
 rem ============================================================
@@ -2914,21 +3005,41 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
 ) else (
     echo 3. Architecture: %cGREEN%[Symlink Mode]%cRESET% ^(UAC Free^) - Click to use Registry
 )
-echo 4. About JVM ^& Updates
-echo 5. %cRED%Uninstall JVM Completely%cRESET% ^(Full System Wipe^)
-echo 6. Back to Main Menu
+if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
+    echo 4. Update Channel: %cPURPLE%[Nightly]%cRESET% ^(main branch^) - Click to use Stable
+) else (
+    echo 4. Update Channel: %cGREEN%[Stable]%cRESET% ^(Official Releases^) - Click to use Nightly
+)
+echo 5. About JVM ^& Updates
+echo 6. %cRED%Uninstall JVM Completely%cRESET% ^(Full System Wipe^)
+echo 7. Back to Main Menu
 echo.
 
-choice /C 123456 /N /M "Enter your choice (1-6): "
+choice /C 1234567 /N /M "Enter your choice (1-7): "
 set "sub_choice=!errorlevel!"
 
-if !sub_choice!==6 goto :eof
-if !sub_choice!==5 (
+if !sub_choice!==7 goto :eof
+if !sub_choice!==6 (
     goto :UninstallJVM_Complete
 )
-if !sub_choice!==4 (
+if !sub_choice!==5 (
     call :AboutMenu
     goto :SettingsMenu
+)
+if !sub_choice!==4 (
+    if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
+        set "UPDATE_CHANNEL=STABLE"
+        set "CH_NAME=%cGREEN%[Stable]%cRESET%"
+    ) else (
+        set "UPDATE_CHANNEL=NIGHTLY"
+        set "CH_NAME=%cPURPLE%[Nightly]%cRESET%"
+    )
+    if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM"
+    > "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" echo !UPDATE_CHANNEL!
+    echo.
+    echo %cGREEN%[   OK   ]%cRESET% Switched update channel to !CH_NAME!.
+    timeout /t 2 >nul
+    goto SettingsMenu
 )
 if !sub_choice!==3 (
     if /i "!SWITCH_MODE!"=="DIRECT" (
@@ -3159,7 +3270,7 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
     echo(            'pin', 'local', 'current', 'status', 'info', 'whoami', 'which', 'path',
     echo(            'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
     echo(            'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
-    echo(            'link', 'unlink', 'version', 'help'
+    echo(            'link', 'unlink', 'version', 'help', 'channel'
     echo(        ^)
     echo(        $candidates = @^('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy'^)
     echo(        $vendors = @^('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9'^)
@@ -3168,6 +3279,7 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
     echo(        $flags = @^(
     echo(            '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
     echo(            '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
+    echo(            '--channel', '--nightly', '--stable',
     echo(            '--version', '-v', '--help', '-h'
     echo(        ^)
     echo(
@@ -3178,6 +3290,8 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
     echo(        $completions = @^(^)
     echo(        if ^($prev -in @^('--vendor'^)^) {
     echo(            $completions = $vendors
+    echo(        } elseif ^($prev -in @^('channel'^)^) {
+    echo(            $completions = @^('stable', 'nightly'^)
     echo(        } elseif ^($prev -in @^('open', 'home'^)^) {
     echo(            $completions = $openTargets
     echo(        } elseif ^($prev -in @^('hook'^)^) {
@@ -3244,6 +3358,7 @@ if defined ORIG_HOOK_CP chcp !ORIG_HOOK_CP! >nul
 echo.
 echo %cGREEN%[   OK   ]%cRESET% PowerShell profile hook successfully configured.
 echo %cBLUE%[  INFO  ]%cRESET% Environment variables and PATH will now sync seamlessly across all PowerShell tabs.
+echo %cBLUE%[  HINT  ]%cRESET% Run '. $PROFILE' or restart your terminal to activate completions immediately.
 if "!CLI_COMMAND!"=="" (
     echo.
     echo Press any key to return...
@@ -3373,7 +3488,7 @@ if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\bin\uninsta
 if not defined UNINSTALL_SCRIPT (
     echo %cBLUE%[ ACTION ]%cRESET% Downloading latest uninstall.ps1...
     set "UNINSTALL_SCRIPT=%TEMP%\jvm_uninstall_!RANDOM!.ps1"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/uninstall.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile '!UNINSTALL_SCRIPT!' -UseBasicParsing"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $f = '!UNINSTALL_SCRIPT!'; try { Invoke-WebRequest -Uri 'https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/uninstall.ps1?ref=HEAD' -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile $f -UseBasicParsing -TimeoutSec 5 } catch { try { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/uninstall.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile $f -UseBasicParsing -TimeoutSec 5 } catch {} }; if (Test-Path $f) { $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'Java Version Manager - Uninstaller') { Remove-Item $f -Force -ErrorAction SilentlyContinue } }"
 )
 
 if not exist "!UNINSTALL_SCRIPT!" (
@@ -3547,6 +3662,7 @@ echo.
 echo System ^& Maintenance Commands:
 echo   jvm doctor, check              Deep diagnostic health audit and conflict scanner
 echo   jvm hook [install^|remove]      Manage PowerShell profile auto-sync wrapper hook
+echo   jvm channel [stable^|nightly]   View or switch JVM update channel ^(Stable or Nightly^)
 echo   jvm version, -v                Display version, build, and check for updates
 echo   jvm self-update                Automatically download and install the latest JVM update
 echo   jvm self-uninstall             Launch the deep uninstaller ^(full system wipe^)
@@ -3554,6 +3670,8 @@ echo   jvm help, --help, -h, /?       Show this help message
 echo.
 echo Flag Overrides:
 echo   --vendor ^<name^>                Filter or target vendor ^(oracle, adoptium, graalvm, corretto, zulu, ms, liberica, semeru^)
+echo   --channel ^<name^>               Override update channel ^(stable or nightly^)
+echo   --nightly, --stable            Shortcut flags to target update channel
 echo   --symlink                      Force Symlink Mode ^(UAC-Free Directory Junction^)
 echo   --legacy, --registry           Force Legacy Mode ^(System HKLM Registry, requires UAC^)
 echo   --session                      Force True Session Isolation for the active terminal
@@ -3625,18 +3743,24 @@ if defined CURR_JAVA_BIN (
 )
 
 if /i "!SWITCH_MODE!"=="DIRECT" (
-    echo    - Mode:          [Registry Mode] ^(Machine HKLM^)
+    echo    - Mode:          %cRED%[Registry Mode]%cRESET% ^(Machine HKLM^)
 ) else (
-    echo    - Mode:          [Symlink Mode] ^(User Junction, UAC Free^)
+    echo    - Mode:          %cGREEN%[Symlink Mode]%cRESET% ^(User Junction, UAC Free^)
     set "JUNCTION_TARGET="
     if exist "%LOCALAPPDATA%\DiamTek\JVM\current" (
         for /f "delims=" %%A in ('powershell -NoProfile -Command "(Get-Item -LiteralPath '%LOCALAPPDATA%\DiamTek\JVM\current' -ErrorAction SilentlyContinue).Target" 2^>nul') do set "JUNCTION_TARGET=%%A"
     )
     if defined JUNCTION_TARGET (
-        echo    - Junction:      %LOCALAPPDATA%\DiamTek\JVM\current -^> !JUNCTION_TARGET!
+        echo    - Junction:      %LOCALAPPDATA%\DiamTek\JVM\current -^> %cGREEN%!JUNCTION_TARGET!%cRESET%
     ) else (
-        echo    - Junction:      %LOCALAPPDATA%\DiamTek\JVM\current ^(Inactive^)
+        echo    - Junction:      %LOCALAPPDATA%\DiamTek\JVM\current %cYELLOW%^(Inactive^)%cRESET%
     )
+)
+
+if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
+    echo    - Channel:       %cPURPLE%[Nightly]%cRESET% ^(Cutting-edge main branch^)
+) else (
+    echo    - Channel:       %cGREEN%[Stable]%cRESET% ^(Official Releases^)
 )
 
 echo.
@@ -3959,37 +4083,75 @@ rem JVM Version / About Menu
 rem ============================================================
 :AboutMenu
 rem cls
+set "CH_TAG=%cGREEN%[Stable]%cRESET%"
+if /i "!UPDATE_CHANNEL!"=="NIGHTLY" set "CH_TAG=%cPURPLE%[Nightly]%cRESET%"
 echo ============================================================
 echo                     Java Version Manager
 echo ============================================================
 echo.
 echo Version: !JVM_VERSION!
 echo Build:   !JVM_BUILD!
+echo Channel: !CH_TAG!
 echo.
 echo Developed by DiamTek / Alexéy Shishkin
 echo Licensed under the GNU AGPL v3.0
 echo.
 echo ============================================================
 echo.
-echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
+echo %cBLUE%[ ACTION ]%cRESET% Checking for updates ^(!CH_TAG! channel^)...
 
-rem Fetch latest build number from GitHub main branch and compare using PowerShell [version]
-set "PS_SCRIPT=$ProgressPreference = 'SilentlyContinue'; $local = [version]'!JVM_BUILD!'; $branch = 'HEAD'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $json = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); if ($json -match '\x22sha\x22:\s*\x22([0-9a-f]{40})\x22') { $branch = $matches[1] } } catch {}; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $branch + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 5000; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); $reader.Close(); $res.Close(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE|{1}' -f $remoteStr, $branch) } else { Write-Output ('{0}|OK|{1}' -f $remoteStr, $branch) } } catch { Write-Output ('{0}|INVALID_REMOTE|{1}' -f $remoteStr, $branch) } } else { Write-Output 'UNKNOWN|UNKNOWN|HEAD' } } catch { Write-Output 'ERROR|ERROR|HEAD' }"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
-set "REMOTE_BUILD=UNKNOWN"
-set "UPDATE_FLAG=ERROR"
-set "REMOTE_REF=HEAD"
-if exist "%TEMP%\jvm_remote_build.txt" (
-    for /f "tokens=1,2,3 delims=|" %%A in (%TEMP%\jvm_remote_build.txt) do (
-        set "REMOTE_BUILD=%%A"
-        set "UPDATE_FLAG=%%B"
-        set "REMOTE_REF=%%C"
-    )
-    del "%TEMP%\jvm_remote_build.txt" >nul 2>&1
-)
+rem Fetch latest build from GitHub based on active update channel
+call :CheckUpdateStatus
 
 if "!UPDATE_FLAG!"=="ERROR" (
     echo %cRED%[ ERROR  ]%cRESET% Failed to connect to GitHub. Please check your internet connection.
+    if not defined CLI_COMMAND (
+        echo.
+        echo Press any key to return...
+        pause >nul
+    )
+    goto :eof
+)
+
+if "!UPDATE_FLAG!"=="NO_STABLE_RELEASE" (
+    echo %cYELLOW%[  INFO  ]%cRESET% No official tagged releases published on GitHub yet.
+    echo            Switch to Nightly to track cutting-edge builds:
+    echo            Run '%cCYAN%jvm channel nightly%cRESET%'
+    if not defined CLI_COMMAND (
+        echo.
+        echo Press any key to return...
+        pause >nul
+    )
+    goto :eof
+)
+
+if "!UPDATE_FLAG!"=="AHEAD_OF_STABLE" (
+    echo %cYELLOW%[  INFO  ]%cRESET% You are running an unreleased build ahead of official releases.
+    echo            Installed:   v!JVM_VERSION! ^(Build !JVM_BUILD!^)
+    if "!REMOTE_BUILD!"=="N/A" (
+        echo            Latest GA:   v!REMOTE_VER! ^(!REMOTE_REF!^)
+    ) else (
+        echo            Latest GA:   v!REMOTE_VER! ^(Build !REMOTE_BUILD!^) ^(!REMOTE_REF!^)
+    )
+    echo.
+    echo            Switch to Nightly to track cutting-edge updates:
+    echo            Run '%cCYAN%jvm channel nightly%cRESET%'
+    if not defined CLI_COMMAND (
+        echo.
+        echo Press any key to return...
+        pause >nul
+    )
+    goto :eof
+)
+
+if "!UPDATE_FLAG!"=="AHEAD_OF_NIGHTLY" (
+    echo %cYELLOW%[  INFO  ]%cRESET% You are running a local build ahead of 'main'.
+    echo            Installed:   v!JVM_VERSION! ^(Build !JVM_BUILD!^)
+    if "!REMOTE_BUILD!"=="N/A" (
+        echo            Latest Main: v!REMOTE_VER! ^(!REMOTE_REF!^)
+    ) else (
+        echo            Latest Main: v!REMOTE_VER! ^(Build !REMOTE_BUILD!^) ^(!REMOTE_REF!^)
+    )
     if not defined CLI_COMMAND (
         echo.
         echo Press any key to return...
@@ -4009,7 +4171,7 @@ if "!UPDATE_FLAG!"=="UNKNOWN" (
 )
 
 if "!UPDATE_FLAG!"=="INVALID_REMOTE" (
-    echo %cYELLOW%[ WARNING]%cRESET% Remote build '!REMOTE_BUILD!' is not a valid Semantic Version.
+    echo %cYELLOW%[ WARNING]%cRESET% Remote version '!REMOTE_VER!' is not a valid Semantic Version.
     if not defined CLI_COMMAND (
         echo.
         echo Press any key to return...
@@ -4019,9 +4181,22 @@ if "!UPDATE_FLAG!"=="INVALID_REMOTE" (
 )
 
 if "!UPDATE_FLAG!"=="UPDATE" (
-    echo %cYELLOW%[ UPDATE ]%cRESET% A newer version of Java Version Manager is available!
-    echo            Local Build:  !JVM_BUILD!
-    echo            Remote Build: !REMOTE_BUILD!
+    echo %cYELLOW%[ UPDATE ]%cRESET% A newer version of Java Version Manager is available ^(!CH_TAG! channel^).
+    if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
+        echo            Installed:      v!JVM_VERSION! ^(Build !JVM_BUILD!^)
+        if "!REMOTE_BUILD!"=="N/A" (
+            echo            Latest Nightly: v!REMOTE_VER! ^(!REMOTE_REF!^)
+        ) else (
+            echo            Latest Nightly: v!REMOTE_VER! ^(Build !REMOTE_BUILD!^) ^(!REMOTE_REF!^)
+        )
+    ) else (
+        echo            Installed:      v!JVM_VERSION! ^(Build !JVM_BUILD!^)
+        if "!REMOTE_BUILD!"=="N/A" (
+            echo            Latest GA:      v!REMOTE_VER! ^(!REMOTE_REF!^)
+        ) else (
+            echo            Latest GA:      v!REMOTE_VER! ^(Build !REMOTE_BUILD!^) ^(!REMOTE_REF!^)
+        )
+    )
     echo.
     if not defined CLI_COMMAND (
         choice /C yn /N /M "Would you like to download and install this update? (y/N): "
@@ -4033,7 +4208,7 @@ if "!UPDATE_FLAG!"=="UPDATE" (
     )
     goto :eof
 ) else (
-    echo %cGREEN%[   OK   ]%cRESET% You are running the latest version!
+    echo %cGREEN%[   OK   ]%cRESET% You are running the latest version ^(v!JVM_VERSION!, Build !JVM_BUILD!^) ^(!CH_TAG! channel^).
     if not defined CLI_COMMAND (
         echo.
         echo Press any key to return...
@@ -4046,26 +4221,52 @@ rem ============================================================
 rem Self-Updater
 rem ============================================================
 :SelfUpdate
+set "CH_TAG=%cGREEN%[Stable]%cRESET%"
+if /i "!UPDATE_CHANNEL!"=="NIGHTLY" set "CH_TAG=%cPURPLE%[Nightly]%cRESET%"
 if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
     echo.
-    echo %cBLUE%[ ACTION ]%cRESET% Checking for updates...
-    
-    set "PS_SCRIPT=$ProgressPreference = 'SilentlyContinue'; $local = [version]'!JVM_BUILD!'; $branch = 'HEAD'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $json = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); if ($json -match '\x22sha\x22:\s*\x22([0-9a-f]{40})\x22') { $branch = $matches[1] } } catch {}; $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $branch + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 5000; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); try { $res = $req.GetResponse(); $stream = $res.GetResponseStream(); $reader = New-Object System.IO.StreamReader($stream); $content = $reader.ReadToEnd(); $reader.Close(); $res.Close(); if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remoteStr = $matches[1]; try { $remote = [version]$remoteStr; if ($remote -gt $local) { Write-Output ('{0}|UPDATE|{1}' -f $remoteStr, $branch) } else { Write-Output ('{0}|OK|{1}' -f $remoteStr, $branch) } } catch { Write-Output ('{0}|INVALID_REMOTE|{1}' -f $remoteStr, $branch) } } else { Write-Output 'UNKNOWN|UNKNOWN|HEAD' } } catch { Write-Output 'ERROR|ERROR|HEAD' }"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "%TEMP%\jvm_remote_build.txt" 2>nul
-    set "REMOTE_BUILD=UNKNOWN"
-    set "UPDATE_FLAG=ERROR"
-    set "REMOTE_REF=HEAD"
-    if exist "%TEMP%\jvm_remote_build.txt" (
-        for /f "tokens=1,2,3 delims=|" %%A in (%TEMP%\jvm_remote_build.txt) do (
-            set "REMOTE_BUILD=%%A"
-            set "UPDATE_FLAG=%%B"
-            set "REMOTE_REF=%%C"
-        )
-        del "%TEMP%\jvm_remote_build.txt" >nul 2>&1
-    )
+    echo %cBLUE%[ ACTION ]%cRESET% Checking for updates ^(!CH_TAG! channel^)...
+    call :CheckUpdateStatus
 
     if "!UPDATE_FLAG!"=="ERROR" (
         echo %cRED%[ ERROR  ]%cRESET% Failed to connect to GitHub. Please check your internet connection.
+        goto :eof
+    )
+    if "!UPDATE_FLAG!"=="NO_STABLE_RELEASE" (
+        echo.
+        echo %cYELLOW%[  INFO  ]%cRESET% No official tagged releases published on GitHub yet.
+        echo            Installed:   v!JVM_VERSION! ^(Build !JVM_BUILD!^)
+        echo.
+        echo            Switch to Nightly to track cutting-edge builds:
+        echo            Run '%cCYAN%jvm channel nightly ^& jvm self-update%cRESET%'
+        goto :eof
+    )
+    if "!UPDATE_FLAG!"=="AHEAD_OF_STABLE" (
+        echo.
+        echo %cYELLOW%[  INFO  ]%cRESET% You are running an unreleased build ahead of official releases.
+        echo            Installed:   v!JVM_VERSION! ^(Build !JVM_BUILD!^)
+        if "!REMOTE_BUILD!"=="N/A" (
+            echo            Latest GA:   v!REMOTE_VER! ^(!REMOTE_REF!^)
+        ) else (
+            echo            Latest GA:   v!REMOTE_VER! ^(Build !REMOTE_BUILD!^) ^(!REMOTE_REF!^)
+        )
+        echo.
+        echo            No stable downgrade will be performed.
+        echo            Switch to Nightly to update from 'main':
+        echo            Run '%cCYAN%jvm channel nightly ^& jvm self-update%cRESET%'
+        goto :eof
+    )
+    if "!UPDATE_FLAG!"=="AHEAD_OF_NIGHTLY" (
+        echo.
+        echo %cYELLOW%[  INFO  ]%cRESET% You are running a local build ahead of 'main'.
+        echo            Installed:   v!JVM_VERSION! ^(Build !JVM_BUILD!^)
+        if "!REMOTE_BUILD!"=="N/A" (
+            echo            Latest Main: v!REMOTE_VER! ^(!REMOTE_REF!^)
+        ) else (
+            echo            Latest Main: v!REMOTE_VER! ^(Build !REMOTE_BUILD!^) ^(!REMOTE_REF!^)
+        )
+        echo.
+        echo            No nightly downgrade will be performed.
         goto :eof
     )
     if "!UPDATE_FLAG!"=="UNKNOWN" (
@@ -4073,28 +4274,94 @@ if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
         goto :eof
     )
     if "!UPDATE_FLAG!"=="INVALID_REMOTE" (
-        echo %cYELLOW%[ WARNING]%cRESET% Remote build '!REMOTE_BUILD!' is not a valid Semantic Version.
+        echo %cYELLOW%[ WARNING]%cRESET% Remote version '!REMOTE_VER!' is not a valid Semantic Version.
         goto :eof
     )
     if "!UPDATE_FLAG!"=="OK" (
-        echo %cGREEN%[   OK   ]%cRESET% You are already running the latest version ^(!JVM_BUILD!^).
+        echo %cGREEN%[   OK   ]%cRESET% You are already running the latest version ^(v!JVM_VERSION!, Build !JVM_BUILD!^) on the !CH_TAG! channel.
         goto :eof
     )
 )
 
 if not defined REMOTE_REF set "REMOTE_REF=HEAD"
+if "!REMOTE_REF!"=="NONE" set "REMOTE_REF=HEAD"
 
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
 
 set "INSTALL_SCRIPT=%TEMP%\jvm_install_!RANDOM!.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + '!REMOTE_REF!' + '/install.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile '!INSTALL_SCRIPT!' -UseBasicParsing"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = '!REMOTE_REF!'; try { Invoke-WebRequest -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/install.ps1?ref=' + $ref) -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile '!INSTALL_SCRIPT!' -UseBasicParsing -TimeoutSec 5 } catch { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/install.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile '!INSTALL_SCRIPT!' -UseBasicParsing -TimeoutSec 5 }"
 
 if not exist "!INSTALL_SCRIPT!" (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% Failed to download the latest installer.
     pause
     goto :eof
+)
+
+echo %cBLUE%[ ACTION ]%cRESET% Verifying installer cryptographic integrity...
+set "VERIFY_TMP=%TEMP%\jvm_sha_!RANDOM!.txt"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = '!REMOTE_REF!'; $ch = '!UPDATE_CHANNEL!'; $f = '!INSTALL_SCRIPT!'; if (-not (Test-Path $f)) { Write-Output 'MISSING'; exit }; $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'rem END OF SCRIPT|# Java Version Manager') { Write-Output 'TRUNCATED'; exit }; $actual = (Get-FileHash -Path $f -Algorithm SHA256).Hash.ToLower(); if ($ch -eq 'STABLE' -and $ref -match '^v?[0-9]') { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt') -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if (-not $shaTxt) { try { $relJson = (Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/' + $ref) -UserAgent 'DiamTek-JVM'); $asset = $relJson.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1; if ($asset) { $shaTxt = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } } catch {} }; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NO_ENTRY|' + $actual) } } else { Write-Output ('NO_SHA_FILE|' + $actual) } } else { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/SHA256SUMS.txt?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } }" > "!VERIFY_TMP!" 2>nul
+
+set "SHA_STATUS=UNKNOWN"
+set "SHA_EXP="
+set "SHA_ACT="
+if exist "!VERIFY_TMP!" (
+    for /f "tokens=1,2,3 delims=|" %%A in (!VERIFY_TMP!) do (
+        set "SHA_STATUS=%%A"
+        set "SHA_EXP=%%B"
+        set "SHA_ACT=%%C"
+    )
+    del "!VERIFY_TMP!" >nul 2>&1
+)
+
+if "!UPDATE_CHANNEL!"=="STABLE" (
+    if not "!SHA_STATUS!"=="VERIFIED" (
+        echo.
+        echo %cRED%[ ERROR  ]%cRESET% Cryptographic integrity verification failed for install.ps1 on [Stable] channel!
+        if "!SHA_STATUS!"=="MISMATCH" (
+            echo            Expected: !SHA_EXP!
+            echo            Computed: !SHA_ACT!
+            echo            Checksum mismatch detected. Download may be corrupted or compromised.
+        ) else if "!SHA_STATUS!"=="NO_SHA_FILE" (
+            echo            Official SHA256SUMS.txt could not be retrieved from release assets.
+        ) else if "!SHA_STATUS!"=="NO_ENTRY" (
+            echo            No SHA-256 checksum entry for install.ps1 found in release manifest.
+        ) else if "!SHA_STATUS!"=="TRUNCATED" (
+            echo            Downloaded installer file is corrupted or truncated.
+        ) else (
+            echo            Integrity status: !SHA_STATUS! - Verification could not be completed.
+        )
+        echo            Update aborted to protect system integrity.
+        if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" >nul 2>&1
+        pause
+        goto :eof
+    )
+    echo %cGREEN%[   OK   ]%cRESET% Cryptographic integrity verified ^(SHA-256: !SHA_EXP:~0,16!...^)
+) else (
+    if "!SHA_STATUS!"=="MISMATCH" (
+        echo.
+        echo %cRED%[ ERROR  ]%cRESET% Cryptographic integrity check failed for install.ps1!
+        echo            Expected: !SHA_EXP!
+        echo            Computed: !SHA_ACT!
+        echo            Update aborted to prevent untrusted execution.
+        if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" >nul 2>&1
+        pause
+        goto :eof
+    )
+    if "!SHA_STATUS!"=="TRUNCATED" (
+        echo.
+        echo %cRED%[ ERROR  ]%cRESET% Downloaded installer is truncated or empty.
+        echo            Update aborted to prevent untrusted execution.
+        if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" >nul 2>&1
+        pause
+        goto :eof
+    )
+    if "!SHA_STATUS!"=="VERIFIED" (
+        echo %cGREEN%[   OK   ]%cRESET% Cryptographic integrity verified ^(SHA-256: !SHA_EXP:~0,16!...^)
+    ) else (
+        echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity hash ^(SHA-256: !SHA_EXP:~0,16!...^)
+    )
 )
 
 echo %cBLUE%[ ACTION ]%cRESET% Preparing update handoff engine...
@@ -4107,7 +4374,7 @@ set "UPDATER_BAT=%TEMP%\jvm_updater_!RANDOM!.bat"
     echo set "cBLUE=%%ESC%%[96m"
     echo set "cRESET=%%ESC%%[0m"
     echo echo.
-    echo powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_SCRIPT!" -Update -TargetDir "!SCRIPT_DIR!" -Branch "!REMOTE_REF!"
+    echo powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_SCRIPT!" -Update -TargetDir "!SCRIPT_DIR!" -Branch "!REMOTE_REF!" -Channel "!UPDATE_CHANNEL!"
     echo set "UPD_ERR=%%errorlevel%%"
     echo if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" ^>nul 2^>^&1
     echo if %%UPD_ERR%% NEQ 0 ^(
@@ -4131,6 +4398,28 @@ set "UPDATER_BAT=%TEMP%\jvm_updater_!RANDOM!.bat"
 
 rem Chain execution to external updater in %TEMP% so jvm.bat is immediately closed by cmd.exe!
 "!UPDATER_BAT!"
+exit /b 0
+
+rem ============================================================
+rem Query Remote Update Status Helper
+rem ============================================================
+:CheckUpdateStatus
+set "PS_SCRIPT=$ProgressPreference = 'SilentlyContinue'; $localVer = [version]'!JVM_VERSION!'; $localBld = [version]'!JVM_BUILD!'; $channel = '!UPDATE_CHANNEL!'; if ($channel -eq 'STABLE') { $data = $null; $tagName = $null; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/latest'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $data = $raw | ConvertFrom-Json; if ($data -and $data.tag_name) { $tagName = [string]$data.tag_name; } } catch { try { $req = [Net.HttpWebRequest]::Create('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'DiamTek-JVM'; $req.Timeout = 3000; $res = $req.GetResponse(); $loc = $res.Headers['Location']; $res.Close(); if ($loc -match '/releases/tag/(.+)$') { $tagName = $matches[1]; } } catch [Net.WebException] { $resp = $_.Exception.Response; if ($resp -and ($resp.StatusCode -eq [Net.HttpStatusCode]::NotFound)) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; } } catch {} }; if (-not $tagName) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; }; $tagVerStr = $null; if ($tagName -match '^v?([0-9]+(\.[0-9]+)+)') { $tagVerStr = $matches[1]; } elseif ($tagName -match '^v?([0-9]+)') { $tagVerStr = $matches[1] + '.0'; }; if (-not $tagVerStr) { Write-Output ($tagName + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; try { $remoteVer = [version]$tagVerStr; } catch { Write-Output ($tagVerStr + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; $remBuild = $null; $remBldStr = 'N/A'; try { $rawUrl = 'https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $tagName + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks; $req = [Net.HttpWebRequest]::Create($rawUrl); $req.Timeout = 3000; $req.UserAgent = 'DiamTek-JVM'; $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $c = $sr.ReadToEnd(); $sr.Close(); $res.Close(); if ($c -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBuild = [version]$matches[1]; $remBldStr = $matches[1]; } } catch {}; if ($remoteVer -gt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remoteVer -lt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { if ($remBuild) { if ($remBuild -gt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remBuild -lt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } } else { $commitSha = 'main'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $cData = $raw | ConvertFrom-Json; if ($cData -and $cData.sha) { $commitSha = $cData.sha.Substring(0, 7); } } catch { $commitSha = 'main'; }; $content = $null; try { $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 4000; $req.UserAgent = 'DiamTek-JVM'; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $res.Close(); } catch { try { $apiReq = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=main'); $apiReq.Method = 'GET'; $apiReq.Timeout = 4000; $apiReq.UserAgent = 'DiamTek-JVM'; $apiReq.Accept = 'application/vnd.github.v3.raw'; $apiReq.Headers.Add('Cache-Control', 'no-cache'); $apiReq.Headers.Add('Pragma', 'no-cache'); $apiRes = $apiReq.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); } catch {} }; if (-not $content) { Write-Output 'UNKNOWN|UNKNOWN|ERROR|main'; exit; }; $remVerStr = '1.0.0'; $remBldStr = 'UNKNOWN'; if ($content -match 'set \x22JVM_VERSION=(.*?)\x22') { $remVerStr = $matches[1]; }; if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBldStr = $matches[1]; }; try { $remoteVer = [version]$remVerStr; $remoteBld = [version]$remBldStr; if ($remoteVer -gt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteVer -lt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { if ($remoteBld -gt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteBld -lt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { Write-Output ($remVerStr + '|' + $remBldStr + '|OK|' + $commitSha); } } } catch { Write-Output ($remVerStr + '|' + $remBldStr + '|INVALID_REMOTE|' + $commitSha); } }
+set "REMOTE_TMP=%TEMP%\jvm_remote_build_!RANDOM!.txt"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "!REMOTE_TMP!" 2>nul
+set "REMOTE_VER=UNKNOWN"
+set "REMOTE_BUILD=UNKNOWN"
+set "UPDATE_FLAG=ERROR"
+set "REMOTE_REF=HEAD"
+if exist "!REMOTE_TMP!" (
+    for /f "tokens=1,2,3,4 delims=|" %%A in (!REMOTE_TMP!) do (
+        set "REMOTE_VER=%%A"
+        set "REMOTE_BUILD=%%B"
+        set "UPDATE_FLAG=%%C"
+        set "REMOTE_REF=%%D"
+    )
+    del "!REMOTE_TMP!" >nul 2>&1
+)
 exit /b 0
 
 rem ============================================================
@@ -4294,6 +4583,7 @@ call :GetCandidateEnvVar
 echo %cBLUE%[ ACTION ]%cRESET% Installing !CANDIDATE_PROPER_NAME!...
 
 set "TARGET_VER=!CLI_TARGET!"
+if not defined TARGET_VER set "TARGET_VER=latest"
 if /i "!TARGET_VER!"=="latest" (
     echo %cBLUE%[ ACTION ]%cRESET% Resolving latest version of !CANDIDATE_PROPER_NAME!...
     call :ResolveLatestEcosystemCandidate
@@ -4304,11 +4594,6 @@ if /i "!TARGET_VER!"=="latest" (
         exit /b 1
     )
     echo %cGREEN%[   OK   ]%cRESET% Latest version resolved to !TARGET_VER!.
-)
-
-if not defined TARGET_VER (
-    echo %cRED%[ ERROR  ]%cRESET% No version specified. Usage: jvm install !TARGET_CANDIDATE! latest
-    exit /b 1
 )
 
 rem Build the download URL
@@ -4332,6 +4617,8 @@ if /i "!TARGET_CANDIDATE!"=="kotlin" (
 )
 if /i "!TARGET_CANDIDATE!"=="scala" (
     set "DOWNLOAD_URL=https://github.com/scala/scala3/releases/download/!TARGET_VER!/scala3-!TARGET_VER!.zip"
+    set "CHECKSUM_URL=https://github.com/scala/scala3/releases/download/!TARGET_VER!/scala3-!TARGET_VER!.zip.sha256"
+    set "CHECKSUM_TYPE=SHA256"
 )
 if /i "!TARGET_CANDIDATE!"=="groovy" (
     set "DOWNLOAD_URL=https://archive.apache.org/dist/groovy/!TARGET_VER!/distribution/apache-groovy-binary-!TARGET_VER!.zip"
@@ -4399,8 +4686,42 @@ exit /b 0
 call :GetCandidateEnvVar
 set "TARGET_VER=!CLI_TARGET!"
 if "!TARGET_VER!"=="" (
-    echo %cRED%[ ERROR  ]%cRESET% Please specify the version to uninstall. Usage: jvm uninstall !TARGET_CANDIDATE! ^<version^>
-    exit /b 1
+    set "CANDIDATE_DIR=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
+    if not exist "!CANDIDATE_DIR!" (
+        echo %cRED%[ ERROR  ]%cRESET% No !CANDIDATE_PROPER_NAME! versions are installed.
+        exit /b 1
+    )
+    set "VER_COUNT=0"
+    set "SINGLE_VER="
+    for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { [version]($_.Name -replace '-.*','') } -Descending | Select-Object -ExpandProperty Name" 2^>nul') do (
+        set /a VER_COUNT+=1
+        set "SINGLE_VER=%%V"
+    )
+    if !VER_COUNT! EQU 0 (
+        echo %cRED%[ ERROR  ]%cRESET% No !CANDIDATE_PROPER_NAME! versions are installed.
+        exit /b 1
+    )
+    if !VER_COUNT! EQU 1 (
+        set "TARGET_VER=!SINGLE_VER!"
+        echo %cBLUE%[  INFO  ]%cRESET% Only one version installed: !SINGLE_VER!
+    ) else (
+        echo.
+        echo %cBLUE%[  INFO  ]%cRESET% Multiple !CANDIDATE_PROPER_NAME! versions installed:
+        echo.
+        set "IDX=0"
+        for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { [version]($_.Name -replace '-.*','') } -Descending | Select-Object -ExpandProperty Name" 2^>nul') do (
+            set /a IDX+=1
+            set "VER_!IDX!=%%V"
+            echo    !IDX!. %%V
+        )
+        echo.
+        set /p "ver_choice=Select version to uninstall (1-!IDX!): "
+        call set "TARGET_VER=%%VER_!ver_choice!%%"
+        if not defined TARGET_VER (
+            echo %cRED%[ ERROR  ]%cRESET% Invalid selection.
+            exit /b 1
+        )
+    )
 )
 
 set "CANDIDATE_DIR=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
@@ -4510,8 +4831,25 @@ for /f "delims=" %%V in ('powershell -NoProfile -Command "!PS_RESOLVE_LATEST!"')
     set "LATEST_VER=%%V"
 )
 if "!LATEST_VER!"=="RATE_LIMITED" (
-    echo %cRED%[ ERROR  ]%cRESET% GitHub API Rate Limit reached. Set GITHUB_TOKEN environment variable or try again later.
-    set "LATEST_VER=ERROR"
+    echo %cYELLOW%[ WARNING]%cRESET% GitHub API Rate Limit reached. Trying redirect fallback...
+    set "PS_REDIR="
+    if /i "!TARGET_CANDIDATE!"=="maven" set "PS_REDIR=try { $r=[Net.HttpWebRequest]::Create('https://github.com/apache/maven/releases/latest'); $r.AllowAutoRedirect=$false; $r.Timeout=10000; $resp=$r.GetResponse(); $loc=$resp.Headers['Location']; $resp.Close(); if ($loc -match '/tag/maven-(.+)$') { $Matches[1] } else { 'ERROR' } } catch { 'ERROR' }"
+    if /i "!TARGET_CANDIDATE!"=="kotlin" set "PS_REDIR=try { $r=[Net.HttpWebRequest]::Create('https://github.com/JetBrains/kotlin/releases/latest'); $r.AllowAutoRedirect=$false; $r.Timeout=10000; $resp=$r.GetResponse(); $loc=$resp.Headers['Location']; $resp.Close(); if ($loc -match '/tag/v?(.+)$') { $Matches[1] } else { 'ERROR' } } catch { 'ERROR' }"
+    if /i "!TARGET_CANDIDATE!"=="scala" set "PS_REDIR=try { $r=[Net.HttpWebRequest]::Create('https://github.com/scala/scala3/releases/latest'); $r.AllowAutoRedirect=$false; $r.Timeout=10000; $resp=$r.GetResponse(); $loc=$resp.Headers['Location']; $resp.Close(); if ($loc -match '/tag/(.+)$') { $Matches[1] } else { 'ERROR' } } catch { 'ERROR' }"
+    if defined PS_REDIR (
+        set "REDIR_TAG="
+        for /f "delims=" %%T in ('powershell -NoProfile -Command "!PS_REDIR!"') do set "REDIR_TAG=%%T"
+        if not "!REDIR_TAG!"=="ERROR" if not "!REDIR_TAG!"=="" (
+            set "LATEST_VER=!REDIR_TAG!"
+            echo %cGREEN%[   OK   ]%cRESET% Resolved via redirect fallback.
+        ) else (
+            echo %cRED%[ ERROR  ]%cRESET% GitHub API Rate Limit reached and redirect fallback failed. Set GITHUB_TOKEN environment variable or try again later.
+            set "LATEST_VER=ERROR"
+        )
+    ) else (
+        echo %cRED%[ ERROR  ]%cRESET% GitHub API Rate Limit reached. Set GITHUB_TOKEN environment variable or try again later.
+        set "LATEST_VER=ERROR"
+    )
 )
 exit /b 0
 
@@ -4569,8 +4907,17 @@ set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!.ps1"
     echo         Write-Host "`r[ ACTION ] Downloading: $fullBar 100%% ($tMB / $tMB MB) " -NoNewline -ForegroundColor Cyan
     echo     }
     echo     Write-Host "`n"
-    echo     if ^('!DL_CHKSUM_URL!' -ne '' -or '!DL_CHKSUM_VAL!' -ne ''^) {
-    echo         $cryptoType = '!DL_CHKSUM_TYPE!'
+    echo     $cryptoType = if ^('!DL_CHKSUM_TYPE!' -ne ''^) { '!DL_CHKSUM_TYPE!' } else { 'SHA256' }
+    echo     if ^('!DL_CHKSUM_URL!' -eq '' -and '!DL_CHKSUM_VAL!' -eq ''^) {
+    echo         if ^('!SKIP_CHECKSUM!' -ne '1'^) {
+    echo             Write-Host '[ ERROR  ] Integrity checksum configuration missing for this download payload.' -ForegroundColor Red
+    echo             Write-Host '           Aborting due to security policy. Rerun with --skip-checksum to bypass verification.' -ForegroundColor Red
+    echo             if ^(Test-Path '!DL_ZIP!'^) { Remove-Item '!DL_ZIP!' -Force -ErrorAction SilentlyContinue }
+    echo             exit 1
+    echo         }
+    echo         Write-Host '[ WARNING] Proceeding WITHOUT integrity verification ^(--skip-checksum active^).' -ForegroundColor Yellow
+    echo         Write-Host ""
+    echo     } else {
     echo         Write-Host "[ ACTION ] Verifying $cryptoType checksum..." -ForegroundColor Cyan
     echo         $expectedHash = $null
     echo         if ^('!DL_CHKSUM_URL!' -ne ''^) {
@@ -4586,7 +4933,10 @@ set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!.ps1"
     echo                     } catch { $expectedHash = $null }
     echo                 }
     echo             }
-    echo             if ^($expectedHash^) { $expectedHash = ^($expectedHash -split '\s+'^)[0] }
+    echo             if ^($expectedHash^) { $expectedHash = ^($expectedHash -split '\s+'^)[0].Trim^(^) }
+    echo             if ^($cryptoType -eq 'SHA256' -and $expectedHash -notmatch '^[0-9a-fA-F]{64}$'^) { $expectedHash = $null }
+    echo             if ^($cryptoType -eq 'SHA512' -and $expectedHash -notmatch '^[0-9a-fA-F]{128}$'^) { $expectedHash = $null }
+    echo             if ^($cryptoType -eq 'SHA1' -and $expectedHash -notmatch '^[0-9a-fA-F]{40}$'^) { $expectedHash = $null }
     echo         } else {
     echo             $expectedHash = '!DL_CHKSUM_VAL!'
     echo         }
@@ -4594,12 +4944,14 @@ set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!.ps1"
     echo             Write-Host '[ WARNING] Integrity verification unavailable or failed to fetch.' -ForegroundColor Yellow
     echo             if ^('!SKIP_CHECKSUM!' -ne '1'^) {
     echo                 Write-Host '[ ERROR  ] Aborting due to security policy. Rerun with --skip-checksum to bypass verification.' -ForegroundColor Red
+    echo                 if ^(Test-Path '!DL_ZIP!'^) { Remove-Item '!DL_ZIP!' -Force -ErrorAction SilentlyContinue }
     echo                 exit 1
     echo             }
     echo             Write-Host '            Proceeding WITHOUT integrity verification ^(--skip-checksum active^).' -ForegroundColor Yellow
     echo             Write-Host ""
     echo         } else {
     echo             $crypto = [System.Security.Cryptography.HashAlgorithm]::Create^($cryptoType^)
+    echo             if ^(-not $crypto^) { $crypto = [System.Security.Cryptography.SHA256]::Create^(^) }
     echo             $fs2 = [System.IO.File]::OpenRead^('!DL_ZIP!'^)
     echo             $hashBytes = $crypto.ComputeHash^($fs2^)
     echo             $fs2.Close^(^)
@@ -4608,6 +4960,7 @@ set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!.ps1"
     echo                 Write-Host '[ ERROR  ] Checksum mismatch. Download corrupted or compromised.' -ForegroundColor Red
     echo                 Write-Host "           Expected: $expectedHash" -ForegroundColor Red
     echo                 Write-Host "           Actual:   $actualHash" -ForegroundColor Red
+    echo                 if ^(Test-Path '!DL_ZIP!'^) { Remove-Item '!DL_ZIP!' -Force -ErrorAction SilentlyContinue }
     echo                 exit 1
     echo             }
     echo             Write-Host '[   OK   ] Checksum verified successfully.' -ForegroundColor Green
@@ -4622,8 +4975,15 @@ set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!.ps1"
     echo         $totalEntries = $entries.Count
     echo         $extracted = 0
     echo         $lastPercent = -1
+    echo         $fullRoot = [System.IO.Path]::GetFullPath^('!DL_EXTRACT!'^)
+    echo         if ^(-not $fullRoot.EndsWith^([System.IO.Path]::DirectorySeparatorChar.ToString^(^)^)^) {
+    echo             $fullRoot += [System.IO.Path]::DirectorySeparatorChar
+    echo         }
     echo         foreach ^($entry in $entries^) {
     echo             $destinationPath = [System.IO.Path]::GetFullPath^([System.IO.Path]::Combine^('!DL_EXTRACT!', $entry.FullName^)^)
+    echo             if ^(-not $destinationPath.StartsWith^($fullRoot, [System.StringComparison]::OrdinalIgnoreCase^) -and $destinationPath -ne $fullRoot.TrimEnd^([System.IO.Path]::DirectorySeparatorChar^)^) {
+    echo                 throw ^('Blocked path traversal in archive entry: ' + $entry.FullName^)
+    echo             }
     echo             if ^([string]::IsNullOrEmpty^($entry.Name^)^) {
     echo                 [System.IO.Directory]::CreateDirectory^($destinationPath^) ^| Out-Null
     echo             } else {

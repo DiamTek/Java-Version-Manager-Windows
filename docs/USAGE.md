@@ -23,6 +23,7 @@ This document outlines every command, flag override, and semantic route availabl
 - [Headless Installations](#headless-installations)
 - [Universal Candidate Engine (Ecosystem Tools)](#universal-candidate-engine-ecosystem-tools)
 - [Updates & Uninstalls](#updates--uninstalls)
+- [Dual Update Channels (Stable vs Nightly)](#update-channels-stable-vs-nightly)
 - [Directory-Based Auto-Switching (.java-version & .sdkmanrc)](#directory-based-auto-switching)
 - [Project Version Pinning (jvm pin / jvm local)](#project-version-pinning)
 - [IDE & Build Tool Integration](#ide--build-tool-integration)
@@ -78,11 +79,12 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm install lts [--latest]` | Machine | Downloads newest LTS JDK release directly from vendor APIs. |
 | `jvm install <ver> -y` | Machine | Automated headless install with aggressive safety warning bypass for CI/CD. |
 | `jvm install <ver> --skip-checksum` | Machine | Bypasses checksum verification if vendor hash mirror is unreachable. |
-| `jvm install <tool> [version]` | User | Installs ecosystem tool (e.g., `jvm install maven latest`, `jvm install gradle 8.9`; accepts `-y`). |
+| `jvm install <tool> [version]` | User | Installs ecosystem tool (omitting version defaults to `latest`; e.g., `jvm install maven`, `jvm install gradle 8.9`; accepts `-y`). |
 | `jvm <tool> <version>` | User | Switches active ecosystem tool version (e.g., `jvm kotlin 2.0.20`, `jvm maven 3.9.6`). |
 | `jvm update <version>` | Machine | Checks for and applies vendor patches to a specific installed JDK (e.g., `jvm update 21`). |
 | `jvm update --all [--vendor <name>]` | Machine | Silently checks and patches all installed JDKs and tools to latest releases. |
 | `jvm uninstall <version>` | Machine | Uninstalls a specific installed JDK (aliases: `jvm rm <version>`, `jvm remove <version>`). |
+| `jvm uninstall <tool> [version]` | User | Uninstalls an ecosystem tool (auto-detects single installed version, or prompts with interactive menu if multiple). |
 | `jvm list` | Inspection | Lists all installed JDKs, vendors, paths, and ecosystem build tools (alias: `jvm ls`). |
 | `jvm current` | Inspection | Displays comprehensive status card: active JDK, mode, junction target, and tools (aliases: `jvm status`, `jvm info`, `jvm whoami`, `jvm env`). |
 | `jvm which [candidate]` | Inspection | Prints absolute filesystem path to active `java.exe` or ecosystem binary (alias: `jvm path`). |
@@ -94,6 +96,7 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm link [path] [name]` | Custom | Registers an external custom JDK (or lists all registered links with target paths if run without arguments). |
 | `jvm unlink <name>` | Custom | Unregisters a custom linked JDK from the manager. |
 | `jvm version` | Tool | Displays current JVM version, build number, and checks GitHub for updates (`--version`, `-v`). |
+| `jvm channel [stable/nightly]` | Tool | Displays or switches the update channel between `Stable` (official releases) and `Nightly` (main branch). |
 | `jvm self-update` | Tool | Automatically downloads and atomic-swaps `jvm.bat` to the latest release. |
 | `jvm self-uninstall` | System | Triggers deep UAC-elevated system uninstaller (`uninstall.ps1`, `jvm uninstall-self`). |
 | `jvm <command> --no-color` | Flag | Suppresses ANSI color codes for clean redirection and CI/CD logs (also honors `NO_COLOR` env). |
@@ -356,8 +359,10 @@ DiamTek JVM connects directly to official upstream vendor APIs to resolve, downl
 
 JVM supports downloading, switching, and managing modern build tools natively alongside Java. You can manage these via the command line or through the interactive **Ecosystem Management** sub-menu. Supported candidates include `maven`, `gradle`, `kotlin`, `scala`, and `groovy`.
 
-Install the absolute newest version of Maven directly from Apache:
+Install the absolute newest version of Maven directly from Apache (omitting the version defaults to `latest`):
 ```powershell
+jvm install maven
+# Or explicitly:
 jvm install maven latest
 ```
 Install a specific legacy version of Gradle headless without overwrite prompts:
@@ -365,7 +370,7 @@ Install a specific legacy version of Gradle headless without overwrite prompts:
 jvm install gradle 8.9 -y
 ```
 > [!NOTE]
-> **First-Install Auto-Activation:** The first time you install any ecosystem candidate tool on your workstation, JVM automatically activates it as your current version immediately without requiring a secondary switch command.
+> **First-Install Auto-Activation & Defaults:** Omitting the version argument for any ecosystem install command (e.g., `jvm install scala` or `jvm install kotlin`) automatically defaults to `latest`. The first time you install any ecosystem candidate tool on your workstation, JVM automatically activates it as your current version immediately without requiring a secondary switch command.
 
 Instantly switch your active `KOTLIN_HOME` (and system PATH) to the specified version:
 ```powershell
@@ -383,13 +388,18 @@ jvm --gradle 8.5
 
 Safely uninstall a specific tool and cleanly scrub its environment variables from your registry:
 ```powershell
+# Uninstall by explicit version:
 jvm uninstall groovy 4.0.23
-# Or uninstall the latest installed candidate version:
-jvm uninstall maven latest
+
+# Or omit the version for smart auto-detection:
+jvm uninstall scala
 ```
 
+> [!NOTE]
+> **Smart Uninstall Auto-Detection:** When running `jvm uninstall <tool>` without a version argument, JVM automatically inspects your installed versions. If exactly **one** version is installed, it selects and uninstalls it immediately. If **multiple** versions are detected, JVM presents an interactive numbered selection menu so you can choose which version to remove.
+
 > [!TIP]
-> **GitHub API Rate Limit Bypass (`GITHUB_TOKEN`):** When discovering and installing the latest releases of ecosystem build tools, JVM queries GitHub Releases APIs. Unauthenticated queries share an IP quota of 60 requests/hour. To avoid rate limits in CI/CD or shared offices, set `$env:GITHUB_TOKEN`:
+> **Zero-Quota Rate Limit Resilience & `GITHUB_TOKEN`:** When discovering latest releases for ecosystem tools backed by GitHub (Maven, Kotlin, Scala), JVM queries the GitHub Releases API. If unauthenticated IP limits (60 requests/hour) are reached, JVM automatically engages a zero-quota **HTTP 302 redirect fallback** against GitHub web releases to resolve the latest tag without failing. (Gradle and Groovy resolve via independent endpoints at `services.gradle.org` and `api.sdkman.io`). If you are running high-frequency automation in CI/CD and wish to bypass all rate-limiting entirely, set `$env:GITHUB_TOKEN`:
 > ```powershell
 > $env:GITHUB_TOKEN = "ghp_your_personal_access_token"
 > ```
@@ -431,7 +441,7 @@ jvm uninstall maven 3.9.6
 ```
 
 > [!NOTE]
-> **Interactive Uninstaller Menu:** When invoked from the CLI, `jvm uninstall` requires a version argument. To open the interactive, vendor-sorted visual Uninstaller menu, launch `jvm` without arguments and navigate to **JDK Menu** (`1`) -> **Uninstall JDKs** (`4`).
+> **Interactive Uninstaller Menus & Version Requirements:** When uninstalling JDKs via CLI (`jvm uninstall <version>`), an explicit version is required. For ecosystem tools (`jvm uninstall <tool>`), omitting the version triggers smart auto-detection (auto-uninstalling if only one version is installed, or rendering an interactive selection menu if multiple versions exist). To open the full visual JDK uninstaller menu, launch `jvm` without arguments and navigate to **JDK Menu** (`1`) -> **Uninstall JDKs** (`4`).
 
 ---
 
@@ -591,12 +601,16 @@ jvm current
    - Binary:        C:\Users\<User>\AppData\Local\DiamTek\JVM\current\bin\java.exe
    - Mode:          [Symlink Mode] (User Junction, UAC Free)
    - Junction:      C:\Users\<User>\AppData\Local\DiamTek\JVM\current -> C:\Program Files\Java\jdk-21.0.12.1+1
+   - Channel:       [Stable] (Official Releases)
 
  Ecosystem Tools:
    - maven:         3.9.6 [ACTIVE]
    - gradle:        8.5 [ACTIVE]
 ============================================================
 ```
+
+> [!TIP]
+> **Status Card Color Hierarchy:** In ANSI-capable terminals, JVM color-codes critical state information: `[Symlink Mode]` and the directory junction target path are highlighted in **green** (or `[Registry Mode]` in **red**), active update channels are tagged (`[Stable]` in **green**, `[Nightly]` in **purple**), and active ecosystem tools are marked with a green `[ACTIVE]` badge.
 
 #### Binary Path Resolution (`jvm which` / `jvm path`)
 Prints the clean absolute filesystem path of the resolved `java.exe` or candidate tool directly to `stdout`. Perfect for scripting, build automation, CI/CD runners, and IDE configurations:
@@ -744,18 +758,50 @@ jvm unlink my-jdk
 > Custom links are stored as NTFS directory junctions in `%LOCALAPPDATA%\JavaVersionManager\links`. If a linked JDK directory is later deleted or moved, running `jvm link` detects the missing `bin\java.exe` and marks it with a red `[BROKEN]` status indicator.
 
 ### Self-Updating
-Display your current `jvm.bat` build number and compare it against the latest release on GitHub to check for engine updates:
+Display your current `jvm.bat` semantic version and build number, and compare it against GitHub to check for engine updates:
 ```powershell
 jvm version
 # Aliases: jvm --version, jvm -v
 ```
-Automatically download and atomic-swap the core `jvm.bat` script if a newer version is available on GitHub:
+
+Automatically download, cryptographically verify, and atomic-swap the core `jvm.bat` script if a newer version is available:
 ```powershell
 jvm self-update
 # Or bypass confirmation prompt for automated CI/maintenance scripts:
 jvm self-update -y
 # Alias: jvm self-update --yes
 ```
+
+> **Security & Downgrade Protection:**
+> * **SHA-256 Verification:** On the `[Stable]` channel, JVM verifies `install.ps1` and `jvm.bat` against official `SHA256SUMS.txt` digests before execution. Any checksum mismatch immediately halts the update.
+> * **Ahead-of-Remote Safety:** If you are running an unreleased development build or local changes ahead of remote (`main` on Nightly or GitHub releases on Stable), JVM warns you with `[ INFO ]` and refuses to downgrade your installation.
+> * **Rate-Limit Safe:** Non-blocking fallback architecture automatically handles GitHub unauthenticated API rate limits (60 req/hr) via web redirects and Fastly CDN endpoints.
+
+<a id="update-channels-stable-vs-nightly"></a>
+### Update Channels (Stable vs Nightly)
+Inspect or toggle the active update channel. The `Stable` (green) channel targets verified, tagged GitHub releases, while the `Nightly` (purple) channel delivers cutting-edge builds directly from the tip of the `main` branch:
+
+| Channel | Badge Color | Target | Verification Model | Recommended For |
+| :--- | :--- | :--- | :--- | :--- |
+| **🟢 `[Stable]`** | Green | `releases/latest` (Git Tag) | Strict SHA-256 vs `SHA256SUMS.txt` | Primary workstations, production, enterprise |
+| **🟣 `[Nightly]`** | Bright Purple | `main` branch (`HEAD`) | Commit SHA & SHA-256 audit log | Contributors, beta testers, previewing new features |
+
+```powershell
+# View active update channel, description, and available options:
+jvm channel
+
+# Switch to the stable official releases channel (Recommended):
+jvm channel stable
+
+# Switch to the cutting-edge nightly channel:
+jvm channel nightly
+
+# One-off command channel overrides (without altering saved settings):
+jvm self-update --nightly
+jvm self-update --stable
+jvm self-update --channel nightly
+```
+*Tip: You can also toggle the update channel interactively via Option 4 in the interactive **Settings Menu** (`jvm` -> `Settings`).*
 
 ### Self-Uninstallation
 Launch the deep uninstallation process directly from the CLI to wipe JVM, environment variables, AppData caches, and installed tools:

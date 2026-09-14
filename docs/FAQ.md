@@ -44,6 +44,7 @@
 - [What shorthand CLI aliases does JVM support? (jvm ls, jvm rm, jvm info)](#what-shorthand-cli-aliases-does-jvm-support-jvm-ls-jvm-rm-jvm-info)
 - [How do I automatically switch Java versions when navigating into a project directory? (cd auto-switching)](#how-do-i-automatically-switch-java-versions-when-navigating-into-a-project-directory-cd-auto-switching)
 - [Which JDK vendors are supported, and how do BellSoft Liberica and IBM Semeru differ?](#which-jdk-vendors-are-supported-and-how-do-bellsoft-liberica-and-ibm-semeru-differ)
+- [How do update channels work, and how do I switch between Stable and Nightly?](#how-do-update-channels-work-and-how-do-i-switch-between-stable-and-nightly)
 
 ---
 
@@ -229,8 +230,12 @@ DiamTek JVM's networking leverages native Windows `.NET` APIs, which automatical
 3. **Corporate Root SSL Certificates (Zscaler, Netskope, Palo Alto):**
    Unlike Unix tools that require manually importing corporate root CAs into custom Java `cacerts` truststores, JVM's internal downloader validates certificates against the native **Windows Trusted Root Certification Authorities** store. Any enterprise root certificate deployed via Group Policy (GPO) or Intune is trusted automatically.
 
-4. **GitHub API Rate Limiting Bypass (`GITHUB_TOKEN`):**
-   When querying latest releases for ecosystem candidates (Maven, Gradle, Kotlin, Scala, Groovy), JVM contacts GitHub's Releases API. GitHub restricts unauthenticated queries to 60 requests/hour per public IP address. If you encounter `[ ERROR  ] GitHub API Rate Limit reached`, simply set your personal GitHub token:
+4. **GitHub API Rate Limiting & Zero-Quota Redirect Fallback (`GITHUB_TOKEN`):**
+   When discovering latest releases for GitHub-backed ecosystem candidates (Maven, Kotlin, Scala), JVM queries the GitHub Releases API. GitHub restricts unauthenticated API queries to 60 requests/hour per public IP address.
+   
+   To eliminate disruption, JVM incorporates an automatic **HTTP 302 redirect fallback** against `releases/latest`: if the API rate limit is reached, JVM automatically sniffs the redirection target to extract the release tag with zero API quota consumption (`[ WARNING] GitHub API Rate Limit reached. Trying redirect fallback...`). (Gradle and Groovy resolve independently via `services.gradle.org` and `api.sdkman.io`).
+   
+   If you operate in high-throughput CI/CD pipelines or restricted network environments where you want to bypass rate limits entirely, set your personal GitHub token:
    ```powershell
    $env:GITHUB_TOKEN = "ghp_your_personal_access_token"
    ```
@@ -372,17 +377,18 @@ DiamTek JVM is packaged as a native, single-file Windows Installer (`.msi`) buil
 
 <a id="how-do-i-check-my-current-active-java-version-and-environment-status"></a>
 ### How do I check my current active Java version and environment status?
-Run `jvm current` (or its alias `jvm status`) from any CMD, PowerShell, or Windows Terminal window:
+Run `jvm current` (or aliases `jvm env`, `jvm status`, `jvm info`, `jvm whoami`) from any CMD, PowerShell, or Windows Terminal window:
 ```cmd
-jvm current
+jvm env
 ```
-This prints a structured dashboard displaying:
+This prints a structured, ANSI color-coded dashboard displaying:
 1. **Java Version & Vendor:** Exact distribution name and version number (e.g., `Eclipse Adoptium 21.0.12.1`).
 2. **`JAVA_HOME` Path:** The directory currently designated as your active Java home.
 3. **Executable Binary:** The absolute path to the active `java.exe` binary.
-4. **Switching Mode:** Indicates whether you are running in `[Symlink Mode] (User Junction, UAC Free)` or `[Registry Mode] (Machine HKLM)`.
-5. **Junction Link:** The real-time target pointed to by `%LOCALAPPDATA%\DiamTek\JVM\current`.
-6. **Ecosystem Build Tools:** Live status of installed tools such as Maven, Gradle, and Kotlin.
+4. **Switching Mode:** Indicates whether you are running in `[Symlink Mode]` (highlighted in green, User Junction, UAC Free) or `[Registry Mode]` (highlighted in red, Machine HKLM).
+5. **Junction Link:** The real-time target pointed to by `%LOCALAPPDATA%\DiamTek\JVM\current`, highlighted in green (or yellow if inactive).
+6. **Update Channel:** The active delivery channel badge: `[Stable]` (green, official releases) or `[Nightly]` (purple, cutting-edge `main` branch).
+7. **Ecosystem Build Tools:** Live status of installed tools such as Maven, Gradle, and Kotlin with green `[ACTIVE]` indicators.
 
 <a id="how-do-i-find-the-exact-executable-path-of-java-or-build-tools-for-my-idescripts"></a>
 ### How do I find the exact executable path of java or build tools for my IDE/scripts?
@@ -717,6 +723,79 @@ DiamTek JVM provides first-class native support for **8 upstream JDK distributio
 - **Fast Ramp-Up & Startup:** Leverages shared class caches and dynamic Ahead-of-Time (AOT) compilation to achieve swift startup times without sacrificing throughput.
 - **Cloud Microservices:** Unbeatable for memory-sensitive environments, microservice clusters, and Docker/Kubernetes container pods on Windows.
 - **Install command:** `jvm install 21 --vendor semeru`
+
+<a id="how-do-update-channels-work-and-how-do-i-switch-between-stable-and-nightly"></a>
+### How do update channels work, and how do I switch between Stable and Nightly?
+DiamTek JVM features a **Dual Update Channel Engine** that gives developers complete control over update stability and release cadences.
+
+#### 1. The Two Update Channels
+* **🟢 `[Stable]` (Official Releases — Recommended):**
+  - Resolves updates against official, tagged GitHub releases (`releases/latest`).
+  - Marked with a distinctive **green** `[Stable]` badge in the CLI, status cards, and TUI menus.
+  - Guarantees thoroughly vetted releases, semantic versioning milestones, and complete changelog documentation.
+  - Recommended for primary workstations, production environments, enterprise fleets, and CI/CD pipelines.
+* **🟣 `[Nightly]` (Cutting-edge `main` Branch):**
+  - Resolves updates against the latest git commit (`HEAD`) on the repository's `main` branch.
+  - Marked with a distinctive **purple** `[Nightly]` badge in the CLI, status cards, and TUI menus.
+  - Delivers unreleased features, immediate bug patches, and the newest vendor API scrapers days or weeks before a general release.
+  - Recommended for power users, contributors, and developers testing preview capabilities.
+
+#### 2. Viewing the Active Channel
+You can check your active update channel at any time using:
+```cmd
+jvm channel
+```
+You will see output indicating the active channel and badge:
+```text
+Current Update Channel: [Stable]
+Description: Receiving official tagged releases (Recommended).
+
+Usage:
+  jvm channel stable    - Switch to [Stable] official releases channel
+  jvm channel nightly   - Switch to [Nightly] cutting-edge main branch channel
+```
+You can also see your active channel on the system status card (`jvm current` / `jvm info`) or in the **About** menu (`jvm version` / `jvm -v`).
+
+#### 3. Switching Channels
+You can switch channels seamlessly using the CLI, flags, the interactive TUI, or the installer:
+
+* **Command Line:**
+  ```cmd
+  jvm channel stable    :: Switches to the green [Stable] channel
+  jvm channel nightly   :: Switches to the purple [Nightly] channel
+  ```
+* **One-off Command Overrides:**
+  You can override the channel for an individual command without modifying your saved configuration:
+  ```cmd
+  jvm self-update --nightly
+  jvm self-update --stable
+  jvm self-update --channel nightly
+  ```
+* **Interactive TUI Menu:**
+  Run `jvm` without arguments, select **Settings** (`3`), and press `4` to toggle between **[Stable]** (green) and **[Nightly]** (purple).
+* **Installer Parameter:**
+  When executing the PowerShell installer, specify the `-Channel` parameter:
+  ```powershell
+  # Install directly on the Nightly channel
+  irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex -ArgumentList "-Channel Nightly"
+  ```
+
+#### 4. How Update Handoff & Security Verification Work
+When you run `jvm self-update` (or check for updates in `jvm version` / **Settings → About**):
+1. **Channel Inspection**: JVM reads `%LOCALAPPDATA%\DiamTek\JVM\channel.txt` to determine the active update channel.
+2. **Version & Build Comparison**:
+   - In **[Stable]** mode, JVM resolves the latest release tag (with automatic rate-limit fallback via web redirect if `api.github.com` reaches its 60 req/hr quota).
+   - In **[Nightly]** mode, JVM queries the latest commit on `main` and fetches `jvm.bat` directly from the Fastly CDN-backed `raw.githubusercontent.com`.
+   - JVM parses both the Semantic Version (`v!JVM_VERSION!`) and Build Number (`Build !JVM_BUILD!`).
+3. **Ahead-of-Remote Protection (Downgrade Prevention)**:
+   - If your local build is newer than the remote reference (e.g. running an unreleased development build on Stable or local commits ahead of `main` on Nightly), JVM reports `[ INFO ]` and safely **refuses to downgrade** your installation.
+4. **Cryptographic Integrity Verification**:
+   - On **[Stable]**, JVM downloads `SHA256SUMS.txt` from the official release assets and validates the SHA-256 hash of `install.ps1` before execution. If a hash mismatch is detected, the payload is immediately deleted and execution terminates to protect against supply chain tampering.
+   - On **[Nightly]**, JVM verifies against `SHA256SUMS.txt` if present on the branch, or computes and logs the SHA-256 hash for auditable tracking.
+   - In `install.ps1`, the incoming `jvm.bat` and all companion files (`uninstall.ps1`, `README.md`, `LICENSE`) are verified against `SHA256SUMS.txt` before being written to disk.
+5. **Atomic Handoff**:
+   - The running `jvm.bat` spawns an isolated handoff runner in `%TEMP%` and exits immediately, releasing all Windows file locks so the core engine can be updated cleanly and atomically.
+   - All installed JDKs, toolchains, custom symlinks, and settings are 100% preserved.
 
 ---
 

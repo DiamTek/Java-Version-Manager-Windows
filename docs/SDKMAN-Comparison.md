@@ -41,6 +41,7 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **Security Validation** | Basic (`curl` downloads) | **Strict `.NET` SHA256/SHA512 Cryptography** |
 | **CPU Architecture** | Manual configuration | **Native x64 / ARM64 Auto-Detection** |
 | **Bulk Maintenance** | Manual, tool-by-tool | **1-Click Bulk Updater** (`jvm update --all`) |
+| **Self-Updater & Channels** | Single-channel script pull (`sdk selfupdate`) | **Dual Channels (🟢 Stable / 🟣 Nightly)** with SHA-256 integrity, ahead-of-remote block & rate-limit fallback |
 | **OS Conflict Handling**| Passive | **Active Phantom-Path Scrubbing** |
 | **Status & Binary Inspection**| `sdk current` (POSIX shell string) | **`jvm current` & `jvm which`** (Full status card + binary resolver) |
 | **Cache & Slate Cleaning**| `sdk flush` (basic temp deletion) | **`jvm clean` & `jvm clear`** (Deep cache purge & registry slate wipe) |

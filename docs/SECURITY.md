@@ -59,6 +59,14 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
   gh attestation verify jvm-windows-1.0.0-x64.msi --owner DiamTek
   ```
 
+### 6. Dual Update Channel Integrity & Downgrade Prevention
+- **Vulnerability Mitigated:** In-transit modification of self-updater payloads, malicious mirror spoofing, accidental or unauthorized rollbacks to older vulnerable versions, and script-locking denial-of-service.
+- **Architectural Defense:**
+  - **`[Stable]` Channel:** Pulls release artifacts and computes SHA-256 digests in-memory via `System.Security.Cryptography.SHA256`, strictly matching against signed upstream `SHA256SUMS.txt` manifests before replacing local files. Any hash deviation immediately aborts execution and purges temporary files.
+  - **`[Nightly]` Channel:** Fetches the direct commit tip of `main`, parses semantic build stamps (`JVM_BUILD`), calculates the local SHA-256 fingerprint, and logs it in the audit trail.
+  - **Downgrade Safeguard:** Both channels compare local `JVM_BUILD` integers against remote payloads. If a local workstation is running a build with an integer greater than the upstream target (`local > remote`), the updater halts execution (`[ SKIP ] You are on a newer local build`), preventing accidental regression.
+  - **Decoupled Ephemeral Runner:** Executable replacement occurs via a detached runner script that polls for file handle release before atomic filesystem replacement, preventing partial write corruption.
+
 ---
 
 ## Vulnerability Scope Matrix

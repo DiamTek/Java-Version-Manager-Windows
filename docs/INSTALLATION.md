@@ -13,6 +13,7 @@ Getting started with the Java Version Manager for Windows takes less than 10 sec
 
 ### 🔍 Quick Jump
 - [Standard Installation (PowerShell)](#standard-installation-powershell)
+- [Choosing Your Update Channel (Stable vs Nightly)](#choosing-your-update-channel-stable-vs-nightly)
 - [Manual Installation](#manual-installation)
 - [Standalone MSI Installers (WiX Toolset v4)](#standalone-msi-installers-wix-toolset-v4)
 - [Package Managers (Winget, Scoop, Chocolatey)](#package-managers)
@@ -27,16 +28,38 @@ Getting started with the Java Version Manager for Windows takes less than 10 sec
 
 ## Standard Installation (PowerShell)
 
-Open Windows PowerShell (you do not need Administrator privileges) and run the one-liner:
+Open Windows PowerShell (you do not need Administrator privileges) and run the one-liner for your preferred channel:
 
 ```powershell
+# 🟢 Stable Channel (Official Releases — Recommended for production/workstations):
 irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex
+
+# 🟣 Nightly Channel (Cutting-Edge — Latest commits directly from main branch):
+irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex -ArgumentList "-Channel Nightly"
 ```
 
 Or via explicit `Invoke-WebRequest`:
 ```powershell
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1" -OutFile "$env:TEMP\install.ps1"; & "$env:TEMP\install.ps1"
 ```
+
+### Choosing Your Update Channel (Stable vs Nightly)
+
+DiamTek JVM supports two distinct update channels to match your workflow:
+
+* **🟢 `[Stable]` Channel (Default / Recommended):**
+  - Targets official GitHub release tags (`releases/latest`).
+  - Downloads are cryptographically verified against official `SHA256SUMS.txt` digests before execution.
+  - Guarantees thoroughly vetted releases and complete changelogs.
+  - Recommended for primary workstations, production environments, and enterprise fleets.
+
+* **🟣 `[Nightly]` Channel (Cutting-Edge):**
+  - Targets the latest commit on the `main` branch (`HEAD`).
+  - Delivers unreleased features, immediate bug patches, and the newest vendor scrapers.
+  - Allows previewing capabilities days or weeks before general release.
+  - Recommended for contributors, beta testers, and power users.
+
+*Tip: You can switch between channels at any time after installation via `jvm channel [stable|nightly]` or via Option 4 in the interactive Settings menu (`jvm` -> `Settings`).*
 
 ### What this script does:
 1. It downloads the latest `jvm.bat` core engine and companion branding assets (`icon.ico`, `icon.png`) from the repository.

@@ -14,6 +14,7 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 ### 🔍 Quick Jump
 - [The Core Mechanism: Directory Junctions](#the-core-mechanism-directory-junctions)
 - [Dual-Architecture Core (Symlink Mode vs. Legacy Registry Mode)](#dual-architecture-core-symlink-mode-vs-legacy-registry-mode)
+- [Dual Update Channel Engine & Trust Model Architecture](#dual-update-channel-engine-trust-model-architecture)
 - [PowerShell Native Dynamic Environment Injection](#powershell-native-dynamic-environment-injection)
 - [Packaging Architecture & Asset Distribution](#packaging-architecture--asset-distribution)
 
@@ -101,6 +102,78 @@ flowchart TD
         WriteHKLM --> Broadcast["Broadcast Win32 SendMessageTimeout API<br/>WM_SETTINGCHANGE: Environment"]
     end
 ```
+
+<a id="dual-update-channel-engine-trust-model-architecture"></a>
+## Dual Update Channel Engine & Trust Model Architecture
+
+DiamTek JVM embeds an autonomous, dual-track self-update and verification engine designed to reconcile enterprise stability with rapid developer iteration. The engine decouples channel selection, remote manifest resolution, cryptographic integrity verification, ahead-of-remote downgrade blocking, and external atomic process replacement.
+
+```mermaid
+flowchart TD
+    Trigger["jvm self-update / Settings Option 5"] --> ReadChannel["Read %LOCALAPPDATA%\\DiamTek\\JVM\\channel.txt<br/>(Defaults to STABLE if missing)"]
+    
+    ReadChannel --> ChannelCheck{"Target Channel?"}
+    
+    subgraph StableChannel["🟢 Stable Channel Pipeline (Official Releases)"]
+        ChannelCheck -->|Stable| QueryRel["Query GitHub Releases API<br/>/repos/.../releases/latest"]
+        QueryRel -->|HTTP 403 / 429 Rate Limited| FallbackRedirect["HTTP 302 Location Header Sniffer<br/>HttpWebRequest to releases/latest (Zero API Quota)"]
+        FallbackRedirect --> ParseTag["Extract Latest SemVer Tag & Assets"]
+        QueryRel -->|HTTP 200 OK| ParseTag
+        ParseTag --> CompareStableBuild{"Local Build >= Remote Build?"}
+        CompareStableBuild -->|Local Build Newer| BlockDowngradeStable["[SKIP] Local Build is Newer<br/>Prevents Dev Downgrade"]
+        CompareStableBuild -->|New Release Available| FetchSums["Fetch Official SHA256SUMS.txt<br/>from GitHub Release Assets"]
+        FetchSums --> DownloadPayloads["Download Target Assets to %TEMP%<br/>install.ps1 / jvm.bat"]
+        DownloadPayloads --> VerifySHA["Verify ComputeHash(SHA256) == Manifest<br/>System.Security.Cryptography.SHA256"]
+        VerifySHA -->|Hash Mismatch| AbortSecurity["[FATAL] Cryptographic Hash Mismatch<br/>Halt Execution & Clean Temp"]
+        VerifySHA -->|Integrity Verified| SpawnRunner["Handoff to Decoupled Update Runner"]
+    end
+
+    subgraph NightlyChannel["🟣 Nightly Channel Pipeline (Cutting-Edge Main Branch)"]
+        ChannelCheck -->|Nightly| QueryCommits["Query GitHub Commits API<br/>/repos/.../commits/main"]
+        QueryCommits -->|HTTP 403 / 429 Rate Limited| FastlyCDN["Stream tip from raw.githubusercontent.com<br/>(Fastly Anycast Global CDN)"]
+        QueryCommits -->|HTTP 200 OK| ExtractCommit["Extract Short Commit SHA & Date"]
+        FastlyCDN --> DownloadNightly["Download latest jvm.bat to %TEMP%"]
+        ExtractCommit --> DownloadNightly
+        DownloadNightly --> ParseNightlyBuild["Parse JVM_BUILD from Streamed jvm.bat"]
+        ParseNightlyBuild --> CompareNightlyBuild{"Local Build >= Nightly Build?"}
+        CompareNightlyBuild -->|Local Build Newer| BlockDowngradeNightly["[SKIP] Local Build is Newer<br/>(Build X > Nightly Build Y)"]
+        CompareNightlyBuild -->|Equal Build| UpToDate["[OK] Already Up to Date"]
+        CompareNightlyBuild -->|Nightly Build Newer| AuditSHA["Compute SHA-256 Digest & Log Audit Trail"]
+        AuditSHA --> SpawnRunner
+    end
+
+    subgraph AtomicHandoff["Decoupled Process Handoff & Atomic Swap"]
+        SpawnRunner --> WriteRunner["Write update_runner.bat to %LOCALAPPDATA%\\DiamTek\\JVM\\"]
+        WriteRunner --> ExecDetached["Execute detached: start cmd.exe /c update_runner.bat<br/>Parent jvm.bat exits immediately (releasing file locks)"]
+        ExecDetached --> WaitUnlock["Runner waits for file handle release<br/>(ping -n 2 127.0.0.1 >nul)"]
+        WaitUnlock --> AtomicMove["Move /Y %TEMP%\\jvm.bat to %LOCALAPPDATA%\\DiamTek\\JVM\\bin\\jvm.bat"]
+        AtomicMove --> SyncMetadata["Refresh Taskbar & Start Menu Shortcuts<br/>Update channel.txt Sentinel"]
+        SyncMetadata --> PurgeSelf["Self-Delete update_runner.bat & Temp Files"]
+    end
+```
+
+### 1. Channel Persistence & Runtime Selection
+- **Persistence Sentinel:** The user's active channel configuration is persisted at:
+  `%LOCALAPPDATA%\DiamTek\JVM\channel.txt`
+  Containing either `STABLE` or `NIGHTLY`. If the file is missing (e.g. fresh installation), the runtime defaults to `STABLE`.
+- **Channel Switching:** Configured non-interactively via `jvm channel [stable|nightly]`, interactively via TUI Option 4 in Settings (`jvm` -> `Settings`), or during bootstrapping via `install.ps1 -Channel [Stable|Nightly]`.
+- **Command Overrides:** Commands such as `jvm self-update --channel nightly` or `jvm self-update --nightly` allow one-off evaluations without modifying the persistent `channel.txt` sentinel.
+
+### 2. Upstream Resolution & Zero-Quota Rate Limit Resilience
+To prevent GitHub's 60-request-per-hour unauthenticated REST API quota from breaking update checks:
+- **Stable Channel:** When GitHub API returns HTTP 403 / 429, the engine triggers an automated fallback leveraging .NET `System.Net.HttpWebRequest` with `AllowAutoRedirect = $false` directed at `https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest`. The remote web server responds with an HTTP 302 Redirect containing the target release tag in the `Location` response header. This enables 100% reliable release discovery with zero GitHub API consumption.
+- **Nightly Channel:** Bypasses API dependencies by fetching directly from `raw.githubusercontent.com` (served globally via Fastly Anycast CDN), streaming the latest `jvm.bat` header to parse `JVM_BUILD`.
+
+### 3. Cryptographic Integrity & Downgrade Prevention
+- **SHA-256 Manifest Verification (`[Stable]`):** Official releases publish an authenticated `SHA256SUMS.txt` manifest. JVM computes the SHA-256 digest of downloaded payload files in memory via `System.Security.Cryptography.SHA256` and asserts strict byte equality before replacing executable files on disk.
+- **Ahead-of-Remote Downgrade Blocking (`[Stable]` & `[Nightly]`):** Developers frequently iterate on local code, incrementing internal `JVM_BUILD` integers (format `YYYYMMDD.REV`). When running `jvm self-update`, the engine compares the local `JVM_BUILD` integer against the upstream payload. If `local_build > remote_build`, the updater outputs a protective skip message (`[ SKIP ] You are on a newer local build`) and halts cleanly, preventing accidental rollbacks. Passing `--force` explicitly overrides this safeguard.
+
+### 4. Decoupled Runner Handoff & Atomic Swap
+Because Windows enforces strict kernel file locking (`ERROR_SHARING_VIOLATION` / `0x00000020`) on active running executables, a running batch file cannot overwrite itself in place. JVM resolves this through a detached handoff mechanism:
+1. The active `jvm.bat` process stages the verified replacement file in `%TEMP%\jvm_update.bat`.
+2. It generates an ephemeral runner script (`%LOCALAPPDATA%\DiamTek\JVM\update_runner.bat`).
+3. It executes the runner in a detached, asynchronous subshell (`start "" cmd.exe /c "%RUNNER%"`) and immediately calls `exit /b 0` to release all file locks on `%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat`.
+4. The runner polls for lock release, atomically moves the replacement file into the binary directory, synchronizes pinned shortcuts and Windows Terminal profiles, and self-deletes upon completion.
 
 ## Deep OS Environment Management
 To ensure deep OS integration without requiring users to download external binaries (like `setx` augmentations), the tool relies on inline PowerShell execution invoked seamlessly via `cmd.exe`.
