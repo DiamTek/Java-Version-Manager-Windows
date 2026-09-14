@@ -30,11 +30,13 @@ Getting started with the Java Version Manager for Windows takes less than 10 sec
 
 Open Windows PowerShell (you do not need Administrator privileges) and run the one-liner for your preferred channel:
 
+**🟢 Stable Channel (Official Releases — Recommended for production/workstations):**
 ```powershell
-# 🟢 Stable Channel (Official Releases — Recommended for production/workstations):
 irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex
+```
 
-# 🟣 Nightly Channel (Cutting-Edge — Latest commits directly from main branch):
+**🟣 Nightly Channel (Cutting-Edge — Latest commits directly from main branch):**
+```powershell
 irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex -ArgumentList "-Channel Nightly"
 ```
 

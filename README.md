@@ -36,11 +36,13 @@
 
 Choose your update channel and run the one-liner in Windows PowerShell (no Administrator privileges required):
 
+**🟢 Stable Channel (Official Releases — Recommended):**
 ```powershell
-# 🟢 Stable Channel (Official Releases — Recommended):
 irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex
+```
 
-# 🟣 Nightly Channel (Cutting-Edge — Latest commits from main branch):
+**🟣 Nightly Channel (Cutting-Edge — Latest commits from main branch):**
+```powershell
 irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex -ArgumentList "-Channel Nightly"
 ```
 
