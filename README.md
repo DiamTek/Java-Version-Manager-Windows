@@ -292,7 +292,7 @@ Instantly update your `JAVA_HOME` and system PATH without opening menus. If ther
 | `jvm install` | Opens the fully interactive Installation Wizard UI. |
 | `jvm install 21` | Initiates the installation of JDK 21 (pauses to prompt for Vendor). |
 | `jvm install 21 --vendor oracle` | Bypasses all prompts to silently download and install Oracle JDK 21. |
-| `jvm install lts` | Prompts you to pick an LTS version (e.g., 17, 21), then prompts for Vendor. |
+| `jvm install lts` | Prompts you to pick a supported LTS version (17, 21, 25), then prompts for Vendor. |
 | `jvm install lts --latest` | Locks onto the highest available LTS, but still pauses for Vendor prompt. |
 | `jvm install lts --latest --vendor oracle` | **100% automated headless installation** of the newest Oracle LTS version. |
 | `jvm install 17 --vendor oracle -y` | Aggressively bypasses all safety warnings (caps, overwrites) for CI/CD automation. |

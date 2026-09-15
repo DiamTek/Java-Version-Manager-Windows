@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260915.102"
+set "JVM_BUILD=20260915.103"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -1054,7 +1054,12 @@ if defined CLI_COMMAND (
         if /i "!CLI_TARGET!"=="latest" (
             set "CLI_TARGET=!ORACLE_LATEST_FEATURE!"
         ) else if /i "!CLI_TARGET!"=="lts" (
-            set "CLI_TARGET=!ORACLE_LATEST_LTS!"
+            if defined FLAG_LATEST (
+                set "CLI_TARGET=!ORACLE_LATEST_LTS!"
+            ) else (
+                call :PromptLtsVersion
+                if not defined CLI_TARGET goto :CLI_DONE
+            )
         )
         set "DL_VERSION=!CLI_TARGET!"
         call :DownloadJDK_Headless
@@ -1814,6 +1819,41 @@ if "!TARGET_VER!"=="" goto :EcosystemToolMenu
 call :SwitchCandidate "!TARGET_VER!"
 pause
 goto :EcosystemToolMenu
+
+:PromptLtsVersion
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Select Long-Term Support ^(LTS^) Version:
+echo.
+set "LTS_OPT=1"
+if !ORACLE_LATEST_LTS! GTR 21 (
+    echo !LTS_OPT!. Java !ORACLE_LATEST_LTS! ^(Latest LTS^)
+    set "LTS_VER_!LTS_OPT!=!ORACLE_LATEST_LTS!"
+    set /a LTS_OPT+=1
+    echo !LTS_OPT!. Java 21
+    set "LTS_VER_!LTS_OPT!=21"
+    set /a LTS_OPT+=1
+) else (
+    echo !LTS_OPT!. Java 21 ^(Latest LTS^)
+    set "LTS_VER_!LTS_OPT!=21"
+    set /a LTS_OPT+=1
+)
+echo !LTS_OPT!. Java 17
+set "LTS_VER_!LTS_OPT!=17"
+set /a LTS_OPT+=1
+echo.
+echo !LTS_OPT!. Cancel
+set "LTS_CANCEL_OPT=!LTS_OPT!"
+echo.
+set "LTS_CHOICE_STR="
+for /l %%c in (1,1,!LTS_OPT!) do set "LTS_CHOICE_STR=!LTS_CHOICE_STR!%%c"
+choice /C !LTS_CHOICE_STR! /N /M "Select LTS version (1-!LTS_OPT!): "
+set "LTS_CHOICE=!errorlevel!"
+if !LTS_CHOICE!==!LTS_CANCEL_OPT! (
+    set "CLI_TARGET="
+    goto :eof
+)
+call set "CLI_TARGET=%%LTS_VER_!LTS_CHOICE!%%"
+goto :eof
 
 :DownloadJDK_Headless
 if "!CLI_VENDOR!"=="" (

@@ -76,7 +76,7 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm --global` | Global | Forces directory-based auto-switching (`.java-version`) to write globally to registry. |
 | `jvm install` | Interactive | Opens the interactive JDK / tool installation wizard. |
 | `jvm install <ver> [--vendor <name>]` | Machine | Downloads and installs specified JDK (e.g., `jvm install 21 --vendor adoptium`). |
-| `jvm install lts [--latest]` | Machine | Downloads newest LTS JDK release directly from vendor APIs. |
+| `jvm install lts [--latest]` | Machine | Installs an LTS JDK (prompts for supported versions: 17, 21, 25; passing `--latest` locks onto newest). |
 | `jvm install <ver> -y` | Machine | Automated headless install with aggressive safety warning bypass for CI/CD. |
 | `jvm install <ver> --skip-checksum` | Machine | Bypasses checksum verification if vendor hash mirror is unreachable. |
 | `jvm install <tool> [version]` | User | Installs ecosystem tool (omitting version defaults to `latest`; e.g., `jvm install maven`, `jvm install gradle 8.9`; accepts `-y`). |
@@ -201,7 +201,7 @@ jvm lts
 ```
 
 > [!NOTE]
-> **Recognized LTS Releases:** For offline local switching, `jvm lts` evaluates installed JDKs against the recognized Long-Term Support releases: **8, 11, 17, 21, 25, 29**. To dynamically query upstream Adoptium API for the latest production LTS release and install it, run `jvm install lts --latest`.
+> **Recognized LTS Releases:** For offline local switching, `jvm lts` evaluates installed JDKs against recognized Long-Term Support releases: **8, 11, 17, 21, 25, 29**. For automated remote installations, Java 17 is the oldest installable LTS release due to upstream vendor distribution constraints (older releases like Java 8 and 11 can be integrated via `jvm link`). Run `jvm install lts` to select from installable LTS versions, or `jvm install lts --latest` to automatically lock onto the newest available LTS.
 
 ### Architecture & Priority Overrides
 You can chain flags to bypass prompts or override your global Settings for a single command.
