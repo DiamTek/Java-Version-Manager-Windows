@@ -62,6 +62,7 @@ if (-not $NoPack) {
     if (Get-Command choco -ErrorAction SilentlyContinue) {
         Write-Host "Packing Chocolatey package (jvm-windows.$Version.nupkg)..." -ForegroundColor Cyan
         & choco pack $nuspecPath --outputdirectory $ScriptDir
+        if ($LASTEXITCODE -ne 0) { throw "choco pack failed with exit code $LASTEXITCODE" }
     } else {
         Write-Host "[ INFO ] 'choco' CLI not found on PATH. jvm.nuspec updated to v$Version." -ForegroundColor DarkGray
         Write-Host "         Run 'choco pack packages/choco/jvm.nuspec' to compile the package." -ForegroundColor DarkGray

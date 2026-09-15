@@ -37,6 +37,7 @@ jobs:
         run: |
           dotnet tool install --global wix --version 4.0.6
           wix extension add --global WixToolset.Util.wixext/4.0.6
+          "$HOME/.dotnet/tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           wix --version
 
       - name: Resolve Release Version and Tag
@@ -60,8 +61,8 @@ jobs:
           }
           Write-Host "Resolved Version: $ver"
           Write-Host "Resolved Tag:     $tag"
-          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "tag=$tag"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=$tag"     | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Build Standalone MSIs (x64 & arm64)
         shell: pwsh
@@ -75,6 +76,12 @@ jobs:
           $ver = "${{ steps.resolve-version.outputs.version }}"
           .\packages\msi\test-msi.ps1 -MsiPath "packages/msi/jvm-windows-$ver-x64.msi"
 
+      - name: Build Chocolatey Package (.nupkg)
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.resolve-version.outputs.version }}"
+          .\packages\choco\build-choco.ps1 -Version $ver
+
       - name: Create Portable Zip Distribution
         shell: pwsh
         run: |
@@ -84,40 +91,45 @@ jobs:
           Compress-Archive -Path $itemsToCompress -DestinationPath $zipName -Force
           Write-Host "Created portable archive: $zipName"
 
+      - name: Stage Release Artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
+          Copy-Item "packages\msi\jvm-windows-*.msi" -Destination "dist\" -Force
+          Copy-Item "packages\msi\jvm-windows-*.zip" -Destination "dist\" -Force
+          Copy-Item "packages\choco\jvm-windows.*.nupkg" -Destination "dist\" -Force
+          
+          # Safely copy only the files that actually exist to prevent step crashes
+          @("jvm.bat", "install.ps1", "uninstall.ps1", "README.md", "LICENSE") | Where-Object { Test-Path $_ } | ForEach-Object {
+              Copy-Item $_ -Destination "dist\" -Force
+          }
+          
+          Write-Host "Staged release artifacts in dist/:"
+          Get-ChildItem dist | ForEach-Object { Write-Host "  $($_.Name) ($([math]::Round($_.Length / 1KB, 1)) KB)" -ForegroundColor Cyan }
+
       - name: Generate Checksums (SHA256SUMS.txt)
         shell: pwsh
         run: |
-          $msiAndZips = Get-ChildItem -Path packages\msi -Filter "jvm-windows-*" -File | Where-Object { $_.Extension -in '.msi', '.zip' }
-          $standaloneFiles = Get-Item -Path "jvm.bat", "install.ps1", "uninstall.ps1", "README.md", "LICENSE" -ErrorAction SilentlyContinue
-          $allReleaseFiles = @($msiAndZips) + @($standaloneFiles) | Where-Object { $_ }
-
-          $checksumLines = foreach ($item in $allReleaseFiles) {
+          $distFiles = Get-ChildItem -Path "dist" -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
+          $checksumLines = foreach ($item in $distFiles) {
               $hash = (Get-FileHash -Path $item.FullName -Algorithm SHA256).Hash.ToLower()
+              Write-Host "$hash  $($item.Name)"
               "$hash  $($item.Name)"
           }
-          $checksumLines | Out-File -FilePath packages\msi\SHA256SUMS.txt -Encoding utf8
-          Write-Host "`nGenerated SHA256SUMS.txt:"
-          Get-Content packages\msi\SHA256SUMS.txt
+          $checksumLines | Out-File -FilePath "dist\SHA256SUMS.txt" -Encoding utf8
 
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: "packages/msi/jvm-windows-*.msi, packages/msi/jvm-windows-*.zip, packages/msi/SHA256SUMS.txt, ./jvm.bat, ./install.ps1, ./uninstall.ps1, ./README.md, ./LICENSE"
+          subject-path: "dist/*"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.resolve-version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           name: DiamTek Java Version Manager ${{ steps.resolve-version.outputs.tag }}
-          files: |
-            packages/msi/jvm-windows-*.msi
-            packages/msi/jvm-windows-*.zip
-            packages/msi/SHA256SUMS.txt
-            ./jvm.bat
-            ./install.ps1
-            ./uninstall.ps1
-            ./README.md
-            ./LICENSE
+          files: dist/*
           generate_release_notes: true
           draft: false
           prerelease: false
@@ -126,13 +138,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jvm-release-artifacts
-          path: |
-            packages/msi/jvm-windows-*.msi
-            packages/msi/jvm-windows-*.zip
-            packages/msi/SHA256SUMS.txt
-            ./jvm.bat
-            ./install.ps1
-            ./uninstall.ps1
-            ./README.md
-            ./LICENSE
+          path: dist/*
           if-no-files-found: error

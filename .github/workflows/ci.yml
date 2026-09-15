@@ -31,6 +31,7 @@ jobs:
         run: |
           dotnet tool install --global wix --version 4.0.6
           wix extension add --global WixToolset.Util.wixext/4.0.6
+          "$HOME/.dotnet/tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
           wix --version
 
       - name: Build Standalone MSIs (x64 & arm64)
@@ -42,6 +43,11 @@ jobs:
         shell: pwsh
         run: |
           .\packages\msi\test-msi.ps1
+
+      - name: Verify Chocolatey Package Build
+        shell: pwsh
+        run: |
+          .\packages\choco\build-choco.ps1
 
       - name: Upload CI Artifacts
         uses: actions/upload-artifact@v4
