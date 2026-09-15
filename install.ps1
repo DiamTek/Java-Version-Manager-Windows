@@ -432,8 +432,16 @@ try {
     $uninstallScriptPath = "$repoRoot\uninstall.ps1"
     $uninstallCommand = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
     
+    $displayVer = "1.0.0"
+    if (Test-Path $batPath) {
+        $batHead = Get-Content $batPath -Raw -ErrorAction SilentlyContinue
+        if ($batHead -match 'set\s+"JVM_VERSION=(.*?)"') {
+            $displayVer = $matches[1].Trim()
+        }
+    }
+
     Set-ItemProperty -Path $uninstallRegPath -Name "DisplayName" -Value "DiamTek Java Version Manager"
-    Set-ItemProperty -Path $uninstallRegPath -Name "DisplayVersion" -Value "1.0.0"
+    Set-ItemProperty -Path $uninstallRegPath -Name "DisplayVersion" -Value $displayVer
     Set-ItemProperty -Path $uninstallRegPath -Name "Publisher" -Value "DiamTek / Alexéy Shishkin"
     Set-ItemProperty -Path $uninstallRegPath -Name "InstallLocation" -Value $repoRoot
     Set-ItemProperty -Path $uninstallRegPath -Name "UninstallString" -Value $uninstallCommand

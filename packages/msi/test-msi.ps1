@@ -54,6 +54,27 @@ try {
 $originalLocation = (Get-Location).Path
 
 try {
+    # Auto-detect expected version and build from local source jvm.bat
+    $expectedVersion = "1.0.0"
+    $expectedBuild = ""
+
+    $sourceBatCandidates = @(
+        (Join-Path $ScriptDir "..\..\jvm.bat"),
+        (Join-Path (Get-Location).Path "jvm.bat"),
+        (Join-Path (Get-Location).Path "..\jvm.bat")
+    )
+    $sourceBat = $sourceBatCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+    if ($sourceBat) {
+        $batRaw = Get-Content $sourceBat -Raw -ErrorAction SilentlyContinue
+        if ($batRaw -match 'set\s+"JVM_VERSION=(.*?)"') { $expectedVersion = $matches[1].Trim() }
+        if ($batRaw -match 'set\s+"JVM_BUILD=(.*?)"')   { $expectedBuild = $matches[1].Trim() }
+    }
+
+    if ($MsiPath -and ($MsiPath -match 'jvm-windows-([0-9]+\.[0-9]+(\.[0-9]+)?)-')) {
+        $expectedVersion = $matches[1]
+    }
+
     # Resolve target MSI package
     if (-not $MsiPath) {
         # Check in script directory first
@@ -65,7 +86,7 @@ try {
         if ($candidate) {
             $MsiPath = $candidate.FullName
         } else {
-            $MsiPath = Join-Path $ScriptDir "jvm-windows-1.0.0-x64.msi"
+            $MsiPath = Join-Path $ScriptDir "jvm-windows-$expectedVersion-x64.msi"
         }
     } else {
         # If explicitly specified, check if it's relative to current dir, script dir, or pure filename
@@ -101,15 +122,15 @@ try {
     # Fallback Tier 3: Fetch published binary from GitHub Releases
     if (-not (Test-Path $MsiPath)) {
         Write-Host "  [  INFO  ] Fetching published binary from GitHub Releases..." -ForegroundColor Cyan
-        $downloadTarget = Join-Path $ScriptDir "jvm-windows-1.0.0-x64.msi"
-        $releaseUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest/download/jvm-windows-1.0.0-x64.msi"
+        $downloadTarget = Join-Path $ScriptDir "jvm-windows-$expectedVersion-x64.msi"
+        $releaseUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest/download/jvm-windows-$expectedVersion-x64.msi"
         try {
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
             Invoke-WebRequest -Uri $releaseUrl -OutFile $downloadTarget -UseBasicParsing -ErrorAction Stop
             if (Test-Path $downloadTarget) {
                 $fileObj = Get-Item $downloadTarget
                 if ($fileObj.Length -gt 100KB) {
-                    $head = Get-Content -Path $downloadTarget -TotalCount 1 -Raw -ErrorAction SilentlyContinue
+                    $head = Get-Content -Path $downloadTarget -TotalCount 1 -ErrorAction SilentlyContinue
                     if (-not ($head -match "^\s*<!DOCTYPE|^\s*<html")) {
                         $MsiPath = $downloadTarget
                         Write-Host "  [  PASS  ] Acquired $(Split-Path $MsiPath -Leaf) from GitHub Releases." -ForegroundColor Green
@@ -159,7 +180,7 @@ try {
         Write-Host "   Could not resolve: $MsiPath" -ForegroundColor DarkGray
         Write-Host "`n   To run this verification suite:" -ForegroundColor Yellow
         Write-Host "   1. Provide the MSI directly:  .\test-msi.ps1 -MsiPath `"C:\path\to\installer.msi`"" -ForegroundColor DarkGray
-        Write-Host "   2. Place 'jvm-windows-1.0.0-x64.msi' in the same folder as this script" -ForegroundColor DarkGray
+        Write-Host "   2. Place 'jvm-windows-$expectedVersion-x64.msi' in the same folder as this script" -ForegroundColor DarkGray
         Write-Host "   3. Or compile it from source:  .\packages\msi\build-msi.ps1`n" -ForegroundColor DarkGray
         exit 1
     }
@@ -223,6 +244,13 @@ try {
     $profContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
     $profHooked = [bool]($profContent -and ($profContent -match "# >>> jvm >>>"))
     Report-Check -Title "PowerShell profile integration hook injected into `$PROFILE" -Passed $profHooked
+
+    $profHasChannel = [bool]($profContent -and ($profContent -match "'channel'") -and ($profContent -match "'--channel'"))
+    Report-Check -Title "PowerShell tab-completer includes channel subcommands & flags" -Passed $profHasChannel
+
+    $channelPath = "$env:LOCALAPPDATA\DiamTek\JVM\channel.txt"
+    $channelValid = (Test-Path $channelPath) -and ((Get-Content $channelPath -Raw).Trim() -eq "STABLE")
+    Report-Check -Title "Update channel initialized to STABLE (channel.txt)" -Passed $channelValid -Details "STABLE"
 
     $wtSettingsCandidates = @(
         "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json",
@@ -290,8 +318,18 @@ try {
     Report-Check -Title "User PATH updated by Windows Installer (HKCU\Environment)" -Passed $pathUpdated
 
     $engineOutput = cmd.exe /c "`"$jvmBatPath`" --version" 2>&1 | Out-String
-    $engineValid = [bool]($engineOutput -match "Version: 1\.0\.0")
-    Report-Check -Title "Runtime CLI subshell execution verified (jvm.bat --version)" -Passed $engineValid -Details "Version 1.0.0"
+    $cleanOutput = $engineOutput -replace '\x1b\[[0-9;]*m', ''
+
+    if (-not $expectedBuild -and (Test-Path $jvmBatPath)) {
+        $installedBatRaw = Get-Content $jvmBatPath -Raw -ErrorAction SilentlyContinue
+        if ($installedBatRaw -match 'set\s+"JVM_BUILD=(.*?)"') { $expectedBuild = $matches[1].Trim() }
+    }
+
+    $verRegex = [regex]::Escape($expectedVersion)
+    $bldRegex = if ($expectedBuild) { [regex]::Escape($expectedBuild) } else { "[0-9]+" }
+    $engineValid = [bool]($cleanOutput -match "Version:\s*$verRegex" -and $cleanOutput -match "Build:\s*$bldRegex" -and $cleanOutput -match "Channel:\s*\[Stable\]")
+    $bldDetails = if ($expectedBuild) { "Build $expectedBuild" } else { "Build verified" }
+    Report-Check -Title "Runtime CLI subshell execution verified (jvm.bat --version)" -Passed $engineValid -Details "v$expectedVersion ($bldDetails, [Stable])"
 
     # -------------------------------------------------------------------------
     # Phase 2: Uninstallation Verification
@@ -328,6 +366,12 @@ try {
         $startMenuFolderCleaned = -not (Test-Path $startMenuDir)
         Report-Check -Title "Start Menu DiamTek program folder deleted" -Passed $startMenuFolderCleaned
 
+        # Allow brief interval for file system locks to release and deferred cleanup to finish
+        $cleanupTimeout = 4
+        while ((Test-Path $jvmDir) -and ($cleanupTimeout -gt 0)) {
+            Start-Sleep -Seconds 1
+            $cleanupTimeout--
+        }
         $jvmDirCleaned = -not (Test-Path $jvmDir)
         Report-Check -Title "Application install directory removed" -Passed $jvmDirCleaned
 

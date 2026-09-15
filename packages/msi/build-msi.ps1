@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version,
     [ValidateSet("all", "x64", "arm64")]
     [string]$Arch = "all",
     [switch]$All
@@ -94,6 +94,16 @@ if (-not $RootDir) {
 if (-not $RootDir -or -not (Test-Path "$RootDir\install.ps1") -or -not (Test-Path "$RootDir\jvm.bat")) {
     Write-Host "ERROR: Could not locate repository source files (install.ps1, jvm.bat, assets). Please run build-msi.ps1 within the repository or check internet connectivity." -ForegroundColor Red
     exit 1
+}
+
+# Auto-detect version from jvm.bat if not explicitly passed
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $batContent = Get-Content "$RootDir\jvm.bat" -Raw -ErrorAction SilentlyContinue
+    if ($batContent -match 'set\s+"JVM_VERSION=(.*?)"') {
+        $Version = $matches[1].Trim()
+    } else {
+        $Version = "1.0.0"
+    }
 }
 
 Push-Location $ScriptDir
@@ -248,6 +258,12 @@ function Build-MsiPackage {
 `$batPath = Join-Path `$binDir 'jvm.bat'
 `$iconIco = Join-Path `$jvmRoot 'assets\icon.ico'
 `$iconPng = Join-Path `$jvmRoot 'assets\icon.png'
+
+# Record active release channel in JVM root (STABLE by default for MSI official release)
+`$channelFile = Join-Path `$jvmRoot 'channel.txt'
+if (-not (Test-Path `$channelFile)) {
+    Set-Content -Path `$channelFile -Value 'STABLE' -Encoding Ascii -Force
+}
 
 `$profileCode = @'
 $profileCode
@@ -472,10 +488,26 @@ try {
     } | Stop-Process -Force -ErrorAction SilentlyContinue
 } catch { }
 
+# Remove candidate tool directories and active symlinks/junctions
+$candidatesDir = Join-Path $jvmDir "candidates"
+if (Test-Path $candidatesDir) {
+    Get-ChildItem -Path $candidatesDir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $candCurrent = Join-Path $_.FullName "current"
+        if (Test-Path $candCurrent) { cmd.exe /c rmdir "$candCurrent" 2>$null }
+    }
+    Remove-Item -LiteralPath $candidatesDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 $current = Join-Path $jvmDir "current"
 if (Test-Path $current) { cmd.exe /c rmdir "$current" 2>$null }
-$modeFile = Join-Path $jvmDir "mode.txt"
-if (Test-Path $modeFile) { Remove-Item $modeFile -Force -ErrorAction SilentlyContinue }
+
+# Clean all runtime-generated files and directories so Windows Installer's RemoveFolder succeeds cleanly
+$runtimeItems = @('channel.txt', 'mode.txt', 'config.ini', '.installed', 'backups', 'downloads', 'cache', 'temp', 'logs')
+foreach ($item in $runtimeItems) {
+    $itemPath = Join-Path $jvmDir $item
+    if (Test-Path $itemPath) { Remove-Item -LiteralPath $itemPath -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 $legacyJvm = Join-Path $localAppData "JavaVersionManager"
 if (Test-Path $legacyJvm) { Remove-Item -LiteralPath $legacyJvm -Recurse -Force -ErrorAction SilentlyContinue }
 
@@ -483,6 +515,9 @@ if (Test-Path $legacyJvm) { Remove-Item -LiteralPath $legacyJvm -Recurse -Force 
 $binDir = Join-Path $jvmDir "bin"
 Remove-Item -Path (Join-Path $binDir 'msi-install-hook.ps1') -Force -ErrorAction SilentlyContinue
 Remove-Item -Path (Join-Path $binDir 'msi-uninstall-hook.ps1') -Force -ErrorAction SilentlyContinue
+
+# Schedule background fallback cleanup of jvmDir if lingering files remain after msiexec finishes
+Start-Process -FilePath "cmd.exe" -ArgumentList "/c timeout /t 2 >nul & if exist `"$jvmDir`" rmdir /s /q `"$jvmDir`"" -WindowStyle Hidden
 
 # 10. Start Menu folder cleanup (removes empty folder or any legacy shortcuts)
 $startMenuPrograms = [Environment]::GetFolderPath('Programs')

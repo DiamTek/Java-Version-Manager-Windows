@@ -1,4 +1,4 @@
-﻿# Java Version Manager
+# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -140,6 +140,8 @@ Write-Host "[   OK   ] Removed $removedVars environment variables." -ForegroundC
 Write-Host "`n[ ACTION ] Removing Windows Uninstall Registry & Shortcuts..." -ForegroundColor Cyan
 Remove-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue
 try { Remove-Item -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+Remove-Item -Path "HKCU:\Software\DiamTek" -Recurse -Force -ErrorAction SilentlyContinue
+try { Remove-Item -Path "HKLM:\Software\DiamTek" -Recurse -Force -ErrorAction SilentlyContinue } catch {}
 
 $startMenuDirs = @(
     (Join-Path ([Environment]::GetFolderPath('Programs')) "DiamTek"),
@@ -198,6 +200,15 @@ Write-Host "`n[ ACTION ] Deleting JVM AppData and Candidate folders..." -Foregro
 $diamtekAppData = Join-Path $localAppData "DiamTek"
 $jvmAppData = Join-Path $diamtekAppData "JVM"
 if (Test-Path $jvmAppData) {
+    # Terminate any dangling JVM processes locking files
+    try {
+        Get-Process | Where-Object {
+            try {
+                $_.Path -and $_.Path.StartsWith($jvmAppData, [System.StringComparison]::OrdinalIgnoreCase)
+            } catch { $false }
+        } | Stop-Process -Force -ErrorAction SilentlyContinue
+    } catch { }
+
     try {
         Remove-Item -LiteralPath $jvmAppData -Recurse -Force -ErrorAction Stop
         Write-Host "[   OK   ] Deleted: $jvmAppData" -ForegroundColor Green

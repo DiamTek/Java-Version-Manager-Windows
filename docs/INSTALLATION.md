@@ -136,6 +136,9 @@ scoop install jvm
 ```powershell
 choco install jvm-windows
 ```
+> [!NOTE]
+> The Chocolatey package installs official release binaries pinned to the **Stable** channel directly from GitHub Releases, guaranteeing unreleased development commits are never pulled into production environments.
+
 
 <a id="standalone-msi-installers-wix-toolset-v4"></a>
 <a id="windows-installer-msi"></a>
@@ -239,13 +242,13 @@ The resulting single-file installers are placed directly into `packages\msi\` (o
 <a id="automated-msi-verification-suite"></a>
 <a id="automated-verification-suite"></a>
 ### Automated MSI Verification Suite
-The MSI subsystem includes a fully autonomous, 18-point integration verification test suite (`packages\msi\test-msi.ps1`). It actively tests live operating system integration—including the Windows Installer service (`msiexec`), CLI `bin/` directory hygiene (guaranteeing internal hook scripts are isolated from `PATH`), Start Menu application and uninstaller shortcuts indexed by Windows Search, Windows Terminal `settings.json`, PowerShell `$PROFILE`, Windows Registry `PATH`, and live CLI subshell process execution (`cmd.exe /c "jvm.bat --version"`).
+The MSI subsystem includes a fully autonomous, 21-point integration verification test suite (`packages\msi\test-msi.ps1`). It actively tests live operating system integration—including the Windows Installer service (`msiexec`), CLI `bin/` directory hygiene (guaranteeing internal hook scripts are isolated from `PATH`), Start Menu application and uninstaller shortcuts indexed by Windows Search, Windows Terminal `settings.json`, PowerShell `$PROFILE` hook & tab completer, update channel initialization (`channel.txt`), Windows Registry `PATH`, live CLI subshell process execution (`cmd.exe /c "jvm.bat --version"`), and full uninstallation with zero filesystem residuals.
 
 ##### Autonomous 4-Tier Resolution Engine
 You can run `test-msi.ps1` from **any working directory** on any Windows machine (even on a clean machine with no prior source code, Git, .NET, or WiX installed). The test runner resolves packages using a 4-tier fallback hierarchy:
 1. **Local Pre-Built MSI**: Discovers and tests `jvm-windows-*-x64.msi` if already present in `packages\msi\` or current path.
-2. **Local WiX Compiler**: If the `.msi` is missing, executes `build-msi.ps1 -Arch x64` to compile it from local source files.
-3. **Published GitHub Release**: If local build tools/source are not available, downloads the latest official `jvm-windows-1.0.0-x64.msi` directly from GitHub Releases.
+2. **Local WiX Compiler**: If the `.msi` is missing, executes `build-msi.ps1 -Arch x64` to compile it from local source files (auto-detecting the version from `jvm.bat`).
+3. **Published GitHub Release**: If local build tools/source are not available, downloads the latest official `jvm-windows-*-x64.msi` directly from GitHub Releases.
 4. **Remote Source Bootstrap**: If the release binary is not yet published, downloads the latest repository source archive (`main.zip`) from GitHub, extracts to `%TEMP%`, automatically bootstraps a user-space .NET SDK and WiX CLI, compiles the MSI, and runs the test suite.
 
 ##### Command Examples:

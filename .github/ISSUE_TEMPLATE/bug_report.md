@@ -41,8 +41,9 @@ A clear and concise description of what you expected to happen.
 
 Please provide as much information about your environment as possible:
 
-- **JVM Version & Build**: `[Run 'jvm version' or 'jvm.bat --version', e.g., 1.0.0, Build 20260915.103]`
-- **OS Version & Build**: `[e.g., Windows 11 23H2 (Build 22631.3007), Windows 10 22H2]`
+- **JVM Version & Build**: `[Run 'jvm version' or 'jvm.bat --version', e.g., 1.0.0, Build 20260915.104]`
+- **Update Channel**: `[Run 'jvm channel', e.g., Stable or Nightly]`
+- **OS Version & Build**: `[e.g., Windows 11 24H2 / 23H2 (Build 22631.3007), Windows 10 22H2]`
 - **CPU Architecture**: `[e.g., x64, ARM64]`
 - **Installation Method**: `[e.g., PowerShell one-liner (install.ps1), Standalone MSI (x64/arm64), Winget, Scoop, Chocolatey, Portable Zip]`
 - **Active Terminal / Shell**: `[e.g., Windows Terminal with PowerShell 7, ConHost with cmd.exe, PowerShell 5.1]`
@@ -70,7 +71,15 @@ To accelerate resolution, please paste the output of the following commands:
 </details>
 
 <details>
-<summary><b>3. <code>jvm which</code> (Resolved Binary)</b></summary>
+<summary><b>3. <code>jvm channel</code> (Active Update Channel)</b></summary>
+
+```text
+[Paste output of 'jvm channel' here]
+```
+</details>
+
+<details>
+<summary><b>4. <code>jvm which</code> (Resolved Binary)</b></summary>
 
 ```text
 [Paste output of 'jvm which' here]
@@ -78,7 +87,7 @@ To accelerate resolution, please paste the output of the following commands:
 </details>
 
 <details>
-<summary><b>4. <code>where.exe java</code> (Path Precedence)</b></summary>
+<summary><b>5. <code>where.exe java</code> (Path Precedence)</b></summary>
 
 ```text
 [Paste output of 'where.exe java' here]
@@ -86,7 +95,7 @@ To accelerate resolution, please paste the output of the following commands:
 </details>
 
 <details>
-<summary><b>5. Active Session PATH (optional)</b></summary>
+<summary><b>6. Active Session PATH (optional)</b></summary>
 
 ```powershell
 # In PowerShell:

@@ -53,7 +53,7 @@ set "LOCALAPPDATA=%TEMP%\JVM_Sandbox"
 
 ## 🧪 Automated Test Suite Execution
 
-DiamTek JVM includes a synthetic 18-point integration test suite (`packages\msi\test-msi.ps1`) used by our CI/CD pipeline to validate real operating system integration.
+DiamTek JVM includes a synthetic 21-point integration test suite (`packages\msi\test-msi.ps1`) used by our CI/CD pipeline to validate real operating system integration (13 installation & system registration checks + 8 uninstallation & residual hygiene checks).
 
 ### Running the Integration Test Suite
 
@@ -70,13 +70,24 @@ powershell -ExecutionPolicy Bypass -File packages\msi\test-msi.ps1 -ShowUI
 powershell -ExecutionPolicy Bypass -File packages\msi\test-msi.ps1 -KeepInstalled
 ```
 
-### Building the WiX Toolset v4 MSI Locally
+### Building Installer Packages Locally
 
 To verify installer packaging changes:
+
+#### WiX Toolset v4 Standalone MSI
+`build-msi.ps1` automatically detects the product version and build number directly from `jvm.bat`:
 
 ```powershell
 # Compiles both x64 and arm64 MSIs into packages\msi\:
 powershell -ExecutionPolicy Bypass -File packages\msi\build-msi.ps1 -Arch all
+```
+
+#### Chocolatey Package
+`build-choco.ps1` automatically detects the version from `jvm.bat`, synchronizes `jvm.nuspec` and fallback URLs, and packages `.nupkg`:
+
+```powershell
+# Updates nuspec and compiles Chocolatey nupkg into packages\choco\:
+powershell -ExecutionPolicy Bypass -File packages\choco\build-choco.ps1
 ```
 
 ---

@@ -1,4 +1,4 @@
-# Java Version Manager
+﻿# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -23,6 +23,17 @@ $uninstallScript = "$env:LOCALAPPDATA\DiamTek\JVM\uninstall.ps1"
 if (Test-Path $uninstallScript) {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $uninstallScript -Quiet
 } else {
-    $script = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/uninstall.ps1" -UseBasicParsing).Content
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $script -Quiet
+    $script = $null
+    try {
+        $releaseUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest/download/uninstall.ps1"
+        $script = (Invoke-WebRequest -Uri $releaseUrl -UseBasicParsing -TimeoutSec 10).Content
+    } catch {
+        try {
+            $tagUrl = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/v1.0.0/uninstall.ps1"
+            $script = (Invoke-WebRequest -Uri $tagUrl -UseBasicParsing -TimeoutSec 10).Content
+        } catch { }
+    }
+    if ($script) {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $script -Quiet
+    }
 }

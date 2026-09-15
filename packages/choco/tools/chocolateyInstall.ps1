@@ -1,4 +1,4 @@
-# Java Version Manager
+﻿# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,6 +17,20 @@
 $ErrorActionPreference = 'Stop'
 
 $packageName = 'jvm-windows'
-Write-Host "Installing JVM via the official setup script..."
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-Invoke-Expression (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1" -UseBasicParsing).Content
+# Always download official Stable release installer, never unreleased main commits
+$releaseUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest/download/install.ps1"
+$scriptContent = $null
+try {
+    $scriptContent = (Invoke-WebRequest -Uri $releaseUrl -UseBasicParsing -TimeoutSec 10).Content
+} catch {
+    try {
+        $tagUrl = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/v1.0.0/install.ps1"
+        $scriptContent = (Invoke-WebRequest -Uri $tagUrl -UseBasicParsing -TimeoutSec 10).Content
+    } catch { }
+}
+
+if (-not $scriptContent) {
+    throw "Failed to download official Stable release installer for $packageName from GitHub Releases."
+}
+
+& ([scriptblock]::Create($scriptContent)) -Channel "Stable" -Quiet
