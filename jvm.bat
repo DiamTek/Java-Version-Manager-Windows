@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260915.101"
+set "JVM_BUILD=20260915.102"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3290,7 +3290,7 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
     echo(        $completions = @^(^)
     echo(        if ^($prev -in @^('--vendor'^)^) {
     echo(            $completions = $vendors
-    echo(        } elseif ^($prev -in @^('channel'^)^) {
+    echo(        } elseif ^($prev -in @^('channel', '--channel'^)^) {
     echo(            $completions = @^('stable', 'nightly'^)
     echo(        } elseif ^($prev -in @^('open', 'home'^)^) {
     echo(            $completions = $openTargets
@@ -4032,7 +4032,34 @@ rem ============================================================
 set "OPEN_PATH="
 if /i "!CLI_TARGET!"=="root" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM"
 if /i "!CLI_TARGET!"=="appdata" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM"
+if /i "!CLI_TARGET!"=="home" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM"
+if /i "!CLI_TARGET!"=="dir" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM"
+if /i "!CLI_TARGET!"=="config" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM"
+if /i "!CLI_TARGET!"=="bin" (
+    set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\bin"
+    if not exist "!OPEN_PATH!" mkdir "!OPEN_PATH!" >nul 2>&1
+)
 if /i "!CLI_TARGET!"=="candidates" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates"
+if /i "!CLI_TARGET!"=="downloads" (
+    set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\downloads"
+    if not exist "!OPEN_PATH!" mkdir "!OPEN_PATH!" >nul 2>&1
+)
+if /i "!CLI_TARGET!"=="cache" (
+    set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\downloads"
+    if not exist "!OPEN_PATH!" mkdir "!OPEN_PATH!" >nul 2>&1
+)
+if /i "!CLI_TARGET!"=="backup" (
+    set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\backups"
+    if not exist "!OPEN_PATH!" mkdir "!OPEN_PATH!" >nul 2>&1
+)
+if /i "!CLI_TARGET!"=="backups" (
+    set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\backups"
+    if not exist "!OPEN_PATH!" mkdir "!OPEN_PATH!" >nul 2>&1
+)
+if /i "!CLI_TARGET!"=="links" (
+    set "OPEN_PATH=%LOCALAPPDATA%\JavaVersionManager\links"
+    if not exist "!OPEN_PATH!" mkdir "!OPEN_PATH!" >nul 2>&1
+)
 
 if not defined OPEN_PATH (
     if /i not "!TARGET_CANDIDATE!"=="java" (

@@ -117,14 +117,15 @@ When you install or activate the PowerShell profile hook (`jvm hook` or via `ins
 
 | Input Context | Tab Behavior | Autocompleted Values |
 |---------------|--------------|----------------------|
-| `jvm <Tab>` / `jvm.bat <Tab>` / `.\jvm.bat <Tab>` | Subcommands, candidates, & global flags | `list`, `ls`, `install`, `uninstall`, `rm`, `use`, `pin`, `current`, `doctor`, `clean`, `java`, `maven`, `gradle`, etc. |
+| `jvm <Tab>` / `jvm.bat <Tab>` / `.\jvm.bat <Tab>` | Subcommands, candidates, & global flags | `list`, `ls`, `install`, `uninstall`, `rm`, `use`, `pin`, `current`, `doctor`, `clean`, `channel`, `java`, `maven`, `gradle`, etc. |
+| `jvm channel <Tab>` / `jvm --channel <Tab>` | Delivery update channel targets | `stable`, `nightly` |
 | `jvm open <Tab>` | Known filesystem navigation targets | `home`, `dir`, `bin`, `config`, `cache`, `downloads`, `backup`, `backups`, `links` |
 | `jvm hook <Tab>` | Profile hook lifecycle management actions | `install`, `status`, `check`, `remove`, `uninstall` |
 | `jvm --vendor <Tab>` | Certified JDK upstream distribution vendors | `adoptium`, `temurin`, `oracle`, `corretto`, `zulu`, `microsoft`, `graalvm`, `liberica`, `bellsoft`, `semeru`, `ibm`, `openj9` |
 | `jvm use <Tab>` | Dynamically discovered installed versions | Scans `%LOCALAPPDATA%\JavaVersionManager\links` and `%USERPROFILE%\.jdks` in real-time |
 | `jvm pin <Tab>` | Dynamically discovered installed versions | Autocompletes installed JDK version tags for `.java-version` creation |
 | `jvm uninstall <Tab>` | Installed JDKs and candidates | Autocompletes installed version tags for targeted uninstallation |
-| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--version`, `--help` |
+| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--channel`, `--nightly`, `--stable`, `--version`, `--help` |
 
 ### Interactive Tab Session Examples
 
@@ -694,9 +695,15 @@ jvm open candidates
 # Open specific JDK installation by version number or folder name
 jvm open 21
 
+# Open internal directories (binaries, downloads, backups, custom links)
+jvm open bin
+jvm open downloads
+jvm open backups
+jvm open links
+
 # Jump to the JVM root AppData directory (%LOCALAPPDATA%\DiamTek\JVM)
 jvm open root
-# Aliases: jvm open appdata, jvm home
+# Aliases: jvm open appdata, jvm open home, jvm home
 ```
 
 ### System & Cache Maintenance

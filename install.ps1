@@ -344,7 +344,7 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             'pin', 'local', 'current', 'status', 'info', 'whoami', 'which', 'path',
             'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
             'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
-            'link', 'unlink', 'version', 'help'
+            'link', 'unlink', 'version', 'help', 'channel'
         )
         $candidates = @('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy')
         $vendors = @('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9')
@@ -353,6 +353,7 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
         $flags = @(
             '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
             '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
+            '--channel', '--nightly', '--stable',
             '--version', '-v', '--help', '-h'
         )
 
@@ -363,6 +364,8 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
         $completions = @()
         if ($prev -in @('--vendor')) {
             $completions = $vendors
+        } elseif ($prev -in @('channel', '--channel')) {
+            $completions = @('stable', 'nightly')
         } elseif ($prev -in @('open', 'home')) {
             $completions = $openTargets
         } elseif ($prev -in @('hook')) {
