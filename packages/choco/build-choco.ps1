@@ -38,22 +38,27 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 
 $nuspecPath = Join-Path $ScriptDir "jvm.nuspec"
 if (Test-Path $nuspecPath) {
-    $nuspecContent = Get-Content $nuspecPath -Raw
+    $nuspecContent = [System.IO.File]::ReadAllText($nuspecPath, [System.Text.Encoding]::UTF8)
     $updatedNuspec = $nuspecContent -replace '<version>.*?</version>', "<version>$Version</version>"
     [System.IO.File]::WriteAllText($nuspecPath, $updatedNuspec, [System.Text.Encoding]::UTF8)
-    Write-Host "[ OK ] Synchronized jvm.nuspec version to: $Version" -ForegroundColor Green
+    try {
+        [xml]$null = [System.IO.File]::ReadAllText($nuspecPath, [System.Text.Encoding]::UTF8)
+    } catch {
+        throw "XML validation failed on jvm.nuspec: $($_.Exception.Message)"
+    }
+    Write-Host "[ OK ] Synchronized and validated jvm.nuspec (v$Version)" -ForegroundColor Green
 }
 
 $chocoInstall = Join-Path $ScriptDir "tools\chocolateyInstall.ps1"
 if (Test-Path $chocoInstall) {
-    $content = Get-Content $chocoInstall -Raw
+    $content = [System.IO.File]::ReadAllText($chocoInstall, [System.Text.Encoding]::UTF8)
     $updated = $content -replace '/v[0-9.]+/install\.ps1', "/v$Version/install.ps1"
     [System.IO.File]::WriteAllText($chocoInstall, $updated, [System.Text.Encoding]::UTF8)
 }
 
 $chocoUninstall = Join-Path $ScriptDir "tools\chocolateyUninstall.ps1"
 if (Test-Path $chocoUninstall) {
-    $content = Get-Content $chocoUninstall -Raw
+    $content = [System.IO.File]::ReadAllText($chocoUninstall, [System.Text.Encoding]::UTF8)
     $updated = $content -replace '/v[0-9.]+/uninstall\.ps1', "/v$Version/uninstall.ps1"
     [System.IO.File]::WriteAllText($chocoUninstall, $updated, [System.Text.Encoding]::UTF8)
 }

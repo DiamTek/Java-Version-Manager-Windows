@@ -20,7 +20,7 @@ Features:
 - **Dual-Architecture Core**: Toggle between ultra-fast Directory Junctions (Symlinks) or legacy Registry manipulation.
 - **Ecosystem Management**: Natively manage tools like Maven, Gradle, Kotlin, Scala, and Groovy.
 - **Interactive TUI**: Vendor-sorted Updater and Uninstaller menus with ANSI color formatting.
-- **Global & Session Isolation**: Auto-switching via `.java-version` and `.sdkmanrc` files.
+- **Global &amp; Session Isolation**: Auto-switching via `.java-version` and `.sdkmanrc` files.
     </description>
     <releaseNotes>https://github.com/DiamTek/Java-Version-Manager-Windows/releases</releaseNotes>
     <licenseUrl>https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/LICENSE</licenseUrl>
