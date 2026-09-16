@@ -4,7 +4,7 @@
     "homepage": "https://diamtek.github.io/Java-Version-Manager-Windows",
     "license": "AGPL-3.0-or-later",
     "url": "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/v1.0.1/install.ps1",
-    "hash": "d59078cab0b60822d658ae94f5709e710c47a08840661117c1874707416b8b4d",
+    "hash": "1a78a37ea28eb5c999114c59683aecfcb4e6cbdc11015e18f61cbb1e4e865e14",
     "installer": {
         "script": "Invoke-Expression (Get-Content \"$dir\\install.ps1\" -Raw)"
     },
