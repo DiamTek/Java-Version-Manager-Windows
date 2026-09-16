@@ -488,7 +488,7 @@ try {
     $uninstallScriptPath = "$repoRoot\uninstall.ps1"
     $uninstallCommand = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
     
-    $displayVer = "1.0.0"
+    $displayVer = "1.0.1"
     if (Test-Path $batPath) {
         $batHead = Get-Content $batPath -Raw -ErrorAction SilentlyContinue
         if ($batHead -match 'set\s+"JVM_VERSION=(.*?)"') {

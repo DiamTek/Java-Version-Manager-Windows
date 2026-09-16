@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag to build and release (e.g. 1.0.0)'
+        description: 'Version tag to build and release (e.g. 1.0.1)'
         required: false
-        default: '1.0.0'
+        default: '1.0.1'
 
 permissions:
   contents: write
@@ -56,8 +56,8 @@ jobs:
               $tag = if ($ver.StartsWith('v')) { $ver } else { "v$ver" }
               $ver = $tag.TrimStart('v')
           } else {
-              $ver = "1.0.0"
-              $tag = "v1.0.0"
+              $ver = "1.0.1"
+              $tag = "v1.0.1"
           }
           Write-Host "Resolved Version: $ver"
           Write-Host "Resolved Tag:     $tag"

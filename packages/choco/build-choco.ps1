@@ -33,7 +33,7 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
             $Version = $matches[1].Trim()
         }
     }
-    if (-not $Version) { $Version = "1.0.0" }
+    if (-not $Version) { $Version = "1.0.1" }
 }
 
 $nuspecPath = Join-Path $ScriptDir "jvm.nuspec"

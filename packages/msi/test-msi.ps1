@@ -55,7 +55,7 @@ $originalLocation = (Get-Location).Path
 
 try {
     # Auto-detect expected version and build from local source jvm.bat
-    $expectedVersion = "1.0.0"
+    $expectedVersion = "1.0.1"
     $expectedBuild = ""
 
     $sourceBatCandidates = @(

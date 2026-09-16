@@ -56,7 +56,7 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
 - **Architectural Defense:** Official release binaries (standalone MSIs, portable ZIPs) are built in isolated GitHub Actions runners and cryptographically signed using GitHub's OIDC Sigstore attestation authority (`actions/attest-build-provenance`).
 - **Verification Command:**
   ```bash
-  gh attestation verify jvm-windows-1.0.0-x64.msi --owner DiamTek
+  gh attestation verify jvm-windows-1.0.1-x64.msi --owner DiamTek
   ```
 
 ### 6. Dual Update Channel Integrity & Downgrade Prevention

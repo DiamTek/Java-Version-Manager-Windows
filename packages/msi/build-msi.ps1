@@ -102,7 +102,7 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     if ($batContent -match 'set\s+"JVM_VERSION=(.*?)"') {
         $Version = $matches[1].Trim()
     } else {
-        $Version = "1.0.0"
+        $Version = "1.0.1"
     }
 }
 

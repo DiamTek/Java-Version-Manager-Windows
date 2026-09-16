@@ -13,6 +13,31 @@ All notable changes to the Java Version Manager for Windows will be documented i
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to Semantic Versioning.
 
+## [1.0.1] - 2026-09-16
+
+This release delivers critical stability and reliability enhancements for the installer pipeline, CLI channel switching, uninstallation handoff, and multi-architecture Winget package distribution.
+
+### Packaging & Distribution
+- **Multi-File Winget Manifests (Dual-Architecture)**: Migrated Windows Package Manager (Winget) manifests into the standard multi-file format (`DiamTek.JVM.yaml`, `DiamTek.JVM.installer.yaml`, `DiamTek.JVM.locale.en-US.yaml`) introducing full native `arm64` architecture alongside `x64`.
+- **Manifest Synchronization**: Synchronized release versioning and installer endpoints across Scoop (`packages/scoop/jvm.json`), Chocolatey (`packages/choco/jvm.nuspec`), and Winget manifests.
+
+### CLI & Update Channels
+- **CLI Channel Overrides (`UPDATE_CHANNEL_OVERRIDE`)**: Engineered the channel override engine to preserve command-line flags (`--channel`, `-c`, `--nightly`, `--stable`) across subshell transitions and menu rescan loops without being overwritten by persistent `channel.txt`.
+- **Positional Channel Syntax**: Added support for positional update channel arguments during self-update (e.g., `jvm self-update nightly`, `jvm self-update stable`).
+- **Command Aliases**: Added `jvm update self` alias routing directly to the self-update engine.
+- **Nightly Hash Display Guard**: Guarded SHA-256 substring formatting against empty string references when evaluating unreleased development builds.
+
+### Core Engine & PowerShell 7 Resilience
+- **Pure .NET Cryptographic Fallback (`Get-FileSha256`)**: Introduced native fallback to `[System.Security.Cryptography.SHA256]` in `install.ps1` and `jvm.bat`, resolving `CommandNotFoundException` when `Get-FileHash` is missing in minimal, locked-down, or constrained PowerShell 5.1 environments.
+- **PowerShell 7 Byte-Stream Decoding**: Resolved a critical issue in PowerShell 7 where `Invoke-RestMethod` and `Invoke-WebRequest` return raw byte arrays instead of strings, ensuring reliable UTF-8 decoding and preventing checksum validation failures.
+- **Strict Windows CRLF Normalization**: Enforced explicit Windows CRLF (`\r\n`) line ending normalization during batch file downloads, preventing `cmd.exe` label offset drift and syntax errors (`'f' is not recognized`, `'cho' is not recognized`).
+- **In-Memory Script Execution Guard**: Hardened `install.ps1` against `$null` path evaluations when executed directly in-memory via `irm ... | iex`.
+
+### Bug Fixes & System Stability
+- **Uninstaller Temp File Retention**: Excluded active uninstaller runner scripts (`*uninstall*`) from `%TEMP%` cleanup in `uninstall.ps1`, preventing premature deletion of the running script during uninstallation.
+- **Atomic Uninstaller Handoff & Clean Process Termination**: Eliminated intermediate batch runner files and obsolete subroutine stack popping in `jvm.bat`. Routed uninstallation execution through an atomic, in-memory compound command with direct process exit (`& exit`), completely eliminating post-uninstallation `The batch file cannot be found.` errors and `The system cannot find the path specified.` directory rescan attempts on deleted installations.
+- **MSI PATH Precedence & Sanitization**: Hardened MSI installer environment routines to accurately detect, sanitize, and prepend JVM directory paths without duplicating existing PATH entries.
+
 ## [1.0.0] - 2026-09-16
 
 This milestone 1.0.0 release marks the official general availability of the DiamTek Java Version Manager for Windows. It features a massive architectural overhaul of the entire engine, adding comprehensive ecosystem support, native automation integrations, full package manager distribution, and solving multiple Windows-specific system limitations.

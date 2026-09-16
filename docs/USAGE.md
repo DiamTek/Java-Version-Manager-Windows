@@ -804,9 +804,15 @@ jvm channel stable
 jvm channel nightly
 
 # One-off command channel overrides (without altering saved settings):
+jvm self-update nightly
+jvm self-update stable
 jvm self-update --nightly
 jvm self-update --stable
 jvm self-update --channel nightly
+jvm self-update -c nightly
+
+# Command alias:
+jvm update self
 ```
 *Tip: You can also toggle the update channel interactively via Option 4 in the interactive **Settings Menu** (`jvm` -> `Settings`).*
 

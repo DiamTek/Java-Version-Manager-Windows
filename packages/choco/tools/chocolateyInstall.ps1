@@ -1,4 +1,4 @@
-﻿# Java Version Manager
+# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -24,7 +24,7 @@ try {
     $scriptContent = (Invoke-WebRequest -Uri $releaseUrl -UseBasicParsing -TimeoutSec 10).Content
 } catch {
     try {
-        $tagUrl = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/v1.0.0/install.ps1"
+        $tagUrl = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/v1.0.1/install.ps1"
         $scriptContent = (Invoke-WebRequest -Uri $tagUrl -UseBasicParsing -TimeoutSec 10).Content
     } catch { }
 }
