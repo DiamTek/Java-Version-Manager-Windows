@@ -121,8 +121,8 @@ $noCacheHeaders = @{ 'Cache-Control' = 'no-cache'; 'Pragma' = 'no-cache' }
 $url = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/jvm.bat?t=$cacheBuster"
 
 Update-Progress -Percent 35 -Activity "Fetching core JVM engine..."
-if (-not $Update -and (Test-Path "$PSScriptRoot\jvm.bat")) {
-    $content = [System.IO.File]::ReadAllText("$PSScriptRoot\jvm.bat")
+if (-not $Update -and $PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "jvm.bat"))) {
+    $content = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot "jvm.bat"))
 } else {
     $content = $null
     # If on a tagged release on Stable channel, attempt direct release asset download to preserve exact binary layout
@@ -229,8 +229,8 @@ foreach ($cf in $companionFiles) {
     $destFile = Join-Path $repoRoot ($cf -replace '/', '\')
     $destDir = Split-Path $destFile -Parent
     if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
-    $localSource = Join-Path $PSScriptRoot ($cf -replace '/', '\')
-    if (Test-Path $localSource) {
+    $localSource = if ($PSScriptRoot) { Join-Path $PSScriptRoot ($cf -replace '/', '\') } else { $null }
+    if ($localSource -and (Test-Path $localSource)) {
         Copy-Item $localSource $destFile -Force
     } else {
         $downloadSuccess = $false
