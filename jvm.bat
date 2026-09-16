@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260916.106"
+set "JVM_BUILD=20260916.107"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -212,17 +212,27 @@ if /i "%~1"=="--no-color" (
 )
 if /i "%~1"=="--channel" (
     set "UPDATE_CHANNEL=%~2"
+    set "UPDATE_CHANNEL_OVERRIDE=%~2"
+    shift
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="-c" (
+    set "UPDATE_CHANNEL=%~2"
+    set "UPDATE_CHANNEL_OVERRIDE=%~2"
     shift
     shift
     goto :PARSE_CLI_ARGS
 )
 if /i "%~1"=="--nightly" (
     set "UPDATE_CHANNEL=NIGHTLY"
+    set "UPDATE_CHANNEL_OVERRIDE=NIGHTLY"
     shift
     goto :PARSE_CLI_ARGS
 )
 if /i "%~1"=="--stable" (
     set "UPDATE_CHANNEL=STABLE"
+    set "UPDATE_CHANNEL_OVERRIDE=STABLE"
     shift
     goto :PARSE_CLI_ARGS
 )
@@ -605,6 +615,14 @@ if defined SWITCH_MODE_OVERRIDE (
     set "SWITCH_MODE=%SWITCH_MODE_OVERRIDE%"
 )
 
+if defined UPDATE_CHANNEL_OVERRIDE (
+    if /i "!UPDATE_CHANNEL_OVERRIDE!"=="NIGHTLY" (
+        set "UPDATE_CHANNEL=NIGHTLY"
+    ) else (
+        set "UPDATE_CHANNEL=STABLE"
+    )
+)
+
 rem Jump straight to the menu function to prevent screen clearing issues
 call :ShowDynamicMenu
 
@@ -779,6 +797,13 @@ if exist "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" (
     for /f "usebackq tokens=* delims= " %%A in ("%LOCALAPPDATA%\DiamTek\JVM\channel.txt") do set "UPDATE_CHANNEL=%%A"
 )
 if /i not "!UPDATE_CHANNEL!"=="NIGHTLY" set "UPDATE_CHANNEL=STABLE"
+if defined UPDATE_CHANNEL_OVERRIDE (
+    if /i "!UPDATE_CHANNEL_OVERRIDE!"=="NIGHTLY" (
+        set "UPDATE_CHANNEL=NIGHTLY"
+    ) else (
+        set "UPDATE_CHANNEL=STABLE"
+    )
+)
 if exist "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" (
     for /f "usebackq tokens=* delims= " %%A in ("%LOCALAPPDATA%\DiamTek\JVM\mode.txt") do set "SWITCH_MODE=%%A"
 )
@@ -1233,6 +1258,14 @@ if defined CLI_COMMAND (
     )
 
     if /i "!CLI_COMMAND!"=="self-update" (
+        if /i "!CLI_TARGET!"=="nightly" (
+            set "UPDATE_CHANNEL=NIGHTLY"
+            set "UPDATE_CHANNEL_OVERRIDE=NIGHTLY"
+        )
+        if /i "!CLI_TARGET!"=="stable" (
+            set "UPDATE_CHANNEL=STABLE"
+            set "UPDATE_CHANNEL_OVERRIDE=STABLE"
+        )
         call :SelfUpdate
         goto :eof
     )
@@ -3072,6 +3105,7 @@ if !sub_choice!==5 (
     goto :SettingsMenu
 )
 if !sub_choice!==4 (
+    set "UPDATE_CHANNEL_OVERRIDE="
     if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
         set "UPDATE_CHANNEL=STABLE"
         set "CH_NAME=%cGREEN%[Stable]%cRESET%"
@@ -4160,8 +4194,20 @@ rem JVM Version / About Menu
 rem ============================================================
 :AboutMenu
 rem cls
-set "CH_TAG=%cGREEN%[Stable]%cRESET%"
-if /i "!UPDATE_CHANNEL!"=="NIGHTLY" set "CH_TAG=%cPURPLE%[Nightly]%cRESET%"
+if defined UPDATE_CHANNEL_OVERRIDE (
+    if /i "!UPDATE_CHANNEL_OVERRIDE!"=="NIGHTLY" (
+        set "UPDATE_CHANNEL=NIGHTLY"
+    ) else (
+        set "UPDATE_CHANNEL=STABLE"
+    )
+)
+if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
+    set "UPDATE_CHANNEL=NIGHTLY"
+    set "CH_TAG=%cPURPLE%[Nightly]%cRESET%"
+) else (
+    set "UPDATE_CHANNEL=STABLE"
+    set "CH_TAG=%cGREEN%[Stable]%cRESET%"
+)
 echo ============================================================
 echo                     Java Version Manager
 echo ============================================================
@@ -4298,8 +4344,20 @@ rem ============================================================
 rem Self-Updater
 rem ============================================================
 :SelfUpdate
-set "CH_TAG=%cGREEN%[Stable]%cRESET%"
-if /i "!UPDATE_CHANNEL!"=="NIGHTLY" set "CH_TAG=%cPURPLE%[Nightly]%cRESET%"
+if defined UPDATE_CHANNEL_OVERRIDE (
+    if /i "!UPDATE_CHANNEL_OVERRIDE!"=="NIGHTLY" (
+        set "UPDATE_CHANNEL=NIGHTLY"
+    ) else (
+        set "UPDATE_CHANNEL=STABLE"
+    )
+)
+if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
+    set "UPDATE_CHANNEL=NIGHTLY"
+    set "CH_TAG=%cPURPLE%[Nightly]%cRESET%"
+) else (
+    set "UPDATE_CHANNEL=STABLE"
+    set "CH_TAG=%cGREEN%[Stable]%cRESET%"
+)
 if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Checking for updates ^(!CH_TAG! channel^)...
@@ -4378,7 +4436,7 @@ if not exist "!INSTALL_SCRIPT!" (
 
 echo %cBLUE%[ ACTION ]%cRESET% Verifying installer cryptographic integrity...
 set "VERIFY_TMP=%TEMP%\jvm_sha_!RANDOM!.txt"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = '!REMOTE_REF!'; $ch = '!UPDATE_CHANNEL!'; $f = '!INSTALL_SCRIPT!'; if (-not (Test-Path $f)) { Write-Output 'MISSING'; exit }; $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'rem END OF SCRIPT|# Java Version Manager') { Write-Output 'TRUNCATED'; exit }; $actual = (Get-FileHash -Path $f -Algorithm SHA256).Hash.ToLower(); if ($ch -eq 'STABLE' -and $ref -match '^v?[0-9]') { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt') -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if (-not $shaTxt) { try { $relJson = (Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/' + $ref) -UserAgent 'DiamTek-JVM'); $asset = $relJson.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1; if ($asset) { $shaTxt = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } } catch {} }; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NO_ENTRY|' + $actual) } } else { Write-Output ('NO_SHA_FILE|' + $actual) } } else { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/SHA256SUMS.txt?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } }" > "!VERIFY_TMP!" 2>nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = '!REMOTE_REF!'; $ch = '!UPDATE_CHANNEL!'; $f = '!INSTALL_SCRIPT!'; if (-not (Test-Path $f)) { Write-Output 'MISSING'; exit }; $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'rem END OF SCRIPT|# Java Version Manager') { Write-Output 'TRUNCATED'; exit }; $s = [System.Security.Cryptography.SHA256]::Create(); $fs = [System.IO.File]::OpenRead($f); $actual = try { ([System.BitConverter]::ToString($s.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $s.Dispose() }; if ($ch -eq 'STABLE' -and $ref -match '^v?[0-9]') { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt') -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if (-not $shaTxt) { try { $relJson = (Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/' + $ref) -UserAgent 'DiamTek-JVM'); $asset = $relJson.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1; if ($asset) { $shaTxt = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } } catch {} }; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NO_ENTRY|' + $actual) } } else { Write-Output ('NO_SHA_FILE|' + $actual) } } else { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/SHA256SUMS.txt?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } }" > "!VERIFY_TMP!" 2>nul
 
 set "SHA_STATUS=UNKNOWN"
 set "SHA_EXP="
@@ -4437,7 +4495,21 @@ if "!UPDATE_CHANNEL!"=="STABLE" (
     if "!SHA_STATUS!"=="VERIFIED" (
         echo %cGREEN%[   OK   ]%cRESET% Cryptographic integrity verified ^(SHA-256: !SHA_EXP:~0,16!...^)
     ) else (
-        echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity hash ^(SHA-256: !SHA_EXP:~0,16!...^)
+        if defined SHA_EXP (
+            if "!SHA_EXP!" NEQ "" (
+                echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity hash ^(SHA-256: !SHA_EXP:~0,16!...^)
+            ) else (
+                echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity verified.
+            )
+        ) else if defined SHA_ACT (
+            if "!SHA_ACT!" NEQ "" (
+                echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity hash ^(SHA-256: !SHA_ACT:~0,16!...^)
+            ) else (
+                echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity verified.
+            )
+        ) else (
+            echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity verified.
+        )
     )
 )
 
@@ -4481,6 +4553,13 @@ rem ============================================================
 rem Query Remote Update Status Helper
 rem ============================================================
 :CheckUpdateStatus
+if defined UPDATE_CHANNEL_OVERRIDE (
+    if /i "!UPDATE_CHANNEL_OVERRIDE!"=="NIGHTLY" (
+        set "UPDATE_CHANNEL=NIGHTLY"
+    ) else (
+        set "UPDATE_CHANNEL=STABLE"
+    )
+)
 set "PS_SCRIPT=$ProgressPreference = 'SilentlyContinue'; $localVer = [version]'!JVM_VERSION!'; $localBld = [version]'!JVM_BUILD!'; $channel = '!UPDATE_CHANNEL!'; if ($channel -eq 'STABLE') { $data = $null; $tagName = $null; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/latest'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $data = $raw | ConvertFrom-Json; if ($data -and $data.tag_name) { $tagName = [string]$data.tag_name; } } catch { try { $req = [Net.HttpWebRequest]::Create('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'DiamTek-JVM'; $req.Timeout = 3000; $res = $req.GetResponse(); $loc = $res.Headers['Location']; $res.Close(); if ($loc -match '/releases/tag/(.+)$') { $tagName = $matches[1]; } } catch [Net.WebException] { $resp = $_.Exception.Response; if ($resp -and ($resp.StatusCode -eq [Net.HttpStatusCode]::NotFound)) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; } } catch {} }; if (-not $tagName) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; }; $tagVerStr = $null; if ($tagName -match '^v?([0-9]+(\.[0-9]+)+)') { $tagVerStr = $matches[1]; } elseif ($tagName -match '^v?([0-9]+)') { $tagVerStr = $matches[1] + '.0'; }; if (-not $tagVerStr) { Write-Output ($tagName + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; try { $remoteVer = [version]$tagVerStr; } catch { Write-Output ($tagVerStr + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; $remBuild = $null; $remBldStr = 'N/A'; try { $rawUrl = 'https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $tagName + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks; $req = [Net.HttpWebRequest]::Create($rawUrl); $req.Timeout = 3000; $req.UserAgent = 'DiamTek-JVM'; $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $c = $sr.ReadToEnd(); $sr.Close(); $res.Close(); if ($c -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBuild = [version]$matches[1]; $remBldStr = $matches[1]; } } catch {}; if ($remoteVer -gt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remoteVer -lt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { if ($remBuild) { if ($remBuild -gt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remBuild -lt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } } else { $commitSha = 'main'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $cData = $raw | ConvertFrom-Json; if ($cData -and $cData.sha) { $commitSha = $cData.sha.Substring(0, 7); } } catch { $commitSha = 'main'; }; $content = $null; try { $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 4000; $req.UserAgent = 'DiamTek-JVM'; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $res.Close(); } catch { try { $apiReq = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=main'); $apiReq.Method = 'GET'; $apiReq.Timeout = 4000; $apiReq.UserAgent = 'DiamTek-JVM'; $apiReq.Accept = 'application/vnd.github.v3.raw'; $apiReq.Headers.Add('Cache-Control', 'no-cache'); $apiReq.Headers.Add('Pragma', 'no-cache'); $apiRes = $apiReq.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); } catch {} }; if (-not $content) { Write-Output 'UNKNOWN|UNKNOWN|ERROR|main'; exit; }; $remVerStr = '1.0.0'; $remBldStr = 'UNKNOWN'; if ($content -match 'set \x22JVM_VERSION=(.*?)\x22') { $remVerStr = $matches[1]; }; if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBldStr = $matches[1]; }; try { $remoteVer = [version]$remVerStr; $remoteBld = [version]$remBldStr; if ($remoteVer -gt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteVer -lt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { if ($remoteBld -gt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteBld -lt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { Write-Output ($remVerStr + '|' + $remBldStr + '|OK|' + $commitSha); } } } catch { Write-Output ($remVerStr + '|' + $remBldStr + '|INVALID_REMOTE|' + $commitSha); } }
 set "REMOTE_TMP=%TEMP%\jvm_remote_build_!RANDOM!.txt"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "!REMOTE_TMP!" 2>nul

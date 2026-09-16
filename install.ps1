@@ -52,6 +52,24 @@ function Update-Progress {
     Write-Host ("`r[ ACTION ] [{0}] {1,3}%  {2}$([char]27)[K" -f $bar, $clamped, $paddedActivity) -NoNewline -ForegroundColor Cyan
 }
 
+function Get-FileSha256 {
+    param([string]$Path)
+    if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+        try {
+            return (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToLower()
+        } catch {}
+    }
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead((Resolve-Path $Path))
+    try {
+        $hashBytes = $sha256.ComputeHash($stream)
+        return ([System.BitConverter]::ToString($hashBytes) -replace '-','').ToLower()
+    } finally {
+        $stream.Close()
+        $sha256.Dispose()
+    }
+}
+
 # 1. Determine destination directory
 Update-Progress -Percent 5 -Activity "Initializing environment..."
 
@@ -202,7 +220,7 @@ if (-not (Test-Path $batPath) -or (Get-Item $batPath).Length -eq 0) {
 }
 
 # Verify jvm.bat SHA256 integrity
-$actualJvmHash = (Get-FileHash -Path $batPath -Algorithm SHA256).Hash.ToLower()
+$actualJvmHash = Get-FileSha256 -Path $batPath
 if ($shaHashMap.ContainsKey("jvm.bat")) {
     $expectedJvmHash = $shaHashMap["jvm.bat"]
     if ($actualJvmHash -ne $expectedJvmHash) {
@@ -263,7 +281,7 @@ foreach ($cf in $companionFiles) {
         if ($downloadSuccess -and (Test-Path $destFile)) {
             $baseName = Split-Path $destFile -Leaf
             if ($shaHashMap.ContainsKey($baseName)) {
-                $actualCfHash = (Get-FileHash -Path $destFile -Algorithm SHA256).Hash.ToLower()
+                $actualCfHash = Get-FileSha256 -Path $destFile
                 $expectedCfHash = $shaHashMap[$baseName]
                 if ($actualCfHash -ne $expectedCfHash) {
                     Write-Host ""
