@@ -26,12 +26,12 @@ Installers:
   - Architecture: x64
     InstallerType: msi
     InstallerUrl: https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v1.0.0/jvm-windows-1.0.0-x64.msi
-    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
-    ProductCode: '{db30058e-1738-46cb-84ec-8c652dc99a22}'
+    InstallerSha256: 275310FB403A8FF5929668E5529777ECEC9803372FA8F179E179A674815DEF01
+    ProductCode: '{C5119FD2-3259-4359-BED7-118F5A4A35E7}'
   - Architecture: arm64
     InstallerType: msi
     InstallerUrl: https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v1.0.0/jvm-windows-1.0.0-arm64.msi
-    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
-    ProductCode: '{db30058e-1738-46cb-84ec-8c652dc99a22}'
+    InstallerSha256: FDCDB9C6BF8E37720091B90C91D8EDE3B20D30ECEAC2D30DCB8DE3DA39E79706
+    ProductCode: '{E6F86E1E-1FAC-4244-96B6-76C2B1BD0B45}'
 ManifestType: singleton
 ManifestVersion: 1.6.0
