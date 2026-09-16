@@ -23,6 +23,13 @@ param(
     [string]$Channel = "Stable"
 )
 
+if (-not $PSBoundParameters.ContainsKey('Channel') -and $env:JVM_CHANNEL) {
+    $Channel = $env:JVM_CHANNEL
+}
+if (-not $PSBoundParameters.ContainsKey('Branch') -and $env:JVM_BRANCH) {
+    $Branch = $env:JVM_BRANCH
+}
+
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -118,22 +125,35 @@ if (-not $Update -and (Test-Path "$PSScriptRoot\jvm.bat")) {
     $content = [System.IO.File]::ReadAllText("$PSScriptRoot\jvm.bat")
 } else {
     $content = $null
-    try {
-        $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=$rawBranch")
-        $apiReq.Method = "GET"
-        $apiReq.Timeout = 4000
-        $apiReq.UserAgent = "DiamTek-JVM"
-        $apiReq.Accept = "application/vnd.github.v3.raw"
-        $apiReq.Headers.Add("Cache-Control", "no-cache")
-        $apiReq.Headers.Add("Pragma", "no-cache")
-        $apiRes = $apiReq.GetResponse()
-        $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
-        $content = $sr.ReadToEnd()
-        $sr.Close(); $apiRes.Close()
-    } catch {
+    # If on a tagged release on Stable channel, attempt direct release asset download to preserve exact binary layout
+    if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
         try {
-            $content = (Invoke-WebRequest -Uri $url -Headers $noCacheHeaders -UseBasicParsing -TimeoutSec 5).Content
+            $relUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/$rawBranch/jvm.bat"
+            Invoke-WebRequest -Uri $relUrl -Headers $noCacheHeaders -OutFile $batPath -UseBasicParsing -TimeoutSec 10
+            if ((Test-Path $batPath) -and (Get-Item $batPath).Length -gt 0) {
+                $content = [System.IO.File]::ReadAllText($batPath)
+            }
         } catch {}
+    }
+    if (-not $content) {
+        try {
+            $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=$rawBranch")
+            $apiReq.Method = "GET"
+            $apiReq.Timeout = 4000
+            $apiReq.UserAgent = "DiamTek-JVM"
+            $apiReq.Accept = "application/vnd.github.v3.raw"
+            $apiReq.Headers.Add("Cache-Control", "no-cache")
+            $apiReq.Headers.Add("Pragma", "no-cache")
+            $apiRes = $apiReq.GetResponse()
+            $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
+            $content = $sr.ReadToEnd()
+            $sr.Close(); $apiRes.Close()
+        } catch {
+            try {
+                $rawWget = Invoke-WebRequest -Uri $url -Headers $noCacheHeaders -UseBasicParsing -TimeoutSec 5
+                $content = if ($rawWget.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($rawWget.Content) } else { [string]$rawWget.Content }
+            } catch {}
+        }
     }
 }
 
@@ -150,15 +170,21 @@ if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
     try {
         $shaText = $null
         try {
-            $shaText = (Invoke-WebRequest -Uri "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/$rawBranch/SHA256SUMS.txt" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -UseBasicParsing -TimeoutSec 5).Content
+            $resp = Invoke-WebRequest -Uri "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/$rawBranch/SHA256SUMS.txt" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -UseBasicParsing -TimeoutSec 5
+            $shaText = if ($resp.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($resp.Content) } else { [string]$resp.Content }
         } catch {
             try {
-                $relJson = (Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/$rawBranch" -UserAgent "DiamTek-JVM")
-                $asset = $relJson.assets | Where-Object { $_.name -eq "SHA256SUMS.txt" } | Select-Object -First 1
-                if ($asset) {
-                    $shaText = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent "DiamTek-JVM" -UseBasicParsing -TimeoutSec 5).Content
-                }
-            } catch {}
+                $shaText = (Invoke-RestMethod -Uri "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/$rawBranch/SHA256SUMS.txt" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -TimeoutSec 5)
+            } catch {
+                try {
+                    $relJson = (Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/$rawBranch" -UserAgent "DiamTek-JVM")
+                    $asset = $relJson.assets | Where-Object { $_.name -eq "SHA256SUMS.txt" } | Select-Object -First 1
+                    if ($asset) {
+                        $rawAsset = Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent "DiamTek-JVM" -UseBasicParsing -TimeoutSec 5
+                        $shaText = if ($rawAsset.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($rawAsset.Content) } else { [string]$rawAsset.Content }
+                    }
+                } catch {}
+            }
         }
         if ($shaText) {
             foreach ($sLine in ($shaText -split "`r?`n")) {
@@ -171,8 +197,9 @@ if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
 }
 
 Update-Progress -Percent 50 -Activity "Sanitizing code format and encoding..."
-$lines = ($content.Replace([char]160, ' ') -split "\r?\n")
-[System.IO.File]::WriteAllLines($batPath, $lines, (New-Object System.Text.UTF8Encoding($false)))
+if (-not (Test-Path $batPath) -or (Get-Item $batPath).Length -eq 0) {
+    [System.IO.File]::WriteAllText($batPath, $content.Replace([char]160, ' '), (New-Object System.Text.UTF8Encoding($false)))
+}
 
 # Verify jvm.bat SHA256 integrity
 $actualJvmHash = (Get-FileHash -Path $batPath -Algorithm SHA256).Hash.ToLower()
@@ -207,17 +234,29 @@ foreach ($cf in $companionFiles) {
         Copy-Item $localSource $destFile -Force
     } else {
         $downloadSuccess = $false
-        try {
-            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/$cf`?t=$cacheBuster" -Headers $noCacheHeaders -OutFile $destFile -UseBasicParsing -TimeoutSec 10
-            $downloadSuccess = $true
-        } catch {
+        $baseName = Split-Path $destFile -Leaf
+        if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]' -and @("LICENSE", "README.md", "uninstall.ps1") -contains $baseName) {
             try {
-                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/$cf`?t=$cacheBuster" -Headers $noCacheHeaders -OutFile $destFile -UseBasicParsing -TimeoutSec 10
+                $relAssetUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/$rawBranch/$baseName"
+                Invoke-WebRequest -Uri $relAssetUrl -Headers $noCacheHeaders -OutFile $destFile -UseBasicParsing -TimeoutSec 10
+                if ((Test-Path $destFile) -and (Get-Item $destFile).Length -gt 0) {
+                    $downloadSuccess = $true
+                }
+            } catch {}
+        }
+        if (-not $downloadSuccess) {
+            try {
+                Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/$cf`?t=$cacheBuster" -Headers $noCacheHeaders -OutFile $destFile -UseBasicParsing -TimeoutSec 10
                 $downloadSuccess = $true
             } catch {
-                if (-not (Test-Path $destFile)) {
-                    Write-Host ""
-                    Write-Host "           [WARN] Could not fetch $cf. Proceeding anyway." -ForegroundColor Yellow
+                try {
+                    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/$cf`?t=$cacheBuster" -Headers $noCacheHeaders -OutFile $destFile -UseBasicParsing -TimeoutSec 10
+                    $downloadSuccess = $true
+                } catch {
+                    if (-not (Test-Path $destFile)) {
+                        Write-Host ""
+                        Write-Host "           [WARN] Could not fetch $cf. Proceeding anyway." -ForegroundColor Yellow
+                    }
                 }
             }
         }

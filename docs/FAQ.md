@@ -777,7 +777,7 @@ You can switch channels seamlessly using the CLI, flags, the interactive TUI, or
   When executing the PowerShell installer, specify the `-Channel` parameter:
   ```powershell
   # Install directly on the Nightly channel
-  irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex -ArgumentList "-Channel Nightly"
+  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1))) -Channel Nightly
   ```
 
 #### 4. How Update Handoff & Security Verification Work

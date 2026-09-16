@@ -43,7 +43,7 @@ irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/
 
 **🟣 Nightly Channel (Cutting-Edge — Latest commits from main branch):**
 ```powershell
-irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex -ArgumentList "-Channel Nightly"
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1))) -Channel Nightly
 ```
 
 Or via explicit `Invoke-WebRequest`:
