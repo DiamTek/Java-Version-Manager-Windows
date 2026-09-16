@@ -215,9 +215,8 @@ if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
 }
 
 Update-Progress -Percent 50 -Activity "Sanitizing code format and encoding..."
-if (-not (Test-Path $batPath) -or (Get-Item $batPath).Length -eq 0) {
-    [System.IO.File]::WriteAllText($batPath, $content.Replace([char]160, ' '), (New-Object System.Text.UTF8Encoding($false)))
-}
+$sanitizedContent = ($content -replace "`r?`n", "`r`n").Replace([char]160, ' ')
+[System.IO.File]::WriteAllText($batPath, $sanitizedContent, (New-Object System.Text.UTF8Encoding($false)))
 
 # Verify jvm.bat SHA256 integrity
 $actualJvmHash = Get-FileSha256 -Path $batPath

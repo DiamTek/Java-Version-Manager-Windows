@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260916.107"
+set "JVM_BUILD=20260916.108"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3604,18 +3604,18 @@ set "UNINSTALL_BAT=%TEMP%\jvm_uninstall_!RANDOM!.bat"
     echo powershell -NoProfile -ExecutionPolicy Bypass -File "!RUNNER_PS1!" -SourceDir "!TARGET_UNINSTALL_DIR!"
     echo if exist "!RUNNER_PS1!" del "!RUNNER_PS1!" ^>nul 2^>^&1
     echo if "!ORIG_CP!" NEQ "" chcp !ORIG_CP! ^>nul 2^>^&1
-    echo ^(goto^) 2^>nul ^& del "%%~f0" ^>nul 2^>^&1 ^& exit /b 0
+    echo start /b "" cmd /c "ping 127.0.0.1 -n 2 >nul & del \"!UNINSTALL_BAT!\" >nul 2>&1"
+    echo exit 0
 ) > "!UNINSTALL_BAT!"
 
 rem Pop all subroutine call frames and chain to external uninstaller in %TEMP%
 rem This ensures jvm.bat is immediately closed and unlocked before powershell deletes it!
-call :ChainUninstallerRunner "!UNINSTALL_BAT!"
-exit /b 0
+goto :ChainUninstallerRunner
 
 :ChainUninstallerRunner
 cd /d "%TEMP%"
-(goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & "%~1"
-exit /b 0
+(goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & (goto) 2>nul & "!UNINSTALL_BAT!"
+exit 0
 
 :HANDLE_LINKS
 setlocal enabledelayedexpansion
