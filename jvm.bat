@@ -28,7 +28,7 @@ if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
 if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.0"
-set "JVM_BUILD=20260916.105"
+set "JVM_BUILD=20260916.106"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3019,6 +3019,11 @@ if defined USER_PATH (
     set "TEST_PATH=;!CLEAN_USER_PATH!;"
     for %%D in ("!SCRIPT_DIR!") do (
         if "!TEST_PATH:;%%~D;=!" NEQ "!TEST_PATH!" set "IN_PATH=1"
+        if "!TEST_PATH:;%%~D\;=!" NEQ "!TEST_PATH!" set "IN_PATH=1"
+    )
+    for %%D in ("%LOCALAPPDATA%\DiamTek\JVM\bin") do (
+        if "!TEST_PATH:;%%~D;=!" NEQ "!TEST_PATH!" set "IN_PATH=1"
+        if "!TEST_PATH:;%%~D\;=!" NEQ "!TEST_PATH!" set "IN_PATH=1"
     )
 )
 
@@ -3150,7 +3155,7 @@ echo.
 
 rem Offload string manipulation to PowerShell to prevent delayed expansion corruption of exclamation marks
 set "SAFE_TARGET=!SCRIPT_DIR!"
-powershell -NoProfile -Command "$p = (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'Path').Path; if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $_ -ne $env:SAFE_TARGET }) -join ';'; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $clean -Type ExpandString }"
+powershell -NoProfile -Command "$p = (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'Path').Path; if ($p) { $target = $env:SAFE_TARGET.TrimEnd('\'); $clean = ($p -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ne $target -and $_.TrimEnd('\') -ne ([Environment]::ExpandEnvironmentVariables('%LOCALAPPDATA%\DiamTek\JVM\bin').TrimEnd('\')) }) -join ';'; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $clean -Type ExpandString }"
 
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
@@ -3192,6 +3197,11 @@ if defined USER_PATH (
     set "TEST_PATH=;!CLEAN_USER_PATH!;"
     for %%D in ("!SCRIPT_DIR!") do (
         if "!TEST_PATH:;%%~D;=!" NEQ "!TEST_PATH!" set "ALREADY_INSTALLED=1"
+        if "!TEST_PATH:;%%~D\;=!" NEQ "!TEST_PATH!" set "ALREADY_INSTALLED=1"
+    )
+    for %%D in ("%LOCALAPPDATA%\DiamTek\JVM\bin") do (
+        if "!TEST_PATH:;%%~D;=!" NEQ "!TEST_PATH!" set "ALREADY_INSTALLED=1"
+        if "!TEST_PATH:;%%~D\;=!" NEQ "!TEST_PATH!" set "ALREADY_INSTALLED=1"
     )
 )
 
