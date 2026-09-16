@@ -189,7 +189,8 @@ foreach ($wtSettings in $wtSettingsCandidates) {
 
 # Cleanup temporary session files
 Remove-Item -Path "$env:TEMP\.jvm_session_target" -Force -ErrorAction SilentlyContinue
-Get-ChildItem -Path $env:TEMP -Filter "jvm_*" -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+Get-ChildItem -Path $env:TEMP -Filter "jvm_*" -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'uninstall' } | Remove-Item -Force -ErrorAction SilentlyContinue
+Get-ChildItem -Path $env:TEMP -Filter "diamtek_uninstall_*" -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -ne $PSCommandPath } | Remove-Item -Force -ErrorAction SilentlyContinue
 
 Write-Host "[   OK   ] Windows uninstall registration removed." -ForegroundColor Green
 
