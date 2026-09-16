@@ -41,7 +41,7 @@ A clear and concise description of what you expected to happen.
 
 Please provide as much information about your environment as possible:
 
-- **JVM Version & Build**: `[Run 'jvm version' or 'jvm.bat --version', e.g., 1.0.0, Build 20260915.104]`
+- **JVM Version & Build**: `[Run 'jvm version' or 'jvm.bat --version', e.g., 1.0.0, Build 20260916.105]`
 - **Update Channel**: `[Run 'jvm channel', e.g., Stable or Nightly]`
 - **OS Version & Build**: `[e.g., Windows 11 24H2 / 23H2 (Build 22631.3007), Windows 10 22H2]`
 - **CPU Architecture**: `[e.g., x64, ARM64]`
