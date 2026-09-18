@@ -21,6 +21,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+if (-not (Get-Command choco -ErrorAction SilentlyContinue) -and (Test-Path "C:\ProgramData\chocolatey\bin\choco.exe")) {
+    $env:PATH = "C:\ProgramData\chocolatey\bin;$env:PATH"
+}
+
 $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $PSCommandPath }
 $RootDir = (Resolve-Path "$ScriptDir\..\..").Path
 
