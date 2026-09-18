@@ -128,7 +128,7 @@ jobs:
         with:
           tag_name: ${{ steps.resolve-version.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: DiamTek Java Version Manager ${{ steps.resolve-version.outputs.tag }}
+          name: ${{ steps.resolve-version.outputs.tag }}
           files: dist/*
           generate_release_notes: true
           draft: false
