@@ -39,14 +39,17 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     }
     if (-not $Version) { $Version = "1.0.1" }
 }
+$Version = $Version.TrimStart('v')
+
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
 $nuspecPath = Join-Path $ScriptDir "jvm.nuspec"
 if (Test-Path $nuspecPath) {
-    $nuspecContent = [System.IO.File]::ReadAllText($nuspecPath, [System.Text.Encoding]::UTF8)
+    $nuspecContent = [System.IO.File]::ReadAllText($nuspecPath, $utf8NoBom)
     $updatedNuspec = $nuspecContent -replace '<version>.*?</version>', "<version>$Version</version>"
-    [System.IO.File]::WriteAllText($nuspecPath, $updatedNuspec, [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText($nuspecPath, $updatedNuspec, $utf8NoBom)
     try {
-        [xml]$null = [System.IO.File]::ReadAllText($nuspecPath, [System.Text.Encoding]::UTF8)
+        [xml]$null = [System.IO.File]::ReadAllText($nuspecPath, $utf8NoBom)
     } catch {
         throw "XML validation failed on jvm.nuspec: $($_.Exception.Message)"
     }
@@ -55,22 +58,30 @@ if (Test-Path $nuspecPath) {
 
 $chocoInstall = Join-Path $ScriptDir "tools\chocolateyInstall.ps1"
 if (Test-Path $chocoInstall) {
-    $content = [System.IO.File]::ReadAllText($chocoInstall, [System.Text.Encoding]::UTF8)
-    $updated = $content -replace '/v[0-9.]+/install\.ps1', "/v$Version/install.ps1"
-    [System.IO.File]::WriteAllText($chocoInstall, $updated, [System.Text.Encoding]::UTF8)
+    $content = [System.IO.File]::ReadAllText($chocoInstall, $utf8NoBom)
+    $updated = $content -replace '/v[0-9a-zA-Z.-]+/install\.ps1', "/v$Version/install.ps1"
+    [System.IO.File]::WriteAllText($chocoInstall, $updated, $utf8NoBom)
 }
 
 $chocoUninstall = Join-Path $ScriptDir "tools\chocolateyUninstall.ps1"
 if (Test-Path $chocoUninstall) {
-    $content = [System.IO.File]::ReadAllText($chocoUninstall, [System.Text.Encoding]::UTF8)
-    $updated = $content -replace '/v[0-9.]+/uninstall\.ps1', "/v$Version/uninstall.ps1"
-    [System.IO.File]::WriteAllText($chocoUninstall, $updated, [System.Text.Encoding]::UTF8)
+    $content = [System.IO.File]::ReadAllText($chocoUninstall, $utf8NoBom)
+    $updated = $content -replace '/v[0-9a-zA-Z.-]+/uninstall\.ps1', "/v$Version/uninstall.ps1"
+    [System.IO.File]::WriteAllText($chocoUninstall, $updated, $utf8NoBom)
 }
 
 if (-not $NoPack) {
-    if (Get-Command choco -ErrorAction SilentlyContinue) {
+    $chocoCmd = if (Get-Command choco -ErrorAction SilentlyContinue) {
+        "choco"
+    } elseif (Test-Path "C:\ProgramData\chocolatey\bin\choco.exe") {
+        "C:\ProgramData\chocolatey\bin\choco.exe"
+    } else {
+        $null
+    }
+
+    if ($chocoCmd) {
         Write-Host "Packing Chocolatey package (jvm-windows.$Version.nupkg)..." -ForegroundColor Cyan
-        & choco pack $nuspecPath --outputdirectory $ScriptDir
+        & $chocoCmd pack $nuspecPath --outputdirectory $ScriptDir
         if ($LASTEXITCODE -ne 0) { throw "choco pack failed with exit code $LASTEXITCODE" }
     } else {
         Write-Host "[ INFO ] 'choco' CLI not found on PATH. jvm.nuspec updated to v$Version." -ForegroundColor DarkGray
