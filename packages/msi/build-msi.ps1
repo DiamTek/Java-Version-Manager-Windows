@@ -99,10 +99,11 @@ if (-not $RootDir -or -not (Test-Path "$RootDir\install.ps1") -or -not (Test-Pat
 # Auto-detect version from jvm.bat if not explicitly passed
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $batContent = Get-Content "$RootDir\jvm.bat" -Raw -ErrorAction SilentlyContinue
-    if ($batContent -match 'set\s+"JVM_VERSION=(.*?)"') {
-        $Version = $matches[1].Trim()
+    if ($batContent -match '(?m)^set\s+("?)JVM_VERSION=([^"\r\n]+)') {
+        $Version = $matches[2].Trim()
     } else {
-        $Version = "1.0.1"
+        Write-Error "Could not detect JVM_VERSION from jvm.bat. Please specify -Version explicitly."
+        exit 1
     }
 }
 

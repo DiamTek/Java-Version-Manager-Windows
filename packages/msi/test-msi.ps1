@@ -54,8 +54,8 @@ try {
 $originalLocation = (Get-Location).Path
 
 try {
-    # Auto-detect expected version and build from local source jvm.bat
-    $expectedVersion = "1.0.1"
+    # Auto-detect expected version and build from local source jvm.bat or target MSI
+    $expectedVersion = $null
     $expectedBuild = ""
 
     $sourceBatCandidates = @(
@@ -67,12 +67,17 @@ try {
 
     if ($sourceBat) {
         $batRaw = Get-Content $sourceBat -Raw -ErrorAction SilentlyContinue
-        if ($batRaw -match 'set\s+"JVM_VERSION=(.*?)"') { $expectedVersion = $matches[1].Trim() }
-        if ($batRaw -match 'set\s+"JVM_BUILD=(.*?)"')   { $expectedBuild = $matches[1].Trim() }
+        if ($batRaw -match '(?m)^set\s+("?)JVM_VERSION=([^"\r\n]+)') { $expectedVersion = $matches[2].Trim() }
+        if ($batRaw -match '(?m)^set\s+("?)JVM_BUILD=([^"\r\n]+)')   { $expectedBuild = $matches[2].Trim() }
     }
 
-    if ($MsiPath -and ($MsiPath -match 'jvm-windows-([0-9]+\.[0-9]+(\.[0-9]+)?)-')) {
+    if ($MsiPath -and ($MsiPath -match 'jvm-windows-([0-9]+\.[0-9]+(\.[0-9]+)?(-[a-zA-Z0-9.]+)?)-')) {
         $expectedVersion = $matches[1]
+    }
+
+    if ([string]::IsNullOrWhiteSpace($expectedVersion)) {
+        Write-Error "Could not automatically resolve expected JVM version from jvm.bat or MSI path. Please specify a valid MSI path."
+        exit 1
     }
 
     # Resolve target MSI package
