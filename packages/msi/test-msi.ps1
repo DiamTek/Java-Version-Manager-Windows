@@ -155,8 +155,8 @@ try {
     # Fallback Tier 4: Fetch remote source repository and compile
     if (-not (Test-Path $MsiPath)) {
         Write-Host "  [  INFO  ] Bootstrapping build from latest repository source..." -ForegroundColor Cyan
-        $zipPath = Join-Path $env:TEMP "jvm-source-temp.zip"
-        $extractDir = Join-Path $env:TEMP "jvm-build-$(Get-Random)"
+        $zipPath = Join-Path $env:TEMP "jvm-source-$([guid]::NewGuid().ToString('N')).zip"
+        $extractDir = Join-Path $env:TEMP "jvm-build-$([guid]::NewGuid().ToString('N'))"
         try {
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
             Invoke-WebRequest -Uri "https://github.com/DiamTek/Java-Version-Manager-Windows/archive/refs/heads/main.zip" -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
@@ -174,6 +174,9 @@ try {
             Write-Host "  [  WARN  ] Remote bootstrap build failed: $shortErr" -ForegroundColor DarkGray
         } finally {
             Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+            if ($extractDir -and (Test-Path $extractDir)) {
+                Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 

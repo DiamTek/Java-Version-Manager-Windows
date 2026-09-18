@@ -21,7 +21,7 @@ Write-Host "Uninstalling JVM via the official uninstall script..."
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $uninstallScript = "$env:LOCALAPPDATA\DiamTek\JVM\uninstall.ps1"
 if (Test-Path $uninstallScript) {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $uninstallScript -Quiet
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$uninstallScript" -Quiet
 } else {
     $script = $null
     try {
@@ -34,6 +34,6 @@ if (Test-Path $uninstallScript) {
         } catch { }
     }
     if ($script) {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $script -Quiet
+        & ([scriptblock]::Create($script)) -Quiet
     }
 }

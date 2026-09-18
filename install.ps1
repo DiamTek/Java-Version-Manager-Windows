@@ -348,8 +348,17 @@ function jvm {
     function Set-JvmVar {
         param([string]$Name, [string]$OldValue, [string]$NewValue)
 
+        $allowedVars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')
+        if ($allowedVars -notcontains $Name) { return }
+
         if ($OldValue) { $OldValue = $OldValue.TrimEnd('\') }
         if ($NewValue) { $NewValue = $NewValue.TrimEnd('\') }
+
+        # Validate NewValue is a genuine directory and contains no injection characters
+        if (-not [string]::IsNullOrWhiteSpace($NewValue)) {
+            if ($NewValue -match '[;&|<>`"\r\n]') { return }
+            if (-not (Test-Path -LiteralPath $NewValue -PathType Container)) { return }
+        }
 
         [Environment]::SetEnvironmentVariable($Name, $NewValue, 'Process')
 
@@ -366,9 +375,11 @@ function jvm {
 
     $sessionFile = "$env:TEMP\.jvm_session_target"
     if (Test-Path $sessionFile) {
-        foreach ($line in (Get-Content $sessionFile)) {
+        $lines = Get-Content $sessionFile -ErrorAction SilentlyContinue
+        Remove-Item $sessionFile -Force -ErrorAction SilentlyContinue
+        foreach ($line in $lines) {
             if ([string]::IsNullOrWhiteSpace($line)) { continue }
-            if ($line -match '^([^=]+)=(.*)$') {
+            if ($line -match '^([A-Za-z0-9_]+)=(.*)$') {
                 $key = $matches[1]
                 $val = $matches[2]
             } else {
@@ -378,7 +389,6 @@ function jvm {
             $old = [Environment]::GetEnvironmentVariable($key, 'Process')
             Set-JvmVar -Name $key -OldValue $old -NewValue $val
         }
-        Remove-Item $sessionFile -Force
     } else {
         foreach ($v in @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')) {
             $old = [Environment]::GetEnvironmentVariable($v, 'Process')

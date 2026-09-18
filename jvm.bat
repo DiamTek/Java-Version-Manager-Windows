@@ -29,7 +29,7 @@ if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
 if exist "%TEMP%\diamtek_uninstall_runner_*.ps1" del "%TEMP%\diamtek_uninstall_runner_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260916.111"
+set "JVM_BUILD=20260918.112"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -557,16 +557,16 @@ if defined CLI_COMMAND (
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
 ) else if exist ".java-version" (
-    for /f "delims=" %%L in ('type ".java-version" 2^>nul ^| findstr /r "[0-9]" ^| findstr /v "[&|<>]"') do (
-        call :ParseJavaVersion %%L
+    for /f "delims=" %%L in ('type ".java-version" 2^>nul ^| findstr /r "[0-9]" ^| findstr /v "[&|<>`%%!;$()^{}]"') do (
+        call :ParseJavaVersion "%%L"
         if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
         set "SILENT_MODE=1"
         set "SKIP_HEADER=1"
     )
 ) else if exist "%INVOCATION_DIR%\.sdkmanrc" (
     set "FOUND_SDKMANRC=1"
-    for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /i "^java=" ^| findstr /v "[&|<>]"') do (
-        call :ParseSdkmanrc %%B
+    for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /i "^java=" ^| findstr /v "[&|<>`%%!;$()^{}]"') do (
+        call :ParseSdkmanrc "%%B"
     )
     if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
     set "SILENT_MODE=1"
@@ -655,7 +655,7 @@ if "!SESSION_MODE!"=="1" (
     )
     
     if "!FOUND_SDKMANRC!"=="1" (
-        for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /i /v "^java=" ^| findstr /v "[&|<>]"') do (
+        for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /i /v "^java=" ^| findstr /v "[&|<>`%%!;$()^{}]"') do (
             set "ECO_CAND=%%A"
             set "ECO_VER=%%B"
             call :ProcessEcosystemSession "!ECO_CAND!" "!ECO_VER!"
@@ -1235,7 +1235,7 @@ if defined CLI_COMMAND (
                 echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
                 set "WORK_DIR=%cd%"
                 set "UAC_ARGS=%ORIGINAL_ARGS%"
-                powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath \"$env:SCRIPT_PATH\" -WorkingDirectory \"$env:WORK_DIR\" -ArgumentList \"--admin-run $env:UAC_ARGS\" -Verb RunAs -WindowStyle Hidden -Wait"
+                powershell -NoProfile -ExecutionPolicy Bypass -Command "$uacArg = '--admin-run ' + $env:UAC_ARGS; Start-Process -FilePath $env:SCRIPT_PATH -WorkingDirectory $env:WORK_DIR -ArgumentList $uacArg -Verb RunAs -WindowStyle Hidden -Wait"
                 
                 if exist "!DEL_PATH!" (
                     echo %cRED%[ ERROR  ]%cRESET% Failed to completely delete directory. 
@@ -2790,7 +2790,7 @@ echo %cBLUE%[  INFO  ]%cRESET% Checking vendor API for updates...
 
 set "UPDATE_RESULT=" & set "LOCAL_VER=" & set "REMOTE_VER="
 
-set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!.ps1"
+set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 (
     echo param^(
     echo     [Parameter^(Mandatory=$true^)][string]$Vendor,
@@ -3290,7 +3290,7 @@ for /f "tokens=2 delims=:" %%A in ('chcp 2^>nul') do set "ORIG_HOOK_CP=%%A"
 chcp 65001 >nul
 
 set "SAFE_TARGET=!SCRIPT_DIR!"
-set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
+set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 (
     echo $targetBat = Join-Path $env:SAFE_TARGET 'jvm.bat'
     echo $hook = @'
@@ -3303,8 +3303,16 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
     echo(    function Set-JvmVar {
     echo(        param^([string]$Name, [string]$OldValue, [string]$NewValue^)
     echo(
+    echo(        $allowedVars = @^('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME'^)
+    echo(        if ^($allowedVars -notcontains $Name^) { return }
+    echo(
     echo(        if ^($OldValue^) { $OldValue = $OldValue.TrimEnd^('\'^) }
     echo(        if ^($NewValue^) { $NewValue = $NewValue.TrimEnd^('\'^) }
+    echo(
+    echo(        if ^(-not [string]::IsNullOrWhiteSpace^($NewValue^)^) {
+    echo(            if ^($NewValue -match '[\x3B\x26\x7C\x3C\x3E\x22\x60\r\n]'^) { return }
+    echo(            if ^(-not ^(Test-Path -LiteralPath $NewValue -PathType Container^)^) { return }
+    echo(        }
     echo(
     echo(        [Environment]::SetEnvironmentVariable^($Name, $NewValue, 'Process'^)
     echo(
@@ -3321,9 +3329,11 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
     echo(
     echo(    $sessionFile = "$env:TEMP\.jvm_session_target"
     echo(    if ^(Test-Path $sessionFile^) {
-    echo(        foreach ^($line in ^(Get-Content $sessionFile^)^) {
+    echo(        $lines = Get-Content $sessionFile -ErrorAction SilentlyContinue
+    echo(        Remove-Item $sessionFile -Force -ErrorAction SilentlyContinue
+    echo(        foreach ^($line in $lines^) {
     echo(            if ^([string]::IsNullOrWhiteSpace^($line^)^) { continue }
-    echo(            if ^($line -match '^^^([^^=]+^)=^(.*^)$'^) {
+    echo(            if ^($line -match '^^^([A-Za-z0-9_]+^)=^(.*^)$'^) {
     echo(                $key = $matches[1]
     echo(                $val = $matches[2]
     echo(            } else {
@@ -3333,7 +3343,6 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!.ps1"
     echo(            $old = [Environment]::GetEnvironmentVariable^($key, 'Process'^)
     echo(            Set-JvmVar -Name $key -OldValue $old -NewValue $val
     echo(        }
-    echo(        Remove-Item $sessionFile -Force
     echo(    } else {
     echo(        foreach ^($v in @^('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME'^)^) {
     echo(            $old = [Environment]::GetEnvironmentVariable^($v, 'Process'^)
@@ -3457,7 +3466,7 @@ rem ============================================================
 :RemovePowerShellHook
 echo %cBLUE%[ ACTION ]%cRESET% Removing JVM wrapper function from PowerShell profiles...
 
-set "REMOVE_PS1=%TEMP%\jvm_remove_hook_!RANDOM!.ps1"
+set "REMOVE_PS1=%TEMP%\jvm_remove_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 (
     echo $userProfile = [Environment]::GetFolderPath^('UserProfile'^)
     echo $myDocs = [Environment]::GetFolderPath^('MyDocuments'^)
@@ -3507,7 +3516,7 @@ rem ============================================================
 echo %cBLUE%[ ACTION ]%cRESET% Checking JVM PowerShell Profile Hook status...
 echo ============================================================
 
-set "STATUS_PS1=%TEMP%\jvm_status_hook_!RANDOM!.ps1"
+set "STATUS_PS1=%TEMP%\jvm_status_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 (
     echo $userProfile = [Environment]::GetFolderPath^('UserProfile'^)
     echo $myDocs = [Environment]::GetFolderPath^('MyDocuments'^)
@@ -3572,7 +3581,7 @@ if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\bin\uninsta
 
 if not defined UNINSTALL_SCRIPT (
     echo %cBLUE%[ ACTION ]%cRESET% Downloading latest uninstall.ps1...
-    set "UNINSTALL_SCRIPT=%TEMP%\jvm_uninstall_!RANDOM!.ps1"
+    set "UNINSTALL_SCRIPT=%TEMP%\jvm_uninstall_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
     powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $f = '!UNINSTALL_SCRIPT!'; try { Invoke-WebRequest -Uri 'https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/uninstall.ps1?ref=HEAD' -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile $f -UseBasicParsing -TimeoutSec 5 } catch { try { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/uninstall.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile $f -UseBasicParsing -TimeoutSec 5 } catch {} }; if (Test-Path $f) { $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'Java Version Manager - Uninstaller') { Remove-Item $f -Force -ErrorAction SilentlyContinue } }"
 )
 
@@ -3589,7 +3598,7 @@ if not exist "!UNINSTALL_SCRIPT!" (
 )
 
 rem Stage uninstaller to %TEMP% so the JVM directory is completely unlocked
-set "RUNNER_PS1=%TEMP%\diamtek_uninstall_runner_!RANDOM!.ps1"
+set "RUNNER_PS1=%TEMP%\diamtek_uninstall_runner_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 copy /y "!UNINSTALL_SCRIPT!" "!RUNNER_PS1!" >nul 2>&1
 
 rem Switch working directory to %TEMP% to release directory lock from cmd.exe
@@ -3943,7 +3952,7 @@ set "DOC_ISSUES=0"
 rem 1. Storage Root & Permissions
 set "DOC_APPDIR=%LOCALAPPDATA%\DiamTek\JVM"
 if exist "!DOC_APPDIR!" (
-    set "DOC_TESTFILE=!DOC_APPDIR!\.health_check_!RANDOM!"
+    set "DOC_TESTFILE=!DOC_APPDIR!\.health_check_!RANDOM!_!RANDOM!"
     copy /y nul "!DOC_TESTFILE!" >nul 2>&1
     if exist "!DOC_TESTFILE!" (
         del "!DOC_TESTFILE!" >nul 2>&1
@@ -4405,7 +4414,7 @@ if "!REMOTE_REF!"=="NONE" set "REMOTE_REF=HEAD"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
 
-set "INSTALL_SCRIPT=%TEMP%\jvm_install_!RANDOM!.ps1"
+set "INSTALL_SCRIPT=%TEMP%\jvm_install_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = '!REMOTE_REF!'; try { Invoke-WebRequest -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/install.ps1?ref=' + $ref) -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile '!INSTALL_SCRIPT!' -UseBasicParsing -TimeoutSec 5 } catch { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/install.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile '!INSTALL_SCRIPT!' -UseBasicParsing -TimeoutSec 5 }"
 
 if not exist "!INSTALL_SCRIPT!" (
@@ -4416,7 +4425,7 @@ if not exist "!INSTALL_SCRIPT!" (
 )
 
 echo %cBLUE%[ ACTION ]%cRESET% Verifying installer cryptographic integrity...
-set "VERIFY_TMP=%TEMP%\jvm_sha_!RANDOM!.txt"
+set "VERIFY_TMP=%TEMP%\jvm_sha_!RANDOM!_!RANDOM!_!RANDOM!.txt"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = '!REMOTE_REF!'; $ch = '!UPDATE_CHANNEL!'; $f = '!INSTALL_SCRIPT!'; if (-not (Test-Path $f)) { Write-Output 'MISSING'; exit }; $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'rem END OF SCRIPT|# Java Version Manager') { Write-Output 'TRUNCATED'; exit }; $s = [System.Security.Cryptography.SHA256]::Create(); $fs = [System.IO.File]::OpenRead($f); $actual = try { ([System.BitConverter]::ToString($s.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $s.Dispose() }; if ($ch -eq 'STABLE' -and $ref -match '^v?[0-9]') { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt') -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if (-not $shaTxt) { try { $relJson = (Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/' + $ref) -UserAgent 'DiamTek-JVM'); $asset = $relJson.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1; if ($asset) { $shaTxt = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } } catch {} }; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NO_ENTRY|' + $actual) } } else { Write-Output ('NO_SHA_FILE|' + $actual) } } else { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/SHA256SUMS.txt?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } }" > "!VERIFY_TMP!" 2>nul
 
 set "SHA_STATUS=UNKNOWN"
@@ -4495,7 +4504,7 @@ if "!UPDATE_CHANNEL!"=="STABLE" (
 )
 
 echo %cBLUE%[ ACTION ]%cRESET% Preparing update handoff engine...
-set "UPDATER_BAT=%TEMP%\jvm_updater_!RANDOM!.bat"
+set "UPDATER_BAT=%TEMP%\jvm_updater_!RANDOM!_!RANDOM!_!RANDOM!.bat"
 (
     echo @echo off
     echo for /F "delims=#" %%%%a in ^('"prompt #$E# ^& echo on ^& for %%%%b in ^(1^) do rem"'^) do set "ESC=%%%%a"
@@ -4542,7 +4551,7 @@ if defined UPDATE_CHANNEL_OVERRIDE (
     )
 )
 set "PS_SCRIPT=$ProgressPreference = 'SilentlyContinue'; $localVer = [version]'!JVM_VERSION!'; $localBld = [version]'!JVM_BUILD!'; $channel = '!UPDATE_CHANNEL!'; if ($channel -eq 'STABLE') { $data = $null; $tagName = $null; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/latest'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $data = $raw | ConvertFrom-Json; if ($data -and $data.tag_name) { $tagName = [string]$data.tag_name; } } catch { try { $req = [Net.HttpWebRequest]::Create('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'DiamTek-JVM'; $req.Timeout = 3000; $res = $req.GetResponse(); $loc = $res.Headers['Location']; $res.Close(); if ($loc -match '/releases/tag/(.+)$') { $tagName = $matches[1]; } } catch [Net.WebException] { $resp = $_.Exception.Response; if ($resp -and ($resp.StatusCode -eq [Net.HttpStatusCode]::NotFound)) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; } } catch {} }; if (-not $tagName) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; }; $tagVerStr = $null; if ($tagName -match '^v?([0-9]+(\.[0-9]+)+)') { $tagVerStr = $matches[1]; } elseif ($tagName -match '^v?([0-9]+)') { $tagVerStr = $matches[1] + '.0'; }; if (-not $tagVerStr) { Write-Output ($tagName + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; try { $remoteVer = [version]$tagVerStr; } catch { Write-Output ($tagVerStr + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; $remBuild = $null; $remBldStr = 'N/A'; try { $rawUrl = 'https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $tagName + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks; $req = [Net.HttpWebRequest]::Create($rawUrl); $req.Timeout = 3000; $req.UserAgent = 'DiamTek-JVM'; $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $c = $sr.ReadToEnd(); $sr.Close(); $res.Close(); if ($c -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBuild = [version]$matches[1]; $remBldStr = $matches[1]; } } catch {}; if ($remoteVer -gt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remoteVer -lt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { if ($remBuild) { if ($remBuild -gt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remBuild -lt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } } else { $commitSha = 'main'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $cData = $raw | ConvertFrom-Json; if ($cData -and $cData.sha) { $commitSha = $cData.sha.Substring(0, 7); } } catch { $commitSha = 'main'; }; $content = $null; try { $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 4000; $req.UserAgent = 'DiamTek-JVM'; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $res.Close(); } catch { try { $apiReq = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=main'); $apiReq.Method = 'GET'; $apiReq.Timeout = 4000; $apiReq.UserAgent = 'DiamTek-JVM'; $apiReq.Accept = 'application/vnd.github.v3.raw'; $apiReq.Headers.Add('Cache-Control', 'no-cache'); $apiReq.Headers.Add('Pragma', 'no-cache'); $apiRes = $apiReq.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); } catch {} }; if (-not $content) { Write-Output 'UNKNOWN|UNKNOWN|ERROR|main'; exit; }; $remVerStr = '1.0.1'; $remBldStr = 'UNKNOWN'; if ($content -match 'set \x22JVM_VERSION=(.*?)\x22') { $remVerStr = $matches[1]; }; if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBldStr = $matches[1]; }; try { $remoteVer = [version]$remVerStr; $remoteBld = [version]$remBldStr; if ($remoteVer -gt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteVer -lt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { if ($remoteBld -gt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteBld -lt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { Write-Output ($remVerStr + '|' + $remBldStr + '|OK|' + $commitSha); } } } catch { Write-Output ($remVerStr + '|' + $remBldStr + '|INVALID_REMOTE|' + $commitSha); } }
-set "REMOTE_TMP=%TEMP%\jvm_remote_build_!RANDOM!.txt"
+set "REMOTE_TMP=%TEMP%\jvm_remote_build_!RANDOM!_!RANDOM!_!RANDOM!.txt"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "!REMOTE_TMP!" 2>nul
 set "REMOTE_VER=UNKNOWN"
 set "REMOTE_BUILD=UNKNOWN"
@@ -4565,6 +4574,8 @@ rem ============================================================
 :ParseJavaVersion
 if "%~1"=="" exit /b 0
 set "CLI_TARGET=%~1"
+set "CLI_TARGET=!CLI_TARGET:"=!"
+set "CLI_TARGET=!CLI_TARGET:;=!"
 shift
 :PARSE_JV_LOOP
 if "%~1"=="" exit /b 0
@@ -4597,7 +4608,10 @@ rem Hijack SDKMAN configuration file
 rem ============================================================
 :ParseSdkmanrc
 if "%~1"=="" exit /b 0
-for /f "tokens=1,2 delims=-" %%V in ("%~1") do (
+set "RAW_SDK_VER=%~1"
+set "RAW_SDK_VER=!RAW_SDK_VER:"=!"
+set "RAW_SDK_VER=!RAW_SDK_VER:;=!"
+for /f "tokens=1,2 delims=-" %%V in ("!RAW_SDK_VER!") do (
     for /f "tokens=1 delims=." %%M in ("%%V") do set "CLI_TARGET=%%M"
     if /i "%%W"=="tem" set "CLI_VENDOR=Adoptium"
     if /i "%%W"=="amzn" set "CLI_VENDOR=Corretto"
@@ -4645,6 +4659,8 @@ echo %cRED%[ ERROR  ]%cRESET% Unknown command for !TARGET_CANDIDATE!
 exit /b 1
 
 :GetCandidateEnvVar
+set "CANDIDATE_ENV_VAR="
+set "CANDIDATE_PROPER_NAME="
 if /i "!TARGET_CANDIDATE!"=="maven" ( set "CANDIDATE_ENV_VAR=MAVEN_HOME" & set "CANDIDATE_PROPER_NAME=Maven" )
 if /i "!TARGET_CANDIDATE!"=="gradle" ( set "CANDIDATE_ENV_VAR=GRADLE_HOME" & set "CANDIDATE_PROPER_NAME=Gradle" )
 if /i "!TARGET_CANDIDATE!"=="kotlin" ( set "CANDIDATE_ENV_VAR=KOTLIN_HOME" & set "CANDIDATE_PROPER_NAME=Kotlin" )
@@ -4937,15 +4953,20 @@ exit /b 0
 
 :ProcessEcosystemSession
 set "TARGET_CANDIDATE=%~1"
+set "TARGET_CANDIDATE=!TARGET_CANDIDATE:"=!"
+set "TARGET_CANDIDATE=!TARGET_CANDIDATE:;=!"
+set "TARGET_VER=%~2"
+set "TARGET_VER=!TARGET_VER:"=!"
+set "TARGET_VER=!TARGET_VER:;=!"
 call :GetCandidateEnvVar
 if not defined CANDIDATE_ENV_VAR exit /b 0
 
-set "T_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\%~2"
+set "T_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\!TARGET_VER!"
 if not exist "!T_PATH!" (
-    echo %cYELLOW%[ WARNING]%cRESET% !CANDIDATE_PROPER_NAME! %~2 is not installed.
+    echo %cYELLOW%[ WARNING]%cRESET% !CANDIDATE_PROPER_NAME! !TARGET_VER! is not installed.
     exit /b 0
 )
-echo %cBLUE%[ ACTION ]%cRESET% Setting !CANDIDATE_PROPER_NAME! to %~2...
+echo %cBLUE%[ ACTION ]%cRESET% Setting !CANDIDATE_PROPER_NAME! to !TARGET_VER!...
 >>"%TEMP%\.jvm_session_target" echo !CANDIDATE_ENV_VAR!=!T_PATH!
 set "!CANDIDATE_ENV_VAR!=!T_PATH!"
 set "PATH=!T_PATH!\bin;!PATH!"
@@ -4994,7 +5015,7 @@ rem ============================================================
 rem Universal Downloader & Extractor (PowerShell)
 rem ============================================================
 :ExecuteSharedDownloader
-set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!.ps1"
+set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 (
     echo $ErrorActionPreference = 'Stop'
     echo $ProgressPreference = 'SilentlyContinue'
