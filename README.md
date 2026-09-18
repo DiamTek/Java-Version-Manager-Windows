@@ -55,9 +55,20 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-M
 *Tip: You can switch between channels at any time after installation via `jvm channel [stable|nightly]` or via Option 4 in the interactive Settings menu (`jvm` -> `Settings`).*
 
 ### Or via your favorite Package Manager:
+
+**Winget**
 ```powershell
 winget install DiamTek.JVM
+```
+
+**Scoop (Official Bucket)**
+```powershell
+scoop bucket add diamtek https://github.com/DiamTek/scoop-bucket
 scoop install jvm
+```
+
+**Chocolatey**
+```powershell
 choco install jvm-windows
 ```
 *Or grab the standalone MSI installers (`x64` / `arm64`), portable `.zip`, or raw `jvm.bat` directly from [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases).*

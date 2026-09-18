@@ -127,8 +127,9 @@ If you download `install.ps1` or download the repository `.zip` to install local
 winget install DiamTek.JVM
 ```
 
-### Scoop
+### Scoop (Official Bucket)
 ```powershell
+scoop bucket add diamtek https://github.com/DiamTek/scoop-bucket
 scoop install jvm
 ```
 
