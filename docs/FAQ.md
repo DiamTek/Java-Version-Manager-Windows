@@ -45,6 +45,12 @@
 - [How do I automatically switch Java versions when navigating into a project directory? (cd auto-switching)](#how-do-i-automatically-switch-java-versions-when-navigating-into-a-project-directory-cd-auto-switching)
 - [Which JDK vendors are supported, and how do BellSoft Liberica and IBM Semeru differ?](#which-jdk-vendors-are-supported-and-how-do-bellsoft-liberica-and-ibm-semeru-differ)
 - [How do update channels work, and how do I switch between Stable and Nightly?](#how-do-update-channels-work-and-how-do-i-switch-between-stable-and-nightly)
+- [How does JVM handle corporate proxies and NTLM/Kerberos authentication?](#how-does-jvm-handle-corporate-proxies-and-ntlmkerberos-authentication)
+- [Is JVM compatible with PowerShell Constrained Language Mode (CLM) and AppLocker/WDAC?](#is-jvm-compatible-with-powershell-constrained-language-mode-clm-and-applockerwdac)
+- [How does JVM switch Java versions without administrative privileges or symlink permissions?](#how-does-jvm-switch-java-versions-without-administrative-privileges-or-symlink-permissions)
+- [How does JVM protect my system PATH and environment variables from corruption?](#how-does-jvm-protect-my-system-path-and-environment-variables-from-corruption)
+- [What happens during uninstallation? Are my installed JDKs deleted?](#what-happens-during-uninstallation-are-my-installed-jdks-deleted)
+- [How can I run the automated security test suite locally?](#how-can-i-run-the-automated-security-test-suite-locally)
 
 ---
 
@@ -796,6 +802,271 @@ When you run `jvm self-update` (or check for updates in `jvm version` / **Settin
 5. **Atomic Handoff**:
    - The running `jvm.bat` spawns an isolated handoff runner in `%TEMP%` and exits immediately, releasing all Windows file locks so the core engine can be updated cleanly and atomically.
    - All installed JDKs, toolchains, custom symlinks, and settings are 100% preserved.
+
+---
+
+<a id="how-does-jvm-handle-corporate-proxies-and-ntlmkerberos-authentication"></a>
+### How does JVM handle corporate proxies and NTLM/Kerberos authentication?
+In enterprise and corporate network environments, developer workstations frequently access the internet through corporate forward proxies (e.g., Blue Coat, Cisco Umbrella, Squid, Zscaler, Palo Alto Networks, Netskope) requiring Single Sign-On (SSO) authentication using Windows Active Directory domain credentials (NTLM or Kerberos).
+
+DiamTek JVM's networking architecture is engineered natively for Windows and provides automated, zero-configuration proxy traversal:
+
+#### 1. Automatic WinINet & WPAD/PAC Proxy Detection
+JVM leverages Windows `.NET` networking APIs (`[System.Net.WebRequest]`), which automatically read and inherit your system proxy configuration from WinINet (configured under **Windows Settings → Network & Internet → Proxy**). Whether your corporate proxy is configured via Web Proxy Auto-Discovery (WPAD), a static proxy IP/port, or an automatic proxy configuration script (`proxy.pac`), JVM routes all outbound HTTPS queries (such as checking GitHub releases, Adoptium APIs, or vendor archives) through the corporate proxy without requiring manual command-line arguments.
+
+#### 2. Native Windows Domain Single Sign-On (NTLM / Kerberos)
+Unlike cross-platform tools that prompt for raw username/password combinations or fail with `HTTP 407 Proxy Authentication Required`, JVM's installation pipeline automatically binds Windows session credentials:
+- In PowerShell 5.1 and modern PowerShell 7+ environments, `install.ps1` binds the caller's Active Directory security token to the proxy handler:
+  ```powershell
+  if ([System.Net.WebRequest]::DefaultWebProxy) {
+      [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+  }
+  if ($PSVersionTable.PSVersion.Major -ge 6) {
+      $PSDefaultParameterValues['Invoke-WebRequest:ProxyUseDefaultCredentials'] = $true
+      $PSDefaultParameterValues['Invoke-RestMethod:ProxyUseDefaultCredentials'] = $true
+  }
+  ```
+- All HTTPS requests automatically negotiate NTLM or Kerberos handshakes against the proxy gateway using the logged-in user's Windows security context—meaning zero credential popups and zero plaintext passwords saved to disk.
+
+#### 3. Standard POSIX & Win32 Proxy Environment Overrides
+For environments where custom proxy tunnels or external proxy addresses are mandated, JVM fully respects standard proxy environment variables defined in your Command Prompt or PowerShell session:
+```cmd
+:: Standard HTTP/HTTPS Proxies
+set HTTP_PROXY=http://proxy.company.internal:8080
+set HTTPS_PROXY=http://proxy.company.internal:8080
+
+:: Proxy Bypass Rules (Local / Intranet destinations)
+set NO_PROXY=localhost,127.0.0.1,*.company.internal
+
+:: Authenticated Proxies (with URL-encoded domain/user)
+set HTTPS_PROXY=http://CORP%5Cjsmith:MySecretPassword@proxy.company.internal:8080
+```
+In PowerShell:
+```powershell
+$env:HTTP_PROXY  = "http://proxy.company.internal:8080"
+$env:HTTPS_PROXY = "http://proxy.company.internal:8080"
+$env:NO_PROXY    = "localhost,127.0.0.1,*.company.internal"
+```
+
+#### 4. Enterprise Root SSL Inspection (MITM CAs)
+Many corporate firewalls perform Deep Packet Inspection (DPI) or SSL decryption using internal enterprise Certificate Authorities (CAs). Unix-based tools often fail with `PKIX path building failed` errors because they maintain isolated CA truststores (e.g., `/etc/ssl/certs` or Java `cacerts`).
+
+Because DiamTek JVM validates TLS certificates against the native **Windows Trusted Root Certification Authorities** store:
+- Any corporate root certificate distributed by Active Directory Group Policy (GPO) or Microsoft Intune is trusted automatically.
+- No manual PEM exports or `keytool -importcert` commands are required to download JDKs or update JVM.
+
+---
+
+<a id="is-jvm-compatible-with-powershell-constrained-language-mode-clm-and-applockerwdac"></a>
+### Is JVM compatible with PowerShell Constrained Language Mode (CLM) and AppLocker/WDAC?
+Yes! Many high-security corporate enterprises, financial institutions, and regulated environments enforce **Windows Defender Application Control (WDAC)** or **AppLocker** in allowlist mode, which automatically forces PowerShell sessions into **Constrained Language Mode (CLM)** (`$ExecutionContext.SessionState.LanguageMode = 'ConstrainedLanguage'`).
+
+In CLM, arbitrary .NET types, reflection, and static method calls are blocked to prevent malicious in-memory code execution. Traditional developer tools that rely on calls like `[Environment]::SetEnvironmentVariable(...)` fail immediately with `CannotInvokeMethodInConstrainedLanguage` exceptions.
+
+DiamTek JVM was explicitly designed and tested to thrive in CLM-enforced environments:
+
+#### 1. CLM Detection & Graceful Fallback in `install.ps1`
+The installation script queries the active session language mode before attempting .NET configuration:
+```powershell
+$isFullLanguage = ($ExecutionContext.SessionState.LanguageMode -eq 'FullLanguage')
+if ($isFullLanguage) {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072 -bor 12288
+    } catch { }
+}
+```
+If CLM is active, the installer avoids calling restricted .NET static methods and relies on native, allowed PowerShell cmdlets and providers.
+
+#### 2. Fully CLM-Compliant Profile Hook (`Set-JvmVar`)
+The dynamic PowerShell `$PROFILE` wrapper (`Set-JvmVar`) does not invoke prohibited .NET reflection or static class methods. Instead, it interacts directly with PowerShell's native **Environment Provider** (`env:` drive) and registry cmdlets:
+```powershell
+# CLM-compliant process environment injection (allowed under WDAC / AppLocker)
+Set-Item -Path "env:$Name" -Value $NewValue -Force
+
+# Read environment variables using native provider cmdlets
+$old = (Get-Item -Path "env:$key" -ErrorAction SilentlyContinue).Value
+$new = (Get-ItemProperty -Path 'HKCU:\Environment' -Name $v -ErrorAction SilentlyContinue).$v
+```
+This enables seamless, real-time `JAVA_HOME` and session `PATH` synchronization inside locked-down corporate PowerShell terminals without violating CLM policies.
+
+#### 3. Core Engine Runs Outside PowerShell (`cmd.exe`)
+The primary CLI and version-switching engine (`jvm.bat`) is written in native Windows Command Prompt batch script (`cmd.exe`). Because `cmd.exe` does not host the PowerShell runtime, `jvm` CLI execution is completely decoupled from PowerShell execution policies (`Restricted`, `RemoteSigned`, `AllSigned`) and PowerShell language constraints.
+
+#### 4. AppLocker & WDAC Binary Allowlisting
+If your enterprise prohibits running `.bat` scripts or user-space binaries from `%LOCALAPPDATA%`:
+- **Native MSI Deployment**: Enterprise administrators can deploy the official, signed Windows Installer (`jvm-windows-*.msi`) silently via Microsoft Intune or MECM. MSI installations can be whitelisted by Product Code (`HKCU\Software\DiamTek\JVM`) or executable path rules.
+- **Sigstore SLSA Build Provenance**: All release artifacts are cryptographically attested using GitHub's Sigstore OIDC infrastructure (`actions/attest-build-provenance`). SecOps teams can verify the immutable SLSA v1 provenance with `gh attestation verify` to guarantee zero supply chain tampering before approving JVM in enterprise software catalogs.
+
+---
+
+<a id="how-does-jvm-switch-java-versions-without-administrative-privileges-or-symlink-permissions"></a>
+### How does JVM switch Java versions without administrative privileges or symlink permissions?
+In Windows, creating standard file or directory symbolic links (`mklink /D`) requires the elevated Windows user privilege **`SeCreateSymbolicLinkPrivilege`**. By default, Windows restricts this privilege strictly to local Administrators (triggering a UAC elevation prompt) or requires enabling Windows 10/11 "Developer Mode" globally across the operating system—an option strictly forbidden by corporate security policies on managed endpoints.
+
+DiamTek JVM resolves this fundamental Windows limitation through its **NTFS Directory Junction Architecture**:
+
+#### 1. NTFS Directory Junctions (`mklink /J`) vs Symbolic Links (`mklink /D`)
+| Capability / Characteristic | NTFS Directory Junction (`mklink /J`) | Symbolic Link (`mklink /D`) |
+|:---|:---:|:---:|
+| **Administrator (UAC) Required?** | ❌ **No (0 UAC Prompts)** | ⚠️ Yes (Unless Developer Mode is active) |
+| **`SeCreateSymbolicLinkPrivilege` Needed?** | ❌ **No** | ⚠️ Yes |
+| **Developer Mode Required?** | ❌ **No** | ⚠️ Yes |
+| **Standard User Space Operation?** | ✅ **Full Support (`%LOCALAPPDATA%`)** | ❌ Restricted |
+| **Windows Kernel Reparse Point Tag** | `IO_REPARSE_TAG_MOUNT_POINT` | `IO_REPARSE_TAG_SYMLINK` |
+| **Cross-Process Live Synchronization** | ✅ **Instant across all shells** | ✅ Instant across all shells |
+
+Under NTFS, a **Directory Junction** is an unprivileged soft mount point. Any standard user who possesses write permissions to a local folder (such as `%LOCALAPPDATA%\DiamTek\JVM`) can create, point, and delete directory junctions without administrative credentials.
+
+#### 2. The Static Gateway Architecture
+When DiamTek JVM is installed:
+1. It injects a single, static directory into your User `PATH`:
+   ```text
+   %LOCALAPPDATA%\DiamTek\JVM\current\bin
+   ```
+2. The folder `%LOCALAPPDATA%\DiamTek\JVM\current` is created as an NTFS Directory Junction pointing to your active JDK installation directory (for example, `C:\Program Files\Java\jdk-21` or `%USERPROFILE%\.jdks\corretto-21`).
+
+#### 3. Atomic, Zero-Privilege Version Switching
+When you execute `jvm 17` or choose JDK 17 in the interactive menu:
+1. JVM unbinds the existing junction:
+   ```cmd
+   rmdir "%LOCALAPPDATA%\DiamTek\JVM\current"
+   ```
+2. It immediately re-links the junction to the target JDK:
+   ```cmd
+   mklink /J "%LOCALAPPDATA%\DiamTek\JVM\current" "C:\Program Files\Java\jdk-17"
+   ```
+3. The NTFS filesystem driver updates the reparse target in milliseconds in user space.
+4. Because the directory junction is resolved dynamically at path lookup time by the Windows NT kernel, **every terminal window, IDE, and build process immediately resolves `java.exe` to JDK 17** without modifying your system `PATH` or prompting for UAC elevation.
+
+---
+
+<a id="how-does-jvm-protect-my-system-path-and-environment-variables-from-corruption"></a>
+### How does JVM protect my system PATH and environment variables from corruption?
+Environment variable corruption is one of the most common and damaging issues encountered on Windows developer machines. Careless installer scripts or tools often truncate the `PATH` string, strip unexpanded system variable tokens, or induce terminal deadlocks.
+
+DiamTek JVM incorporates a multi-layer defense engine to guarantee absolute environment integrity:
+
+#### 1. Preservation of `REG_EXPAND_SZ` Variable Expansion
+A frequent failure mode in Windows tools (including legacy batch scripts and older PowerShell scripts) occurs when reading and writing the `Path` registry value. If written as a plain string (`REG_SZ`), dynamic variable references such as `%SystemRoot%`, `%USERPROFILE%`, `%LOCALAPPDATA%`, or `%ProgramData%` are converted into unexpandable literal text or expanded into hardcoded static paths.
+
+DiamTek JVM protects registry expansion types:
+- In `install.ps1`, `uninstall.ps1`, and `jvm.bat`, JVM inspects the exact registry value kind using `Microsoft.Win32.RegistryKey.GetValueKind('Path')`.
+- It enforces `[Microsoft.Win32.RegistryValueKind]::ExpandString` (`REG_EXPAND_SZ`) across both User (`HKCU\Environment`) and Machine (`HKLM\...\Environment`) scopes.
+- Unexpanded environment tokens are preserved byte-for-byte, ensuring system paths never collapse into static strings.
+
+#### 2. Combined PATH 8,191-Character Boundary Guards & 2,048-Character Warnings
+Windows Command Prompt and the Windows environment subsystem enforce an absolute hard ceiling of **8,191 characters** for command lines and environment variables. If an installer appends entries to a system whose PATH is near the limit, Windows silently corrupts or truncates the environment block, breaking essential operating system utilities:
+- **Combined Length Calculation**: JVM queries both User `PATH` and System `PATH` to calculate the total combined character length (`Machine PATH + User PATH + JVM entry`).
+- **Hard 8,191-Character Abort**: If the combined length would exceed 8,191 characters, JVM **aborts the modification immediately** with an error message, refusing to corrupt the environment block:
+  ```text
+  [ ERROR  ] Combined PATH length (8245 chars) exceeds Windows 8191-character limit!
+             System PATH (6120 chars) + User PATH (2125 chars).
+             Modification aborted to prevent environment block corruption.
+  ```
+- **Proactive 2,048-Character Warning**: If the combined length exceeds 2,048 characters, JVM emits an actionable warning alerting the user that legacy 32-bit Win32 applications may truncate the path.
+
+#### 3. Automatic Elimination of Phantom Oracle `javapath` Entries
+Legacy Oracle JRE/JDK installers notoriously inject shortcut directories into the front of the System `PATH` (`C:\Program Files\Common Files\Oracle\Java\javapath` or `C:\ProgramData\Oracle\Java\javapath`). Because Windows evaluates System paths before User paths, these rogue shortcuts cause **PATH Shadowing**, intercepting `java.exe` calls regardless of which JDK you switch to.
+
+Running `jvm clear` automatically identifies and purges these phantom Oracle paths from both User and Machine registries while preserving all legitimate developer directories (`C:\Windows\System32`, `C:\Utils`).
+
+#### 4. Deduplication & Path Normalization Hygiene
+Whenever JVM modifies the `Path` variable:
+- It strips redundant surrounding quotes (`"` and `'`).
+- It normalizes forward slashes (`/`) and backslashes (`\`).
+- It strips trailing slashes to prevent duplicate path representations (e.g., `C:\bin\` and `C:\bin`).
+- It filters out empty segments (`;;`) and deduplicates existing path entries.
+
+#### 5. Non-Blocking `SendMessageTimeout` Environment Broadcasts
+When environment variables are updated in the Windows Registry, the system broadcasts a `WM_SETTINGCHANGE` notification to all top-level desktop windows. If an application is hanging, modal, or deadlocked, a traditional `SendMessage` call hangs indefinitely, freezing the installer or terminal.
+
+JVM uses native P/Invoke calls to `SendMessageTimeout` (`HWND_BROADCAST = 0xFFFF`, `WM_SETTINGCHANGE = 0x001A`, `SMTO_ABORTIFHUNG = 0x0002`) with a strict **3000ms - 5000ms timeout window**. If any background window fails to acknowledge the message within the timeout, the broadcast safely aborts without hanging the terminal.
+
+#### 6. Automated Timestamped Registry Backups
+Before making any destructive modifications (such as running `jvm clear`), JVM automatically exports timestamped `.reg` backup files of both User and Machine environment hives to `%LOCALAPPDATA%\DiamTek\JVM\backups\`:
+- Machine snapshot: `sys_env_<date>_<time>.reg`
+- User snapshot: `usr_env_<date>_<time>.reg`
+Restoration can be performed instantly via `reg import` or by double-clicking the backup file in Windows File Explorer.
+
+---
+
+<a id="what-happens-during-uninstallation-are-my-installed-jdks-deleted"></a>
+### What happens during uninstallation? Are my installed JDKs deleted?
+**No. By default, your installed JDKs are NOT deleted during uninstallation.**
+
+DiamTek JVM treats your Java runtimes as valuable developer assets. Whether you have 200 MB or 15 GB of JDK distributions installed across multiple vendors (Oracle, Adoptium Temurin, Amazon Corretto, Azul Zulu, BellSoft Liberica, Microsoft Build, IBM Semeru), uninstalling JVM does not destroy them.
+
+Here is a detailed breakdown of uninstallation behavior and safety mechanisms:
+
+#### 1. Explicit Interactive Confirmation for JDK Directories
+When running `uninstall.ps1` or `jvm self-uninstall` interactively:
+1. JVM scrubs all JVM-specific files: `%LOCALAPPDATA%\DiamTek\JVM`, candidate build tool caches (`~/.jvm`), PowerShell profile hooks (`Set-JvmVar`), Windows Terminal profiles, Start Menu shortcuts, and Windows Registry keys.
+2. If the default JDK directory (`C:\Program Files\Java`) exists, the uninstaller explicitly pauses and prompts:
+   ```text
+   Do you also want to delete the Java installations directory? (C:\Program Files\Java) (y/N)
+   ```
+3. The prompt defaults to **No (`N`)**. Unless you explicitly type `y` or `yes`, `C:\Program Files\Java` and all installed JDK runtimes are left 100% intact on disk.
+
+#### 2. Non-Destructive Silent Uninstallation (`-Quiet` / MSI `/qn`)
+If you uninstall silently (e.g., via Chocolatey `choco uninstall jvm-windows`, Winget `winget uninstall DiamTek.JVM`, or Intune/MECM `msiexec /x ... /qn`):
+- The `DeleteJava` switch defaults to **`$false`**.
+- Installed JDK runtimes are **never deleted** in silent or unattended mode.
+- Custom JDK installations registered with `jvm link` (such as `%USERPROFILE%\.jdks` or `C:\Java`) remain completely untouched.
+
+#### 3. Non-Destructive Directory Junction Unbinding (`Remove-DirectorySafely`)
+In Windows PowerShell 5.1, the native `Remove-Item -Recurse` cmdlet contains a critical flaw: when deleting a folder containing NTFS Directory Junctions or Reparse Points, it traverses into the target directories and deletes the target files instead of merely unbinding the link!
+
+DiamTek JVM mitigates this hazard via its dedicated `Remove-DirectorySafely` engine:
+- Before any JVM state or link folder is deleted, `Remove-DirectorySafely` audits all directory junctions.
+- It unbinds each junction from the bottom up using `[System.IO.Directory]::Delete($_.FullName, $false)` and native `cmd.exe /c rmdir /q`.
+- Only after all junction pointers are cleanly detached is the parent container removed. Your underlying target JDK runtimes and canary files remain completely untouched.
+
+#### 4. Active Repository & System Root Protection Rails
+To prevent catastrophic accidental deletions from misconfigured paths:
+- **Filesystem Root Guard**: The uninstaller strictly refuses to delete protected filesystem roots (`C:\`, `%SystemRoot%`, `%ProgramFiles%`, `%ProgramFiles(x86)%`, `%USERPROFILE%`).
+- **Active Development Repository Guard**: If a target directory contains a `.git` folder (such as when a developer clones and tests JVM from source), the uninstaller detects the active Git repository and refuses to delete it.
+- **Marker Verification**: The uninstaller verifies that the target folder contains legitimate JVM installation markers (`jvm.bat`, `uninstall.ps1`) before deleting any standalone folder outside AppData.
+
+---
+
+<a id="how-can-i-run-the-automated-security-test-suite-locally"></a>
+### How can I run the automated security test suite locally?
+DiamTek JVM includes an enterprise-grade automated security and adversarial fuzzing test suite located at `tests/Test-JvmSecurity.ps1`. This suite validates all defensive boundaries, input sanitization routines, reparse point operations, and manifest schemas against real adversarial payloads.
+
+#### 1. Running the Test Suite
+The security test suite can be run from either modern PowerShell 7+ (`pwsh`) or native Windows PowerShell 5.1:
+
+```powershell
+# Run using modern PowerShell 7+ (Recommended):
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1
+
+# Or run using native Windows PowerShell 5.1:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1
+
+# Run with verbose diagnostic outputs and test millisecond durations:
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1 -Detailed
+```
+
+#### 2. What the 55 Automated Tests Cover
+The test suite executes **55 automated test cases across 8 defensive suites**, achieving a 100% pass rate:
+
+| Suite | Focus Area | Tests | Key Adversarial & Security Vectors Verified |
+|:---|:---|:---:|:---|
+| **Suite 1** | **Adversarial Inputs & Fuzzing Defense** | **30** | Path traversal (`..`, `/`, `\`), single-dot aliases (`.`), reserved keyword `current`, command injection in `.java-version`/`.sdkmanrc`, branch traversal in `install.ps1`, profile hook regex injection filters, Win32 trailing dot/space bypasses (`current.`, `current `), legacy DOS 8.3 device names (`CON`, `PRN`, `AUX`, `NUL`), poison characters (`&`, `|`, `<`, `>`, `^`, `%`, `!`), Alternate Data Streams (`:`), candidate traversal in `which`, leading hyphens (`--evil-flag`), multiple trailing dots/spaces, semicolon chaining, and wildcards (`*`, `?`). |
+| **Suite 2** | **Registry & Environment Variable Boundaries** | **5** | User PATH `REG_EXPAND_SZ` preservation during setup, Base64 UTF-16LE elevation payload generation without temporary files, elevation path resolution immunity to SystemRoot environment saturation, Oracle `javapath` de-bloating, and extreme PATH lengths (>2048 chars). |
+| **Suite 3** | **Reparse Point & Junction Non-Destructive Lifecycle** | **3** | Junction unbinding canary protection (verifying target JDK and canary files are not deleted when junctions are unbound), bracket-safe reparse querying with `-LiteralPath` and `$env:QUERY_PATH`, and active dev repository `.git` guards. |
+| **Suite 4** | **Package Manager Manifest Integrity & Dry-Run** | **5** | Cross-package version parity (validating version sync across `jvm.bat`, Scoop, Chocolatey, and Winget), nuspec XML schema & UTF-8 No BOM validation, Scoop manifest schema, Winget multi-manifest coherence, and `bump-version.ps1 -DryRun` working tree immutability. |
+| **Suite 5** | **Concurrency & Reparse Point Resilience** | **2** | Broken/dangling junction auto-recovery without deadlock and rapid sequential junction switching without lock corruption. |
+| **Suite 6** | **Corrupt Registry Recovery & PATH Resilience** | **3** | `REG_SZ` vs `REG_EXPAND_SZ` type enforcement, non-blocking `SendMessageTimeout` broadcast execution under timeout constraints, and `Set-JvmVar` storage boundary enforcement. |
+| **Suite 7** | **Uninstallation Safety & Marker Verification** | **3** | `Remove-DirectorySafely` target canary retention, refusal of uninstaller execution on directories lacking JVM markers, and protected system root deletion blocking. |
+| **Suite 8** | **Windows Terminal JSONC Configuration Parsing** | **4** | Multi-line `/* ... */` comment stripping, single-line `//` comment stripping, trailing comma elimination before closing braces/brackets, and graceful silent fallback on corrupted JSON. |
+
+#### 3. Complete Sandbox Isolation Guarantee
+The security test suite is 100% non-destructive and safe to run on any development or production workstation:
+- **Ephemeral Sandbox**: Each test run generates a unique sandbox folder in `%TEMP%\jvm_sec_test_<guid>`.
+- **Zero Real Registry Impact**: Registry tests utilize temporary test keys (`TestJvmPath`, `JVM_REG_TYPE_TEST`) or mock environment variables, leaving your actual `PATH` and `JAVA_HOME` untouched.
+- **Sentinel Canary Verification**: Filesystem tests create fake JDK trees with canary sentinel files (`CRITICAL_SENTINEL_DO_NOT_DELETE`) to verify that junction unbinding never leaks into target directories.
+- **Guaranteed Cleanup**: A global `finally` block unbinds all created junctions and wipes the sandbox directory upon test completion.
 
 ---
 

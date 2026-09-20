@@ -59,7 +59,7 @@ if (Test-Path $nuspecPath) {
 $chocoInstall = Join-Path $ScriptDir "tools\chocolateyInstall.ps1"
 if (Test-Path $chocoInstall) {
     $content = [System.IO.File]::ReadAllText($chocoInstall, $utf8NoBom)
-    $updated = $content -replace '/v[0-9a-zA-Z.-]+/install\.ps1', "/v$Version/install.ps1"
+    $updated = [regex]::Replace($content, "(?m)^(\`$packageVersion\s*=\s*')[^']*(')", "`${1}$Version`${2}")
     [System.IO.File]::WriteAllText($chocoInstall, $updated, $utf8NoBom)
 }
 

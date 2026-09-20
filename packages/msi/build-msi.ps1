@@ -310,7 +310,7 @@ foreach (`$wtSettings in `$wtSettingsCandidates) {
     if (Test-Path `$wtSettings) {
         try {
             `$wtContent = Get-Content `$wtSettings -Raw -ErrorAction Stop
-            `$cleanJson = `$wtContent -replace '(?m)^\s*//.*$', ''
+            `$cleanJson = `$wtContent -replace '(?s)/\*.*?\*/', '' -replace '(?m)(?<!:)\/\/.*$', '' -replace ',\s*([\}\]])', '`$1'
             `$wtJson = `$cleanJson | ConvertFrom-Json
             if (`$wtJson.profiles -and `$wtJson.profiles.list) {
                 `$existing = `$wtJson.profiles.list | Where-Object { `$_.guid -eq '{b20650a4-4212-4d64-9edf-744e9285e2be}' -or `$_.name -eq 'Java Version Manager' }
@@ -376,6 +376,27 @@ exit 0
 $ErrorActionPreference = 'SilentlyContinue'
 Set-Location $env:TEMP
 
+function Remove-DirectorySafely {
+    param([string]$Path)
+    if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return }
+    try {
+        Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
+            $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint
+        } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object {
+            if ($_.PSIsContainer) {
+                try {
+                    [System.IO.Directory]::Delete($_.FullName, $false)
+                } catch {
+                    cmd.exe /c "rmdir /q `"$($_.FullName)`"" 2>$null
+                }
+            } else {
+                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch { }
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 $userProfile = [Environment]::GetFolderPath('UserProfile')
 $myDocs = [Environment]::GetFolderPath('MyDocuments')
 $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
@@ -416,7 +437,8 @@ foreach ($wtSettings in $wtSettingsCandidates) {
     if (Test-Path $wtSettings) {
         try {
             $wtContent = Get-Content $wtSettings -Raw -ErrorAction Stop
-            $cleanJson = $wtContent -replace '(?m)^\s*//.*$', ''
+            # Strip JSONC comments and trailing commas
+            $cleanJson = $wtContent -replace '(?s)/\*.*?\*/', '' -replace '(?m)(?<!:)\/\/.*$', '' -replace ',\s*([\}\]])', '$1'
             $wtJson = $cleanJson | ConvertFrom-Json
             if ($wtJson.profiles -and $wtJson.profiles.list) {
                 $filtered = @($wtJson.profiles.list | Where-Object { $_.guid -ne '{b20650a4-4212-4d64-9edf-744e9285e2be}' -and $_.name -ne 'Java Version Manager' })
@@ -487,7 +509,7 @@ Get-ChildItem -Path $env:TEMP -Filter "jvm_*" -File -ErrorAction SilentlyContinu
 # 8. Candidate tools and caches cleanup (~/.jvm)
 $userJvmCandidates = Join-Path $userProfile ".jvm"
 if (Test-Path $userJvmCandidates) {
-    Remove-Item -LiteralPath $userJvmCandidates -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-DirectorySafely $userJvmCandidates
 }
 
 # 9. Legacy and runtime-generated file cleanup
@@ -505,11 +527,7 @@ try {
 # Remove candidate tool directories and active symlinks/junctions
 $candidatesDir = Join-Path $jvmDir "candidates"
 if (Test-Path $candidatesDir) {
-    Get-ChildItem -Path $candidatesDir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-        $candCurrent = Join-Path $_.FullName "current"
-        if (Test-Path $candCurrent) { cmd.exe /c rmdir "$candCurrent" 2>$null }
-    }
-    Remove-Item -LiteralPath $candidatesDir -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-DirectorySafely $candidatesDir
 }
 
 $current = Join-Path $jvmDir "current"
@@ -523,7 +541,7 @@ foreach ($item in $runtimeItems) {
 }
 
 $legacyJvm = Join-Path $localAppData "JavaVersionManager"
-if (Test-Path $legacyJvm) { Remove-Item -LiteralPath $legacyJvm -Recurse -Force -ErrorAction SilentlyContinue }
+if (Test-Path $legacyJvm) { Remove-DirectorySafely $legacyJvm }
 
 # Clean legacy hook scripts from bin/ if any existed from older MSI revisions
 $binDir = Join-Path $jvmDir "bin"
@@ -531,9 +549,9 @@ Remove-Item -Path (Join-Path $binDir 'msi-install-hook.ps1') -Force -ErrorAction
 Remove-Item -Path (Join-Path $binDir 'msi-uninstall-hook.ps1') -Force -ErrorAction SilentlyContinue
 
 # Schedule background fallback cleanup of jvmDir if lingering files remain after msiexec finishes
-$sysPs = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+$sysPs = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "WindowsPowerShell\v1.0\powershell.exe"
 if (-not (Test-Path $sysPs)) { $sysPs = "powershell.exe" }
-$cleanScript = "Start-Sleep -Seconds 2; if (Test-Path -LiteralPath '$($jvmDir -replace "'", "''")') { Remove-Item -LiteralPath '$($jvmDir -replace "'", "''")' -Recurse -Force -ErrorAction SilentlyContinue }"
+$cleanScript = "Start-Sleep -Seconds 2; cmd.exe /c rmdir /s /q `"$jvmDir`""
 $encoded = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cleanScript))
 Start-Process -FilePath $sysPs -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded) -WindowStyle Hidden
 
@@ -642,15 +660,15 @@ exit 0
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
 
-    <SetProperty Id="RunInstallHook" Value="&quot;[WindowsFolder]System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[JVM_DIR]msi-install-hook.ps1&quot;" Sequence="execute" Before="RunInstallHook" Condition="NOT (REMOVE=&quot;ALL&quot;)" />
-    <CustomAction Id="RunInstallHook" BinaryRef="Wix4UtilCA_`$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec" Execute="deferred" Impersonate="yes" Return="check" />
+    <SetProperty Id="RunInstallHook" Value="&quot;[WindowsFolder]System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[JVM_DIR]msi-install-hook.ps1&quot;" Sequence="execute" Before="RunInstallHook" Condition="NOT (REMOVE=&quot;ALL&quot;) AND NOT (SKIPHOOKS=&quot;1&quot;)" />
+    <CustomAction Id="RunInstallHook" BinaryRef="Wix4UtilCA_`$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec" Execute="deferred" Impersonate="yes" Return="ignore" />
 
-    <SetProperty Id="RunUninstallHook" Value="&quot;[WindowsFolder]System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[JVM_DIR]msi-uninstall-hook.ps1&quot;" Sequence="execute" Before="RunUninstallHook" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    <SetProperty Id="RunUninstallHook" Value="&quot;[WindowsFolder]System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[JVM_DIR]msi-uninstall-hook.ps1&quot;" Sequence="execute" Before="RunUninstallHook" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND NOT (SKIPHOOKS=&quot;1&quot;)" />
     <CustomAction Id="RunUninstallHook" BinaryRef="Wix4UtilCA_`$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec" Execute="deferred" Impersonate="yes" Return="ignore" />
 
     <InstallExecuteSequence>
-      <Custom Action="RunInstallHook" After="CreateShortcuts" Condition="NOT (REMOVE=&quot;ALL&quot;)" />
-      <Custom Action="RunUninstallHook" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="RunInstallHook" After="CreateShortcuts" Condition="NOT (REMOVE=&quot;ALL&quot;) AND NOT (SKIPHOOKS=&quot;1&quot;)" />
+      <Custom Action="RunUninstallHook" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND NOT (SKIPHOOKS=&quot;1&quot;)" />
     </InstallExecuteSequence>
 
   </Package>

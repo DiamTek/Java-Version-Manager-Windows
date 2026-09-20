@@ -10,12 +10,14 @@
 
 ## Supported Versions
 
-Currently, only the latest release of the Java Version Manager for Windows is supported with active security patches and vulnerability mitigations.
+Currently, only versions **`1.0.2` and newer** of the Java Version Manager for Windows are supported with active security patches and vulnerability mitigations. Versions `1.0.0` and `1.0.1` are **unsupported and deprecated** due to missing defensive guardrails, elevation boundary mitigations, and parser protections introduced in `1.0.2`.
 
 | Version | Supported | Status |
 | :--- | :---: | :--- |
-| `1.0.x` | ✅ | Active Security Maintenance |
-| `< 1.0.0` | ❌ | End of Life (Upgrade Recommended) |
+| `>= 1.0.2` | ✅ | Supported (Active Security Maintenance) |
+| `1.0.1` | ❌ | Unsupported (End of Life — Immediate Upgrade to 1.0.2+ Required) |
+| `1.0.0` | ❌ | Unsupported (End of Life — Immediate Upgrade to 1.0.2+ Required) |
+| `< 1.0.0` | ❌ | Unsupported (End of Life) |
 
 ---
 
@@ -23,16 +25,25 @@ Currently, only the latest release of the Java Version Manager for Windows is su
 
 DiamTek Java Version Manager (JVM) is engineered for enterprise developer workstations and managed corporate environments. The security perimeter is hardened against common Windows attack vectors, Local Privilege Escalation (LPE), and software supply chain tampering.
 
-### 1. Zero-File In-Memory UAC Elevation (LPE / TOCTOU Mitigation)
-- **Vulnerability Mitigated:** Legacy automation utilities commonly write temporary elevation scripts (e.g. `%TEMP%\elevate.bat` or `%TEMP%\admin.ps1`) before executing `Start-Process -Verb RunAs`. This creates a critical Time-of-Check to Time-of-Use (TOCTOU) race window where an unprivileged local process can overwrite the temporary file before elevated execution, gaining `NT AUTHORITY\SYSTEM` or Administrator privileges.
-- **Architectural Defense:** JVM completely eliminates intermediate temporary elevation scripts. All administrative operations (such as system registry updates in legacy mode or system directory cleanups) are executed purely in-memory via parameterized PowerShell arguments:
+### 1. Zero-File In-Memory UAC Elevation & Environment Saturation Immunity (LPE / TOCTOU Defense)
+- **Vulnerabilities Mitigated:**
+  - **TOCTOU Race Windows:** Legacy automation utilities commonly write temporary elevation scripts (e.g. `%TEMP%\elevate.bat` or `%TEMP%\admin.ps1`) before executing `Start-Process -Verb RunAs`. This creates a critical Time-of-Check to Time-of-Use (TOCTOU) race window where an unprivileged local process can overwrite the temporary file before elevated execution, gaining `NT AUTHORITY\SYSTEM` or Administrator privileges.
+  - **Environment Variable Saturation / Spoofing:** In Windows, an unprivileged user can register user-level environment variables (such as `[Environment]::SetEnvironmentVariable("SystemRoot", "C:\MaliciousDir", "User")`). If a parent unprivileged process resolves `$env:SystemRoot` or `%SystemRoot%` before calling `Start-Process -Verb RunAs`, an attacker can redirect the elevated executable path (`$env:SystemRoot\System32\powershell.exe`) or the elevated working directory (`-WorkingDirectory "$env:SystemRoot\System32"`) to an attacker-controlled folder. This enables Search Order Hijacking, unauthorized DLL planting, and arbitrary code execution under elevated context.
+- **Architectural Defense:**
+  - JVM completely eliminates intermediate temporary elevation scripts. All administrative operations (such as system registry updates in legacy mode or system directory cleanups) are executed purely in-memory via Base64 UTF-16LE `-EncodedCommand`.
+  - System directory paths and elevation binaries are resolved strictly using the immutable Win32 SpecialFolder API (`[Environment]::GetFolderPath([Environment+SpecialFolder]::System)` and `[Environment+SpecialFolder]::Windows`). These query `SHGetKnownFolderPath(FOLDERID_System)` and native Windows kernel APIs directly, completely ignoring the process environment block and immunizing elevation boundaries against environment variable saturation:
   ```powershell
-  Start-Process powershell -Verb RunAs -ArgumentList @(
-      '-NoProfile', '-NonInteractive', '-Command',
-      "[Environment]::SetEnvironmentVariable('JAVA_HOME', '$target', 'Machine')"
-  )
+  $bytes = [System.Text.Encoding]::Unicode.GetBytes($adminCommand)
+  $encodedCommand = [Convert]::ToBase64String($bytes)
+  $sys32Dir = [Environment]::GetFolderPath([Environment+SpecialFolder]::System)
+  $systemPowerShell = Join-Path $sys32Dir "WindowsPowerShell\v1.0\powershell.exe"
+  Start-Process -FilePath $systemPowerShell `
+      -Verb RunAs `
+      -WorkingDirectory $sys32Dir `
+      -ArgumentList "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", $encodedCommand `
+      -Wait
   ```
-- **EDR Compliance:** This design prevents CrowdStrike, Microsoft Defender for Endpoint, and SentinelOne from triggering heuristic script-drop alerts in `%TEMP%`.
+- **EDR Compliance:** This design prevents CrowdStrike, Microsoft Defender for Endpoint, and SentinelOne from triggering heuristic script-drop alerts in `%TEMP%` and eliminates DLL planting vulnerabilities.
 
 ### 2. Download Verification & Payload Integrity
 - **Vulnerability Mitigated:** Incomplete downloads, transit corruption, CDN cache poisoning, or malicious mirror swapping.
@@ -67,6 +78,87 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
   - **Downgrade Safeguard:** Both channels compare local `JVM_BUILD` integers against remote payloads. If a local workstation is running a build with an integer greater than the upstream target (`local > remote`), the updater halts execution (`[ SKIP ] You are on a newer local build`), preventing accidental regression.
   - **Decoupled Ephemeral Runner:** Executable replacement occurs via a detached runner script that polls for file handle release before atomic filesystem replacement, preventing partial write corruption.
 
+### 7. Windows Alternative Data Streams (ADS) and Poison Character Neutralization
+- **Vulnerability Mitigated:** Arbitrary filesystem stream targeting, file disguise via NTFS Alternate Data Streams (`filename:stream`), Win32 path canonicalization bypasses via trailing periods or whitespace, command-line parameter poisoning via shell metacharacters (`^`, `&`, `|`, `<`, `>`, `;`, `"`, `!`, `%`), argument/flag injection (`-`), wildcard expansion attacks (`*`, `?`), and Windows device namespace lockups (`CON`, `NUL`, `AUX`, `PRN`, `COM1-9`, `LPT1-9`).
+- **Architectural Defense:**
+  - Implemented in `jvm.bat` under `:ValidateStrictIdentifier`, enforcing an airtight multi-phase defensive pipeline:
+    - **Delayed Expansion Segregation:** Validation begins under `setlocal disabledelayedexpansion`. In Windows `cmd.exe`, evaluating untrusted strings containing exclamation marks (`!`) or percent signs (`%`) while delayed expansion is active can cause variable mutation or subshell command execution. The validator quarantines `%_VSI_RAW%` and uses parenthesized, quoted checks (`echo("%_VSI_RAW%" | findstr "!"` and `findstr "%%"`) to reject toxic inputs prior to enabling delayed expansion.
+    - **Win32 Canonicalization Bypass Prevention (`:VSI_StripTrailing`):** The Win32 subsystem automatically strips trailing dots (`.`) and spaces (` `) during path normalization (e.g., `folder.` or `folder ` resolves identically to `folder`). Attackers exploit this behavior to bypass validation blacklists or trigger unexpected directory collisions. `:VSI_StripTrailing` iteratively strips trailing dots and spaces in a loop until the string is completely normalized. If stripping results in an empty value, execution immediately halts.
+    - **Alternate Data Stream (ADS) Colon Neutralization:** On NTFS filesystems, colons separate filenames from Alternate Data Streams (e.g., `file.txt:hidden.exe`). Colon (`:`) characters are strictly forbidden and checked via batch substring substitution:
+      ```cmd
+      if not "!_VSI_VAL!"=="!_VSI_VAL::=!" (
+          endlocal & endlocal
+          set "JVM_EXIT_CODE=1"
+          exit /b 1
+      )
+      ```
+    - **Path Traversal & Separator Quarantine:** Slashes (`\`, `/`) and relative directory traversals (`..`) are filtered using internal substring substitutions (`!_VSI_VAL:\=!`, `!_VSI_VAL:/=!`, `!_VSI_VAL:..=!`), completely preventing directory traversal escapes.
+    - **Leading Flag/Hyphen Neutralization:** Identifiers beginning with a hyphen (`-`) are immediately rejected (`if "!_VSI_VAL:~0,1!"=="-"`), neutralizing command-line flag injection into downstream sub-commands or native tools.
+    - **Internal Substitution Checks vs. Piped FINDSTR:** Characters with syntactic meaning in `cmd.exe` (`^`, `&`, `|`, `<`, `>`, `;`, `"`) are tested through internal batch substitution (`set "_VSI_SUB=!_VSI_VAL:&=!"` etc.). Using batch substitution rather than piping to `findstr` prevents poison metacharacters from escaping into subshells or pipeline boundaries during the check itself.
+    - **Wildcard and Reserved DOS Device Sanitization:** Wildcards (`*`, `?`) are detected using quoted regular-expression pattern matching (`echo("!_VSI_VAL!" | findstr /R /C:"[*?]"`). Additionally, legacy MS-DOS reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9`, `LPT1`-`LPT9`) are validated against a lookup loop to prevent Windows kernel file handle hangs.
+    - **Call-by-Name Variable Passing & Poison Token Immunity:** In Windows batch scripts, passing raw values into subroutines (`call :sub "%VAR%"`) causes `cmd.exe` to perform a second parsing pass over the command line. If `%VAR%` contains unescaped poison tokens (e.g. `&`, `|`, `<`, `>`), CMD splits the line and executes the tail as a separate command even inside double quotes. JVM passes variable names rather than variable values (`call :ValidateStrictIdentifier VAR_NAME`) and resolves them inside the subroutine using delayed expansion (`!%1!`), completely eliminating CMD double-parsing exploits.
+    - **Zero-Subshell Pure-Batch Character Loop (`:VSI_CharLoop`):** Identifier character validation executes entirely in pure batch using substring extraction in a loop, avoiding piping strings to external utilities (`findstr`) or spawning subshells where command injection could occur.
+    - **Quoted FINDSTR Isolation:** Wherever `findstr` is invoked, piped input uses parenthesized echo syntax (`echo("%_VSI_RAW%" | findstr ...`) to avoid trailing whitespace contamination and delimiter collisions.
+
+### 8. Non-Destructive Reparse Point & Junction Lifecycle
+- **Vulnerability Mitigated:** Accidental or malicious destruction of host JDK directories during unlinking, uninstallation, or switching; recursive traversal into junction targets; and reparse point auto-recovery deadlocks caused by Win32 `if exist` semantics on dangling junctions.
+- **Architectural Defense:**
+  - **Reparse Point Target Isolation (`Remove-DirectorySafely`):** Naive recursive folder deletion (such as standard PowerShell `Remove-Item -Recurse` or batch commands) can follow directory junctions and wipe the contents of the target installation folder (e.g., deleting the real JDK installation at `C:\Program Files\Java\jdk-21` when attempting to clean up `%LOCALAPPDATA%\DiamTek\JVM\current`). `Remove-DirectorySafely` (implemented in `uninstall.ps1` and `build-msi.ps1`) inspects directory attributes using `($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)`:
+    - If the directory root is a reparse point, it is unbound immediately using `[System.IO.Directory]::Delete($path, $false)` or `cmd.exe /c "rmdir /q \"$path\""`. The non-recursive unbind removes the junction pointer while leaving the target JDK directory contents 100% untouched.
+    - Child reparse points within candidate stores are enumerated and safely unbound bottom-up prior to deleting parent directories.
+    - Tree deletion subsequently leverages `cmd.exe /c "rmdir /s /q \"$Path\""` to guarantee junction safety in Windows PowerShell 5.1 without risking target deletion.
+  - **Broken Junction Auto-Recovery Without `if exist` Deadlock:**
+    - In Windows `cmd.exe`, the `if exist <path>` operator evaluates whether the *target* directory of a directory junction exists, not whether the reparse point itself exists on disk.
+    - If a user moves or deletes a JDK from disk, the junction pointing to it becomes "broken" or "dangling". A traditional script executing `if exist "%LINK%" rmdir "%LINK%"` evaluates to `false`, skipping deletion. When the script subsequently executes `mklink /J "%LINK%" "%NEW_TARGET%"`, Windows returns Win32 Error 183 (`ERROR_ALREADY_EXISTS: Cannot create a file when that file already exists`).
+    - JVM completely eliminates this deadlock by unconditionally executing `rmdir "!CURRENT_SYMLINK!" >nul 2>&1` without preceding `if exist` checks before every junction creation, ensuring instant, deterministic unbinding and self-healing.
+
+### 9. Registry ValueKind Preservation & Non-Blocking Broadcasts
+- **Vulnerability Mitigated:** Environment variable corruption through unintended type downgrades (converting dynamic `REG_EXPAND_SZ` variables to static `REG_SZ`), premature expansion of system variables (`%SystemRoot%`, `%USERPROFILE%`), buffer overflow truncation across user/machine boundaries, and terminal/installer deadlocks caused by unresponsive top-level desktop windows during environment broadcasts.
+- **Architectural Defense:**
+  - **ValueKind Preservation (`REG_EXPAND_SZ` vs `REG_SZ`):**
+    - Reading registry values via standard high-level APIs often automatically expands nested environment strings, converting paths like `%SystemRoot%\System32` into `C:\Windows\System32`. Writing this expanded value back as a standard `REG_SZ` permanently breaks roaming profiles, variable relocations, and dynamic OS resolution.
+    - `install.ps1`, `uninstall.ps1`, and `build-msi.ps1` query registry keys directly using `[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment')` with `[Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames`.
+    - The engine determines the existing type via `$key.GetValueKind('Path')`. It strictly preserves `REG_EXPAND_SZ` (`[Microsoft.Win32.RegistryValueKind]::ExpandString`) whenever variable delimiters (`%`) are present or previously configured, preventing inadvertent type demotion to `REG_SZ`.
+  - **PATH Buffer & Truncation Safeguards:**
+    - The engine computes combined PATH lengths (Machine PATH + User PATH) and enforces an 8,191-character hard ceiling (aborting modifications if exceeded to prevent environment block overflow) and a 2,048-character Win32 compatibility threshold with visual warnings.
+  - **Non-Blocking Environment Broadcast (`SendMessageTimeout`):**
+    - To notify the Windows shell, File Explorer, and active services of environment updates (`PATH`, `JAVA_HOME`), scripts broadcast the `WM_SETTINGCHANGE` (`0x001A`) message to `HWND_BROADCAST` (`0xFFFF`) with `lParam = "Environment"`.
+    - Standard synchronous `SendMessage` calls block indefinitely if any running application has an unresponsive message pump (e.g., a hung tray utility or frozen GUI program).
+    - JVM executes a native Win32 P/Invoke call to `SendMessageTimeout` with flags `fuFlags = 2` (`SMTO_ABORTIFHUNG`) and a timeout parameter `uTimeout = 5000` (5,000ms):
+      ```powershell
+      [Win32.NativeMethods]::SendMessageTimeout(
+          $HWND_BROADCAST,
+          $WM_SETTINGCHANGE,
+          [UIntPtr]::Zero,
+          'Environment',
+          2,     # SMTO_ABORTIFHUNG (0x0002)
+          5000,  # 5,000 ms timeout
+          [ref]$result
+      ) | Out-Null
+      ```
+    - If any desktop window is hung, Windows immediately aborts waiting on that window and resumes broadcasting to the remaining windows, guaranteeing zero process hangs or installer freezeups.
+
+### 10. Enterprise PowerShell & Constrained Language Mode
+- **Vulnerability Mitigated:** Script crashes, permission denials, and installation failures on corporate enterprise endpoints enforced by AppLocker or Windows Defender Application Control (WDAC) running in PowerShell Constrained Language Mode (CLM); network download failures in enterprise proxy environments requiring integrated Windows authentication (NTLM/Kerberos).
+- **Architectural Defense:**
+  - **Constrained Language Mode (CLM) & WDAC Resiliency:**
+    - Under PowerShell CLM, invoking custom .NET types, setting arbitrary static properties (such as `[System.Net.ServicePointManager]::SecurityProtocol`), or compiling inline C# types via `Add-Type` is restricted or triggers security exceptions (`Cannot set property. Property setting is only supported on core types in this language mode`).
+    - The installer explicitly queries `$ExecutionContext.SessionState.LanguageMode` before executing advanced .NET operations (`$isFullLanguage = ($ExecutionContext.SessionState.LanguageMode -eq 'FullLanguage')`). When CLM is active (`LanguageMode -ne 'FullLanguage'`), the script selectively bypasses restricted .NET property mutations and relies on native, core cmdlets (`Invoke-WebRequest`, `Invoke-RestMethod`) that are fully allowed under WDAC policies.
+  - **Enterprise Authenticated Proxy Support (`DefaultNetworkCredentials`):**
+    - Corporate networks typically route outbound traffic through enterprise proxy firewalls requiring Integrated Windows Authentication (IWA). Unauthenticated requests fail with HTTP 407 (Proxy Authentication Required).
+    - When running in Full Language mode, `install.ps1` binds system proxy credentials to native Kerberos/NTLM credentials:
+      ```powershell
+      if ([System.Net.WebRequest]::DefaultWebProxy) {
+          [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+      }
+      ```
+    - On modern PowerShell (PS 6+ / 7+), it configures automatic corporate proxy delegation via default parameter values:
+      ```powershell
+      $PSDefaultParameterValues['Invoke-WebRequest:ProxyUseDefaultCredentials'] = $true
+      $PSDefaultParameterValues['Invoke-RestMethod:ProxyUseDefaultCredentials'] = $true
+      ```
+    - This allows seamless downloads from vendor endpoints (Adoptium, GitHub, Azul) across enterprise proxy gateways without credential prompts or plaintext credential storage.
+
 ---
 
 ## Vulnerability Scope Matrix
@@ -77,6 +169,10 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
 | **Path Traversal (Zip Slip)** | Archive extraction writing files outside `%LOCALAPPDATA%\DiamTek\JVM` | User explicitly running `jvm link` pointing to a compromised local directory |
 | **Privilege Escalation** | Bypassing standard user boundaries to gain Administrator rights without UAC consent | Attacker already having elevated Administrator or SYSTEM privileges on the machine |
 | **Command Injection** | Injecting commands via `.java-version`, `.sdkmanrc`, or CLI argument parsing | Manually editing the `jvm.bat` file on local disk |
+| **Alternative Data Streams & Canonicalization** | NTFS ADS stream injection (`:stream`) or trailing dot/space Win32 canonicalization bypasses in identifiers | Modifying NTFS metadata with raw disk write privileges |
+| **Reparse Point & Junction Target Deletion** | Recursive deletion traversing directory junctions to wipe host JDK installations | Manual deletion of target JDK folders by external tools or users |
+| **Environment & Registry Integrity** | Accidental type demotion of `REG_EXPAND_SZ` to `REG_SZ`, or PATH overflow truncation | Malicious software directly altering registry keys via background elevated service |
+| **Broadcast Deadlock & Hanging** | Stalled process execution during `WM_SETTINGCHANGE` environment broadcasts | Operating system kernel deadlock or failure of `user32.dll` subsystem |
 | **Transport Security** | Silent acceptance of tampered/corrupted downloads when checksum is expected | Network denial-of-service or outages on vendor APIs (Adoptium, Oracle, GitHub, BellSoft) |
 
 ---

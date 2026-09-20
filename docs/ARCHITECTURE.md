@@ -13,9 +13,13 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 
 ### 🔍 Quick Jump
 - [The Core Mechanism: Directory Junctions](#the-core-mechanism-directory-junctions)
+- [Directory Junction Lifecycle & Safe Unbinding](#directory-junction-lifecycle--safe-unbinding)
 - [Dual-Architecture Core (Symlink Mode vs. Legacy Registry Mode)](#dual-architecture-core-symlink-mode-vs-legacy-registry-mode)
 - [Dual Update Channel Engine & Trust Model Architecture](#dual-update-channel-engine-trust-model-architecture)
+- [UAC Elevation Boundary & Process Isolation](#uac-elevation-boundary--process-isolation)
+- [Environment Broadcast & Registry ValueKind Preservation](#environment-broadcast--registry-valuekind-preservation)
 - [PowerShell Native Dynamic Environment Injection](#powershell-native-dynamic-environment-injection)
+- [Windows Terminal Settings JSONC Parser Engine](#windows-terminal-settings-jsonc-parser-engine)
 - [Packaging Architecture & Asset Distribution](#packaging-architecture--asset-distribution)
 
 ---
@@ -28,7 +32,7 @@ Instead of constantly appending and pruning your Windows `PATH` variable to poin
 Your system `PATH` only ever needs to contain `%LOCALAPPDATA%\DiamTek\JVM\current\bin`. When you switch Java versions, the manager simply tears down the old junction and repoints it to the target JDK directory. This provides `O(1)` symlink resolution for the OS.
 
 ### JDK Discovery Engine & Scanned Locations
-During startup, inventory listing (`jvm list`), and quick-switching, the discovery engine scans all recognized local storage locations for valid `bin\java.exe` targets. It dynamically queries 13 fixed filesystem locations plus user-space package manager directories:
+During startup, inventory listing (`jvm list`), and quick-switching, the discovery engine scans all recognized local storage locations for valid `bin\java.exe` targets. It dynamically queries 12 fixed filesystem locations plus user-space package manager directories (13 total entries in the discovery inventory):
 
 | Discovered Location | Target Distribution / Managing Tool | Discovery Mode |
 |---|---|---|
@@ -64,6 +68,55 @@ graph TD
     Junction -.->|"Alternative Target"| JDK17
     Junction -.->|"BYO-JDK Link"| JDKCustom
 ```
+
+<a id="directory-junction-lifecycle--safe-unbinding"></a>
+### Directory Junction Lifecycle & Safe Unbinding (`Remove-DirectorySafely`)
+
+Directory junctions in Windows are NTFS reparse points (`IO_REPARSE_TAG_MOUNT_POINT`) that redirect directory path resolution at the kernel filesystem driver level. Managing junctions safely requires handling reparse point unbinding, recursive deletion hazards, and dangling junction deadlocks.
+
+```mermaid
+flowchart TD
+    TargetDir["Target Folder Path<br/>e.g. %LOCALAPPDATA%\\DiamTek\\JVM"] --> InspectAttrs{"Is ReparsePoint?<br/>Attributes -band ReparsePoint"}
+    
+    InspectAttrs -->|Yes - Reparse Point| UnbindJunction["Unbind Junction Pointer<br/>[System.IO.Directory]::Delete(Path, $false)<br/>or cmd.exe /c rmdir /q Path"]
+    UnbindJunction --> CompleteClean["Junction Pointer Removed<br/>Target JDK Directory Untouched (100% Preserved)"]
+    
+    InspectAttrs -->|No - Physical Directory| EnumerateChildren["Enumerate All Child Items Recursively"]
+    EnumerateChildren --> FilterReparse{"Child is ReparsePoint?"}
+    
+    FilterReparse -->|Yes| BottomUpUnbind["Bottom-Up Child Unbinding<br/>Unlinks nested junctions in candidate stores"]
+    FilterReparse -->|No| KeepPhysical["Retain physical files for tree delete"]
+    
+    BottomUpUnbind --> TreeRemoval["Execute cmd.exe /c rmdir /s /q Path<br/>(Junction-safe tree deletion in PS 5.1)"]
+    KeepPhysical --> TreeRemoval
+    TreeRemoval --> PurgeComplete["Sanitized Directory Tree"]
+```
+
+#### 1. Non-Destructive Reparse Point Unbinding (`Remove-DirectorySafely`)
+In Windows automation, executing naive recursive deletions (such as PowerShell's `Remove-Item -Recurse` in Windows PowerShell 5.1 or batch `rmdir /s /q` across poorly managed junction trees) can inadvertently traverse into the target directory, deleting the user's real JDK installation (e.g. wiping `C:\Program Files\Java\jdk-21` when attempting to delete the symlink folder `%LOCALAPPDATA%\DiamTek\JVM\current`).
+
+`Remove-DirectorySafely` (implemented in `uninstall.ps1` and `packages\msi\build-msi.ps1`) enforces deterministic, non-destructive junction unbinding:
+1. **Root Reparse Point Audit**: Queries filesystem metadata using the Win32 file attribute flag:
+   ```powershell
+   $rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint
+   ```
+2. **Atomic Unbind Without Target Mutation**: If the path is a reparse point container, it unlinks the junction via .NET `[System.IO.Directory]::Delete($rootItem.FullName, $false)` with the `recursive` parameter explicitly set to `$false` (falling back to `cmd.exe /c "rmdir /q \"$path\""` without `/s`). This destroys the reparse tag and link record in NTFS master file table (MFT) without recursing into the target folder.
+3. **Bottom-Up Child Reparse Point Unlinking**: If the target path is a physical directory containing nested candidate junctions (e.g., `%LOCALAPPDATA%\DiamTek\JVM\candidates\`), the routine traverses children bottom-up, isolating each reparse point and unbinding it before attempting to remove physical parent folders.
+4. **Junction-Safe Tree Teardown**: Uses `cmd.exe /c "rmdir /s /q \"$Path\""` to perform tree deletion, eliminating recursion bugs present in older PowerShell versions.
+
+#### 2. Broken Junction Recovery Without `if exist` Deadlocks
+Windows `cmd.exe` contains a well-known architectural quirk: the `if exist <path>` condition evaluates the existence of the **target** of a directory junction rather than the junction entry itself.
+- **The Dangling Junction Deadlock**: If a user uninstalls, deletes, or moves a JDK folder from disk, the junction pointing to it (`%LOCALAPPDATA%\DiamTek\JVM\current`) becomes dangling/broken. Because the target directory no longer exists, batch `if exist "!CURRENT_SYMLINK!"` evaluates to `false`!
+- **Error 183 Trap**: If a script relies on `if exist "!CURRENT_SYMLINK!" rmdir "!CURRENT_SYMLINK!"`, the `rmdir` call is bypassed because the condition evaluates to `false`. When the script subsequently runs `mklink /J "!CURRENT_SYMLINK!" "!NEW_JDK!"`, Windows aborts with:
+  ```
+  Cannot create a file when that file already exists (Win32 Error 183)
+  ```
+- **JVM Recovery Engine**: JVM resolves this deadlock by unconditionally executing:
+  ```cmd
+  rmdir "!CURRENT_SYMLINK!" >nul 2>&1
+  mklink /J "!CURRENT_SYMLINK!" "!CURRENT_JDK_PATH!" >nul
+  ```
+  Calling `rmdir` directly without an `if exist` guard silently unbinds the broken reparse point if present (and returns errorlevel 2 harmlessly if absent), guaranteeing that `mklink /J` always succeeds with zero deadlocks.
 
 ## Dual-Architecture Core (Symlink Mode vs. Legacy Registry Mode)
 The engine provides two distinct switching engines that users can toggle via the Settings menu or CLI flags:
@@ -187,6 +240,111 @@ To ensure deep OS integration without requiring users to download external binar
 - Updating the Windows Registry does **not** update the live, running terminal session. To solve this, the script dynamically evaluates the environment block within the execution boundary.
 - **Dynamic Filtering:** Instead of using batch string substitution (`!PATH:string=!`), which is vulnerable to quote-collisions and delayed expansion parsing bugs, the manager pipes the variable manipulation to PowerShell using the `-not` operator against `$env:PATH`. This guarantees 100% accurate string evaluation and prevents the accidental deletion of unrelated paths (e.g., pruning `JAVA_HOME_Backup` while searching for `JAVA_HOME`).
 
+<a id="uac-elevation-boundary--process-isolation"></a>
+### UAC Elevation Boundary & Process Isolation
+
+When modifying Machine-level environment variables (`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`) or executing system-wide JDK cleanups, unprivileged users must elevate across the Windows User Account Control (UAC) security boundary. Traditional automation approaches often introduce Local Privilege Escalation (LPE), Time-of-Check to Time-of-Use (TOCTOU) race windows, or command-line quoting injection vulnerabilities.
+
+```mermaid
+flowchart TD
+    UnprivilegedUser["Unprivileged Process<br/>(jvm.bat / install.ps1 / uninstall.ps1)"] --> BuildScript["Construct Memory Script Block<br/>$script = '...'"]
+    
+    subgraph Sanitization["Isolation & Encoding Pipeline"]
+        BuildScript --> EncodeParams["Base64 Encode Dynamic Parameters<br/>[Convert]::ToBase64String(UTF-16LE)"]
+        EncodeParams --> EmbedScript["Interpolate Encoded Tokens into Script"]
+        EmbedScript --> EncodePayload["Base64 Encode Full Script to UTF-16LE<br/>$enc = [Convert]::ToBase64String(...)"]
+    end
+    
+    subgraph Execution["Hardened Process Invocation"]
+        EncodePayload --> PinWorkingDir["Explicit System32 Working Directory<br/>-WorkingDirectory $s (SpecialFolder::System)"]
+        PinWorkingDir --> PinBinaryPath["Absolute Binary Path Pinning<br/>$ps = Join-Path $s 'WindowsPowerShell\\v1.0\\powershell.exe'"]
+        PinBinaryPath --> SpawnElevated["Start-Process -FilePath $ps -Verb RunAs<br/>-ArgumentList @('-NoProfile', '-EncodedCommand', $enc)<br/>-WorkingDirectory $s -WindowStyle Hidden -Wait"]
+    end
+    
+    SpawnElevated --> UACPrompt{"Windows UAC Prompt<br/>Consent / Credential"}
+    UACPrompt -->|Granted| ElevatedWorker["Isolated Elevated Worker<br/>Executes purely in-memory in System32 context"]
+    ElevatedWorker --> Complete["Registry / System Updated & Exits Cleanly"]
+```
+
+#### 1. In-Memory Base64 UTF-16LE `-EncodedCommand` Protocol
+Passing dynamic parameters (such as directory paths with spaces, single quotes, double quotes, ampersands, or parenthesis) across the `Start-Process -Verb RunAs` boundary via standard string concatenation (`-ArgumentList "-Command ..."`):
+- Triggers command-line parser collisions in `cmd.exe` and `powershell.exe`.
+- Creates quoting vulnerabilities where arbitrary commands could be injected and executed in an elevated security context.
+- Causes silent syntax errors if paths contain special characters (e.g. `C:\Java (x86)\...`).
+
+JVM completely neutralizes this by encoding both individual dynamic parameters and the overall payload into UTF-16LE Base64 strings:
+```powershell
+$target = $env:CURRENT_JDK_PATH;
+$b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($target));
+$script = '$target = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); ' +
+          '[Environment]::SetEnvironmentVariable(''JAVA_HOME'', $target, ''Machine''); ...';
+$enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script));
+$s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System);
+$ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe';
+Start-Process -FilePath $ps -Verb RunAs `
+    -WorkingDirectory $s `
+    -WindowStyle Hidden -Wait `
+    -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)
+```
+Because `-EncodedCommand` consumes a Base64 Unicode string directly, the Windows process loader performs zero command-line tokenization or quote unescaping, preventing command injection and shell syntax errors.
+
+#### 2. Process & Working Directory Isolation with Environment Saturation Immunity
+When an elevated process is spawned via `Start-Process -Verb RunAs`, by default it inherits the caller process's current working directory and process environment.
+- **The DLL Preloading / Hijacking Threat**: If the user runs `jvm switch` from an unprivileged, user-writable directory (e.g. a cloned git repository, network share, or `%TEMP%`), a malicious actor or malware could plant a Trojan DLL (e.g., `user32.dll`, `version.dll`, or .NET provider DLLs) in that directory. When the elevated worker starts, the Windows dynamic link library search order could load the untrusted DLL from the current working directory into the elevated process before system directories.
+- **The Environment Saturation Threat**: In Windows, unprivileged standard users can define user-level environment variables (e.g. modifying `HKCU\Environment\SystemRoot`). If a parent non-elevated script resolves `$env:SystemRoot` before spawning an elevated process, an attacker can manipulate `$env:SystemRoot` to point to a malicious folder, redirecting the elevated binary invocation or working directory.
+- **The Defense**: JVM completely avoids relying on `$env:SystemRoot`. Instead, it resolves system directories strictly through the immutable Win32 SpecialFolder API: `[Environment]::GetFolderPath([Environment+SpecialFolder]::System)` (calling native `SHGetKnownFolderPath(FOLDERID_System)`). It explicitly passes `-WorkingDirectory $s` and pins the executable path to `$ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'`, locking the elevated execution context strictly inside the kernel-verified Windows system directory.
+- **Console Isolation**: Elevated workers specify `-WindowStyle Hidden` and `-Wait` to execute silently in the background without intrusive terminal flashes and prevent race conditions.
+
+<a id="environment-broadcast--registry-valuekind-preservation"></a>
+### Environment Broadcast & Registry ValueKind Preservation
+
+Modifying environment variables in the Windows Registry (`HKCU\Environment` or `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`) does not automatically update already running desktop processes (such as Windows Explorer, taskbar runners, or existing command prompts). The operating system requires an explicit environment change notification broadcast.
+
+#### 1. Non-Blocking P/Invoke `SendMessageTimeout` Architecture
+Windows applications listen for `WM_SETTINGCHANGE` (`0x001A`) messages sent to `HWND_BROADCAST` (`0xFFFF`) with `lParam` set to `"Environment"`.
+- **The Deadlock Hazard with `SendMessage`**: Traditional scripts use standard synchronous `SendMessage` or high-level shell objects. If a single top-level window on the desktop is unresponsive (e.g. a hanging tray application, hung IDE, or modal dialog awaiting user input), `SendMessage` blocks indefinitely, freezing the installer, uninstaller, or command-line session.
+- **The P/Invoke Solution**: JVM executes a native Win32 `user32.dll` P/Invoke call using `SendMessageTimeout`:
+  ```powershell
+  $code = @'
+  [DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+  public static extern IntPtr SendMessageTimeout(
+      IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam,
+      uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+  '@
+  Add-Type -MemberDefinition $code -Name NativeMethods -Namespace Win32 -ErrorAction SilentlyContinue
+
+  $HWND_BROADCAST = [IntPtr]0xFFFF
+  $WM_SETTINGCHANGE = 0x001A
+  $SMTO_ABORTIFHUNG = 0x0002
+  $result = [UIntPtr]::Zero
+
+  [Win32.NativeMethods]::SendMessageTimeout(
+      $HWND_BROADCAST,
+      $WM_SETTINGCHANGE,
+      [UIntPtr]::Zero,
+      'Environment',
+      $SMTO_ABORTIFHUNG,
+      5000,
+      [ref]$result
+  ) | Out-Null
+  ```
+- **Flag Mechanics**:
+  - `SMTO_ABORTIFHUNG` (`0x0002`): Instructs the Windows window manager to immediately abort waiting on any recipient window if the thread hosting that window is hung or unpumped.
+  - `uTimeout = 5000` (5,000 ms): Sets a strict ceiling on the total dispatch wait time (reduced to `3000` ms during interactive setup).
+  - This architecture guarantees instantaneous environment broadcast propagation while ensuring the JVM CLI, installer, and uninstaller never hang.
+
+#### 2. Registry `ValueKind` Preservation (`REG_EXPAND_SZ` vs `REG_SZ`)
+The Windows `PATH` environment variable frequently relies on variable expansion tags (e.g., `%SystemRoot%\system32`, `%USERPROFILE%\AppData\Local\Microsoft\WindowsApps`).
+- **The Demotion Risk**: If a tool queries `PATH` using standard .NET `[Environment]::GetEnvironmentVariable`, the framework automatically expands the `%...%` tokens to static paths. If written back to the registry as a static `REG_SZ` (String) value:
+  - Variable references like `%SystemRoot%` are permanently lost.
+  - On user profile migration or multi-user machines, hardcoded user paths break other accounts.
+  - More critically, if `PATH` is stored as `REG_SZ`, Windows process creation fails to expand any nested variables dynamically, corrupting the execution path for subsequent processes.
+- **Deterministic Preservation Pipeline**:
+  1. Opens the key using `[Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames` to retrieve unexpanded raw strings.
+  2. Inspects `$envKey.GetValueKind("Path")` to record the existing type.
+  3. Writes the updated PATH back using `REG_EXPAND_SZ` (`[Microsoft.Win32.RegistryValueKind]::ExpandString`) whenever `%` variable delimiters are present or previously configured, preserving `REG_SZ` only if the original type was `String` and strictly contains zero `%` markers.
+- **Buffer Safety Ceiling**: Computes combined PATH length (Machine + User). If `combinedLength > 8191` characters, modifications are aborted with an error to prevent environment block overflow; if `combinedLength > 2048`, a warning is logged regarding legacy Win32 tool compatibility.
+
 ## Ecosystem Routing (Universal Candidate Engine)
 Like SDKMAN!, this tool intercepts commands for popular Java tools (Maven, Gradle, Kotlin, Scala, Groovy). The CLI acts as a universal router:
 1. It intercepts the `jvm install <candidate> <version>` command.
@@ -243,6 +401,52 @@ To provide a first-class modern Windows developer experience while strictly main
 2. **Tab Lifecycle Management**: Configured with `cmd.exe /c` and `closeOnExit: always`. When a developer exits the interactive JVM menu (`exit /B 0`), the hosting `cmd.exe` process terminates, signaling Windows Terminal to immediately close the tab.
 3. **Shortcut Synchronization**: Creates Start Menu application shortcuts targeting `wt.exe -p "Java Version Manager"` (falling back to `cmd.exe /c` on systems without Windows Terminal). During installation and self-updates, the script automatically searches `%APPDATA%\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\` to detect and update existing pinned taskbar shortcuts in place.
 4. **AppUserModelID & Taskbar Mechanics**: Windows Terminal is a packaged WinUI app that hardcodes its own process-level AppUserModelID (`Microsoft.WindowsTerminal...`) on all hosting windows. By registering a dedicated profile with native icon and dropdown integration rather than forcing brittle binary wrappers, the utility respects the OS container model while maintaining a zero-binary, 100% script-based repository.
+
+<a id="windows-terminal-settings-jsonc-parser-engine"></a>
+<a id="windows-terminal-settings-jsonc-parser--profile-engine"></a>
+### Windows Terminal Settings JSONC Parser Engine
+
+Windows Terminal stores user profiles and preferences in `settings.json` located within package application local data or unpackaged user profiles across Release, Preview, and Unpackaged installations:
+- **Release (Stable):** `%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json`
+- **Preview:** `%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json`
+- **Unpackaged:** `%LOCALAPPDATA%\Microsoft\Windows Terminal\settings.json`
+
+#### The JSONC Parsing Challenge
+Microsoft Windows Terminal formats `settings.json` as **JSON with Comments (JSONC)**:
+- Developers frequently include C-style block comments (`/* ... */`) and line comments (`// ...`) to document keybindings, appearance schemes, or disabled profiles.
+- Trailing commas are permitted before closing braces (`}`) and closing brackets (`]`).
+
+Standard PowerShell `ConvertFrom-Json` (particularly in Windows PowerShell 5.1, the default engine pre-installed on all Windows 10 and 11 workstations) is a strict RFC 8259 JSON parser and throws a terminating syntax error when encountering comments or trailing commas.
+
+#### Regex Preprocessor Engine
+To achieve zero-dependency JSONC parsing across all PowerShell versions without requiring external libraries or third-party modules, `install.ps1`, `uninstall.ps1`, and `packages\msi\build-msi.ps1` execute a high-performance regex preprocessing pipeline:
+
+```powershell
+$wtContent = Get-Content $wtSettings -Raw -ErrorAction Stop
+
+# 1. Strip block comments (/* ... */) in single-line mode (?s)
+# 2. Strip single-line comments (// ...) in multi-line mode (?m)
+# 3. Strip trailing commas preceding closing braces or brackets
+$cleanJson = $wtContent `
+    -replace '(?s)/\*.*?\*/', '' `
+    -replace '(?m)//.*$', '' `
+    -replace ',\s*([\}\]])', '$1'
+
+$wtJson = $cleanJson | ConvertFrom-Json
+```
+
+#### Idempotent Profile Synchronization
+Once sanitized and parsed into a PowerShell object graph:
+1. **Deduplication Check**: Queries `$wtJson.profiles.list` for matching profile GUID `{b20650a4-4212-4d64-9edf-744e9285e2be}` or name `'Java Version Manager'`.
+2. **Profile Creation**: If missing, constructs a `[PSCustomObject]` with:
+   - `commandline`: `'cmd.exe /c "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat"'`
+   - `guid`: `'{b20650a4-4212-4d64-9edf-744e9285e2be}'`
+   - `icon`: `'%LOCALAPPDATA%\DiamTek\JVM\assets\icon.png'`
+   - `closeOnExit`: `'always'`
+   - `startingDirectory`: `'%USERPROFILE%'`
+3. **In-Place Update**: If the profile already exists, surgically updates `commandline`, `icon`, and `closeOnExit` without mutating custom font, color scheme, or keybinding customizations set by the user.
+4. **Atomic UTF-8 Serialization**: Serializes the object graph back via `ConvertTo-Json -Depth 32` and writes the file via `Set-Content $wtSettings $newWtContent -Encoding utf8`.
+5. **Clean Uninstallation**: During `uninstall.ps1`, the parser removes the JVM profile, checks if `defaultProfile` was assigned to JVM, redirects `defaultProfile` to the first available profile if necessary, and rewrites `settings.json` cleanly.
 
 <a id="packaging-architecture--asset-distribution"></a>
 ## Multi-Channel Packaging Pipelines

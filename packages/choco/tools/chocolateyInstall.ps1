@@ -18,20 +18,18 @@ $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $packageName = 'jvm-windows'
-# Always download official Stable release installer, never unreleased main commits
-$releaseUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest/download/install.ps1"
-$scriptContent = $null
-try {
-    $scriptContent = (Invoke-WebRequest -Uri $releaseUrl -UseBasicParsing -TimeoutSec 10).Content
-} catch {
-    try {
-        $tagUrl = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/v1.0.1/install.ps1"
-        $scriptContent = (Invoke-WebRequest -Uri $tagUrl -UseBasicParsing -TimeoutSec 10).Content
-    } catch { }
+$packageVersion = '1.0.1'
+$url64 = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v$packageVersion/jvm-windows-$packageVersion-x64.msi"
+$checksum64 = 'C62A9A6CBB9EBA8A2E8585E83F4B538DAD189FEB38FF54D6A40D7F54C1118DF3'
+
+$packageArgs = @{
+    packageName    = $packageName
+    fileType       = 'MSI'
+    url64bit       = $url64
+    silentArgs     = "/qn /norestart"
+    validExitCodes = @(0, 3010)
+    checksum64     = $checksum64
+    checksumType64 = 'sha256'
 }
 
-if (-not $scriptContent) {
-    throw "Failed to download official Stable release installer for $packageName from GitHub Releases."
-}
-
-& ([scriptblock]::Create($scriptContent)) -Channel "Stable" -Quiet
+Install-ChocolateyPackage @packageArgs

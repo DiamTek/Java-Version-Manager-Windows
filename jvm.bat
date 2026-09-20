@@ -40,7 +40,7 @@ if exist "%TEMP%\jvm_remote_build_*.txt" del "%TEMP%\jvm_remote_build_*.txt" >nu
 if exist "%TEMP%\jvm_dl_*.ps1" del "%TEMP%\jvm_dl_*.ps1" >nul 2>&1
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260920.113"
+set "JVM_BUILD=20260920.114"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -81,7 +81,6 @@ set "LOCATIONS[9]=C:\Program Files\BellSoft"
 set "LOCATIONS[10]=C:\Program Files\Semeru"
 set "LOCATIONS[11]=C:\Program Files\Microsoft"
 
-set "ORIGINAL_ARGS=%*"
 set "SCRIPT_PATH=%~f0"
 set "SCRIPT_DIR=%~dp0"
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
@@ -115,10 +114,7 @@ if exist "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" (
 )
 if /i not "!UPDATE_CHANNEL!"=="NIGHTLY" set "UPDATE_CHANNEL=STABLE"
 
-if /i "%~1"=="link" (
-    call :HANDLE_LINKS %*
-    exit /b !errorlevel!
-)
+if /i "%~1"=="link" goto :HANDLE_LINKS
 set "IS_ADMIN_RUN=0"
 if /i "%~1"=="--admin-run" goto PARSE_ADMIN_RUN
 goto SKIP_ADMIN_RUN
@@ -127,10 +123,7 @@ set "IS_ADMIN_RUN=1"
 shift
 :SKIP_ADMIN_RUN
 
-if /i "%~1"=="unlink" (
-    call :HANDLE_LINKS %*
-    exit /b !errorlevel!
-)
+if /i "%~1"=="unlink" goto :HANDLE_LINKS
 set "CLI_COMMAND="
 set "CLI_VENDOR="
 set "TARGET_CANDIDATE=java"
@@ -725,7 +718,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     
     echo %cBLUE%[ ACTION ]%cRESET% Updating Directory Junction: !JVM_DIR!\current...
     
-    if exist "!CURRENT_SYMLINK!" rmdir "!CURRENT_SYMLINK!"
+    rmdir "!CURRENT_SYMLINK!" >nul 2>&1
     mklink /J "!CURRENT_SYMLINK!" "!CURRENT_JDK_PATH!" >nul
     
     if exist "!CURRENT_SYMLINK!\bin\java.exe" (
@@ -1043,7 +1036,8 @@ if !JDK_COUNT! GTR 1 (
 if /i not "!TARGET_CANDIDATE!"=="java" (
     call :RouteEcosystemCandidate
     set "CMD_EXIT_CODE=!errorlevel!"
-    exit /b !errorlevel!
+    if defined ORIG_CP chcp !ORIG_CP! >nul 2>&1
+    exit /b !CMD_EXIT_CODE!
 )
 
 if defined CLI_COMMAND (
@@ -1203,8 +1197,10 @@ if defined CLI_COMMAND (
         ) else (
             if "!TARGET_IDX!"=="0" (
                 echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found.
+                set "JVM_EXIT_CODE=1"
             ) else (
                 call :ProcessSingleUpdate !TARGET_IDX!
+                set "JVM_EXIT_CODE=!errorlevel!"
             )
         )
         goto :CLI_DONE
@@ -1214,6 +1210,7 @@ if defined CLI_COMMAND (
         if not defined CLI_TARGET (
             echo %cRED%[ ERROR  ]%cRESET% Missing required version argument.
             echo            Usage: jvm uninstall ^<version_number^>
+            set "JVM_EXIT_CODE=1"
             goto :CLI_DONE
         )
         if !MATCH_COUNT! GTR 1 (
@@ -1251,6 +1248,7 @@ if defined CLI_COMMAND (
 
         if "!TARGET_IDX!"=="0" (
             echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found.
+            set "JVM_EXIT_CODE=1"
         ) else (
             for %%A in (!TARGET_IDX!) do (
                 set "DEL_PATH=!JDK_PATH_%%A!"
@@ -1262,20 +1260,20 @@ if defined CLI_COMMAND (
             echo %cBLUE%[ ACTION ]%cRESET% Deleting directory !DEL_PATH!...
             echo %cBLUE%[ ACTION ]%cRESET% Scrubbing environment variables...
             echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
-            set "SAFE_DEL_PATH=!DEL_PATH:'=''!"
-            powershell -NoProfile -Command "$cmd = '$del = ''!SAFE_DEL_PATH!''; Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd)); Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
+            powershell -NoProfile -Command "$del = $env:DEL_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($del)); $script = '$del = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
             
             rem Clean User PATH preserving REG_EXPAND_SZ
             set "DEL_BIN=!DEL_PATH!\bin"
             powershell -NoProfile -Command "$delBin = $env:DEL_BIN; $p = [Environment]::GetEnvironmentVariable('Path', 'User'); if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ne $delBin.TrimEnd('\') }) -join ';'; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $clean -Type ExpandString }" >nul 2>&1
             
             if not exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" (
-                if exist "%LOCALAPPDATA%\DiamTek\JVM\current" rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
+                rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
                 reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
             )
             
             if exist "!DEL_PATH!" (
                 echo %cRED%[ ERROR  ]%cRESET% Failed to completely delete directory.
+                set "JVM_EXIT_CODE=1"
             ) else (
                 echo.
                 echo %cGREEN%[   OK   ]%cRESET% !DEL_NAME! was successfully uninstalled!
@@ -1365,7 +1363,8 @@ if defined CLI_TARGET (
     echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found.
     echo             Please ensure it is installed and try again.
     if "!SILENT_MODE!"=="0" timeout /t 3 >nul
-    goto :eof
+    set "JVM_EXIT_CODE=1"
+    goto :CLI_DONE
 )
 
 if "!SILENT_MODE!"=="1" (
@@ -1878,7 +1877,7 @@ if !user_choice!==!clear_opt! (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Clearing !CANDIDATE_PROPER_NAME! from environment...
     set "SYMLINK_PATH=!CANDIDATE_DIR!\current"
-    if exist "!SYMLINK_PATH!" rmdir "!SYMLINK_PATH!" >nul 2>&1
+    rmdir "!SYMLINK_PATH!" >nul 2>&1
     reg delete "HKCU\Environment" /v !CANDIDATE_ENV_VAR! /f >nul 2>&1
     set "!CANDIDATE_ENV_VAR!="
     echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! has been de-activated.
@@ -2208,10 +2207,7 @@ if !ROOT_COUNT! GTR 1 (
 
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Installing !NEW_FOLDER! to system directory...
-set "SAFE_DEST=!DEST_DIR:'=''!"
-set "SAFE_FOLDER=!NEW_FOLDER:'=''!"
-set "SAFE_EXTRACT=!EXTRACT_DIR:'=''!"
-powershell -NoProfile -Command "$cmd = '$d = ''!SAFE_DEST!''; $f = ''!SAFE_FOLDER!''; $e = ''!SAFE_EXTRACT!''; if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }; $t = Join-Path $d $f; if (Test-Path -LiteralPath $t) { Remove-Item -LiteralPath $t -Recurse -Force }; Move-Item -LiteralPath (Join-Path $e $f) -Destination $d -Force; if (Test-Path -LiteralPath $e) { Remove-Item -LiteralPath $e -Recurse -Force -ErrorAction SilentlyContinue }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd)); Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
+powershell -NoProfile -Command "$d = $env:DEST_DIR; $f = $env:NEW_FOLDER; $e = $env:EXTRACT_DIR; $b64d = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($d)); $b64f = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($f)); $b64e = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($e)); $script = '$d = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64d + ''')); $f = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64f + ''')); $e = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64e + ''')); if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }; $t = Join-Path $d $f; if (Test-Path -LiteralPath $t) { Remove-Item -LiteralPath $t -Recurse -Force }; Move-Item -LiteralPath (Join-Path $e $f) -Destination $d -Force; if (Test-Path -LiteralPath $e) { Remove-Item -LiteralPath $e -Recurse -Force -ErrorAction SilentlyContinue }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
 
 if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
     echo.
@@ -2236,8 +2232,6 @@ if not defined CURRENT_JDK_PATH goto :eof
 call :BackupRegistry
 setlocal enabledelayedexpansion
 
-set "SAFE_JDK_PATH=!CURRENT_JDK_PATH:'=''!"
-
 echo            - De-bloating Phantom Oracle paths and injecting %%JAVA_HOME%%\bin natively...
 
 if /i "!SWITCH_MODE!"=="DIRECT" (
@@ -2246,7 +2240,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     rem Scrub any conflicting User-level JAVA_HOME that might override the Machine-level variable
     reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
     
-    powershell -NoProfile -Command "$cmd = '$p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); $purges = @(''C:\Program Files\Common Files\Oracle\Java\javapath'', ''C:\Program Files (x86)\Common Files\Oracle\Java\javapath'', ''C:\ProgramData\Oracle\Java\javapath'', ''%LOCALAPPDATA%\DiamTek\JVM\current\bin'', ''!SAFE_JDK_PATH!\bin''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd(''\'') -and $_.TrimEnd(''\'') -ne ''%%JAVA_HOME%%\bin'' }) -join '';''; $finalPath = ''%%JAVA_HOME%%\bin;'' + $clean; [Environment]::SetEnvironmentVariable(''JAVA_HOME'', ''!SAFE_JDK_PATH!'', ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $finalPath -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd)); Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
+    powershell -NoProfile -Command "$target = $env:CURRENT_JDK_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($target)); $script = '$target = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); $purges = @(''C:\Program Files\Common Files\Oracle\Java\javapath'', ''C:\Program Files (x86)\Common Files\Oracle\Java\javapath'', ''C:\ProgramData\Oracle\Java\javapath'', ''%LOCALAPPDATA%\DiamTek\JVM\current\bin'', $target + ''\bin''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd(''\'') -and $_.TrimEnd(''\'') -ne ''%%JAVA_HOME%%\bin'' }) -join '';''; $finalPath = ''%%JAVA_HOME%%\bin;'' + $clean; [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $target, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $finalPath -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
     
     echo %cGREEN%[   OK   ]%cRESET% JAVA_HOME and SYSTEM PATH updated successfully via UAC.
 ) else (
@@ -2330,9 +2324,9 @@ reg delete "HKCU\Environment" /v SCALA_HOME /f >nul 2>&1
 reg delete "HKCU\Environment" /v GROOVY_HOME /f >nul 2>&1
 
 echo %cBLUE%[ ACTION ]%cRESET% Removing active directory junctions...
-if exist "%LOCALAPPDATA%\DiamTek\JVM\current" rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
+rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
 for /d %%C in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\*") do (
-    if exist "%%C\current" rmdir "%%C\current" >nul 2>&1
+    rmdir "%%C\current" >nul 2>&1
 )
 
 rem Safely gather paths to purge to prevent catastrophic '\bin' wiping if variables are empty
@@ -2357,8 +2351,7 @@ if defined SYS_PATH (
     for /f "delims=" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do set "SYS_PATH=%%A"
     
     echo %cBLUE%[ ACTION ]%cRESET% Requesting Administrator privileges to clear Machine Registry...
-    set "SAFE_SYS_PATH=!SYS_PATH:'=''!"
-    powershell -NoProfile -Command "$cmd = '[Environment]::SetEnvironmentVariable(''JAVA_HOME'', $null, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value ''!SAFE_SYS_PATH!'' -Type ExpandString'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd)); Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
+    powershell -NoProfile -Command "$sysPath = $env:SYS_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($sysPath)); $script = '$sysPath = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $null, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $sysPath -Type ExpandString'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
 )
 
 rem Clean USER PATH
@@ -3044,10 +3037,9 @@ powershell -NoProfile -Command "Get-Process java,javaw -ErrorAction SilentlyCont
 
 echo %cBLUE%[ ACTION ]%cRESET% Deleting directory and scrubbing environment variables...
 echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
-set "SAFE_DEL_PATH=!DEL_PATH:'=''!"
-powershell -NoProfile -Command "$cmd = '$del = ''!SAFE_DEL_PATH!''; Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd)); Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
+powershell -NoProfile -Command "$del = $env:DEL_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($del)); $script = '$del = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
 if not exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" (
-    if exist "%LOCALAPPDATA%\DiamTek\JVM\current" rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
+    rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
     reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
 )
 
@@ -3180,9 +3172,7 @@ if !sub_choice!==3 (
             set "PS_CMD=!PS_CMD!) { $r += $d } }; $r -join ';'"
             for /f "delims=" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do set "SYS_PATH=%%A"
         )
-        set "SAFE_SYS_PATH=!SYS_PATH:'=''!"
-        
-        powershell -NoProfile -Command "$cmd = '[Environment]::SetEnvironmentVariable(''JAVA_HOME'', $null, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value ''!SAFE_SYS_PATH!'' -Type ExpandString'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cmd)); Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
+        powershell -NoProfile -Command "$sysPath = $env:SYS_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($sysPath)); $script = '$sysPath = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $null, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $sysPath -Type ExpandString'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
     ) else (
         set "SWITCH_MODE=DIRECT"
     )
@@ -3708,6 +3698,10 @@ if /i "%~1"=="link" (
 
     set "LINK_NAME=%~nx2"
     if "%~3" NEQ "" set "LINK_NAME=%~3"
+    if "!LINK_NAME!"=="." (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid link name: '.' is forbidden.
+        exit /b 1
+    )
     if not "!LINK_NAME!"=="!LINK_NAME:\=!" (
         echo %cRED%[ ERROR  ]%cRESET% Link name cannot contain path separators: !LINK_NAME!
         exit /b 1
@@ -3720,8 +3714,9 @@ if /i "%~1"=="link" (
         echo %cRED%[ ERROR  ]%cRESET% Link name cannot contain '..': !LINK_NAME!
         exit /b 1
     )
-    if "!LINK_NAME!"=="." (
-        echo %cRED%[ ERROR  ]%cRESET% Invalid link name: '.' is forbidden.
+    call :ValidateStrictIdentifier "!LINK_NAME!" LINK_NAME
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid link name: "!LINK_NAME!"
         exit /b 1
     )
     if /i "!LINK_NAME!"=="current" (
@@ -3751,6 +3746,10 @@ if /i "%~1"=="unlink" (
         exit /b 1
     )
     set "UNLINK_NAME=%~2"
+    if "!UNLINK_NAME!"=="." (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid link name: '.' is forbidden.
+        exit /b 1
+    )
     if not "!UNLINK_NAME!"=="!UNLINK_NAME:\=!" (
         echo %cRED%[ ERROR  ]%cRESET% Link name cannot contain path separators: !UNLINK_NAME!
         exit /b 1
@@ -3763,8 +3762,9 @@ if /i "%~1"=="unlink" (
         echo %cRED%[ ERROR  ]%cRESET% Link name cannot contain '..': !UNLINK_NAME!
         exit /b 1
     )
-    if "!UNLINK_NAME!"=="." (
-        echo %cRED%[ ERROR  ]%cRESET% Invalid link name: '.' is forbidden.
+    call :ValidateStrictIdentifier "!UNLINK_NAME!" UNLINK_NAME
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid link name: "!UNLINK_NAME!"
         exit /b 1
     )
     if /i "!UNLINK_NAME!"=="current" (
@@ -3776,7 +3776,11 @@ if /i "%~1"=="unlink" (
         exit /b 1
     )
     echo %cBLUE%[ ACTION ]%cRESET% Removing link '!UNLINK_NAME!'...
-    rmdir "%LINK_DIR%\!UNLINK_NAME!"
+    rmdir "%LINK_DIR%\!UNLINK_NAME!" >nul 2>&1
+    if exist "%LINK_DIR%\!UNLINK_NAME!" (
+        echo %cRED%[ ERROR  ]%cRESET% Failed to remove link '!UNLINK_NAME!'.
+        exit /b 1
+    )
     echo %cGREEN%[   OK   ]%cRESET% Link removed.
     exit /b 0
 )
@@ -3787,7 +3791,9 @@ if "!IS_ADMIN_RUN!"=="1" (
     echo Press any key to close this window...
     pause >nul
 )
-goto :eof
+if defined ORIG_CP chcp !ORIG_CP! >nul 2>&1
+if defined JVM_EXIT_CODE exit /b !JVM_EXIT_CODE!
+exit /b 0
 
 rem ============================================================
 rem CLI HELP SCREEN
@@ -3981,6 +3987,11 @@ if defined CLI_TARGET (
     )
 )
 if not defined WHICH_TARGET set "WHICH_TARGET=java"
+call :ValidateStrictIdentifier "!WHICH_TARGET!" WHICH_TARGET
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Invalid candidate name: "!WHICH_TARGET!"
+    exit /b 1
+)
 
 if /i "!WHICH_TARGET!"=="java" (
     if defined JAVA_HOME (
@@ -4746,6 +4757,171 @@ if /i "!CLI_COMMAND!"=="" (
 echo %cRED%[ ERROR  ]%cRESET% Unknown command for !TARGET_CANDIDATE!
 exit /b 1
 
+:ValidateStrictIdentifier
+setlocal disabledelayedexpansion
+set "_VSI_RAW=%~1"
+if not defined _VSI_RAW (
+    endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+
+:: Check for ! without pipes or subshells to prevent poison character evaluation
+if "%_VSI_RAW:~0,1%"=="!" (
+    endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+if "%_VSI_RAW:~-1%"=="!" (
+    endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+for /f "tokens=1* delims=!" %%a in ("%_VSI_RAW%") do (
+    if not "%%b"=="" (
+        endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+)
+
+setlocal enabledelayedexpansion
+set "_VSI_VAL=!_VSI_RAW!"
+
+:: Check for % via substitution
+set "_VSI_SUB=!_VSI_VAL:%%=!"
+if not "!_VSI_VAL!"=="!_VSI_SUB!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+
+:: Strip trailing dots and spaces first to prevent Win32 normalization bypass
+:VSI_StripTrailing
+if "!_VSI_VAL:~-1!"=="." (
+    set "_VSI_VAL=!_VSI_VAL:~0,-1!"
+    goto :VSI_StripTrailing
+)
+if "!_VSI_VAL:~-1!"==" " (
+    set "_VSI_VAL=!_VSI_VAL:~0,-1!"
+    goto :VSI_StripTrailing
+)
+if not defined _VSI_VAL (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+
+:: Disallow leading '-' (flag injection)
+if "!_VSI_VAL:~0,1!"=="-" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+
+:: Disallow path separators, traversal, and ADS stream colons via substitution
+if not "!_VSI_VAL!"=="!_VSI_VAL:\=!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+if not "!_VSI_VAL!"=="!_VSI_VAL:/=!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+if not "!_VSI_VAL!"=="!_VSI_VAL:..=!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+if not "!_VSI_VAL!"=="!_VSI_VAL::=!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+
+:: Check poison chars via substitution (&, |, <, >, ^, ;, \")
+set "_VSI_SUB=!_VSI_VAL:^=!"
+if not "!_VSI_VAL!"=="!_VSI_SUB!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+set "_VSI_SUB=!_VSI_VAL:&=!"
+if not "!_VSI_VAL!"=="!_VSI_SUB!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+set "_VSI_SUB=!_VSI_VAL:|=!"
+if not "!_VSI_VAL!"=="!_VSI_SUB!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+set "_VSI_SUB=!_VSI_VAL:<=!"
+if not "!_VSI_VAL!"=="!_VSI_SUB!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+set "_VSI_SUB=!_VSI_VAL:>=!"
+if not "!_VSI_VAL!"=="!_VSI_SUB!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+set "_VSI_SUB=!_VSI_VAL:;=!"
+if not "!_VSI_VAL!"=="!_VSI_SUB!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+set "_VSI_SUB=!_VSI_VAL:\"=!"
+if not "!_VSI_VAL!"=="!_VSI_SUB!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+
+:: Loop characters to detect wildcards (*, ?) without subshells or pipes
+set "_VSI_REM=!_VSI_VAL!"
+:VSI_CharLoop
+if defined _VSI_REM (
+    set "_VSI_CH=!_VSI_REM:~0,1!"
+    set "_VSI_REM=!_VSI_REM:~1!"
+    if "!_VSI_CH!"=="*" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    if "!_VSI_CH!"=="?" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    goto :VSI_CharLoop
+)
+
+:: Check DOS device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+for %%D in (CON PRN AUX NUL COM1 COM2 COM3 COM4 COM5 COM6 COM7 COM8 COM9 LPT1 LPT2 LPT3 LPT4 LPT5 LPT6 LPT7 LPT8 LPT9) do (
+    if /i "!_VSI_VAL!"=="%%D" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+)
+
+:: Export sanitized value if requested
+for /f "delims=" %%V in ("!_VSI_VAL!") do (
+    endlocal & endlocal
+    if not "%~2"=="" set "%~2=%%V"
+    exit /b 0
+)
+endlocal & endlocal
+exit /b 0
+
 :GetCandidateEnvVar
 set "CANDIDATE_ENV_VAR="
 set "CANDIDATE_PROPER_NAME="
@@ -4773,6 +4949,11 @@ if /i not "!TARGET_VER!"=="latest" (
     )
     if "!TARGET_VER!"=="." (
         echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier: '.' is forbidden.
+        exit /b 1
+    )
+    call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier: %~1
         exit /b 1
     )
     if /i "!TARGET_VER!"=="current" (
@@ -4803,8 +4984,12 @@ set "SYMLINK_PATH=!CANDIDATE_DIR!\current"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Activating !CANDIDATE_PROPER_NAME! !TARGET_VER!...
 
-if exist "!SYMLINK_PATH!" rmdir "!SYMLINK_PATH!" >nul 2>&1
+rmdir "!SYMLINK_PATH!" >nul 2>&1
 mklink /j "!SYMLINK_PATH!" "!TARGET_PATH!" >nul 2>&1
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to create directory junction for !CANDIDATE_PROPER_NAME!.
+    exit /b 1
+)
 echo            - Updating Directory Junction...
 
 powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable($env:CANDIDATE_ENV_VAR, $env:SYMLINK_PATH, 'User')"
@@ -4991,6 +5176,11 @@ if defined TARGET_VER if /i not "!TARGET_VER!"=="latest" (
         echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier: '.' is forbidden.
         exit /b 1
     )
+    call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier: !CLI_TARGET!
+        exit /b 1
+    )
     if /i "!TARGET_VER!"=="current" (
         echo %cRED%[ ERROR  ]%cRESET% 'current' is a reserved keyword and cannot be targeted.
         exit /b 1
@@ -5123,11 +5313,12 @@ exit /b 0
 
 :ProcessEcosystemSession
 set "TARGET_CANDIDATE=%~1"
-set "TARGET_CANDIDATE=!TARGET_CANDIDATE:"=!"
-set "TARGET_CANDIDATE=!TARGET_CANDIDATE:;=!"
+call :ValidateStrictIdentifier "!TARGET_CANDIDATE!" TARGET_CANDIDATE
+if errorlevel 1 exit /b 0
 set "TARGET_VER=%~2"
-set "TARGET_VER=!TARGET_VER:"=!"
-set "TARGET_VER=!TARGET_VER:;=!"
+call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
+if errorlevel 1 exit /b 0
+if /i "!TARGET_VER!"=="current" exit /b 0
 call :GetCandidateEnvVar
 if not defined CANDIDATE_ENV_VAR exit /b 0
 

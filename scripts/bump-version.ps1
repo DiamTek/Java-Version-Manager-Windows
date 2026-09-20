@@ -317,10 +317,6 @@ function Invoke-WingetCoordinator {
         $wingetArgs = @("submit", $manifestPath, "--prtitle", "DiamTek.JVM version $TargetVersion")
     }
 
-    if ($token) {
-        $wingetArgs += @("--token", $token)
-    }
-
     $wingetTable = [ordered]@{
         "Target Version"  = "$cGreen$cBold v$TargetVersion $cReset"
         "Upstream Status" = if ($isMergedUpstream) {
@@ -487,8 +483,19 @@ function Invoke-WingetCoordinator {
                     }
                 }
 
-                Write-Host "Executing Winget submission..." -ForegroundColor Cyan
-                & wingetcreate @wingetArgs
+                try {
+                    if ($token) {
+                        $env:WINGET_CREATE_GITHUB_TOKEN = $token
+                        $env:GITHUB_TOKEN = $token
+                    }
+                    Write-Host "Executing Winget submission..." -ForegroundColor Cyan
+                    & wingetcreate @wingetArgs
+                } finally {
+                    if ($token) {
+                        $env:WINGET_CREATE_GITHUB_TOKEN = $null
+                        $env:GITHUB_TOKEN = $null
+                    }
+                }
             }
         }
         '2' {
@@ -1391,8 +1398,7 @@ Update-FileContent "packages\choco\build-choco.ps1" {
 
 Update-FileContent "packages\choco\tools\chocolateyInstall.ps1" {
     param($content)
-    $c = [regex]::Replace($content, '(?<=Java-Version-Manager-Windows/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
-    [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
+    [regex]::Replace($content, "(?m)^(\`$packageVersion\s*=\s*')[^']*(')", "`${1}$cleanVersion`${2}")
 } -StepName "Chocolatey Install"
 
 Update-FileContent "packages\choco\tools\chocolateyUninstall.ps1" {

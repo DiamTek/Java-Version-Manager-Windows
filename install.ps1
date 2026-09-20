@@ -39,10 +39,24 @@ if ($Branch) {
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-try {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072 -bor 12288
-} catch {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+$isFullLanguage = ($ExecutionContext.SessionState.LanguageMode -eq 'FullLanguage')
+
+if ($isFullLanguage) {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072 -bor 12288
+    } catch { }
+
+    try {
+        if ([System.Net.WebRequest]::DefaultWebProxy) {
+            [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+        }
+    } catch { }
+}
+
+if ($PSVersionTable.PSVersion.Major -ge 6) {
+    $PSDefaultParameterValues['Invoke-WebRequest:ProxyUseDefaultCredentials'] = $true
+    $PSDefaultParameterValues['Invoke-RestMethod:ProxyUseDefaultCredentials'] = $true
 }
 
 $actionName = if ($Update) { "Updating" } else { "Installing" }
@@ -331,44 +345,88 @@ if (-not (Test-Path $channelFile)) {
 # 3. Safe REG_EXPAND_SZ Path Injection
 Update-Progress -Percent 80 -Activity "Configuring User PATH..."
 
-$userPath = ""
-$envKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Environment")
-if ($null -ne $envKey) {
-    try {
-        $raw = $envKey.GetValue("Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-        if ($null -ne $raw) { $userPath = [string]$raw }
-    } finally {
-        $envKey.Close()
-    }
-}
-
 function Normalize-PathEntry([string]$p) {
     if (-not $p) { return "" }
-    $clean = $p.Trim()
+    $clean = $p.Trim().Trim('`"').Trim("'").Trim()
     if ($clean.Length -gt 3) {
         return $clean.TrimEnd('\', '/')
     }
     return $clean
 }
+
+$userPath = ""
+$existingKind = [Microsoft.Win32.RegistryValueKind]::ExpandString
+try {
+    $envKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Environment")
+    if ($null -ne $envKey) {
+        try {
+            $raw = $envKey.GetValue("Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            if ($null -ne $raw) { $userPath = [string]$raw }
+            $existingKind = try { $envKey.GetValueKind("Path") } catch { [Microsoft.Win32.RegistryValueKind]::ExpandString }
+        } finally {
+            $envKey.Close()
+        }
+    }
+} catch {
+    try {
+        $userPath = (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -ErrorAction SilentlyContinue).Path
+    } catch { }
+}
+
 $pathArray = @($userPath -split ';' | Where-Object { $_ -ne '' } | ForEach-Object { Normalize-PathEntry $_ })
 $normalizedInstallDir = Normalize-PathEntry $installDir
+
 if ($normalizedInstallDir -notin $pathArray) {
     $newPathList = @()
     foreach ($p in ($pathArray + $normalizedInstallDir)) {
         if ($p -and ($newPathList -notcontains $p)) { $newPathList += $p }
     }
     $newPath = $newPathList -join ';'
-    if ($newPath.Length -gt 2048) {
-        Write-Host "[ WARNING] User PATH length ($($newPath.Length) chars) exceeds 2048 characters. Some legacy applications may truncate PATH." -ForegroundColor Yellow
+
+    # Query Machine PATH to compute effective Combined PATH
+    $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $combinedLength = if ($machinePath) { $machinePath.Length + 1 + $newPath.Length } else { $newPath.Length }
+
+    if ($combinedLength -gt 8191) {
+        Write-Host ""
+        Write-Host "[ ERROR  ] Combined PATH length ($combinedLength chars) exceeds Windows 8191-character limit!" -ForegroundColor Red
+        Write-Host "           System PATH ($($machinePath.Length) chars) + User PATH ($($newPath.Length) chars)." -ForegroundColor Red
+        Write-Host "           Modification aborted to prevent environment block corruption." -ForegroundColor Red
+    } else {
+        if ($combinedLength -gt 2048) {
+            Write-Host ""
+            Write-Host "[ WARNING] Combined PATH length ($combinedLength chars) exceeds 2048 characters (User: $($newPath.Length), System: $($machinePath.Length))." -ForegroundColor Yellow
+            Write-Host "           Some legacy Win32 applications may truncate PATH." -ForegroundColor Yellow
+        }
+
+        # Preserve REG_SZ only if existing was String and no variable references exist; otherwise enforce ExpandString
+        $targetKind = if ($existingKind -eq [Microsoft.Win32.RegistryValueKind]::String -and $newPath -notmatch '%') {
+            [Microsoft.Win32.RegistryValueKind]::String
+        } else {
+            [Microsoft.Win32.RegistryValueKind]::ExpandString
+        }
+
+        try {
+            Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $newPath -Type $targetKind -Force
+        } catch {
+            [Microsoft.Win32.Registry]::SetValue("HKEY_CURRENT_USER\Environment", "Path", $newPath, $targetKind)
+        }
+
+        # Broadcast WM_SETTINGCHANGE safely
+        try {
+            if (-not ("Win32.NativeMethods" -as [type])) {
+                $code = @'
+[DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+'@
+                Add-Type -MemberDefinition $code -Name NativeMethods -Namespace Win32 -ErrorAction SilentlyContinue
+            }
+            $HWND_BROADCAST = [IntPtr]0xFFFF
+            $WM_SETTINGCHANGE = 0x001A
+            $result = [UIntPtr]::Zero
+            [Win32.NativeMethods]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result) | Out-Null
+        } catch { }
     }
-    [Microsoft.Win32.Registry]::SetValue("HKEY_CURRENT_USER\Environment", "Path", $newPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
-    
-    # Broadcast WM_SETTINGCHANGE
-    if (-not ("Win32.NativeMethods" -as [type])) {
-        $code = '[DllImport("user32.dll")] public static extern bool SendMessageTimeout(IntPtr hWnd, int Msg, IntPtr wParam, string lParam, int fuFlags, int uTimeout, out IntPtr lpdwResult);'
-        Add-Type -MemberDefinition $code -Name NativeMethods -Namespace Win32
-    }
-    [Win32.NativeMethods]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [IntPtr]0, 'Environment', 2, 5000, [ref][IntPtr]::Zero) | Out-Null
 }
 
 # 4. Install PowerShell Profile Hook natively
@@ -380,7 +438,19 @@ function jvm {
     if (-not (Test-Path -LiteralPath $bat)) {
         $bat = Get-Command jvm.bat -CommandType Application -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
     }
-    & $bat @args
+
+    # Handle UNC directory paths via pushd
+    $isUnc = ($pwd.Provider.Name -eq 'FileSystem' -and $pwd.Path -like '\\*')
+    if ($isUnc) {
+        pushd -LiteralPath $pwd.Path
+        try {
+            & $bat @args
+        } finally {
+            popd
+        }
+    } else {
+        & $bat @args
+    }
 
     function Set-JvmVar {
         param([string]$Name, [string]$OldValue, [string]$NewValue)
@@ -393,11 +463,30 @@ function jvm {
 
         # Validate NewValue is a genuine directory and contains no injection characters
         if (-not [string]::IsNullOrWhiteSpace($NewValue)) {
-            if ($NewValue -match '[\0;&|<>`"\r\n\$]') { return }
+            if ($NewValue -match '[\0;&|<>`"\r\n\$%]') { return }
             if (-not (Test-Path -LiteralPath $NewValue -PathType Container)) { return }
+
+            # Storage boundary enforcement
+            $canonicalPath = (Resolve-Path -LiteralPath $NewValue -ErrorAction SilentlyContinue).Path
+            $allowedRoots = @(
+                "$env:LOCALAPPDATA\DiamTek\JVM",
+                "$env:LOCALAPPDATA\JavaVersionManager",
+                "$env:ProgramFiles\Java",
+                "${env:ProgramFiles(x86)}\Java",
+                "$env:USERPROFILE\.jdks"
+            )
+            $isAllowed = $false
+            foreach ($root in $allowedRoots) {
+                if ($canonicalPath -and $canonicalPath.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+                    $isAllowed = $true
+                    break
+                }
+            }
+            if (-not $isAllowed) { return }
         }
 
-        [Environment]::SetEnvironmentVariable($Name, $NewValue, 'Process')
+        # CLM-compliant environment update
+        Set-Item -Path "env:$Name" -Value $NewValue -Force
 
         $parts = $env:Path -split ';' | Where-Object { $_ -ne '' }
         if (-not [string]::IsNullOrWhiteSpace($OldValue)) {
@@ -423,15 +512,15 @@ function jvm {
                 $key = 'JAVA_HOME'
                 $val = $line
             }
-            $old = [Environment]::GetEnvironmentVariable($key, 'Process')
+            $old = (Get-Item -Path "env:$key" -ErrorAction SilentlyContinue).Value
             Set-JvmVar -Name $key -OldValue $old -NewValue $val
         }
     } else {
         foreach ($v in @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')) {
-            $old = [Environment]::GetEnvironmentVariable($v, 'Process')
-            $new = [Environment]::GetEnvironmentVariable($v, 'User')
+            $old = (Get-Item -Path "env:$v" -ErrorAction SilentlyContinue).Value
+            $new = (Get-ItemProperty -Path 'HKCU:\Environment' -Name $v -ErrorAction SilentlyContinue).$v
             if ([string]::IsNullOrEmpty($new)) {
-                $new = [Environment]::GetEnvironmentVariable($v, 'Machine')
+                $new = (Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -Name $v -ErrorAction SilentlyContinue).$v
             }
             if ($old -eq $new) { continue }
             Set-JvmVar -Name $v -OldValue $old -NewValue $new
@@ -498,34 +587,45 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
 # <<< jvm <<<
 '@
 
-$profileCode = $profileCode.Replace('__FALLBACK_BAT__', $batPath)
+$batPathEscaped = $batPath.Replace("'", "''")
+$profileCode = $profileCode.Replace('__FALLBACK_BAT__', $batPathEscaped)
 
 $userProfile = [Environment]::GetFolderPath('UserProfile')
 $myDocs = [Environment]::GetFolderPath('MyDocuments')
+$regDocs = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' -Name 'Personal' -ErrorAction SilentlyContinue).Personal
+$expandedDocs = if ($regDocs) { [System.Environment]::ExpandEnvironmentVariables($regDocs) } else { $null }
+
 $profiles = @(
     $PROFILE,
     (Join-Path $userProfile 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'),
     (Join-Path $userProfile 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1'),
     (Join-Path $myDocs 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'),
     (Join-Path $myDocs 'PowerShell\Microsoft.PowerShell_profile.ps1')
-) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+)
+if ($expandedDocs) {
+    $profiles += (Join-Path $expandedDocs 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1')
+    $profiles += (Join-Path $expandedDocs 'PowerShell\Microsoft.PowerShell_profile.ps1')
+}
+$profiles = $profiles | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
 $utf8 = New-Object System.Text.UTF8Encoding($true)
 foreach ($p in $profiles) {
     if ([string]::IsNullOrWhiteSpace($p)) { continue }
-    $profileDir = Split-Path $p
-    if (-not (Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force | Out-Null }
-    $profContent = ''
-    if (Test-Path $p) { $profContent = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) }
+    try {
+        $profileDir = Split-Path $p
+        if (-not (Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force -ErrorAction SilentlyContinue | Out-Null }
+        $profContent = ''
+        if (Test-Path $p) { $profContent = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) }
 
-    $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
-    $m = [Regex]::Match($profContent, $blockPattern)
-    if ($m.Success) {
-        $profContent = $profContent.Substring(0, $m.Index) + $profileCode + $profContent.Substring($m.Index + $m.Length)
-    } else {
-        $profContent = if ([string]::IsNullOrWhiteSpace($profContent)) { $profileCode } else { "$profContent`r`n`r`n$profileCode" }
-    }
-    [System.IO.File]::WriteAllText($p, $profContent, $utf8)
+        $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
+        $m = [Regex]::Match($profContent, $blockPattern)
+        if ($m.Success) {
+            $profContent = $profContent.Substring(0, $m.Index) + $profileCode + $profContent.Substring($m.Index + $m.Length)
+        } else {
+            $profContent = if ([string]::IsNullOrWhiteSpace($profContent)) { $profileCode } else { "$profContent`r`n`r`n$profileCode" }
+        }
+        [System.IO.File]::WriteAllText($p, $profContent, $utf8)
+    } catch { }
 }
 
 # 5. Register Windows Uninstaller & Start Menu Shortcuts
@@ -535,7 +635,8 @@ try {
     $uninstallRegPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM"
     if (-not (Test-Path $uninstallRegPath)) { New-Item -Path $uninstallRegPath -Force | Out-Null }
     
-    $systemPowerShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+    $sys32Dir = [Environment]::GetFolderPath([Environment+SpecialFolder]::System)
+    $systemPowerShell = Join-Path $sys32Dir "WindowsPowerShell\v1.0\powershell.exe"
     if (-not (Test-Path $systemPowerShell)) { $systemPowerShell = "powershell.exe" }
     $uninstallScriptPath = "$repoRoot\uninstall.ps1"
     $uninstallCommand = "`"$systemPowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
@@ -556,7 +657,7 @@ try {
     Set-ItemProperty -Path $uninstallRegPath -Name "QuietUninstallString" -Value $uninstallCommand
     $iconPath = Join-Path $repoRoot "assets\icon.ico"
     if (-not (Test-Path $iconPath)) { $iconPath = Join-Path $repoRoot "icon.ico" }
-    if (-not (Test-Path $iconPath)) { $iconPath = "$env:SystemRoot\System32\shell32.dll,27" }
+    if (-not (Test-Path $iconPath)) { $iconPath = Join-Path $sys32Dir "shell32.dll,27" }
 
     Set-ItemProperty -Path $uninstallRegPath -Name "DisplayIcon" -Value $iconPath
     Set-ItemProperty -Path $uninstallRegPath -Name "URLInfoAbout" -Value "https://diamtek.github.io/Java-Version-Manager-Windows"
@@ -583,7 +684,8 @@ try {
         if (Test-Path $wtSettings) {
             try {
                 $wtContent = Get-Content $wtSettings -Raw -ErrorAction Stop
-                $cleanJson = $wtContent -replace '(?m)^\s*//.*$', ''
+                # Strip JSONC comments (block comments /* ... */ and line comments // ...) and trailing commas
+                $cleanJson = $wtContent -replace '(?s)/\*.*?\*/', '' -replace '(?m)(?<!:)\/\/.*$', '' -replace ',\s*([\}\]])', '$1'
                 $wtJson = $cleanJson | ConvertFrom-Json
                 if ($wtJson.profiles -and $wtJson.profiles.list) {
                     $existing = $wtJson.profiles.list | Where-Object { $_.guid -eq '{b20650a4-4212-4d64-9edf-744e9285e2be}' -or $_.name -eq 'Java Version Manager' }
@@ -649,7 +751,7 @@ try {
     $shortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Uninstall Java Version Manager.lnk"))
     $shortcut.TargetPath = $systemPowerShell
     $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
-    $shortcut.IconLocation = "$env:SystemRoot\System32\shell32.dll,31"
+    $shortcut.IconLocation = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "shell32.dll,31"
     $shortcut.Description = "Uninstall DiamTek Java Version Manager"
     $shortcut.Save()
 } catch {

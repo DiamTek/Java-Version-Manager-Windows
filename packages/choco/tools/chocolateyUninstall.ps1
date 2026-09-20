@@ -17,23 +17,12 @@
 $ErrorActionPreference = 'SilentlyContinue'
 
 $packageName = 'jvm-windows'
-Write-Host "Uninstalling JVM via the official uninstall script..."
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$uninstallScript = "$env:LOCALAPPDATA\DiamTek\JVM\uninstall.ps1"
-if (Test-Path $uninstallScript) {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$uninstallScript" -Quiet
-} else {
-    $script = $null
-    try {
-        $releaseUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest/download/uninstall.ps1"
-        $script = (Invoke-WebRequest -Uri $releaseUrl -UseBasicParsing -TimeoutSec 10).Content
-    } catch {
-        try {
-            $tagUrl = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/v1.0.1/uninstall.ps1"
-            $script = (Invoke-WebRequest -Uri $tagUrl -UseBasicParsing -TimeoutSec 10).Content
-        } catch { }
-    }
-    if ($script) {
-        & ([scriptblock]::Create($script)) -Quiet
-    }
+Write-Host "Uninstalling JVM via Chocolatey package manager..."
+$packageArgs = @{
+    packageName    = $packageName
+    fileType       = 'MSI'
+    silentArgs     = "/qn /norestart"
+    validExitCodes = @(0, 3010)
 }
+
+Uninstall-ChocolateyPackage @packageArgs
