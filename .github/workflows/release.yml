@@ -43,18 +43,34 @@ jobs:
       - name: Resolve Release Version and Tag
         id: resolve-version
         shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
         run: |
-          $ver = "${{ inputs.version }}"
-          $refName = "${{ github.ref_name }}"
-          $refType = "${{ github.ref_type }}"
+          $ver = $env:INPUT_VERSION
+          $refName = $env:GITHUB_REF_NAME
+          $refType = $env:GITHUB_REF_TYPE
+
+          $semverRegex = '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$'
 
           # Only parse the ref_name if this action was triggered explicitly by a genuine git Tag push
           if ($refType -eq "tag" -and $refName -match '^v?([0-9]+\.[0-9]+\.[0-9]+.*)') {
-              $ver = $matches[1]
+              $rawVer = $matches[1]
+              if ($rawVer -notmatch $semverRegex) {
+                  Write-Error "Git tag '$refName' does not match strict semantic versioning format."
+                  exit 1
+              }
+              $ver = $rawVer
               $tag = "v$ver"
           } elseif ($ver) {
-              $tag = if ($ver.StartsWith('v')) { $ver } else { "v$ver" }
-              $ver = $tag.TrimStart('v')
+              $cleanVer = $ver.TrimStart('v')
+              if ($cleanVer -notmatch $semverRegex) {
+                  Write-Error "Input version '$ver' does not match strict semantic versioning format."
+                  exit 1
+              }
+              $ver = $cleanVer
+              $tag = "v$ver"
           } else {
               $ver = "1.0.1"
               $tag = "v1.0.1"
@@ -66,26 +82,34 @@ jobs:
 
       - name: Build Standalone MSIs (x64 & arm64)
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.resolve-version.outputs.version }}
         run: |
-          $ver = "${{ steps.resolve-version.outputs.version }}"
+          $ver = $env:RELEASE_VERSION
           .\packages\msi\build-msi.ps1 -Version $ver -Arch all
 
       - name: Run Integration Test Suite (x64)
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.resolve-version.outputs.version }}
         run: |
-          $ver = "${{ steps.resolve-version.outputs.version }}"
+          $ver = $env:RELEASE_VERSION
           .\packages\msi\test-msi.ps1 -MsiPath "packages/msi/jvm-windows-$ver-x64.msi"
 
       - name: Build Chocolatey Package (.nupkg)
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.resolve-version.outputs.version }}
         run: |
-          $ver = "${{ steps.resolve-version.outputs.version }}"
+          $ver = $env:RELEASE_VERSION
           .\packages\choco\build-choco.ps1 -Version $ver
 
       - name: Create Portable Zip Distribution
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.resolve-version.outputs.version }}
         run: |
-          $ver = "${{ steps.resolve-version.outputs.version }}"
+          $ver = $env:RELEASE_VERSION
           $zipName = "packages/msi/jvm-windows-$ver-portable.zip"
           $itemsToCompress = @("jvm.bat", "assets", "LICENSE", "README.md", "uninstall.ps1", "install.ps1") | Where-Object { Test-Path $_ }
           Compress-Archive -Path $itemsToCompress -DestinationPath $zipName -Force

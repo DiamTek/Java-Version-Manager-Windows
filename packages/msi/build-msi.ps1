@@ -272,11 +272,14 @@ $profileCode
 `$profileCode = `$profileCode.Replace('__FALLBACK_BAT__', `$batPath)
 
 `$userProfile = [Environment]::GetFolderPath('UserProfile')
+`$myDocs = [Environment]::GetFolderPath('MyDocuments')
 `$profiles = @(
     `$PROFILE,
     (Join-Path `$userProfile 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'),
-    (Join-Path `$userProfile 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1')
-) | Select-Object -Unique
+    (Join-Path `$userProfile 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1'),
+    (Join-Path `$myDocs 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'),
+    (Join-Path `$myDocs 'PowerShell\Microsoft.PowerShell_profile.ps1')
+) | Where-Object { -not [string]::IsNullOrWhiteSpace(`$_) } | Select-Object -Unique
 
 `$utf8 = New-Object System.Text.UTF8Encoding(`$true)
 foreach (`$p in `$profiles) {
@@ -307,7 +310,8 @@ foreach (`$wtSettings in `$wtSettingsCandidates) {
     if (Test-Path `$wtSettings) {
         try {
             `$wtContent = Get-Content `$wtSettings -Raw -ErrorAction Stop
-            `$wtJson = `$wtContent | ConvertFrom-Json
+            `$cleanJson = `$wtContent -replace '(?m)^\s*//.*$', ''
+            `$wtJson = `$cleanJson | ConvertFrom-Json
             if (`$wtJson.profiles -and `$wtJson.profiles.list) {
                 `$existing = `$wtJson.profiles.list | Where-Object { `$_.guid -eq '{b20650a4-4212-4d64-9edf-744e9285e2be}' -or `$_.name -eq 'Java Version Manager' }
                 if (-not `$existing) {
@@ -373,12 +377,15 @@ $ErrorActionPreference = 'SilentlyContinue'
 Set-Location $env:TEMP
 
 $userProfile = [Environment]::GetFolderPath('UserProfile')
+$myDocs = [Environment]::GetFolderPath('MyDocuments')
 $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
 $profiles = @(
     $PROFILE,
     (Join-Path $userProfile 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'),
-    (Join-Path $userProfile 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1')
-) | Select-Object -Unique
+    (Join-Path $userProfile 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1'),
+    (Join-Path $myDocs 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'),
+    (Join-Path $myDocs 'PowerShell\Microsoft.PowerShell_profile.ps1')
+) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
 # 1. PowerShell Profile Hook Removal
 $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
@@ -409,7 +416,8 @@ foreach ($wtSettings in $wtSettingsCandidates) {
     if (Test-Path $wtSettings) {
         try {
             $wtContent = Get-Content $wtSettings -Raw -ErrorAction Stop
-            $wtJson = $wtContent | ConvertFrom-Json
+            $cleanJson = $wtContent -replace '(?m)^\s*//.*$', ''
+            $wtJson = $cleanJson | ConvertFrom-Json
             if ($wtJson.profiles -and $wtJson.profiles.list) {
                 $filtered = @($wtJson.profiles.list | Where-Object { $_.guid -ne '{b20650a4-4212-4d64-9edf-744e9285e2be}' -and $_.name -ne 'Java Version Manager' })
                 if ($filtered.Count -ne $wtJson.profiles.list.Count) {
@@ -431,28 +439,33 @@ if (Test-Path $taskbarLnk) {
     Remove-Item -Path $taskbarLnk -Force -ErrorAction SilentlyContinue
 }
 
-# 4. Clean up all JVM directories from User PATH
-$jvmBin = "$localAppData\DiamTek\JVM\bin"
-$currentBin = "$localAppData\DiamTek\JVM\current\bin"
-$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-if ($userPath) {
-    $cleanPath = ($userPath -split ';' | Where-Object {
-        $trimmed = $_.Trim().TrimEnd('\')
-        $_ -and ($trimmed -ne $jvmBin) -and ($trimmed -ne $currentBin)
-    }) -join ';'
-    [Environment]::SetEnvironmentVariable('Path', $cleanPath, 'User')
-}
+# 4. Clean up any dangling symlink paths from User PATH while preserving REG_EXPAND_SZ
+try {
+    $currentBin = "$localAppData\DiamTek\JVM\current\bin"
+    $userKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+    if ($userKey) {
+        $rawUserPath = $userKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        $userKind = $userKey.GetValueKind('Path')
+        if ($rawUserPath -and ($rawUserPath -like "*$currentBin*")) {
+            $cleanPath = ($rawUserPath -split ';' | Where-Object {
+                $trimmed = $_.Trim().TrimEnd('\')
+                $_ -and ($trimmed -ne $currentBin)
+            }) -join ';'
+            $targetKind = if ($userKind -eq [Microsoft.Win32.RegistryValueKind]::String) { [Microsoft.Win32.RegistryValueKind]::String } else { [Microsoft.Win32.RegistryValueKind]::ExpandString }
+            $userKey.SetValue('Path', $cleanPath, $targetKind)
+        }
+        $userKey.Close()
+    }
+} catch { }
 
-# 5. Clean up Environment Variables set by JVM
+# 5. Clean up Environment Variables set by JVM (User scope)
 $vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')
 foreach ($v in $vars) {
-    foreach ($scope in @('User', 'Machine')) {
-        try {
-            if ([Environment]::GetEnvironmentVariable($v, $scope)) {
-                [Environment]::SetEnvironmentVariable($v, $null, $scope)
-            }
-        } catch { }
-    }
+    try {
+        if ([Environment]::GetEnvironmentVariable($v, 'User')) {
+            [Environment]::SetEnvironmentVariable($v, $null, 'User')
+        }
+    } catch { }
 }
 
 # 6. Broadcast WM_SETTINGCHANGE for environment updates
@@ -518,13 +531,22 @@ Remove-Item -Path (Join-Path $binDir 'msi-install-hook.ps1') -Force -ErrorAction
 Remove-Item -Path (Join-Path $binDir 'msi-uninstall-hook.ps1') -Force -ErrorAction SilentlyContinue
 
 # Schedule background fallback cleanup of jvmDir if lingering files remain after msiexec finishes
-Start-Process -FilePath "cmd.exe" -ArgumentList "/c timeout /t 2 >nul & if exist `"$jvmDir`" rmdir /s /q `"$jvmDir`"" -WindowStyle Hidden
+$sysPs = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+if (-not (Test-Path $sysPs)) { $sysPs = "powershell.exe" }
+$cleanScript = "Start-Sleep -Seconds 2; if (Test-Path -LiteralPath '$($jvmDir -replace "'", "''")') { Remove-Item -LiteralPath '$($jvmDir -replace "'", "''")' -Recurse -Force -ErrorAction SilentlyContinue }"
+$encoded = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cleanScript))
+Start-Process -FilePath $sysPs -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded) -WindowStyle Hidden
 
-# 10. Start Menu folder cleanup (removes empty folder or any legacy shortcuts)
+# 10. Start Menu folder cleanup (removes JVM shortcuts and empty folder)
 $startMenuPrograms = [Environment]::GetFolderPath('Programs')
 $diamtekStartMenu = Join-Path $startMenuPrograms 'DiamTek'
 if (Test-Path $diamtekStartMenu) {
-    Remove-Item -LiteralPath $diamtekStartMenu -Recurse -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -LiteralPath $diamtekStartMenu -Filter "*Java Version Manager*" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -LiteralPath $diamtekStartMenu -Filter "*JVM*" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    $remaining = Get-ChildItem -LiteralPath $diamtekStartMenu -Force -ErrorAction SilentlyContinue
+    if (-not $remaining) {
+        Remove-Item -LiteralPath $diamtekStartMenu -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 exit 0
 '@

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Automated version bumper and release coordinator for DiamTek Java Version Manager (Windows).
 
@@ -476,7 +476,7 @@ function Invoke-WingetCoordinator {
                                     if ($pcArm64) { $newArm64Block = [regex]::Replace($newArm64Block, 'ProductCode:\s*[''"][^''"]*[''"]', "ProductCode: '$pcArm64'") }
                                     $yamlText = $yamlText.Replace($arm64Block, $newArm64Block)
                                 }
-                                [System.IO.File]::WriteAllText($installerYaml, $yamlText, [System.Text.Encoding]::UTF8)
+                                [System.IO.File]::WriteAllText($installerYaml, $yamlText, $Utf8NoBom)
                                 Write-Host "${cGreen}[UPDATED]$cReset Synchronized DiamTek.JVM.installer.yaml with online MSI hashes and ProductCodes."
                             }
                         } catch {
@@ -615,8 +615,8 @@ function Invoke-ScoopCoordinator {
                     if ($bucketPresent) {
                         $c = [System.IO.File]::ReadAllText($externalBucketManifest, $Utf8NoBom)
                         $c = [regex]::Replace($c, '("version":\s*")[^"]*(")', "`${1}$TargetVersion`${2}")
-                        $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?', $TargetVersion)
-                        $c = [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?', $TargetVersion)
+                        $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $TargetVersion)
+                        $c = [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $TargetVersion)
                         $c = [regex]::Replace($c, '("hash":\s*")[^"]*(")', "`${1}$portableZipHash`${2}")
                         [System.IO.File]::WriteAllText($externalBucketManifest, $c, $Utf8NoBom)
                         Write-Host "  ${cGreen}[OK]$cReset Updated ..\scoop-bucket\bucket\jvm.json"
@@ -882,7 +882,7 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 
 # Sanitize version string (strip leading 'v')
 $cleanVersion = $Version.Trim().TrimStart('v').TrimStart('V')
-if ($cleanVersion -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$') {
+if ($cleanVersion -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$') {
     Write-Error "Invalid semantic version format: '$Version'. Expected format: X.Y.Z (e.g. 1.0.2)"
     exit 1
 }
@@ -913,6 +913,11 @@ if ([string]::IsNullOrWhiteSpace($Build)) {
     }
 } else {
     $Build = $Build.Trim()
+}
+
+if ($Build -notmatch '^\d{8}\.\d+$') {
+    Write-Error "Invalid build identifier '$Build'. Build must strictly follow the 'yyyyMMdd.NNN' format (e.g. '20260918.113')."
+    exit 1
 }
 $todayDate = Get-Date -Format "yyyy-MM-dd"
 
@@ -1234,7 +1239,7 @@ if ($remotes -match '(?m)^origin$') {
         }
 
         # Upstream Sync Check (check if local branch is behind origin)
-        Invoke-Git -Directory $RepoRoot -GitArgs @("fetch", "origin", $activeBranch, "--quiet") | Out-Null
+        Invoke-Git -Directory $RepoRoot -GitArgs @("fetch", "origin", "--", $activeBranch, "--quiet") | Out-Null
         $behindCount = (Invoke-Git -Directory $RepoRoot -GitArgs @("rev-list", "HEAD..origin/$activeBranch", "--count") -CaptureOutput).Trim()
         if ($behindCount -and [int]$behindCount -gt 0 -and -not $Force) {
             Write-Error "Local branch '$activeBranch' is $behindCount commit(s) behind origin/$activeBranch. Please run 'git pull' before releasing (use -Force to bypass)."
@@ -1386,13 +1391,13 @@ Update-FileContent "packages\choco\build-choco.ps1" {
 
 Update-FileContent "packages\choco\tools\chocolateyInstall.ps1" {
     param($content)
-    $c = [regex]::Replace($content, '(?<=Java-Version-Manager-Windows/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?', $cleanVersion)
-    [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?', $cleanVersion)
+    $c = [regex]::Replace($content, '(?<=Java-Version-Manager-Windows/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
+    [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
 } -StepName "Chocolatey Install"
 
 Update-FileContent "packages\choco\tools\chocolateyUninstall.ps1" {
     param($content)
-    [regex]::Replace($content, '(?<=Java-Version-Manager-Windows/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?', $cleanVersion)
+    [regex]::Replace($content, '(?<=Java-Version-Manager-Windows/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
 } -StepName "Chocolatey Uninstall"
 
 # --- 3. MSI WiX Build, Test & Source Manifests ---
@@ -1426,8 +1431,8 @@ if (Test-Path (Join-Path $RepoRoot "packages\msi\jvm.wxs")) {
 Update-FileContent "packages\scoop\jvm.json" {
     param($content)
     $c = [regex]::Replace($content, '("version":\s*")[^"]*(")', "`${1}$cleanVersion`${2}")
-    $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?', $cleanVersion)
-    [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?', $cleanVersion)
+    $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
+    [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
 } -StepName "Scoop Internal"
 
 # --- 5. Winget Package Manifests ---
@@ -1446,14 +1451,14 @@ Update-FileContent "packages\winget\DiamTek.JVM.installer.yaml" {
     param($content)
     $c = [regex]::Replace($content, '(?m)^(PackageVersion:\s*)\S+', "`${1}$cleanVersion")
     $c = [regex]::Replace($c, '(?m)^(ReleaseDate:\s*)\S+', "`${1}$todayDate")
-    $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?', $cleanVersion)
-    [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?', $cleanVersion)
+    $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
+    [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
 } -StepName "Winget Installer"
 
 # --- 6. GitHub Release Workflow ---
 Update-FileContent ".github\workflows\release.yml" {
     param($content)
-    [regex]::Replace($content, '(default:\s*[''"])\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?([''"])', "`${1}$cleanVersion`${3}")
+    [regex]::Replace($content, '(default:\s*[''"])\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?([''"])', "`${1}$cleanVersion`${3}")
 } -StepName "Release Workflow"
 
 # --- 7. CHANGELOG.md Entry with Chronological Placement & Comparison Link ---
@@ -1557,7 +1562,7 @@ $entryContent$compareFooter
 # --- 8. README.md Version History ---
 Update-FileContent "README.md" {
     param($content)
-    $c = [regex]::Replace($content, '(?m)^\*\s+\*\*v\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?\s+\(Latest\):\*\*', {
+    $c = [regex]::Replace($content, '(?m)^\*\s+\*\*v\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?\s+\(Latest\):\*\*', {
         param($m)
         $m.Value -replace '\s+\(Latest\)', ''
     })
@@ -1585,18 +1590,18 @@ Update-FileContent "README.md" {
 # --- 9. Documentation Guides (INSTALLATION, FAQ, SECURITY) ---
 Update-FileContent "docs\INSTALLATION.md" {
     param($content)
-    $c = [regex]::Replace($content, 'jvm-windows-\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?-(x64|arm64|portable)', "jvm-windows-$cleanVersion-`${2}")
-    [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(?=\.nupkg)', $cleanVersion)
+    $c = [regex]::Replace($content, 'jvm-windows-\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?-(x64|arm64|portable)', "jvm-windows-$cleanVersion-`${2}")
+    [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(?=\.nupkg)', $cleanVersion)
 } -StepName "Installation Guide"
 
 Update-FileContent "docs\FAQ.md" {
     param($content)
-    [regex]::Replace($content, 'jvm-windows-\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?-(x64|arm64|portable)', "jvm-windows-$cleanVersion-`${2}")
+    [regex]::Replace($content, 'jvm-windows-\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?-(x64|arm64|portable)', "jvm-windows-$cleanVersion-`${2}")
 } -StepName "FAQ Guide"
 
 Update-FileContent "docs\SECURITY.md" {
     param($content)
-    [regex]::Replace($content, 'jvm-windows-\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?-(x64|arm64|portable)', "jvm-windows-$cleanVersion-`${2}")
+    [regex]::Replace($content, 'jvm-windows-\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?-(x64|arm64|portable)', "jvm-windows-$cleanVersion-`${2}")
 } -StepName "Security Guide"
 
 Write-Host ""
@@ -1632,7 +1637,13 @@ if ($DryRun) {
                     Invoke-ScoopCoordinator -TargetVersion $cleanVersion -IsDryRun
                 }
                 { $_ -in @('t', 'test') } {
-                    Invoke-TestRunner
+                    Write-Host "${cYellow}[NOTE]$cReset Running the test suite performs live installation, verification, and uninstallation of the MSI package."
+                    $runTest = Read-Host "Proceed with running the test suite? [y/N]"
+                    if ($runTest -match '^(y|yes)$') {
+                        Invoke-TestRunner
+                    } else {
+                        Write-Host "Test execution skipped." -ForegroundColor Yellow
+                    }
                 }
                 { $_ -in @('q', 'quit', 'exit') } {
                     Write-Host ""
@@ -1772,8 +1783,13 @@ if ($doCommit) {
     }
 
     Write-Host "  $cCyan→$cReset Creating $(if ($NoSign) { 'tag' } else { 'signed tag' }) v$cleanVersion..." -ForegroundColor Gray
+    $originUrl = try { (Invoke-Git -Directory $RepoRoot -GitArgs @("config", "--get", "remote.origin.url") -CaptureOutput).Trim() } catch { "" }
+    $repoWebUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows"
+    if ($originUrl -match 'github\.com[:/]([^/]+)/([^/\.]+)') {
+        $repoWebUrl = "https://github.com/$($matches[1])/$($matches[2])"
+    }
     $tagAnnotation = if ($compareLink) {
-        "v$cleanVersion`n`nCompare: https://github.com/Diamond-Industries/Java-Version-Manager-Windows/compare/v$currentVersion...v$cleanVersion"
+        "v$cleanVersion`n`nCompare: $repoWebUrl/compare/v$currentVersion...v$cleanVersion"
     } else {
         "v$cleanVersion"
     }
@@ -1782,7 +1798,7 @@ if ($doCommit) {
     # 2. Targeted Push Upstream
     if ($doPush) {
         Write-Host "  $cCyan→$cReset Pushing main repository (origin $activeBranch and tag v$cleanVersion)..." -ForegroundColor Gray
-        $null = Invoke-Git -Directory $RepoRoot -GitArgs @("push", "origin", $activeBranch, "refs/tags/v$cleanVersion")
+        $null = Invoke-Git -Directory $RepoRoot -GitArgs @("push", "origin", "--", $activeBranch, "refs/tags/v$cleanVersion")
     }
 
     Write-Host ""

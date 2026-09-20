@@ -38,6 +38,9 @@ Write-Host ""
 # ----------------------------------------------------------------
 Write-Host "[ ACTION ] Removing JVM from system PATH..." -ForegroundColor Cyan
 
+$systemPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+if (-not (Test-Path $systemPowerShell)) { $systemPowerShell = "powershell.exe" }
+
 $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
 $jvmLocations = @(
     "$localAppData\DiamTek\JVM\bin",
@@ -57,19 +60,53 @@ if ($scriptDir -and ($jvmLocations -notcontains $scriptDir)) {
     $jvmLocations += $scriptDir
 }
 
-$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-if ($userPath) {
-    $cleanUser = ($userPath -split ';' | Where-Object { $_ -and ($jvmLocations -notcontains $_) }) -join ';'
-    [Environment]::SetEnvironmentVariable('Path', $cleanUser, 'User')
-    Write-Host "[   OK   ] User PATH cleaned." -ForegroundColor Green
+$normJvmLocations = @($jvmLocations | ForEach-Object { $_.TrimEnd('\', '/') } | Where-Object { $_ } | Select-Object -Unique)
+
+function Test-IsJvmPath([string]$p) {
+    if (-not $p) { return $false }
+    $cleanP = $p.Trim().TrimEnd('\', '/')
+    foreach ($loc in $normJvmLocations) {
+        if ([string]::Equals($cleanP, $loc, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+    return $false
+}
+
+try {
+    $userKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+    if ($userKey) {
+        $rawUserPath = $userKey.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        if ($null -ne $rawUserPath -and $rawUserPath -ne '') {
+            $userKind = try { $userKey.GetValueKind('Path') } catch { [Microsoft.Win32.RegistryValueKind]::String }
+            $cleanUser = ($rawUserPath -split ';' | Where-Object { $_ -and -not (Test-IsJvmPath $_) }) -join ';'
+            $targetKind = if ($userKind -eq [Microsoft.Win32.RegistryValueKind]::String) { [Microsoft.Win32.RegistryValueKind]::String } else { [Microsoft.Win32.RegistryValueKind]::ExpandString }
+            $userKey.SetValue('Path', $cleanUser, $targetKind)
+            Write-Host "[   OK   ] User PATH cleaned." -ForegroundColor Green
+        }
+        $userKey.Close()
+    }
+} catch {
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    if ($userPath) {
+        $cleanUser = ($userPath -split ';' | Where-Object { $_ -and -not (Test-IsJvmPath $_) }) -join ';'
+        [Environment]::SetEnvironmentVariable('Path', $cleanUser, 'User')
+        Write-Host "[   OK   ] User PATH cleaned." -ForegroundColor Green
+    }
 }
 
 # Attempt Machine PATH cleanup (silently skipped if no elevation)
 try {
-    $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
-    if ($machinePath) {
-        $cleanMachine = ($machinePath -split ';' | Where-Object { $_ -and ($jvmLocations -notcontains $_) }) -join ';'
-        [Environment]::SetEnvironmentVariable('Path', $cleanMachine, 'Machine')
+    $machineKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SYSTEM\CurrentControlSet\Control\Session Manager\Environment', $true)
+    if ($machineKey) {
+        $rawMachinePath = $machineKey.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        if ($null -ne $rawMachinePath -and $rawMachinePath -ne '') {
+            $machineKind = try { $machineKey.GetValueKind('Path') } catch { [Microsoft.Win32.RegistryValueKind]::String }
+            $cleanMachine = ($rawMachinePath -split ';' | Where-Object { $_ -and -not (Test-IsJvmPath $_) }) -join ';'
+            $targetKind = if ($machineKind -eq [Microsoft.Win32.RegistryValueKind]::String) { [Microsoft.Win32.RegistryValueKind]::String } else { [Microsoft.Win32.RegistryValueKind]::ExpandString }
+            $machineKey.SetValue('Path', $cleanMachine, $targetKind)
+        }
+        $machineKey.Close()
     }
 } catch { <# No elevation - skip silently #> }
 
@@ -92,11 +129,14 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
 # ----------------------------------------------------------------
 Write-Host "[ ACTION ] Removing PowerShell Profile Hook..." -ForegroundColor Cyan
 $userProfileDir = [Environment]::GetFolderPath('UserProfile')
+$myDocs = [Environment]::GetFolderPath('MyDocuments')
 $profiles = @(
     (Join-Path $userProfileDir "Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"),
     (Join-Path $userProfileDir "Documents\PowerShell\Microsoft.PowerShell_profile.ps1"),
+    (Join-Path $myDocs "WindowsPowerShell\Microsoft.PowerShell_profile.ps1"),
+    (Join-Path $myDocs "PowerShell\Microsoft.PowerShell_profile.ps1"),
     $PROFILE
-) | Select-Object -Unique
+) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
 $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
 foreach ($p in $profiles) {
@@ -140,8 +180,22 @@ Write-Host "[   OK   ] Removed $removedVars environment variables." -ForegroundC
 Write-Host "`n[ ACTION ] Removing Windows Uninstall Registry & Shortcuts..." -ForegroundColor Cyan
 Remove-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue
 try { Remove-Item -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue } catch {}
-Remove-Item -Path "HKCU:\Software\DiamTek" -Recurse -Force -ErrorAction SilentlyContinue
-try { Remove-Item -Path "HKLM:\Software\DiamTek" -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+Remove-Item -Path "HKCU:\Software\DiamTek\JVM" -Recurse -Force -ErrorAction SilentlyContinue
+try { Remove-Item -Path "HKLM:\Software\DiamTek\JVM" -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+
+# Only prune parent DiamTek registry key if it has no remaining subkeys or values
+try {
+    $cuDiamTek = Get-Item -Path "HKCU:\Software\DiamTek" -ErrorAction SilentlyContinue
+    if ($cuDiamTek -and ($cuDiamTek.SubKeyCount -eq 0) -and ($cuDiamTek.ValueCount -eq 0)) {
+        Remove-Item -Path "HKCU:\Software\DiamTek" -Force -ErrorAction SilentlyContinue
+    }
+} catch {}
+try {
+    $lmDiamTek = Get-Item -Path "HKLM:\Software\DiamTek" -ErrorAction SilentlyContinue
+    if ($lmDiamTek -and ($lmDiamTek.SubKeyCount -eq 0) -and ($lmDiamTek.ValueCount -eq 0)) {
+        Remove-Item -Path "HKLM:\Software\DiamTek" -Force -ErrorAction SilentlyContinue
+    }
+} catch {}
 
 $startMenuDirs = @(
     (Join-Path ([Environment]::GetFolderPath('Programs')) "DiamTek"),
@@ -149,8 +203,13 @@ $startMenuDirs = @(
 )
 foreach ($sm in $startMenuDirs) {
     if (Test-Path $sm) {
-        Remove-Item -Path $sm -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "[   OK   ] Removed Start Menu folder: $sm" -ForegroundColor Green
+        Get-ChildItem -LiteralPath $sm -Filter "*Java Version Manager*" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -LiteralPath $sm -Filter "*JVM*" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        $remaining = Get-ChildItem -LiteralPath $sm -Force -ErrorAction SilentlyContinue
+        if (-not $remaining) {
+            Remove-Item -LiteralPath $sm -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "[   OK   ] Removed Start Menu folder: $sm" -ForegroundColor Green
+        }
     }
 }
 
@@ -170,7 +229,8 @@ foreach ($wtSettings in $wtSettingsCandidates) {
     if (Test-Path $wtSettings) {
         try {
             $wtContent = Get-Content $wtSettings -Raw -ErrorAction Stop
-            $wtJson = $wtContent | ConvertFrom-Json
+            $cleanJson = $wtContent -replace '(?m)^\s*//.*$', ''
+            $wtJson = $cleanJson | ConvertFrom-Json
             if ($wtJson.profiles -and $wtJson.profiles.list) {
                 $filtered = @($wtJson.profiles.list | Where-Object { $_.guid -ne '{b20650a4-4212-4d64-9edf-744e9285e2be}' -and $_.name -ne 'Java Version Manager' })
                 if ($filtered.Count -ne $wtJson.profiles.list.Count) {
@@ -210,11 +270,33 @@ if (Test-Path $jvmAppData) {
         } | Stop-Process -Force -ErrorAction SilentlyContinue
     } catch { }
 
+    # Safely unbind and remove any directory junctions / reparse points first
+    # This prevents Windows PowerShell 5.1 Remove-Item -Recurse from traversing
+    # into target JDK installation folders (e.g. C:\Program Files\Java\jdk-*)
+    try {
+        Get-ChildItem -LiteralPath $jvmAppData -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
+            $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint
+        } | ForEach-Object {
+            if ($_.PSIsContainer) {
+                try {
+                    [System.IO.Directory]::Delete($_.FullName, $false)
+                } catch {
+                    cmd.exe /c "rmdir /q `"$($_.FullName)`"" 2>$null
+                }
+            } else {
+                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch { }
+
     try {
         Remove-Item -LiteralPath $jvmAppData -Recurse -Force -ErrorAction Stop
         Write-Host "[   OK   ] Deleted: $jvmAppData" -ForegroundColor Green
     } catch {
-        Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$env:TEMP`" & timeout /t 1 >nul & rmdir /s /q `"$jvmAppData`"" -WindowStyle Hidden
+        $cleanScript = "Start-Sleep -Seconds 1; if (Test-Path -LiteralPath '$($jvmAppData -replace "'", "''")') { Remove-Item -LiteralPath '$($jvmAppData -replace "'", "''")' -Recurse -Force -ErrorAction SilentlyContinue }"
+        $bytes = [System.Text.Encoding]::Unicode.GetBytes($cleanScript)
+        $encoded = [System.Convert]::ToBase64String($bytes)
+        Start-Process -FilePath $systemPowerShell -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded) -WindowStyle Hidden
         Write-Host "[   OK   ] Scheduled deletion of: $jvmAppData" -ForegroundColor Green
     }
 } else {
@@ -239,6 +321,21 @@ if (Test-Path $legacyJvm) {
 # Candidate tools and caches (Maven, Gradle, etc. in ~/.jvm)
 $userJvmCandidates = Join-Path $userProfileDir ".jvm"
 if (Test-Path $userJvmCandidates) {
+    try {
+        Get-ChildItem -LiteralPath $userJvmCandidates -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
+            $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint
+        } | ForEach-Object {
+            if ($_.PSIsContainer) {
+                try {
+                    [System.IO.Directory]::Delete($_.FullName, $false)
+                } catch {
+                    cmd.exe /c "rmdir /q `"$($_.FullName)`"" 2>$null
+                }
+            } else {
+                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch { }
     Remove-Item -LiteralPath $userJvmCandidates -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "[   OK   ] Cleaned up candidates folder: $userJvmCandidates" -ForegroundColor Green
 }
@@ -268,7 +365,9 @@ if ($javaDir) {
         } catch {
             Write-Host "[ ACTION ] Requesting Administrator privileges to delete '$javaDir'..." -ForegroundColor Cyan
             try {
-                $proc = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"Remove-Item -LiteralPath '$javaDir' -Recurse -Force -ErrorAction SilentlyContinue`"" -Verb RunAs -Wait -PassThru
+                $delScript = "Remove-Item -LiteralPath '$($javaDir -replace "'", "''")' -Recurse -Force -ErrorAction SilentlyContinue"
+                $encDel = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($delScript))
+                $proc = Start-Process -FilePath $systemPowerShell -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encDel) -Verb RunAs -Wait -PassThru
                 if (-not (Test-Path $javaDir)) {
                     $deleted = $true
                 }
@@ -318,21 +417,42 @@ if ($targetFolder) {
             if ($deleteTarget) {
                 Write-Host "[ ACTION ] Deleting JVM directory: $targetFolder..." -ForegroundColor Cyan
                 Set-Location $env:TEMP
+
+                # Unbind junctions before removing target folder
+                try {
+                    Get-ChildItem -LiteralPath $targetFolder -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
+                        $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint
+                    } | ForEach-Object {
+                        if ($_.PSIsContainer) {
+                            try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { cmd.exe /c "rmdir /q `"$($_.FullName)`"" 2>$null }
+                        } else {
+                            Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+                        }
+                    }
+                } catch { }
+
                 try {
                     Remove-Item -LiteralPath $targetFolder -Recurse -Force -ErrorAction Stop
                     Write-Host "[   OK   ] Deleted directory: $targetFolder" -ForegroundColor Green
                 } catch {
-                    Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$env:TEMP`" & timeout /t 2 >nul & rmdir /s /q `"$targetFolder`"" -WindowStyle Hidden
+                    $cleanScript = "Start-Sleep -Seconds 2; if (Test-Path -LiteralPath '$($targetFolder -replace "'", "''")') { Remove-Item -LiteralPath '$($targetFolder -replace "'", "''")' -Recurse -Force -ErrorAction SilentlyContinue }"
+                    $bytes = [System.Text.Encoding]::Unicode.GetBytes($cleanScript)
+                    $encoded = [System.Convert]::ToBase64String($bytes)
+                    Start-Process -FilePath $systemPowerShell -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded) -WindowStyle Hidden
                     Write-Host "[   OK   ] Directory scheduled for deletion: $targetFolder" -ForegroundColor Green
                 }
 
-                # Clean up parent container folder if it is now empty (e.g. jvm-test-copy created for testing)
+                # Clean up parent container folder if it is an empty test directory inside TEMP
                 $parentDir = Split-Path -Parent $targetFolder
-                $systemRoots = @($env:USERPROFILE, [Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('MyDocuments'))
-                if ($parentDir -and (Test-Path $parentDir) -and ($parentDir -notin $systemRoots)) {
-                    $remaining = Get-ChildItem -LiteralPath $parentDir -Force -ErrorAction SilentlyContinue
-                    if (-not $remaining) {
-                        Remove-Item -LiteralPath $parentDir -Force -Recurse -ErrorAction SilentlyContinue
+                $tempDir = [System.IO.Path]::GetFullPath($env:TEMP)
+                if ($parentDir -and (Test-Path $parentDir)) {
+                    $parentFull = [System.IO.Path]::GetFullPath($parentDir)
+                    $parentName = Split-Path -Leaf $parentFull
+                    if ($parentFull.StartsWith($tempDir, [System.StringComparison]::OrdinalIgnoreCase) -and ($parentName -match '^(jvm-test|diamtek-temp)')) {
+                        $remaining = Get-ChildItem -LiteralPath $parentFull -Force -ErrorAction SilentlyContinue
+                        if (-not $remaining) {
+                            Remove-Item -LiteralPath $parentFull -Force -Recurse -ErrorAction SilentlyContinue
+                        }
                     }
                 }
             }

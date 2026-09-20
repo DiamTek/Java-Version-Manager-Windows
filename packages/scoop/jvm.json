@@ -6,6 +6,7 @@
     "url": "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v1.0.1/jvm-windows-1.0.1-portable.zip",
     "hash": "f1280688d5bebbf628313778680c5a24c9809c9a3fd3412284a29aa3eec3abad",
     "bin": "jvm.bat",
+    "pre_uninstall": "if (Test-Path \"$dir\\uninstall.ps1\") { & \"$dir\\uninstall.ps1\" -Quiet -SourceDir \"$dir\" }",
     "checkver": {
         "github": "https://github.com/DiamTek/Java-Version-Manager-Windows"
     },

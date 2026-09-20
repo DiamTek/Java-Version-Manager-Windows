@@ -271,7 +271,9 @@ try {
         if (Test-Path $wtPath) {
             $hasWtInstalled = $true
             try {
-                $wtJson = Get-Content $wtPath -Raw | ConvertFrom-Json
+                $rawContent = Get-Content $wtPath -Raw -ErrorAction Stop
+                $cleanContent = $rawContent -replace '(?m)^\s*//.*$', ''
+                $wtJson = $cleanContent | ConvertFrom-Json
                 $jvmProf = $wtJson.profiles.list | Where-Object { $_.name -eq "Java Version Manager" }
                 if ($jvmProf -and $jvmProf.closeOnExit -eq "always") {
                     $wtProfileConfigured = $true
@@ -357,9 +359,13 @@ try {
         foreach ($wtPath in $wtSettingsCandidates) {
             if (Test-Path $wtPath) {
                 try {
-                    $wtJson = Get-Content $wtPath -Raw | ConvertFrom-Json
-                    $jvmProf = $wtJson.profiles.list | Where-Object { $_.name -eq "Java Version Manager" }
-                    if ($jvmProf) { $wtProfileCleaned = $false; break }
+                    $rawContent = Get-Content $wtPath -Raw -ErrorAction SilentlyContinue
+                    if ($rawContent) {
+                        $cleanContent = $rawContent -replace '(?m)^\s*//.*$', ''
+                        $wtJson = $cleanContent | ConvertFrom-Json
+                        $jvmProf = $wtJson.profiles.list | Where-Object { $_.name -eq "Java Version Manager" }
+                        if ($jvmProf) { $wtProfileCleaned = $false; break }
+                    }
                 } catch { }
             }
         }

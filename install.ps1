@@ -30,9 +30,20 @@ if (-not $PSBoundParameters.ContainsKey('Branch') -and $env:JVM_BRANCH) {
     $Branch = $env:JVM_BRANCH
 }
 
+if ($Branch) {
+    if ($Branch -notmatch '^[a-zA-Z0-9_.\-]+(/[a-zA-Z0-9_.\-]+)*$' -or $Branch -match '\.\.') {
+        Write-Host "[ ERROR  ] Invalid branch or tag name: '$Branch'" -ForegroundColor Red
+        exit 1
+    }
+}
+
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072 -bor 12288
+} catch {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+}
 
 $actionName = if ($Update) { "Updating" } else { "Installing" }
 Write-Host "[ ACTION ] $actionName DiamTek Java Version Manager..." -ForegroundColor Cyan
@@ -147,10 +158,12 @@ if (-not $Update -and $PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "jv
     if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
         try {
             $relUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/$rawBranch/jvm.bat"
-            Invoke-WebRequest -Uri $relUrl -Headers $noCacheHeaders -OutFile $batPath -UseBasicParsing -TimeoutSec 10
-            if ((Test-Path $batPath) -and (Get-Item $batPath).Length -gt 0) {
-                $content = [System.IO.File]::ReadAllText($batPath)
+            $tempBatPath = "$batPath.tmp.$([System.IO.Path]::GetRandomFileName())"
+            Invoke-WebRequest -Uri $relUrl -Headers $noCacheHeaders -OutFile $tempBatPath -UseBasicParsing -TimeoutSec 10
+            if ((Test-Path $tempBatPath) -and (Get-Item $tempBatPath).Length -gt 0) {
+                $content = [System.IO.File]::ReadAllText($tempBatPath)
             }
+            Remove-Item $tempBatPath -Force -ErrorAction SilentlyContinue
         } catch {}
     }
     if (-not $content) {
@@ -216,10 +229,13 @@ if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
 
 Update-Progress -Percent 50 -Activity "Sanitizing code format and encoding..."
 $sanitizedContent = ($content -replace "`r?`n", "`r`n").Replace([char]160, ' ')
-[System.IO.File]::WriteAllText($batPath, $sanitizedContent, (New-Object System.Text.UTF8Encoding($false)))
 
-# Verify jvm.bat SHA256 integrity
-$actualJvmHash = Get-FileSha256 -Path $batPath
+# Stage to an isolated temporary file first to prevent TOCTOU and avoid clobbering existing installation on failure
+$stageBat = "$batPath.stage.$([Guid]::NewGuid().ToString('N')).tmp"
+[System.IO.File]::WriteAllText($stageBat, $sanitizedContent, (New-Object System.Text.UTF8Encoding($false)))
+
+# Verify jvm.bat SHA256 integrity on the staged file
+$actualJvmHash = Get-FileSha256 -Path $stageBat
 if ($shaHashMap.ContainsKey("jvm.bat")) {
     $expectedJvmHash = $shaHashMap["jvm.bat"]
     if ($actualJvmHash -ne $expectedJvmHash) {
@@ -228,16 +244,19 @@ if ($shaHashMap.ContainsKey("jvm.bat")) {
         Write-Host "           Expected: $expectedJvmHash" -ForegroundColor Red
         Write-Host "           Computed: $actualJvmHash" -ForegroundColor Red
         Write-Host "           Installation aborted to prevent untrusted execution." -ForegroundColor Red
-        Remove-Item -Path $batPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
         exit 1
     }
-} elseif ($Channel -ne "Nightly" -and $rawBranch -match '^v?[1-9]') {
+} elseif ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
     Write-Host ""
     Write-Host "[ ERROR  ] Cryptographic integrity manifest (SHA256SUMS.txt) required for official release $rawBranch on Stable channel." -ForegroundColor Red
     Write-Host "           Could not verify jvm.bat hash against release manifest. Aborting installation." -ForegroundColor Red
-    Remove-Item -Path $batPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
     exit 1
 }
+
+# Move verified staged engine into place atomically
+Move-Item -LiteralPath $stageBat -Destination $batPath -Force
 
 Update-Progress -Percent 65 -Activity "Fetching documentation, license, & uninstaller..."
 if (-not (Test-Path $repoRoot)) { New-Item -ItemType Directory -Path $repoRoot -Force | Out-Null }
@@ -323,9 +342,25 @@ if ($null -ne $envKey) {
     }
 }
 
-$pathArray = $userPath -split ';' | Where-Object { $_ -ne '' }
-if ($installDir -notin $pathArray) {
-    $newPath = ($pathArray + $installDir) -join ';'
+function Normalize-PathEntry([string]$p) {
+    if (-not $p) { return "" }
+    $clean = $p.Trim()
+    if ($clean.Length -gt 3) {
+        return $clean.TrimEnd('\', '/')
+    }
+    return $clean
+}
+$pathArray = @($userPath -split ';' | Where-Object { $_ -ne '' } | ForEach-Object { Normalize-PathEntry $_ })
+$normalizedInstallDir = Normalize-PathEntry $installDir
+if ($normalizedInstallDir -notin $pathArray) {
+    $newPathList = @()
+    foreach ($p in ($pathArray + $normalizedInstallDir)) {
+        if ($p -and ($newPathList -notcontains $p)) { $newPathList += $p }
+    }
+    $newPath = $newPathList -join ';'
+    if ($newPath.Length -gt 2048) {
+        Write-Host "[ WARNING] User PATH length ($($newPath.Length) chars) exceeds 2048 characters. Some legacy applications may truncate PATH." -ForegroundColor Yellow
+    }
     [Microsoft.Win32.Registry]::SetValue("HKEY_CURRENT_USER\Environment", "Path", $newPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
     
     # Broadcast WM_SETTINGCHANGE
@@ -341,8 +376,10 @@ Update-Progress -Percent 90 -Activity "Configuring PowerShell profile..."
 $profileCode = @'
 # >>> jvm >>>
 function jvm {
-    $bat = Get-Command jvm.bat -CommandType Application -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
-    if (-not $bat) { $bat = '__FALLBACK_BAT__' }
+    $bat = '__FALLBACK_BAT__'
+    if (-not (Test-Path -LiteralPath $bat)) {
+        $bat = Get-Command jvm.bat -CommandType Application -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
+    }
     & $bat @args
 
     function Set-JvmVar {
@@ -351,12 +388,12 @@ function jvm {
         $allowedVars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')
         if ($allowedVars -notcontains $Name) { return }
 
-        if ($OldValue) { $OldValue = $OldValue.TrimEnd('\') }
-        if ($NewValue) { $NewValue = $NewValue.TrimEnd('\') }
+        if ($OldValue) { $OldValue = $OldValue.Trim('`"').TrimEnd('\') }
+        if ($NewValue) { $NewValue = $NewValue.Trim('`"').TrimEnd('\') }
 
         # Validate NewValue is a genuine directory and contains no injection characters
         if (-not [string]::IsNullOrWhiteSpace($NewValue)) {
-            if ($NewValue -match '[;&|<>`"\r\n]') { return }
+            if ($NewValue -match '[\0;&|<>`"\r\n\$]') { return }
             if (-not (Test-Path -LiteralPath $NewValue -PathType Container)) { return }
         }
 
@@ -464,11 +501,14 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
 $profileCode = $profileCode.Replace('__FALLBACK_BAT__', $batPath)
 
 $userProfile = [Environment]::GetFolderPath('UserProfile')
+$myDocs = [Environment]::GetFolderPath('MyDocuments')
 $profiles = @(
     $PROFILE,
     (Join-Path $userProfile 'Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1'),
-    (Join-Path $userProfile 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1')
-) | Select-Object -Unique
+    (Join-Path $userProfile 'Documents\PowerShell\Microsoft.PowerShell_profile.ps1'),
+    (Join-Path $myDocs 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'),
+    (Join-Path $myDocs 'PowerShell\Microsoft.PowerShell_profile.ps1')
+) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
 $utf8 = New-Object System.Text.UTF8Encoding($true)
 foreach ($p in $profiles) {
@@ -495,8 +535,10 @@ try {
     $uninstallRegPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM"
     if (-not (Test-Path $uninstallRegPath)) { New-Item -Path $uninstallRegPath -Force | Out-Null }
     
+    $systemPowerShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+    if (-not (Test-Path $systemPowerShell)) { $systemPowerShell = "powershell.exe" }
     $uninstallScriptPath = "$repoRoot\uninstall.ps1"
-    $uninstallCommand = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
+    $uninstallCommand = "`"$systemPowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
     
     $displayVer = "1.0.1"
     if (Test-Path $batPath) {
@@ -541,7 +583,8 @@ try {
         if (Test-Path $wtSettings) {
             try {
                 $wtContent = Get-Content $wtSettings -Raw -ErrorAction Stop
-                $wtJson = $wtContent | ConvertFrom-Json
+                $cleanJson = $wtContent -replace '(?m)^\s*//.*$', ''
+                $wtJson = $cleanJson | ConvertFrom-Json
                 if ($wtJson.profiles -and $wtJson.profiles.list) {
                     $existing = $wtJson.profiles.list | Where-Object { $_.guid -eq '{b20650a4-4212-4d64-9edf-744e9285e2be}' -or $_.name -eq 'Java Version Manager' }
                     if (-not $existing) {
@@ -604,7 +647,7 @@ try {
     }
 
     $shortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Uninstall Java Version Manager.lnk"))
-    $shortcut.TargetPath = "powershell.exe"
+    $shortcut.TargetPath = $systemPowerShell
     $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
     $shortcut.IconLocation = "$env:SystemRoot\System32\shell32.dll,31"
     $shortcut.Description = "Uninstall DiamTek Java Version Manager"
