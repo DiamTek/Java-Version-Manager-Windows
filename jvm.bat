@@ -15,32 +15,37 @@ rem GNU Affero General Public License for more details.
 rem You should have received a copy of the GNU Affero General Public License
 rem along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+rem Enforce pinned system executable paths against CWE-426 (Binary Planting in CWD)
+if not defined SystemRoot set "SystemRoot=C:\Windows"
+set "NoDefaultCurrentDirectoryInExePath=1"
+set "SYS32=%SystemRoot%\System32"
+set "CMD_BIN=%SYS32%\cmd.exe"
+set "PS_BIN=%SYS32%\WindowsPowerShell\v1.0\powershell.exe"
+set "FIND_BIN=%SYS32%\find.exe"
+set "FINDSTR_BIN=%SYS32%\findstr.exe"
+set "REG_BIN=%SYS32%\reg.exe"
+set "CHOICE_BIN=%SYS32%\choice.exe"
+set "FSUTIL_BIN=%SYS32%\fsutil.exe"
+set "WHERE_BIN=%SYS32%\where.exe"
+set "TIMEOUT_BIN=%SYS32%\timeout.exe"
+set "CHCP_BIN=%SYS32%\chcp.com"
+set "EXPLORER_BIN=%SystemRoot%\explorer.exe"
+
+rem Establish a secure, user-isolated temp workspace to prevent CWE-377 / CWE-378
+set "JVM_SECURE_TEMP=%LOCALAPPDATA%\DiamTek\JVM\temp"
+call :EnsureSecureTemp
+
 set "ORIG_CP="
-for /f "tokens=2 delims=:" %%A in ('chcp 2^>nul') do (
+for /f "tokens=2 delims=:" %%A in ('%CHCP_BIN% 2^>nul') do (
     for /f "tokens=1 delims=. " %%B in ("%%A") do set "ORIG_CP=%%B"
 )
 if not defined ORIG_CP set "ORIG_CP=437"
-chcp 65001 >nul
+"%CHCP_BIN%" 65001 >nul
 
 set "INVOCATION_DIR=%cd%"
 
-rem Cleanup self-updater and temporary artifacts if they exist
-if exist "%TEMP%\jvm_updater_*.bat" del "%TEMP%\jvm_updater_*.bat" >nul 2>&1
-if exist "%TEMP%\jvm_install_*.ps1" del "%TEMP%\jvm_install_*.ps1" >nul 2>&1
-if exist "%TEMP%\jvm_updater.bat" del "%TEMP%\jvm_updater.bat" >nul 2>&1
-if exist "%TEMP%\jvm_uninstall_*.bat" del "%TEMP%\jvm_uninstall_*.bat" >nul 2>&1
-if exist "%TEMP%\jvm_uninstall_*.ps1" del "%TEMP%\jvm_uninstall_*.ps1" >nul 2>&1
-if exist "%TEMP%\diamtek_uninstall_runner_*.ps1" del "%TEMP%\diamtek_uninstall_runner_*.ps1" >nul 2>&1
-if exist "%TEMP%\jvm_update_*.ps1" del "%TEMP%\jvm_update_*.ps1" >nul 2>&1
-if exist "%TEMP%\jvm_setup_hook_*.ps1" del "%TEMP%\jvm_setup_hook_*.ps1" >nul 2>&1
-if exist "%TEMP%\jvm_remove_hook_*.ps1" del "%TEMP%\jvm_remove_hook_*.ps1" >nul 2>&1
-if exist "%TEMP%\jvm_status_hook_*.ps1" del "%TEMP%\jvm_status_hook_*.ps1" >nul 2>&1
-if exist "%TEMP%\jvm_sha_*.txt" del "%TEMP%\jvm_sha_*.txt" >nul 2>&1
-if exist "%TEMP%\jvm_remote_build_*.txt" del "%TEMP%\jvm_remote_build_*.txt" >nul 2>&1
-if exist "%TEMP%\jvm_dl_*.ps1" del "%TEMP%\jvm_dl_*.ps1" >nul 2>&1
-
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260920.114"
+set "JVM_BUILD=20260923.115"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -438,14 +443,14 @@ if not defined PIN_VAL (
         type "%INVOCATION_DIR%\.java-version"
         echo.
         echo ============================================================
-        if defined ORIG_CP chcp !ORIG_CP! >nul
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b 0
     ) else (
         echo.
         echo %cYELLOW%[ WARNING]%cRESET% No .java-version file exists in this directory.
         echo             Usage: jvm pin ^<version^> [flags]
         echo             Example: jvm pin 21
-        if defined ORIG_CP chcp !ORIG_CP! >nul
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b 1
     )
 )
@@ -462,11 +467,18 @@ shift
 goto :COLLECT_PIN_LOOP
 
 :DO_PIN_WRITE
+call :ValidateStrictIdentifier "!PIN_CONTENT!" PIN_CONTENT
+if errorlevel 1 (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier for pin: !PIN_CONTENT!
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b 1
+)
 >"%INVOCATION_DIR%\.java-version" echo !PIN_CONTENT!
 echo.
 echo %cGREEN%[   OK   ]%cRESET% Successfully pinned Java version '!PIN_CONTENT!' to:
 echo            %INVOCATION_DIR%\.java-version
-if defined ORIG_CP chcp !ORIG_CP! >nul
+if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
 exit /b 0
 
 :PARSE_EXEC_ARGS
@@ -476,8 +488,17 @@ if not defined EXEC_TARGET (
     >&2 echo %cRED%[ ERROR  ]%cRESET% Missing target version for exec.
     >&2 echo            Usage: jvm exec ^<version^> [--] ^<command^> [args...]
     >&2 echo            Example: jvm exec 21 -- java -version
-    if defined ORIG_CP chcp !ORIG_CP! >nul
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     exit /b 1
+)
+if /i "!EXEC_TARGET!" NEQ "latest" if /i "!EXEC_TARGET!" NEQ "lts" (
+    call :ValidateStrictIdentifier "!EXEC_TARGET!" EXEC_TARGET
+    if errorlevel 1 (
+        echo.
+        >&2 echo %cRED%[ ERROR  ]%cRESET% Invalid target version for exec: !EXEC_TARGET!
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b 1
+    )
 )
 shift
 if "%~1"=="--" shift
@@ -486,7 +507,7 @@ if "%~1"=="" (
     >&2 echo %cRED%[ ERROR  ]%cRESET% No command specified to execute.
     >&2 echo            Usage: jvm exec ^<version^> [--] ^<command^> [args...]
     >&2 echo            Example: jvm exec 21 -- java -version
-    if defined ORIG_CP chcp !ORIG_CP! >nul
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     exit /b 1
 )
 
@@ -523,7 +544,7 @@ if /i "%CLI_COMMAND%"=="doctor" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="open" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="hook" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="channel" set "WANT_UTF8=1"
-if "%WANT_UTF8%"=="1" chcp 65001 >nul
+if "%WANT_UTF8%"=="1" "%CHCP_BIN%" 65001 >nul
 if "%SILENT_MODE%"=="0" title Java Version Manager
 
 rem Detect Hardware Architecture
@@ -555,38 +576,52 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="version" set "SKIP_HEADER=1"
     if /i "%CLI_COMMAND%"=="help" (
         call :ShowHelp
-        if defined ORIG_CP chcp !ORIG_CP! >nul
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b 0
     )
     if /i "%CLI_COMMAND%"=="which" (
         call :WhichBinary
         set "FAST_EXIT=!errorlevel!"
-        if defined ORIG_CP chcp !ORIG_CP! >nul
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b !FAST_EXIT!
     )
     if /i "%CLI_COMMAND%"=="current" if /i "!TARGET_CANDIDATE!"=="java" (
         call :ShowCurrentStatus
-        if defined ORIG_CP chcp !ORIG_CP! >nul
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b 0
     )
     if /i "%CLI_COMMAND%"=="status" if /i "!TARGET_CANDIDATE!"=="java" (
         call :ShowCurrentStatus
-        if defined ORIG_CP chcp !ORIG_CP! >nul
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b 0
     )
     if /i "%CLI_COMMAND%"=="env" if /i "!TARGET_CANDIDATE!"=="java" (
         call :ShowCurrentStatus
-        if defined ORIG_CP chcp !ORIG_CP! >nul
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b 0
+    )
+)
+if /i not "!TARGET_CANDIDATE!"=="java" (
+    if defined CLI_COMMAND (
+        call :RouteEcosystemCandidate
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
+    )
+    if defined CLI_TARGET (
+        call :RouteEcosystemCandidate
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
     )
 )
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
 ) else if exist "%INVOCATION_DIR%\.java-version" (
     set "PARSED_JV="
-    for /f "eol=# delims=" %%L in ('findstr /r "[0-9]" "%INVOCATION_DIR%\.java-version" 2^>nul ^| findstr /v "[&|<>\`%%!;$()^{}]"') do (
+    for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /r "[0-9]" "%INVOCATION_DIR%\.java-version" 2^>nul ^| %FINDSTR_BIN% /v "[&|<>\`%%!;$()^{}]"') do (
         if not defined PARSED_JV (
-            call :ParseJavaVersion "%%L"
+            call :ParseJavaVersion %%L
             set "PARSED_JV=1"
             if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
             set "SILENT_MODE=1"
@@ -595,7 +630,7 @@ if defined CLI_TARGET (
     )
 ) else if exist "%INVOCATION_DIR%\.sdkmanrc" (
     set "FOUND_SDKMANRC=1"
-    for /f "eol=# delims=" %%L in ('findstr /i /b "java=" "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /v "[&|<>\`%%!;$()^{}]"') do (
+    for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /i /b "java=" "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| %FINDSTR_BIN% /v "[&|<>\`%%!;$()^{}]"') do (
         for /f "tokens=1,2 delims==" %%A in ("%%L") do (
             call :ParseSdkmanrc "%%B"
         )
@@ -622,6 +657,7 @@ if defined CLI_COMMAND (
     if /i "%CLI_COMMAND%"=="exec" goto :SKIP_ADMIN_CHECK
     if /i "%CLI_COMMAND%"=="channel" goto :SKIP_ADMIN_CHECK
 )
+
 rem By default, run everything inline without Admin. We only elevate for specific file/registry operations.
 goto :SKIP_ADMIN_CHECK
 
@@ -663,7 +699,7 @@ set "MENU_EXIT_CODE=!errorlevel!"
 rem If CURRENT_JDK_PATH is not set, the user chose the Exit option (unless purely doing ecosystem session switching)
 if not defined CURRENT_JDK_PATH (
     if not "!FOUND_SDKMANRC!"=="1" (
-        if defined ORIG_CP chcp !ORIG_CP! >nul
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         if defined CMD_EXIT_CODE exit /B !CMD_EXIT_CODE!
         if not "!MENU_EXIT_CODE!"=="0" exit /B !MENU_EXIT_CODE!
         exit /B 0
@@ -678,10 +714,10 @@ if "!CURRENT_JDK_PATH!"=="CLEAR" (
 
 if "!SESSION_MODE!"=="1" (
     echo.
-    if exist "%TEMP%\.jvm_session_target" del "%TEMP%\.jvm_session_target"
+    if exist "%JVM_SECURE_TEMP%\.jvm_session_target" del "%JVM_SECURE_TEMP%\.jvm_session_target"
     if defined CURRENT_JDK_PATH (
         echo %cBLUE%[ ACTION ]%cRESET% Session mode active. Setting Java to !CURRENT_JDK_PATH!...
-        >>"%TEMP%\.jvm_session_target" echo JAVA_HOME=!CURRENT_JDK_PATH!
+        >>"%JVM_SECURE_TEMP%\.jvm_session_target" echo JAVA_HOME=!CURRENT_JDK_PATH!
         set "JAVA_HOME=!CURRENT_JDK_PATH!"
         set "PATH=!CURRENT_JDK_PATH!\bin;!PATH!"
     ) else (
@@ -689,7 +725,7 @@ if "!SESSION_MODE!"=="1" (
     )
     
     if "!FOUND_SDKMANRC!"=="1" (
-        for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| findstr /i /v "^java=" ^| findstr /v "[&|<>`%%!;$()^{}]"') do (
+        for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| %FINDSTR_BIN% /i /v "^java=" ^| %FINDSTR_BIN% /v "[&|<>`%%!;$()^{}]"') do (
             set "ECO_CAND=%%A"
             set "ECO_VER=%%B"
             call :ProcessEcosystemSession "!ECO_CAND!" "!ECO_VER!"
@@ -709,7 +745,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     echo %cBLUE%[  INFO  ]%cRESET% Setting JAVA_HOME to: !CURRENT_JDK_PATH!
     
     rem Output session target so the parent PowerShell window can sync immediately
-    >"%TEMP%\.jvm_session_target" echo !CURRENT_JDK_PATH!
+    >"%JVM_SECURE_TEMP%\.jvm_session_target" echo !CURRENT_JDK_PATH!
     
     rem Deferring registry update to UpdateSystemPath to do both in one UAC prompt
     set "SYMLINK_OR_DIRECT=!CURRENT_JDK_PATH!"
@@ -729,15 +765,15 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
         goto MAIN_LOOP
     )
     
-    >"%TEMP%\.jvm_session_target" echo !CURRENT_SYMLINK!
+    >"%JVM_SECURE_TEMP%\.jvm_session_target" echo !CURRENT_SYMLINK!
     
     rem Ensure JAVA_HOME permanently points to the junction in the USER registry (bypasses UAC)
     set "REG_JAVA_HOME="
-    for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "REG_JAVA_HOME=%%B"
+    for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "REG_JAVA_HOME=%%B"
     if /i not "!REG_JAVA_HOME!"=="!CURRENT_SYMLINK!" (
         echo.
         echo %cBLUE%[  INFO  ]%cRESET% Setting JAVA_HOME to: !CURRENT_SYMLINK!
-        powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable('JAVA_HOME', $env:CURRENT_SYMLINK, 'User')"
+        "%PS_BIN%" -NoProfile -Command "[Environment]::SetEnvironmentVariable('JAVA_HOME', $env:CURRENT_SYMLINK, 'User')"
         if errorlevel 1 (
             echo %cRED%[ ERROR  ]%cRESET% Failed to set JAVA_HOME in registry
             pause
@@ -761,7 +797,7 @@ set "CLEAN_PATH=!PATH!"
 
 rem Use PowerShell to safely filter out old Java paths via exact string matching to prevent accidental substring pollution
     set "PS_CMD=$p = $env:PATH -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne '' -and (-not $env:JAVA_HOME -or $d -ne ($env:JAVA_HOME + '\bin')) -and (-not $env:SYMLINK_OR_DIRECT -or $d -ne ($env:SYMLINK_OR_DIRECT + '\bin')) -and (-not $env:CURRENT_JDK_PATH -or $d -ne ($env:CURRENT_JDK_PATH + '\bin'))) { $r += $d } }; $r -join ';'"
-    for /f "delims=" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do set "CLEAN_PATH=%%A"
+    for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do set "CLEAN_PATH=%%A"
 
 rem Export the clean path back to the main session and apply at the front
 for /f "delims=" %%A in (""!CLEAN_PATH!"") do (
@@ -784,13 +820,12 @@ echo %JAVA_HOME%
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Testing Java command...
 echo ------------------------------------------------------------
-for /f "delims=" %%A in ('java -version 2^>^&1') do echo %%A
-echo.
-java -version >nul 2>&1
-if errorlevel 1 (
-    echo %cBLUE%[  INFO  ]%cRESET% Java may not work until you restart command prompt.
-) else (
+if exist "%JAVA_HOME%\bin\java.exe" (
+    for /f "delims=" %%A in ('"%JAVA_HOME%\bin\java.exe" -version 2^>^&1') do echo %%A
+    echo.
     echo %cGREEN%[   OK   ]%cRESET% Java is working correctly.
+) else (
+    echo %cYELLOW%[ WARNING]%cRESET% Target java.exe not found in JAVA_HOME\bin.
 )
 echo.
 if "%SESSION_MODE%"=="1" (
@@ -810,7 +845,7 @@ echo ============================================================
 
 echo.
 if "%SILENT_MODE%"=="1" (
-    if defined ORIG_CP chcp !ORIG_CP! >nul
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     exit /b 0
 )
 echo Press any key to return to the menu...
@@ -844,9 +879,9 @@ if exist "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" (
 )
 if /i not "!SWITCH_MODE!"=="DIRECT" set "SWITCH_MODE=SYMLINK"
 set "JAVA_HOME="
-for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "JAVA_HOME=%%B"
+for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "JAVA_HOME=%%B"
 if not defined JAVA_HOME (
-    for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME 2^>nul') do set "JAVA_HOME=%%B"
+    for /f "tokens=2*" %%A in ('%REG_BIN% query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME 2^>nul') do set "JAVA_HOME=%%B"
 )
 if "!SKIP_HEADER!"=="0" (
     rem cls
@@ -865,14 +900,17 @@ if "!SKIP_HEADER!"=="0" (
 
     echo Current Java information:
     echo ============================================================
-    where java >nul 2>nul
-    if errorlevel 1 (
+    set "DISCOVERED_JAVA="
+    for /f "delims=" %%A in ('%WHERE_BIN% java 2^>nul') do (
+        if not defined DISCOVERED_JAVA set "DISCOVERED_JAVA=%%A"
+    )
+    if not defined DISCOVERED_JAVA (
         echo %cYELLOW%[ WARNING]%cRESET% Java is NOT in PATH or not installed
         echo %cBLUE%[  INFO  ]%cRESET% This is normal if Java was just removed from PATH
     ) else (
-        echo %cGREEN%[   OK   ]%cRESET% Java is in PATH
+        echo %cGREEN%[   OK   ]%cRESET% Java is in PATH: !DISCOVERED_JAVA!
         echo.
-        for /f "delims=" %%A in ('java -version 2^>^&1') do echo %%A
+        for /f "delims=" %%A in ('"!DISCOVERED_JAVA!" -version 2^>^&1') do echo %%A
     )
     echo ============================================================
     echo.
@@ -881,7 +919,7 @@ if "!SKIP_HEADER!"=="0" (
 rem Resolve the true underlying path of JAVA_HOME if it is currently using the symlink mode
 set "RESOLVED_JAVA_HOME=!JAVA_HOME!"
 if /i "!JAVA_HOME!"=="%LOCALAPPDATA%\DiamTek\JVM\current" (
-    for /f "tokens=2 delims=[]" %%A in ('dir /al "%LOCALAPPDATA%\DiamTek\JVM" 2^>nul ^| findstr /i "current"') do (
+    for /f "tokens=2 delims=[]" %%A in ('dir /al "%LOCALAPPDATA%\DiamTek\JVM" 2^>nul ^| %FINDSTR_BIN% /i "current"') do (
         set "RESOLVED_JAVA_HOME=%%A"
     )
 )
@@ -925,27 +963,27 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                         set "VER="
                         set "VENDOR_STR=Unknown"
                         if exist "%%j\release" (
-                            for /f "tokens=2 delims==" %%R in ('findstr /b "JAVA_VERSION=" "%%j\release" 2^>nul') do (
+                            for /f "tokens=2 delims==" %%R in ('%FINDSTR_BIN% /b "JAVA_VERSION=" "%%j\release" 2^>nul') do (
                                 set "VER_STR=%%~R"
                                 for /f "tokens=1 delims=." %%V in ("!VER_STR!") do set "VER=%%V"
                             )
-                            for /f "tokens=2 delims==" %%R in ('findstr /b "IMPLEMENTOR=" "%%j\release" 2^>nul') do (
+                            for /f "tokens=2 delims==" %%R in ('%FINDSTR_BIN% /b "IMPLEMENTOR=" "%%j\release" 2^>nul') do (
                                 set "VENDOR_RAW=%%~R"
                                 set "VENDOR_RAW=!VENDOR_RAW:"=!"
-                                echo !VENDOR_RAW! | find /i "Oracle" >nul && set "VENDOR_STR=Oracle"
-                                echo !VENDOR_RAW! | find /i "Adoptium" >nul && set "VENDOR_STR=Adoptium"
-                                echo !VENDOR_RAW! | find /i "GraalVM" >nul && set "VENDOR_STR=GraalVM"
-                                echo !VENDOR_RAW! | find /i "Amazon" >nul && set "VENDOR_STR=Corretto"
-                                echo !VENDOR_RAW! | find /i "Azul" >nul && set "VENDOR_STR=Zulu"
-                                echo !VENDOR_RAW! | find /i "Microsoft" >nul && set "VENDOR_STR=Microsoft"
-                                echo !VENDOR_RAW! | find /i "BellSoft" >nul && set "VENDOR_STR=Liberica"
-                                echo !VENDOR_RAW! | find /i "Liberica" >nul && set "VENDOR_STR=Liberica"
-                                echo !VENDOR_RAW! | find /i "IBM" >nul && set "VENDOR_STR=Semeru"
-                                echo !VENDOR_RAW! | find /i "Semeru" >nul && set "VENDOR_STR=Semeru"
+                                echo !VENDOR_RAW! | %FIND_BIN% /i "Oracle" >nul && set "VENDOR_STR=Oracle"
+                                echo !VENDOR_RAW! | %FIND_BIN% /i "Adoptium" >nul && set "VENDOR_STR=Adoptium"
+                                echo !VENDOR_RAW! | %FIND_BIN% /i "GraalVM" >nul && set "VENDOR_STR=GraalVM"
+                                echo !VENDOR_RAW! | %FIND_BIN% /i "Amazon" >nul && set "VENDOR_STR=Corretto"
+                                echo !VENDOR_RAW! | %FIND_BIN% /i "Azul" >nul && set "VENDOR_STR=Zulu"
+                                echo !VENDOR_RAW! | %FIND_BIN% /i "Microsoft" >nul && set "VENDOR_STR=Microsoft"
+                                echo !VENDOR_RAW! | %FIND_BIN% /i "BellSoft" >nul && set "VENDOR_STR=Liberica"
+                                echo !VENDOR_RAW! | %FIND_BIN% /i "Liberica" >nul && set "VENDOR_STR=Liberica"
+                                echo !VENDOR_RAW! | %FIND_BIN% /i "IBM" >nul && set "VENDOR_STR=Semeru"
+                                echo !VENDOR_RAW! | %FIND_BIN% /i "Semeru" >nul && set "VENDOR_STR=Semeru"
                             )
                         )
                         if not defined VER (
-                            for /f "tokens=3" %%A in ('""%%j\bin\java.exe" -version 2^>^&1 ^| findstr /i "version""') do (
+                            for /f "tokens=3" %%A in ('""%%j\bin\java.exe" -version 2^>^&1 ^| %FINDSTR_BIN% /i "version""') do (
                                 set "VER_STR=%%~A"
                                 set "VER_STR=!VER_STR:"=!"
                             )
@@ -1036,7 +1074,7 @@ if !JDK_COUNT! GTR 1 (
 if /i not "!TARGET_CANDIDATE!"=="java" (
     call :RouteEcosystemCandidate
     set "CMD_EXIT_CODE=!errorlevel!"
-    if defined ORIG_CP chcp !ORIG_CP! >nul 2>&1
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
     exit /b !CMD_EXIT_CODE!
 )
 
@@ -1185,7 +1223,7 @@ if defined CLI_COMMAND (
                 for %%T in (maven gradle kotlin scala groovy) do (
                     if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current" (
                         set "QUERY_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current"
-                        for /f "delims=" %%A in ('powershell -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do for %%X in ("%%A") do set "act_ver=%%~nxX"
+                        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do for %%X in ("%%A") do set "act_ver=%%~nxX"
                         call :EcoPerformCheck %%T "!act_ver!"
                     )
                 )
@@ -1238,7 +1276,7 @@ if defined CLI_COMMAND (
             
             set "U_KEYS="
             for /l %%k in (1,1,!RESOLVE_COUNT!) do set "U_KEYS=!U_KEYS!%%k"
-            choice /C !U_KEYS! /N /M "Select vendor to uninstall (1-!RESOLVE_COUNT!): "
+            "%CHOICE_BIN%" /C !U_KEYS! /N /M "Select vendor to uninstall (1-!RESOLVE_COUNT!): "
             if !errorlevel! EQU !RESOLVE_COUNT! goto :eof
             
             set "CHOICE_VAL=!errorlevel!"
@@ -1255,20 +1293,31 @@ if defined CLI_COMMAND (
                 set "DEL_NAME=!JDK_NAME_%%A!"
             )
             
+            if "!FORCE_YES!" NEQ "1" (
+                echo.
+                echo %cYELLOW%[ WARNING ]%cRESET% You are about to permanently delete:
+                echo              !DEL_PATH!
+                "%CHOICE_BIN%" /C yn /N /M "Are you sure you want to proceed? (y/N): "
+                if !errorlevel! NEQ 1 (
+                    echo %cBLUE%[  INFO  ]%cRESET% Uninstallation cancelled.
+                    goto :eof
+                )
+            )
+
             echo.
             echo %cBLUE%[ ACTION ]%cRESET% Terminating any active Java processes...
             echo %cBLUE%[ ACTION ]%cRESET% Deleting directory !DEL_PATH!...
             echo %cBLUE%[ ACTION ]%cRESET% Scrubbing environment variables...
             echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
-            powershell -NoProfile -Command "$del = $env:DEL_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($del)); $script = '$del = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
+            "%PS_BIN%" -NoProfile -Command "$del = $env:DEL_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($del)); $script = '$del = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
             
             rem Clean User PATH preserving REG_EXPAND_SZ
             set "DEL_BIN=!DEL_PATH!\bin"
-            powershell -NoProfile -Command "$delBin = $env:DEL_BIN; $p = [Environment]::GetEnvironmentVariable('Path', 'User'); if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ne $delBin.TrimEnd('\') }) -join ';'; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $clean -Type ExpandString }" >nul 2>&1
+            "%PS_BIN%" -NoProfile -Command "$delBin = $env:DEL_BIN; $p = [Environment]::GetEnvironmentVariable('Path', 'User'); if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ne $delBin.TrimEnd('\') }) -join ';'; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $clean -Type ExpandString }" >nul 2>&1
             
             if not exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" (
                 rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
-                reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
+                "%REG_BIN%" delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
             )
             
             if exist "!DEL_PATH!" (
@@ -1362,7 +1411,7 @@ if defined CLI_TARGET (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found.
     echo             Please ensure it is installed and try again.
-    if "!SILENT_MODE!"=="0" timeout /t 3 >nul
+    if "!SILENT_MODE!"=="0" "%TIMEOUT_BIN%" /t 3 >nul
     set "JVM_EXIT_CODE=1"
     goto :CLI_DONE
 )
@@ -1381,7 +1430,7 @@ echo 3. Settings (Global Command ^& Setup)
 echo 4. Exit
 echo.
 
-choice /C 1234 /N /M "Enter your choice (1-4): "
+"%CHOICE_BIN%" /C 1234 /N /M "Enter your choice (1-4): "
 set "choice=!errorlevel!"
 
 if !choice!==4 (
@@ -1390,7 +1439,7 @@ if !choice!==4 (
     <nul set /p "=%cBLUE%[  INFO  ]%cRESET% "
     for %%i in (3 2 1) do (
         <nul set /p "=%%i... "
-        choice /C 123456789abcdefghijklmnopqrstuvwxyz0 /T 1 /D 0 /N >nul
+        "%CHOICE_BIN%" /C 123456789abcdefghijklmnopqrstuvwxyz0 /T 1 /D 0 /N >nul
         if !errorlevel! LSS 36 (
             echo.
             goto RESCAN_MENU
@@ -1398,7 +1447,7 @@ if !choice!==4 (
     )
     echo.
     endlocal
-    if defined ORIG_CP chcp !ORIG_CP! >nul
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     set "CURRENT_JDK_PATH="
     goto :eof
 )
@@ -1441,7 +1490,7 @@ echo 1. Switch Active JDK (Path ^& Environment)
 echo 2. Version Management (Install, Update, Uninstall)
 echo 3. Go back
 echo.
-choice /C 123 /N /M "Enter your choice (1-3): "
+"%CHOICE_BIN%" /C 123 /N /M "Enter your choice (1-3): "
 set "jdk_main_choice=!errorlevel!"
 if !jdk_main_choice!==3 goto :eof
 if !jdk_main_choice!==1 (
@@ -1467,7 +1516,7 @@ echo 1. Switch Active Tool (Path ^& Environment)
 echo 2. Version Management (Install, Update, Uninstall)
 echo 3. Go back
 echo.
-choice /C 123 /N /M "Enter your choice (1-3): "
+"%CHOICE_BIN%" /C 123 /N /M "Enter your choice (1-3): "
 set "eco_main_choice=!errorlevel!"
 if !eco_main_choice!==3 goto :eof
 if !eco_main_choice!==1 (
@@ -1489,7 +1538,7 @@ echo 2. Download and Install a new Tool version
 echo 3. Uninstall a Tool and clean environment variables
 echo 4. Go back
 echo.
-choice /C 1234 /N /M "Enter your choice (1-4): "
+"%CHOICE_BIN%" /C 1234 /N /M "Enter your choice (1-4): "
 set "sub_choice=!errorlevel!"
 if !sub_choice!==4 goto :EcosystemMenu
 if !sub_choice!==1 (
@@ -1530,10 +1579,10 @@ for %%T in (maven gradle kotlin scala groovy) do (
             rem Resolve active version from the current symlink
             set "EU_ACTIVE_%%T=none"
             set "ACTIVE_TARGET="
-            for /f "tokens=1,2*" %%A in ('fsutil reparsepoint query "!eu_cdir!\current" 2^>nul ^| findstr /i "Print Name:"') do set "ACTIVE_TARGET=%%C"
+            for /f "tokens=1,2*" %%A in ('%FSUTIL_BIN% reparsepoint query "!eu_cdir!\current" 2^>nul ^| %FINDSTR_BIN% /i "Print Name:"') do set "ACTIVE_TARGET=%%C"
             if not defined ACTIVE_TARGET (
                 set "QUERY_PATH=!eu_cdir!\current"
-                for /f "delims=" %%A in ('powershell -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "ACTIVE_TARGET=%%A"
+                for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "ACTIVE_TARGET=%%A"
             )
             if defined ACTIVE_TARGET (
                 set "ACTIVE_TARGET=!ACTIVE_TARGET:\??\=!"
@@ -1601,7 +1650,7 @@ echo.
 rem Build choice keys dynamically
 set "EU_KEYS="
 for /l %%i in (1,1,!EU_CANCEL!) do set "EU_KEYS=!EU_KEYS!%%i"
-choice /C !EU_KEYS! /N /M "Select tool (1-!EU_CANCEL!): "
+"%CHOICE_BIN%" /C !EU_KEYS! /N /M "Select tool (1-!EU_CANCEL!): "
 set "eu_choice=!errorlevel!"
 
 if !eu_choice!==!EU_CANCEL! goto :eof
@@ -1655,7 +1704,7 @@ if "!LATEST_VER!"=="ERROR" (
             call :InstallCandidate
             set "IS_UPDATER="
         ) else (
-            choice /C YN /M "Do you want to download and install !CANDIDATE_PROPER_NAME! !LATEST_VER! now? "
+            "%CHOICE_BIN%" /C YN /M "Do you want to download and install !CANDIDATE_PROPER_NAME! !LATEST_VER! now? "
             if !errorlevel!==1 (
                 echo.
                 set "CLI_TARGET=!LATEST_VER!"
@@ -1753,7 +1802,7 @@ echo.
 set "VALID_CHOICES="
 for /l %%k in (1,1,!cancel_opt!) do set "VALID_CHOICES=!VALID_CHOICES!%%k"
 
-choice /C !VALID_CHOICES! /N /M "Enter your choice (1-!cancel_opt!): "
+"%CHOICE_BIN%" /C !VALID_CHOICES! /N /M "Enter your choice (1-!cancel_opt!): "
 set "tool_choice=!errorlevel!"
 if !tool_choice!==!cancel_opt! (
     if "!ECO_SUB_MODE!"=="SWITCH" goto :EcosystemMenu
@@ -1779,7 +1828,7 @@ if "!ECO_SUB_MODE!"=="INSTALL" (
 if "!ECO_SUB_MODE!"=="UNINSTALL" (
     echo.
     echo %cBLUE%[  INFO  ]%cRESET% Installed !CANDIDATE_PROPER_NAME! versions:
-    for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -Path '%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name"') do (
+    for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -Path '%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name"') do (
         echo   - %%V
     )
     echo.
@@ -1806,7 +1855,7 @@ echo.
 set "eco_count=0"
 set "CANDIDATE_DIR=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
 if exist "!CANDIDATE_DIR!" (
-    for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name"') do (
+    for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name"') do (
         set /a eco_count+=1
         set "ECO_VER_!eco_count!=%%V"
     )
@@ -1820,10 +1869,10 @@ if !eco_count!==0 (
 )
 
 set "ACTIVE_TARGET="
-for /f "tokens=1,2*" %%A in ('fsutil reparsepoint query "!CANDIDATE_DIR!\current" 2^>nul ^| findstr /i "Print Name:"') do set "ACTIVE_TARGET=%%C"
+for /f "tokens=1,2*" %%A in ('%FSUTIL_BIN% reparsepoint query "!CANDIDATE_DIR!\current" 2^>nul ^| %FINDSTR_BIN% /i "Print Name:"') do set "ACTIVE_TARGET=%%C"
 if not defined ACTIVE_TARGET (
     set "QUERY_PATH=!CANDIDATE_DIR!\current"
-    for /f "delims=" %%A in ('powershell -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "ACTIVE_TARGET=%%A"
+    for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "ACTIVE_TARGET=%%A"
 )
 if defined ACTIVE_TARGET (
     set "ACTIVE_TARGET=!ACTIVE_TARGET:\??\=!"
@@ -1856,7 +1905,7 @@ if !total_opts! GTR 9 goto :ECO_CHOICE_MANUAL
 
 set "ALLOWED_CHOICES=123456789"
 for %%A in (!total_opts!) do set "VALID_CHOICES=!ALLOWED_CHOICES:~0,%%A!"
-choice /C !VALID_CHOICES! /N /M "Select an option (1-!total_opts!): "
+"%CHOICE_BIN%" /C !VALID_CHOICES! /N /M "Select an option (1-!total_opts!): "
 set "user_choice=!errorlevel!"
 goto :PROCESS_ECO_CHOICE
 
@@ -1878,7 +1927,7 @@ if !user_choice!==!clear_opt! (
     echo %cBLUE%[ ACTION ]%cRESET% Clearing !CANDIDATE_PROPER_NAME! from environment...
     set "SYMLINK_PATH=!CANDIDATE_DIR!\current"
     rmdir "!SYMLINK_PATH!" >nul 2>&1
-    reg delete "HKCU\Environment" /v !CANDIDATE_ENV_VAR! /f >nul 2>&1
+    "%REG_BIN%" delete "HKCU\Environment" /v !CANDIDATE_ENV_VAR! /f >nul 2>&1
     set "!CANDIDATE_ENV_VAR!="
     echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! has been de-activated.
     pause
@@ -1918,7 +1967,7 @@ set "LTS_CANCEL_OPT=!LTS_OPT!"
 echo.
 set "LTS_CHOICE_STR="
 for /l %%c in (1,1,!LTS_OPT!) do set "LTS_CHOICE_STR=!LTS_CHOICE_STR!%%c"
-choice /C !LTS_CHOICE_STR! /N /M "Select LTS version (1-!LTS_OPT!): "
+"%CHOICE_BIN%" /C !LTS_CHOICE_STR! /N /M "Select LTS version (1-!LTS_OPT!): "
 set "LTS_CHOICE=!errorlevel!"
 if !LTS_CHOICE!==!LTS_CANCEL_OPT! (
     set "CLI_TARGET="
@@ -1942,7 +1991,7 @@ if "!CLI_VENDOR!"=="" (
     echo 8. IBM Semeru ^(OpenJ9^)
     echo 9. Cancel
     echo.
-    choice /C 123456789 /N /M "Select vendor (1-9): "
+    "%CHOICE_BIN%" /C 123456789 /N /M "Select vendor (1-9): "
     if !errorlevel!==9 goto :eof
     if !errorlevel!==1 set "CLI_VENDOR=Oracle"
     if !errorlevel!==2 set "CLI_VENDOR=Adoptium"
@@ -1980,7 +2029,7 @@ if "!IS_UPDATER!" NEQ "1" (
         if "!FORCE_YES!"=="1" (
             echo %cBLUE%[  INFO  ]%cRESET% Reinstalling/overwriting due to --yes flag...
         ) else (
-            choice /C yn /N /M "Would you like to reinstall and overwrite it? (y/N): "
+            "%CHOICE_BIN%" /C yn /N /M "Would you like to reinstall and overwrite it? (y/N): "
             if !errorlevel! NEQ 1 (
                 echo %cBLUE%[  INFO  ]%cRESET% Installation cancelled.
                 if "!CLI_COMMAND!"=="" pause
@@ -2024,7 +2073,7 @@ if "!DL_VERSION!"=="17" (
         if "!FORCE_YES!"=="1" (
             echo Proceed with installing 17.0.12? ^(y/N^): Y [AUTO-YES]
         ) else (
-            choice /C yn /N /M "Proceed with installing 17.0.12? (y/N): "
+            "%CHOICE_BIN%" /C yn /N /M "Proceed with installing 17.0.12? (y/N): "
             if errorlevel 2 goto :eof
         )
     )
@@ -2123,7 +2172,7 @@ goto Run_API_Query
 
 :Run_API_Query
 set "API_URL=" & set "API_SHA256=" & set "API_SHA256_URL=" & set "API_SHA1=" & set "API_ERROR="
-for /f "tokens=1,* delims==" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do (
+for /f "tokens=1,* delims==" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do (
     if "%%A"=="API_URL" set "API_URL=%%B"
     if "%%A"=="API_SHA256" set "API_SHA256=%%B"
     if "%%A"=="API_SHA256_URL" set "API_SHA256_URL=%%B"
@@ -2147,7 +2196,7 @@ goto :FetchAndExtract
 :FetchLatestVersions
 if defined ORACLE_LATEST_FEATURE goto :eof
 set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/info/available_releases' -UseBasicParsing -TimeoutSec 3; Write-Output ('LATEST_FEATURE='+$res.most_recent_feature_release); Write-Output ('LATEST_LTS='+$res.most_recent_lts) } catch { Write-Output 'LATEST_FEATURE=26'; Write-Output 'LATEST_LTS=25' }"
-for /f "tokens=1,* delims==" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do (
+for /f "tokens=1,* delims==" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do (
     if "%%A"=="LATEST_FEATURE" set "ORACLE_LATEST_FEATURE=%%B"
     if "%%A"=="LATEST_LTS" set "ORACLE_LATEST_LTS=%%B"
 )
@@ -2155,8 +2204,8 @@ goto :eof
 
 :FetchAndExtract
 setlocal enabledelayedexpansion
-set "ZIP_PATH=%TEMP%\jdk_!DL_VENDOR!_!DL_VERSION!_!RANDOM!_!RANDOM!_download.zip"
-set "EXTRACT_DIR=%TEMP%\jdk_!DL_VENDOR!_!DL_VERSION!_!RANDOM!_!RANDOM!_extract"
+set "ZIP_PATH=%JVM_SECURE_TEMP%\jdk_!DL_VENDOR!_!DL_VERSION!_!RANDOM!_!RANDOM!_download.zip"
+set "EXTRACT_DIR=%JVM_SECURE_TEMP%\jdk_!DL_VENDOR!_!DL_VERSION!_!RANDOM!_!RANDOM!_extract"
 set "DEST_DIR=C:\Program Files\Java"
 
 if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!"
@@ -2205,9 +2254,18 @@ if !ROOT_COUNT! GTR 1 (
     goto :eof
 )
 
+call :ValidateStrictIdentifier "!NEW_FOLDER!" NEW_FOLDER
+if errorlevel 1 (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Security validation failed: Malformed folder name extracted from archive.
+    if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
+    if "!CLI_COMMAND!"=="" pause
+    goto :eof
+)
+
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Installing !NEW_FOLDER! to system directory...
-powershell -NoProfile -Command "$d = $env:DEST_DIR; $f = $env:NEW_FOLDER; $e = $env:EXTRACT_DIR; $b64d = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($d)); $b64f = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($f)); $b64e = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($e)); $script = '$d = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64d + ''')); $f = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64f + ''')); $e = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64e + ''')); if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }; $t = Join-Path $d $f; if (Test-Path -LiteralPath $t) { Remove-Item -LiteralPath $t -Recurse -Force }; Move-Item -LiteralPath (Join-Path $e $f) -Destination $d -Force; if (Test-Path -LiteralPath $e) { Remove-Item -LiteralPath $e -Recurse -Force -ErrorAction SilentlyContinue }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
+"%PS_BIN%" -NoProfile -Command "$d = $env:DEST_DIR; $f = $env:NEW_FOLDER; $e = $env:EXTRACT_DIR; $b64d = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($d)); $b64f = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($f)); $b64e = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($e)); $script = '$d = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64d + ''')); $f = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64f + ''')); $e = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64e + ''')); if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }; $t = Join-Path $d $f; if (-not $t.StartsWith($d, [System.StringComparison]::OrdinalIgnoreCase)) { throw 'Path traversal detected in destination folder' }; if (Test-Path -LiteralPath $t) { Remove-Item -LiteralPath $t -Recurse -Force }; Move-Item -LiteralPath (Join-Path $e $f) -Destination $d -Force; if (Test-Path -LiteralPath $e) { Remove-Item -LiteralPath $e -Recurse -Force -ErrorAction SilentlyContinue }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
 
 if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
     echo.
@@ -2238,15 +2296,15 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     echo %cBLUE%[ ACTION ]%cRESET% Requesting Administrator privileges to update Machine Registry...
     
     rem Scrub any conflicting User-level JAVA_HOME that might override the Machine-level variable
-    reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
+    "%REG_BIN%" delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
     
-    powershell -NoProfile -Command "$target = $env:CURRENT_JDK_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($target)); $script = '$target = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); $purges = @(''C:\Program Files\Common Files\Oracle\Java\javapath'', ''C:\Program Files (x86)\Common Files\Oracle\Java\javapath'', ''C:\ProgramData\Oracle\Java\javapath'', ''%LOCALAPPDATA%\DiamTek\JVM\current\bin'', $target + ''\bin''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd(''\'') -and $_.TrimEnd(''\'') -ne ''%%JAVA_HOME%%\bin'' }) -join '';''; $finalPath = ''%%JAVA_HOME%%\bin;'' + $clean; [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $target, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $finalPath -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
+    "%PS_BIN%" -NoProfile -Command "$target = $env:CURRENT_JDK_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($target)); $script = '$target = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); $juncBin = Join-Path $env:LOCALAPPDATA ''DiamTek\JVM\current\bin''; $purges = @(''C:\Program Files\Common Files\Oracle\Java\javapath'', ''C:\Program Files (x86)\Common Files\Oracle\Java\javapath'', ''C:\ProgramData\Oracle\Java\javapath'', $juncBin, $target + ''\bin''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd(''\'') -and $_.TrimEnd(''\'') -ne ''%%JAVA_HOME%%\bin'' }) -join '';''; $finalPath = ''%%JAVA_HOME%%\bin;'' + $clean; [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $target, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $finalPath -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
     
     echo %cGREEN%[   OK   ]%cRESET% JAVA_HOME and SYSTEM PATH updated successfully via UAC.
 ) else (
     echo %cBLUE%[ ACTION ]%cRESET% Updating USER PATH...
-    
-    powershell -NoProfile -Command "$p = [Environment]::GetEnvironmentVariable('Path', 'User'); $purges = @('C:\Program Files\Common Files\Oracle\Java\javapath', 'C:\Program Files (x86)\Common Files\Oracle\Java\javapath', 'C:\ProgramData\Oracle\Java\javapath', '%LOCALAPPDATA%\DiamTek\JVM\current\bin', '!SAFE_JDK_PATH!\bin'); if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') -and $_.TrimEnd('\') -ne '%%JAVA_HOME%%\bin' }) -join ';'; $finalPath = '%%JAVA_HOME%%\bin;' + $clean } else { $finalPath = '%%JAVA_HOME%%\bin' }; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $finalPath -Type ExpandString"
+    set "SAFE_JDK_PATH=!CURRENT_JDK_PATH!"
+    "%PS_BIN%" -NoProfile -Command "$p = [Environment]::GetEnvironmentVariable('Path', 'User'); $juncBin = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\current\bin'; $targetBin = Join-Path $env:SAFE_JDK_PATH 'bin'; $purges = @('C:\Program Files\Common Files\Oracle\Java\javapath', 'C:\Program Files (x86)\Common Files\Oracle\Java\javapath', 'C:\ProgramData\Oracle\Java\javapath', $juncBin, $targetBin); if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') -and $_.TrimEnd('\') -ne '%%JAVA_HOME%%\bin' }) -join ';'; $finalPath = '%%JAVA_HOME%%\bin;' + $clean } else { $finalPath = '%%JAVA_HOME%%\bin' }; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $finalPath -Type ExpandString"
     if errorlevel 1 (
         echo %cRED%[ ERROR  ]%cRESET% Failed to update USER PATH.
     ) else (
@@ -2308,7 +2366,7 @@ echo %cYELLOW%[ WARNING ]%cRESET% You are about to remove JAVA_HOME and clean al
 echo             from your SYSTEM and USER environment variables.
 echo             Your installed JDK files will NOT be deleted.
 echo.
-choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
+"%CHOICE_BIN%" /C yn /N /M "Are you sure you want to proceed? (y/N): "
 if !errorlevel! NEQ 1 (
     endlocal
     goto :eof
@@ -2316,12 +2374,12 @@ if !errorlevel! NEQ 1 (
 
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Removing JAVA_HOME and Ecosystem variables from registry...
-reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
-reg delete "HKCU\Environment" /v MAVEN_HOME /f >nul 2>&1
-reg delete "HKCU\Environment" /v GRADLE_HOME /f >nul 2>&1
-reg delete "HKCU\Environment" /v KOTLIN_HOME /f >nul 2>&1
-reg delete "HKCU\Environment" /v SCALA_HOME /f >nul 2>&1
-reg delete "HKCU\Environment" /v GROOVY_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v MAVEN_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v GRADLE_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v KOTLIN_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v SCALA_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v GROOVY_HOME /f >nul 2>&1
 
 echo %cBLUE%[ ACTION ]%cRESET% Removing active directory junctions...
 rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
@@ -2338,55 +2396,51 @@ rem Create Registry Backups Before Destructive Scrubbing
 echo %cBLUE%[ ACTION ]%cRESET% Creating redundant registry backups...
 call :BackupRegistry
 
+rem Format purges as semicolon-delimited lists to avoid space-splitting and quotation issues
+set "ENV_PURGE_LIST=%LOCALAPPDATA%\DiamTek\JVM\current\bin;%%JAVA_HOME%%\bin;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\ProgramData\Oracle\Java\javapath"
+if defined JAVA_HOME set "ENV_PURGE_LIST=!ENV_PURGE_LIST!;!JAVA_HOME!\bin"
+for /l %%k in (1,1,!JDK_COUNT!) do set "ENV_PURGE_LIST=!ENV_PURGE_LIST!;!JDK_PATH_%%k!\bin"
+
 rem Clean SYSTEM PATH
 echo %cBLUE%[ ACTION ]%cRESET% Cleaning SYSTEM PATH...
 set "SYS_PATH="
-for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
+for /f "tokens=2*" %%A in ('%REG_BIN% query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
 if defined SYS_PATH (
-    set "PS_CMD=$p = $env:SYS_PATH -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
-    for %%P in (!PURGE_PATHS!) do (
-        set "PS_CMD=!PS_CMD! -and $d -ne '%%~P'"
-    )
-    set "PS_CMD=!PS_CMD!) { $r += $d } }; $r -join ';'"
-    for /f "delims=" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do set "SYS_PATH=%%A"
+    set "CLEAN_SYS_PATH="
+    for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$purges = $env:ENV_PURGE_LIST -split ';' | Where-Object { $_ } | ForEach-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') }; $p = [Environment]::GetEnvironmentVariable('Path', 'Machine'); if ($p) { ($p -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') -and $_.TrimEnd('\') -ne '%%JAVA_HOME%%\bin' }) -join ';' }"') do set "CLEAN_SYS_PATH=%%A"
     
-    echo %cBLUE%[ ACTION ]%cRESET% Requesting Administrator privileges to clear Machine Registry...
-    powershell -NoProfile -Command "$sysPath = $env:SYS_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($sysPath)); $script = '$sysPath = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $null, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $sysPath -Type ExpandString'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
+    if defined CLEAN_SYS_PATH (
+        echo %cBLUE%[ ACTION ]%cRESET% Requesting Administrator privileges to clear Machine Registry...
+        set "SYS_PATH=!CLEAN_SYS_PATH!"
+        "%PS_BIN%" -NoProfile -Command "$sysPath = $env:SYS_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($sysPath)); $script = '$sysPath = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $null, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $sysPath -Type ExpandString'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
+    )
 )
 
 rem Clean USER PATH
 echo %cBLUE%[ ACTION ]%cRESET% Cleaning USER PATH...
 set "USR_PATH="
-for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USR_PATH=%%B"
+for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v Path 2^>nul') do set "USR_PATH=%%B"
 if defined USR_PATH (
-    set "ECO_PURGE="%%MAVEN_HOME%%\bin" "%%GRADLE_HOME%%\bin" "%%KOTLIN_HOME%%\bin" "%%SCALA_HOME%%\bin" "%%GROOVY_HOME%%\bin""
-    set "PS_CMD=$p = $env:USR_PATH -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
-    for %%P in (!PURGE_PATHS! !ECO_PURGE!) do (
-        set "PS_CMD=!PS_CMD! -and $d -ne '%%~P'"
+    set "CLEAN_USR_PATH="
+    set "ENV_USR_PURGE=!ENV_PURGE_LIST!;%%MAVEN_HOME%%\bin;%%GRADLE_HOME%%\bin;%%KOTLIN_HOME%%\bin;%%SCALA_HOME%%\bin;%%GROOVY_HOME%%\bin"
+    for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$purges = $env:ENV_USR_PURGE -split ';' | Where-Object { $_ } | ForEach-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') }; $p = [Environment]::GetEnvironmentVariable('Path', 'User'); if ($p) { ($p -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') -and $_.TrimEnd('\') -ne '%%JAVA_HOME%%\bin' }) -join ';' }"') do set "CLEAN_USR_PATH=%%A"
+
+    if defined CLEAN_USR_PATH (
+        set "USR_PATH=!CLEAN_USR_PATH!"
+        "%PS_BIN%" -NoProfile -Command "Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $env:USR_PATH -Type ExpandString"
     )
-    set "PS_CMD=!PS_CMD!) { $r += $d } }; $r -join ';'"
-    for /f "delims=" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do set "USR_PATH=%%A"
-    powershell -NoProfile -Command "Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $env:USR_PATH -Type ExpandString"
 )
 
 rem Clean active session variables
 echo %cBLUE%[ ACTION ]%cRESET% Cleaning current session environment...
-set "CLEAN_PATH=!PATH!"
+set "SESS_PURGE_LIST=!ENV_PURGE_LIST!"
+if defined MAVEN_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!MAVEN_HOME!\bin"
+if defined GRADLE_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!GRADLE_HOME!\bin"
+if defined KOTLIN_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!KOTLIN_HOME!\bin"
+if defined SCALA_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!SCALA_HOME!\bin"
+if defined GROOVY_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!GROOVY_HOME!\bin"
 
-set "SESS_ECO_PURGE="%%MAVEN_HOME%%\bin" "%%GRADLE_HOME%%\bin" "%%KOTLIN_HOME%%\bin" "%%SCALA_HOME%%\bin" "%%GROOVY_HOME%%\bin""
-if defined MAVEN_HOME set "SESS_ECO_PURGE=!SESS_ECO_PURGE! "!MAVEN_HOME!\bin""
-if defined GRADLE_HOME set "SESS_ECO_PURGE=!SESS_ECO_PURGE! "!GRADLE_HOME!\bin""
-if defined KOTLIN_HOME set "SESS_ECO_PURGE=!SESS_ECO_PURGE! "!KOTLIN_HOME!\bin""
-if defined SCALA_HOME set "SESS_ECO_PURGE=!SESS_ECO_PURGE! "!SCALA_HOME!\bin""
-if defined GROOVY_HOME set "SESS_ECO_PURGE=!SESS_ECO_PURGE! "!GROOVY_HOME!\bin""
-
-rem Use PowerShell to explicitly filter paths via exact array string matching
-set "PS_CMD=$p = $env:PATH -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
-for %%P in (!PURGE_PATHS! !SESS_ECO_PURGE!) do (
-    set "PS_CMD=!PS_CMD! -and $d -ne '%%~P'"
-)
-set "PS_CMD=!PS_CMD!) { $r += $d } }; $r -join ';'"
-for /f "delims=" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do set "CLEAN_PATH=%%A"
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$purges = $env:SESS_PURGE_LIST -split ';' | Where-Object { $_ } | ForEach-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') }; ($env:PATH -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') }) -join ';'"') do set "CLEAN_PATH=%%A"
 
 rem Export active session path
 for /f "delims=" %%A in (""!CLEAN_PATH!"") do (
@@ -2416,15 +2470,18 @@ if not defined JAVA_HOME (
 echo.
 echo Current Java information:
 echo ============================================================
-where java >nul 2>nul
-if errorlevel 1 (
-    echo %cYELLOW%[ WARNING]%cRESET% Java is NOT in PATH or not installed
-    echo %cBLUE%[  INFO  ]%cRESET% This is normal if Java was just removed from PATH
-) else (
-    echo %cGREEN%[   OK   ]%cRESET% Java is in PATH
-    echo.
-    for /f "delims=" %%A in ('java -version 2^>^&1') do echo %%A
-)
+set "DISCOVERED_JAVA="
+    for /f "delims=" %%A in ('%WHERE_BIN% java 2^>nul') do (
+        if not defined DISCOVERED_JAVA set "DISCOVERED_JAVA=%%A"
+    )
+    if not defined DISCOVERED_JAVA (
+        echo %cYELLOW%[ WARNING]%cRESET% Java is NOT in PATH or not installed
+        echo %cBLUE%[  INFO  ]%cRESET% This is normal if Java was just removed from PATH
+    ) else (
+        echo %cGREEN%[   OK   ]%cRESET% Java is in PATH: !DISCOVERED_JAVA!
+        echo.
+        for /f "delims=" %%A in ('"!DISCOVERED_JAVA!" -version 2^>^&1') do echo %%A
+    )
 echo ============================================================
 echo.
 
@@ -2532,7 +2589,7 @@ set "ALLOWED_CHOICES=123456789abcdefghijklmnopqrstuvwxyz"
 set "P_KEYS=!ALLOWED_CHOICES:~0,%P_OPT%!"
 
 echo.
-choice /C !P_KEYS! /N /M "Select option (1-!P_OPT!): "
+"%CHOICE_BIN%" /C !P_KEYS! /N /M "Select option (1-!P_OPT!): "
 set "v_choice=!errorlevel!"
 
 if !v_choice!==!OPT_P_CANCEL! goto :eof
@@ -2588,7 +2645,7 @@ if !P_CANCEL! GTR 9 goto GET_P_CHOICE_MANUAL
 set "P_CHOICE_KEYS="
 for /l %%k in (1,1,!P_CANCEL!) do set "P_CHOICE_KEYS=!P_CHOICE_KEYS!%%k"
 
-choice /C !P_CHOICE_KEYS! /N /M "Enter your choice (1-!P_CANCEL!): "
+"%CHOICE_BIN%" /C !P_CHOICE_KEYS! /N /M "Enter your choice (1-!P_CANCEL!): "
 set "p_choice=!errorlevel!"
 
 if !p_choice!==0 (
@@ -2634,7 +2691,7 @@ echo 3. Uninstall a JDK and clean environment variables
 echo 4. Go back
 echo.
 
-choice /C 1234 /N /M "Enter your choice (1-4): "
+"%CHOICE_BIN%" /C 1234 /N /M "Enter your choice (1-4): "
 set "sub_choice=!errorlevel!"
 
 if !sub_choice!==4 goto :eof
@@ -2668,7 +2725,7 @@ echo 2. Ecosystem Build Tool (Maven, Gradle, etc.)
 echo.
 echo 3. Cancel
 echo.
-choice /C 123 /N /M "Enter your choice (1-3): "
+"%CHOICE_BIN%" /C 123 /N /M "Enter your choice (1-3): "
 if !errorlevel!==1 call :InstallWizard_JDK
 if !errorlevel!==2 (
     set "ECO_SUB_MODE=INSTALL"
@@ -2742,7 +2799,7 @@ echo.
 
 set "BV_KEYS="
 for /l %%k in (1,1,!BV_OPT_CANCEL!) do set "BV_KEYS=!BV_KEYS!%%k"
-choice /C !BV_KEYS! /N /M "Select option (1-!BV_OPT_CANCEL!): "
+"%CHOICE_BIN%" /C !BV_KEYS! /N /M "Select option (1-!BV_OPT_CANCEL!): "
 set "bv_choice=!errorlevel!"
 
 if !bv_choice!==!BV_OPT_CANCEL! (
@@ -2823,7 +2880,8 @@ echo %cBLUE%[  INFO  ]%cRESET% Checking vendor API for updates...
 
 set "UPDATE_RESULT=" & set "LOCAL_VER=" & set "REMOTE_VER="
 
-set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "UPD_RANDOM_NAME=%%A"
+set "UPDATE_CHECKER_PS1=%JVM_SECURE_TEMP%\jvm_update_!UPD_RANDOM_NAME!.ps1"
 (
     echo param^(
     echo     [Parameter^(Mandatory=$true^)][string]$Vendor,
@@ -2891,7 +2949,7 @@ set "UPDATE_CHECKER_PS1=%TEMP%\jvm_update_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 ) > "!UPDATE_CHECKER_PS1!"
 
 set "API_ERROR="
-for /f "tokens=1,* delims=|" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_CHECKER_PS1!" -Vendor "!UP_VENDOR!" -Major "!UP_MAJOR!" -LocalPath "!UP_PATH!"') do (
+for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_CHECKER_PS1!" -Vendor "!UP_VENDOR!" -Major "!UP_MAJOR!" -LocalPath "!UP_PATH!"') do (
     if "%%A"=="ORACLE_LEGACY" goto :Update_OracleLegacy
     if "%%A"=="LOCAL" set "LOCAL_VER=%%B"
     if "%%A"=="REMOTE" set "REMOTE_VER=%%B"
@@ -2920,7 +2978,7 @@ if "!UPDATE_RESULT!"=="UP_TO_DATE" (
 
 echo %cYELLOW%[ UPDATE ]%cRESET% A newer build is available!
 if not defined CLI_COMMAND (
-    choice /C yn /N /M "Would you like to download and install this update? (y/N): "
+    "%CHOICE_BIN%" /C yn /N /M "Would you like to download and install this update? (y/N): "
     if !errorlevel! NEQ 1 goto :eof
 )
 goto :TriggerUpdateDownload
@@ -2928,7 +2986,7 @@ goto :TriggerUpdateDownload
 :Update_OracleLegacy
 set "PS_CMD=$req = [Net.HttpWebRequest]::Create('https://download.oracle.com/java/!UP_MAJOR!/latest/jdk-!UP_MAJOR!_windows-!SYS_ARCH!_bin.zip'); $req.Method = 'HEAD'; try { $res = $req.GetResponse(); $res.LastModified.ToString('yyyy-MM-dd') } catch { 'ERROR|' + $_.Exception.Message }"
 set "REMOTE_DATE=UNKNOWN" & set "API_ERROR="
-for /f "tokens=1,* delims=|" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do (
+for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do (
     if "%%A"=="ERROR" ( set "API_ERROR=%%B" ) else ( set "REMOTE_DATE=%%A" )
 )
 if defined API_ERROR (
@@ -2938,7 +2996,7 @@ if defined API_ERROR (
 )
 set "LOCAL_DATE=UNKNOWN"
 if exist "!UP_PATH!\release" (
-    for /f "tokens=2 delims==" %%A in ('findstr "JAVA_VERSION_DATE" "!UP_PATH!\release"') do set "LOCAL_DATE=%%~A"
+    for /f "tokens=2 delims==" %%A in ('%FINDSTR_BIN% "JAVA_VERSION_DATE" "!UP_PATH!\release"') do set "LOCAL_DATE=%%~A"
 )
 echo %cBLUE%[  INFO  ]%cRESET% Local Build Date : !LOCAL_DATE!
 echo %cBLUE%[  INFO  ]%cRESET% Remote Build Date: !REMOTE_DATE!
@@ -2951,7 +3009,7 @@ echo %cYELLOW%[ UPDATE ]%cRESET% A newer build is available!
 if defined CLI_COMMAND (
     if /i "!CLI_TARGET!"=="" ( echo %cYELLOW%[ UPDATE ]%cRESET% Run 'jvm update !UP_MAJOR!' to install. & goto :eof )
 ) else (
-    choice /C yn /N /M "Would you like to download and install this update? (y/N): "
+    "%CHOICE_BIN%" /C yn /N /M "Would you like to download and install this update? (y/N): "
     if !errorlevel! NEQ 1 goto :eof
 )
 
@@ -3010,7 +3068,7 @@ if !U_CANCEL! GTR 9 (
 ) else (
     set "U_CHOICE_KEYS="
     for /l %%k in (1,1,!U_CANCEL!) do set "U_CHOICE_KEYS=!U_CHOICE_KEYS!%%k"
-    choice /C !U_CHOICE_KEYS! /N /M "Enter your choice (1-!U_CANCEL!): "
+    "%CHOICE_BIN%" /C !U_CHOICE_KEYS! /N /M "Enter your choice (1-!U_CANCEL!): "
     set "u_choice=!errorlevel!"
 )
 if !u_choice!==!U_CANCEL! goto :UninstallJDK
@@ -3023,24 +3081,29 @@ echo.
 echo %cYELLOW%[ WARNING ]%cRESET% You are about to permanently delete:
 echo             !DEL_PATH!
 echo             This action cannot be undone.
-choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
+"%CHOICE_BIN%" /C yn /N /M "Are you sure you want to proceed? (y/N): "
 if !errorlevel! NEQ 1 (
     echo.
     echo %cBLUE%[  INFO  ]%cRESET% Uninstallation cancelled. Returning to menu...
-    timeout /t 2 >nul
+    "%TIMEOUT_BIN%" /t 2 >nul
     goto :eof
 )
 
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Terminating Java processes running from this JDK...
-powershell -NoProfile -Command "Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($env:DEL_PATH, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue" >nul 2>&1
+"%PS_BIN%" -NoProfile -Command "Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($env:DEL_PATH, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue" >nul 2>&1
 
 echo %cBLUE%[ ACTION ]%cRESET% Deleting directory and scrubbing environment variables...
 echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
-powershell -NoProfile -Command "$del = $env:DEL_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($del)); $script = '$del = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
+"%PS_BIN%" -NoProfile -Command "$del = $env:DEL_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($del)); $script = '$del = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
+
+rem Clean User PATH preserving REG_EXPAND_SZ
+set "DEL_BIN=!DEL_PATH!\bin"
+"%PS_BIN%" -NoProfile -Command "$delBin = $env:DEL_BIN; $p = [Environment]::GetEnvironmentVariable('Path', 'User'); if ($p) { $clean = ($p -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ne $delBin.TrimEnd('\') }) -join ';'; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $clean -Type ExpandString }" >nul 2>&1
+
 if not exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" (
     rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
-    reg delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
+    "%REG_BIN%" delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
 )
 
 if exist "!DEL_PATH!" (
@@ -3076,7 +3139,7 @@ if "!SCRIPT_DIR:~-1!"=="\" set "SCRIPT_DIR=!SCRIPT_DIR:~0,-1!"
 
 set "IN_PATH=0"
 set "USER_PATH="
-for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
+for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v Path 2^>nul') do (
     set "USER_PATH=%%B"
 )
 
@@ -3094,7 +3157,7 @@ if defined USER_PATH (
 )
 
 set "HOOK_IN_PROFILE=0"
-for /f "delims=" %%P in ('powershell -NoProfile -Command "$userProfile = [Environment]::GetFolderPath('UserProfile'); $myDocs = [Environment]::GetFolderPath('MyDocuments'); $docPaths = @($myDocs, (Join-Path $userProfile 'Documents')) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique; $p = @($PROFILE); foreach ($doc in $docPaths) { $p += (Join-Path $doc 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'); $p += (Join-Path $doc 'PowerShell\Microsoft.PowerShell_profile.ps1') }; foreach ($f in ($p | Select-Object -Unique)) { if ($f -and (Test-Path $f) -and (Select-String -Path $f -Pattern '# >>> jvm >>>' -Quiet)) { Write-Output 'FOUND'; break } }" 2^>nul') do (
+for /f "delims=" %%P in ('%PS_BIN% -NoProfile -Command "$userProfile = [Environment]::GetFolderPath('UserProfile'); $myDocs = [Environment]::GetFolderPath('MyDocuments'); $docPaths = @($myDocs, (Join-Path $userProfile 'Documents')) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique; $p = @($PROFILE); foreach ($doc in $docPaths) { $p += (Join-Path $doc 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'); $p += (Join-Path $doc 'PowerShell\Microsoft.PowerShell_profile.ps1') }; foreach ($f in ($p | Select-Object -Unique)) { if ($f -and (Test-Path $f) -and (Select-String -Path $f -Pattern '# >>> jvm >>>' -Quiet)) { Write-Output 'FOUND'; break } }" 2^>nul') do (
     if "%%P"=="FOUND" set "HOOK_IN_PROFILE=1"
 )
 
@@ -3126,7 +3189,7 @@ echo 6. %cRED%Uninstall JVM Completely%cRESET% ^(Full System Wipe^)
 echo 7. Back to Main Menu
 echo.
 
-choice /C 1234567 /N /M "Enter your choice (1-7): "
+"%CHOICE_BIN%" /C 1234567 /N /M "Enter your choice (1-7): "
 set "sub_choice=!errorlevel!"
 
 if !sub_choice!==7 goto :eof
@@ -3150,7 +3213,7 @@ if !sub_choice!==4 (
     > "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" echo !UPDATE_CHANNEL!
     echo.
     echo %cGREEN%[   OK   ]%cRESET% Switched update channel to !CH_NAME!.
-    timeout /t 2 >nul
+    "%TIMEOUT_BIN%" /t 2 >nul
     goto SettingsMenu
 )
 if !sub_choice!==3 (
@@ -3159,20 +3222,19 @@ if !sub_choice!==3 (
         echo.
         echo %cBLUE%[ ACTION ]%cRESET% Scrubbing Machine Registry to prevent Legacy override...
         set "SYS_PATH="
-        for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
+        for /f "tokens=2*" %%A in ('%REG_BIN% query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%B"
         
-        set PURGE_PATHS="C:\Program Files\Common Files\Oracle\Java\javapath" "C:\Program Files (x86)\Common Files\Oracle\Java\javapath" "C:\ProgramData\Oracle\Java\javapath"
-        for /l %%k in (1,1,!JDK_COUNT!) do set PURGE_PATHS=!PURGE_PATHS! "!JDK_PATH_%%k!\bin"
+        set "ENV_PURGE_LIST=C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\ProgramData\Oracle\Java\javapath"
+        for /l %%k in (1,1,!JDK_COUNT!) do set "ENV_PURGE_LIST=!ENV_PURGE_LIST!;!JDK_PATH_%%k!\bin"
         
         if defined SYS_PATH (
-            set "PS_CMD=$p = $env:SYS_PATH -split ';'; $r = @(); foreach ($d in $p) { if ($d -ne ''"
-            for %%P in (!PURGE_PATHS!) do (
-                set "PS_CMD=!PS_CMD! -and $d -ne '%%~P'"
+            set "CLEAN_SYS_PATH="
+            for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$purges = $env:ENV_PURGE_LIST -split ';' | Where-Object { $_ } | ForEach-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') }; $p = [Environment]::GetEnvironmentVariable('Path', 'Machine'); if ($p) { ($p -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') -and $_.TrimEnd('\') -ne '%%JAVA_HOME%%\bin' }) -join ';' }"') do set "CLEAN_SYS_PATH=%%A"
+            if defined CLEAN_SYS_PATH (
+                set "SYS_PATH=!CLEAN_SYS_PATH!"
+                "%PS_BIN%" -NoProfile -Command "$sysPath = $env:SYS_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($sysPath)); $script = '$sysPath = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $null, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $sysPath -Type ExpandString'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
             )
-            set "PS_CMD=!PS_CMD!) { $r += $d } }; $r -join ';'"
-            for /f "delims=" %%A in ('powershell -NoProfile -Command "!PS_CMD!"') do set "SYS_PATH=%%A"
         )
-        powershell -NoProfile -Command "$sysPath = $env:SYS_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($sysPath)); $script = '$sysPath = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $null, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $sysPath -Type ExpandString'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)" 2>nul
     ) else (
         set "SWITCH_MODE=DIRECT"
     )
@@ -3180,7 +3242,7 @@ if !sub_choice!==3 (
     echo !SWITCH_MODE!> "%LOCALAPPDATA%\DiamTek\JVM\mode.txt"
     echo.
     echo %cGREEN%[   OK   ]%cRESET% Switched mode to !SWITCH_MODE!.
-    timeout /t 2 >nul
+    "%TIMEOUT_BIN%" /t 2 >nul
     goto SettingsMenu
 )
 if !sub_choice!==2 (
@@ -3213,19 +3275,19 @@ echo ============================================================
 echo.
 echo %cBLUE%[  INFO  ]%cRESET% Target: !SCRIPT_DIR!
 echo %cYELLOW%[ WARNING]%cRESET% Removing JVM directory from your User PATH.
-choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
+"%CHOICE_BIN%" /C yn /N /M "Are you sure you want to proceed? (y/N): "
 if errorlevel 2 goto :eof
 
 echo.
 
 rem Offload string manipulation to PowerShell to prevent delayed expansion corruption of exclamation marks
 set "SAFE_TARGET=!SCRIPT_DIR!"
-powershell -NoProfile -Command "$p = (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'Path').Path; if ($p) { $target = $env:SAFE_TARGET.TrimEnd('\'); $clean = ($p -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ne $target -and $_.TrimEnd('\') -ne ([Environment]::ExpandEnvironmentVariables('%LOCALAPPDATA%\DiamTek\JVM\bin').TrimEnd('\')) }) -join ';'; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $clean -Type ExpandString }"
+"%PS_BIN%" -NoProfile -Command "$p = (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'Path').Path; if ($p) { $target = $env:SAFE_TARGET.TrimEnd('\'); $clean = ($p -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ne $target -and $_.TrimEnd('\') -ne ([Environment]::ExpandEnvironmentVariables('%LOCALAPPDATA%\DiamTek\JVM\bin').TrimEnd('\')) }) -join ';'; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $clean -Type ExpandString }"
 
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
 ) else (
-    powershell -NoProfile -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Env { [DllImport(\"user32.dll\", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult); }'; $res = [IntPtr]::Zero; [Env]::SendMessageTimeout([IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res) | Out-Null"
+    "%PS_BIN%" -NoProfile -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Env { [DllImport(\"user32.dll\", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult); }'; $res = [IntPtr]::Zero; [Env]::SendMessageTimeout([IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res) | Out-Null"
     echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated.
 )
 
@@ -3252,7 +3314,7 @@ echo.
 echo %cBLUE%[ ACTION ]%cRESET% Scanning User PATH for JVM directory...
 
 set "USER_PATH="
-for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
+for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v Path 2^>nul') do (
     set "USER_PATH=%%B"
 )
 
@@ -3283,18 +3345,18 @@ if "!ALREADY_INSTALLED!"=="1" (
 echo.
 echo %cBLUE%[  INFO  ]%cRESET% Target: !SCRIPT_DIR!
 echo %cBLUE%[  INFO  ]%cRESET% Adding JVM directory to your User PATH.
-choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
+"%CHOICE_BIN%" /C yn /N /M "Are you sure you want to proceed? (y/N): "
 if errorlevel 2 goto :eof
 
 echo.
 
 set "SAFE_TARGET=!SCRIPT_DIR!"
-powershell -NoProfile -Command "$p = (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'Path').Path; $newPath = if ($p) { $p.TrimEnd(';') + ';' + $env:SAFE_TARGET } else { $env:SAFE_TARGET }; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $newPath -Type ExpandString"
+"%PS_BIN%" -NoProfile -Command "$p = (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'Path').Path; $newPath = if ($p) { $p.TrimEnd(';') + ';' + $env:SAFE_TARGET } else { $env:SAFE_TARGET }; Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $newPath -Type ExpandString"
 
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Registry write failed. Run as Administrator.
 ) else (
-    powershell -NoProfile -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Env { [DllImport(\"user32.dll\", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult); }'; $res = [IntPtr]::Zero; [Env]::SendMessageTimeout([IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res) | Out-Null"
+    "%PS_BIN%" -NoProfile -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Env { [DllImport(\"user32.dll\", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult); }'; $res = [IntPtr]::Zero; [Env]::SendMessageTimeout([IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res) | Out-Null"
     echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated and broadcasted to OS.
 )
 
@@ -3316,13 +3378,22 @@ echo %cBLUE%[ ACTION ]%cRESET% Configuring JVM wrapper function in PowerShell pr
 
 rem Switch to UTF-8 code page temporarily so file and path encoding is pristine
 set "ORIG_HOOK_CP="
-for /f "tokens=2 delims=:" %%A in ('chcp 2^>nul') do set "ORIG_HOOK_CP=%%A"
-chcp 65001 >nul
+for /f "tokens=2 delims=:" %%A in ('%CHCP_BIN% 2^>nul') do (
+    for /f "tokens=1 delims=. " %%B in ("%%A") do set "ORIG_HOOK_CP=%%B"
+)
+"%CHCP_BIN%" 65001 >nul
 
 set "SAFE_TARGET=!SCRIPT_DIR!"
-set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
+set "INSTALL_PS1=%JVM_SECURE_TEMP%\jvm_setup_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
+set JVM_TRIM_DQ="
+set "JVM_TRIM_BS=\"
+set "JVM_TRIM1=        if ($OldValue) { $OldValue = $OldValue.Trim('!JVM_TRIM_DQ!').TrimEnd('!JVM_TRIM_BS!') }"
+set "JVM_TRIM2=        if ($NewValue) { $NewValue = $NewValue.Trim('!JVM_TRIM_DQ!').TrimEnd('!JVM_TRIM_BS!') }"
+set "JVM_TRME1=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRIM_BS!') -ne !JVM_TRIM_DQ!$OldValue\bin!JVM_TRIM_DQ! }"
+set "JVM_TRME2=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRIM_BS!') -ne !JVM_TRIM_DQ!$NewValue\bin!JVM_TRIM_DQ! }"
 (
     echo $targetBat = Join-Path $env:SAFE_TARGET 'jvm.bat'
+    echo $targetBatEscaped = $targetBat.Replace^("'", "''"^)
     echo $hook = @'
     echo(# ^>^>^> jvm ^>^>^>
     echo(function jvm {
@@ -3339,8 +3410,8 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
     echo(        $allowedVars = @^('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME'^)
     echo(        if ^($allowedVars -notcontains $Name^) { return }
     echo(
-    echo(        if ^($OldValue^) { $OldValue = $OldValue.Trim^('"'^).TrimEnd^('\'^) }
-    echo(        if ^($NewValue^) { $NewValue = $NewValue.Trim^('"'^).TrimEnd^('\'^) }
+    echo(!JVM_TRIM1!
+    echo(!JVM_TRIM2!
     echo(
     echo(        if ^(-not [string]::IsNullOrWhiteSpace^($NewValue^)^) {
     echo(            if ^($NewValue -match '[\x00\x3B\x26\x7C\x3C\x3E\x22\x60\x24\r\n]'^) { return }
@@ -3351,16 +3422,16 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
     echo(
     echo(        $parts = $env:Path -split ';' ^| Where-Object { $_ -ne '' }
     echo(        if ^(-not [string]::IsNullOrWhiteSpace^($OldValue^)^) {
-    echo(            $parts = $parts ^| Where-Object { $_.TrimEnd^('\'^) -ne "$OldValue\bin" }
+    echo(!JVM_TRME1!
     echo(        }
     echo(        if ^(-not [string]::IsNullOrWhiteSpace^($NewValue^)^) {
-    echo(            $parts = $parts ^| Where-Object { $_.TrimEnd^('\'^) -ne "$NewValue\bin" }
+    echo(!JVM_TRME2!
     echo(            $parts = @^("$NewValue\bin"^) + $parts
     echo(        }
     echo(        $env:Path = $parts -join ';'
     echo(    }
     echo(
-    echo(    $sessionFile = "$env:TEMP\.jvm_session_target"
+    echo(    $sessionFile = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\temp\.jvm_session_target'
     echo(    if ^(Test-Path $sessionFile^) {
     echo(        $lines = Get-Content $sessionFile -ErrorAction SilentlyContinue
     echo(        Remove-Item $sessionFile -Force -ErrorAction SilentlyContinue
@@ -3448,7 +3519,7 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
     echo(# ^<^<^< jvm ^<^<^<
     echo('@
     echo(
-    echo $hook = $hook.Replace^('__FALLBACK_BAT__', $targetBat^)
+    echo $hook = $hook.Replace^('__FALLBACK_BAT__', $targetBatEscaped^)
     echo $userProfile = [Environment]::GetFolderPath^('UserProfile'^)
     echo $myDocs = [Environment]::GetFolderPath^('MyDocuments'^)
     echo $docPaths = @^($myDocs, ^(Join-Path $userProfile 'Documents'^)^) ^| Where-Object { $_ -and ^(Test-Path $_^) } ^| Select-Object -Unique
@@ -3478,13 +3549,14 @@ set "INSTALL_PS1=%TEMP%\jvm_setup_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
     echo }
 ) > "!INSTALL_PS1!"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_PS1!"
 if exist "!INSTALL_PS1!" del "!INSTALL_PS1!" >nul 2>&1
 
 echo.
 echo %cGREEN%[   OK   ]%cRESET% PowerShell profile hook successfully configured.
 echo %cBLUE%[  INFO  ]%cRESET% Environment variables and PATH will now sync seamlessly across all PowerShell tabs.
 echo %cBLUE%[  HINT  ]%cRESET% Run '. $PROFILE' or restart your terminal to activate completions immediately.
+if defined ORIG_HOOK_CP "%CHCP_BIN%" !ORIG_HOOK_CP! >nul
 if "!CLI_COMMAND!"=="" (
     echo.
     echo Press any key to return...
@@ -3498,7 +3570,7 @@ rem ============================================================
 :RemovePowerShellHook
 echo %cBLUE%[ ACTION ]%cRESET% Removing JVM wrapper function from PowerShell profiles...
 
-set "REMOVE_PS1=%TEMP%\jvm_remove_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
+set "REMOVE_PS1=%JVM_SECURE_TEMP%\jvm_remove_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 (
     echo $userProfile = [Environment]::GetFolderPath^('UserProfile'^)
     echo $myDocs = [Environment]::GetFolderPath^('MyDocuments'^)
@@ -3529,7 +3601,7 @@ set "REMOVE_PS1=%TEMP%\jvm_remove_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
     echo }
 ) > "!REMOVE_PS1!"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "!REMOVE_PS1!"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!REMOVE_PS1!"
 if exist "!REMOVE_PS1!" del "!REMOVE_PS1!" >nul 2>&1
 
 echo.
@@ -3548,7 +3620,7 @@ rem ============================================================
 echo %cBLUE%[ ACTION ]%cRESET% Checking JVM PowerShell Profile Hook status...
 echo ============================================================
 
-set "STATUS_PS1=%TEMP%\jvm_status_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
+set "STATUS_PS1=%JVM_SECURE_TEMP%\jvm_status_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 (
     echo $userProfile = [Environment]::GetFolderPath^('UserProfile'^)
     echo $myDocs = [Environment]::GetFolderPath^('MyDocuments'^)
@@ -3575,7 +3647,7 @@ set "STATUS_PS1=%TEMP%\jvm_status_hook_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
     echo }
 ) > "!STATUS_PS1!"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "!STATUS_PS1!"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!STATUS_PS1!"
 if exist "!STATUS_PS1!" del "!STATUS_PS1!" >nul 2>&1
 
 echo ============================================================
@@ -3594,10 +3666,10 @@ echo %cYELLOW%[ WARNING]%cRESET% This will run the deep uninstaller.
 echo            It will remove JVM, PATH entries, profile hooks,
 echo            all downloaded ecosystem tools, and installed JDKs.
 echo.
-choice /C yn /N /M "Are you sure you want to proceed? (y/N): "
+"%CHOICE_BIN%" /C yn /N /M "Are you sure you want to proceed? (y/N): "
 if errorlevel 2 (
     if defined CLI_COMMAND (
-        if defined ORIG_CP chcp !ORIG_CP! >nul
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b 0
     )
     goto :SettingsMenu
@@ -3613,8 +3685,8 @@ if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\bin\uninsta
 
 if not defined UNINSTALL_SCRIPT (
     echo %cBLUE%[ ACTION ]%cRESET% Downloading latest uninstall.ps1...
-    set "UNINSTALL_SCRIPT=%TEMP%\jvm_uninstall_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $f = '!UNINSTALL_SCRIPT!'; try { Invoke-WebRequest -Uri 'https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/uninstall.ps1?ref=HEAD' -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile $f -UseBasicParsing -TimeoutSec 5 } catch { try { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/uninstall.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile $f -UseBasicParsing -TimeoutSec 5 } catch {} }; if (Test-Path $f) { $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'Java Version Manager - Uninstaller') { Remove-Item $f -Force -ErrorAction SilentlyContinue } }"
+    set "UNINSTALL_SCRIPT=%JVM_SECURE_TEMP%\jvm_uninstall_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
+    "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $f = '!UNINSTALL_SCRIPT!'; try { Invoke-WebRequest -Uri 'https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/uninstall.ps1?ref=HEAD' -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile $f -UseBasicParsing -TimeoutSec 5 } catch { try { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/uninstall.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile $f -UseBasicParsing -TimeoutSec 5 } catch {} }; if (Test-Path $f) { $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'Java Version Manager - Uninstaller') { Remove-Item $f -Force -ErrorAction SilentlyContinue } }"
 )
 
 if not exist "!UNINSTALL_SCRIPT!" (
@@ -3623,21 +3695,21 @@ if not exist "!UNINSTALL_SCRIPT!" (
     echo Press any key to return...
     pause >nul
     if defined CLI_COMMAND (
-        if defined ORIG_CP chcp !ORIG_CP! >nul
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b 1
     )
     goto :SettingsMenu
 )
 
-rem Stage uninstaller to %TEMP% so the JVM directory is completely unlocked
-set "RUNNER_PS1=%TEMP%\diamtek_uninstall_runner_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
+rem Stage uninstaller to secure temp so the JVM directory is completely unlocked
+set "RUNNER_PS1=%JVM_SECURE_TEMP%\diamtek_uninstall_runner_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 copy /y "!UNINSTALL_SCRIPT!" "!RUNNER_PS1!" >nul 2>&1
 
-rem Switch working directory to %TEMP% to release directory lock from cmd.exe
+rem Switch working directory to secure temp to release directory lock from cmd.exe
 set "TARGET_UNINSTALL_DIR=!SCRIPT_DIR!"
-cd /d "%TEMP%"
+cd /d "%JVM_SECURE_TEMP%"
 
-(powershell -NoProfile -ExecutionPolicy Bypass -File "!RUNNER_PS1!" -SourceDir "!TARGET_UNINSTALL_DIR!" & if exist "!RUNNER_PS1!" del "!RUNNER_PS1!" >nul 2>&1 & if "!ORIG_CP!" NEQ "" chcp !ORIG_CP! >nul 2>&1 & exit)
+("%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!RUNNER_PS1!" -SourceDir "!TARGET_UNINSTALL_DIR!" & if exist "!RUNNER_PS1!" del "!RUNNER_PS1!" >nul 2>&1 & if "!ORIG_CP!" NEQ "" "%CHCP_BIN%" !ORIG_CP! >nul 2>&1 & exit)
 
 :HANDLE_LINKS
 setlocal enabledelayedexpansion
@@ -3649,16 +3721,16 @@ if /i "%~1"=="link" (
         echo.
         echo %cBLUE%[  INFO  ]%cRESET% Linked JDKs:
         echo ============================================================
-        dir /ad /b "%LINK_DIR%" 2>nul | findstr "^" >nul
+        dir /ad /b "%LINK_DIR%" 2>nul | %FINDSTR_BIN% "^" >nul
         if errorlevel 1 (
             echo                  No custom JDKs linked yet.
         ) else (
             for /d %%d in ("%LINK_DIR%\*") do (
                 set "LINK_TARGET="
-                for /f "tokens=1,2*" %%A in ('fsutil reparsepoint query "%%d" 2^>nul ^| findstr /i "Print Name:"') do set "LINK_TARGET=%%C"
+                for /f "tokens=1,2*" %%A in ('%FSUTIL_BIN% reparsepoint query "%%d" 2^>nul ^| %FINDSTR_BIN% /i "Print Name:"') do set "LINK_TARGET=%%C"
                 if not defined LINK_TARGET (
                     set "QUERY_PATH=%%d"
-                    for /f "delims=" %%A in ('powershell -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "LINK_TARGET=%%A"
+                    for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "LINK_TARGET=%%A"
                 )
                 if defined LINK_TARGET (
                     set "LINK_TARGET=!LINK_TARGET:\??\=!"
@@ -3791,7 +3863,7 @@ if "!IS_ADMIN_RUN!"=="1" (
     echo Press any key to close this window...
     pause >nul
 )
-if defined ORIG_CP chcp !ORIG_CP! >nul 2>&1
+if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
 if defined JVM_EXIT_CODE exit /b !JVM_EXIT_CODE!
 exit /b 0
 
@@ -3859,7 +3931,7 @@ set "CURR_JAVA_VENDOR="
 
 if defined JAVA_HOME (
     if exist "!JAVA_HOME!\release" (
-        for /f "tokens=1,* delims==" %%A in ('type "!JAVA_HOME!\release" 2^>nul ^| findstr /i "^JAVA_VERSION= ^IMPLEMENTOR="') do (
+        for /f "tokens=1,* delims==" %%A in ('type "!JAVA_HOME!\release" 2^>nul ^| %FINDSTR_BIN% /i "^JAVA_VERSION= ^IMPLEMENTOR="') do (
             if /i "%%A"=="JAVA_VERSION" set "CURR_JAVA_VER=%%~B"
             if /i "%%A"=="IMPLEMENTOR" set "CURR_JAVA_VENDOR=%%~B"
         )
@@ -3870,14 +3942,14 @@ if defined JAVA_HOME (
 )
 
 if not defined CURR_JAVA_BIN (
-    for /f "delims=" %%A in ('where.exe java 2^>nul') do (
+    for /f "delims=" %%A in ('%WHERE_BIN% java 2^>nul') do (
         if not defined CURR_JAVA_BIN set "CURR_JAVA_BIN=%%A"
     )
 )
 
 if not defined CURR_JAVA_VER (
     if defined CURR_JAVA_BIN (
-        for /f "tokens=3" %%A in ('"!CURR_JAVA_BIN!" -version 2^>^&1 ^| findstr /i "version"') do (
+        for /f "tokens=3" %%A in ('"!CURR_JAVA_BIN!" -version 2^>^&1 ^| %FINDSTR_BIN% /i "version"') do (
             set "CURR_JAVA_VER=%%~A"
         )
     )
@@ -3912,7 +3984,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     echo    - Mode:          %cGREEN%[Symlink Mode]%cRESET% ^(User Junction, UAC Free^)
     set "JUNCTION_TARGET="
     if exist "%LOCALAPPDATA%\DiamTek\JVM\current" (
-        for /f "delims=" %%A in ('powershell -NoProfile -Command "(Get-Item -LiteralPath '%LOCALAPPDATA%\DiamTek\JVM\current' -ErrorAction SilentlyContinue).Target" 2^>nul') do set "JUNCTION_TARGET=%%A"
+        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath '%LOCALAPPDATA%\DiamTek\JVM\current' -ErrorAction SilentlyContinue).Target" 2^>nul') do set "JUNCTION_TARGET=%%A"
     )
     if defined JUNCTION_TARGET (
         echo    - Junction:      %LOCALAPPDATA%\DiamTek\JVM\current -^> %cGREEN%!JUNCTION_TARGET!%cRESET%
@@ -3935,7 +4007,7 @@ if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates" (
         set "C_NAME=%%~nxC"
         set "C_TARGET="
         if exist "%%C\current" (
-            for /f "delims=" %%A in ('powershell -NoProfile -Command "(Get-Item -LiteralPath '%%C\current' -ErrorAction SilentlyContinue).Target" 2^>nul') do set "C_TARGET=%%A"
+            for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath '%%C\current' -ErrorAction SilentlyContinue).Target" 2^>nul') do set "C_TARGET=%%A"
             if defined C_TARGET (
                 set "ECO_FOUND=1"
                 for /f "delims=" %%V in ("!C_TARGET!") do (
@@ -3959,8 +4031,8 @@ echo.
 echo %cBLUE%[ ACTION ]%cRESET% Scanning temporary files, installer archives, and cache...
 set "FREED_MB=0"
 set "FREED_COUNT=0"
-set "CLEAN_CMD=$temp = [System.IO.Path]::GetTempPath(); $appdata = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM'); $patterns = @((Join-Path $temp 'jdk_*_download.*'), (Join-Path $temp 'jdk_*_extract'), (Join-Path $temp 'jvm_dl_*.ps1'), (Join-Path $temp 'jvm_updater_*.bat'), (Join-Path $temp 'jvm_install_*.ps1'), (Join-Path $temp 'jvm_uninstall_*.bat'), (Join-Path $temp 'jvm_uninstall_*.ps1'), (Join-Path $temp '.jvm_session_target'), (Join-Path $appdata 'downloads\*'), (Join-Path $appdata 'candidates\*\temp_*')); $totalBytes = 0; $fileCount = 0; foreach ($p in $patterns) { Get-Item $p -ErrorAction SilentlyContinue | ForEach-Object { if ($_.PSIsContainer) { $subFiles = Get-ChildItem $_.FullName -Recurse -File -ErrorAction SilentlyContinue; foreach ($sf in $subFiles) { $totalBytes += $sf.Length; $fileCount++ }; Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } else { $totalBytes += $_.Length; $fileCount++; Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }; $mb = [math]::Round($totalBytes / 1MB, 2); Write-Output ('FREED_MB=' + $mb); Write-Output ('FREED_COUNT=' + $fileCount)"
-for /f "tokens=1,2 delims==" %%A in ('powershell -NoProfile -Command "!CLEAN_CMD!"') do (
+set "CLEAN_CMD=$temp = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM\temp'); $appdata = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM'); $patterns = @((Join-Path $temp 'jdk_*_download.*'), (Join-Path $temp 'jdk_*_extract'), (Join-Path $temp 'jvm_dl_*.ps1'), (Join-Path $temp 'jvm_updater_*.bat'), (Join-Path $temp 'jvm_install_*.ps1'), (Join-Path $temp 'jvm_uninstall_*.bat'), (Join-Path $temp 'jvm_uninstall_*.ps1'), (Join-Path $temp '.jvm_session_target'), (Join-Path $appdata 'downloads\*'), (Join-Path $appdata 'candidates\*\temp_*')); $totalBytes = 0; $fileCount = 0; foreach ($p in $patterns) { Get-Item $p -ErrorAction SilentlyContinue | ForEach-Object { if ($_.PSIsContainer) { $subFiles = Get-ChildItem $_.FullName -Recurse -File -ErrorAction SilentlyContinue; foreach ($sf in $subFiles) { $totalBytes += $sf.Length; $fileCount++ }; Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } else { $totalBytes += $_.Length; $fileCount++; Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }; $mb = [math]::Round($totalBytes / 1MB, 2); Write-Output ('FREED_MB=' + $mb); Write-Output ('FREED_COUNT=' + $fileCount)"
+for /f "tokens=1,2 delims==" %%A in ('%PS_BIN% -NoProfile -Command "!CLEAN_CMD!"') do (
     if "%%A"=="FREED_MB" set "FREED_MB=%%B"
     if "%%A"=="FREED_COUNT" set "FREED_COUNT=%%B"
 )
@@ -3974,6 +4046,7 @@ if defined FREED_COUNT (
 ) else (
     echo %cGREEN%[   OK   ]%cRESET% Cache is already clean.
 )
+call :EnsureSecureTemp
 exit /b 0
 
 rem ============================================================
@@ -4000,7 +4073,7 @@ if /i "!WHICH_TARGET!"=="java" (
             exit /b 0
         )
     )
-    for /f "delims=" %%A in ('where.exe java 2^>nul') do (
+    for /f "delims=" %%A in ('%WHERE_BIN% java 2^>nul') do (
         echo %%A
         exit /b 0
     )
@@ -4047,7 +4120,8 @@ set "DOC_ISSUES=0"
 rem 1. Storage Root & Permissions
 set "DOC_APPDIR=%LOCALAPPDATA%\DiamTek\JVM"
 if exist "!DOC_APPDIR!" (
-    set "DOC_TESTFILE=!DOC_APPDIR!\.health_check_!RANDOM!_!RANDOM!"
+    for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "DOC_RANDOM_NAME=%%A"
+set "DOC_TESTFILE=!DOC_APPDIR!\.health_check_!DOC_RANDOM_NAME!"
     copy /y nul "!DOC_TESTFILE!" >nul 2>&1
     if exist "!DOC_TESTFILE!" (
         del "!DOC_TESTFILE!" >nul 2>&1
@@ -4082,9 +4156,9 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
 
 rem 3. JAVA_HOME Configuration & Sync
 set "HKCU_JH="
-for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "HKCU_JH=%%B"
+for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "HKCU_JH=%%B"
 set "HKLM_JH="
-for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME 2^>nul') do set "HKLM_JH=%%B"
+for /f "tokens=2*" %%A in ('%REG_BIN% query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME 2^>nul') do set "HKLM_JH=%%B"
 
 if defined HKCU_JH (
     echo %cGREEN%[   OK   ]%cRESET% User JAVA_HOME:      !HKCU_JH!
@@ -4098,12 +4172,12 @@ if defined HKCU_JH (
 rem 4. PATH Precedence & Shadowing Check
 set "FIRST_JAVA="
 set "SHADOW_FOUND=0"
-for /f "delims=" %%A in ('where.exe java 2^>nul') do (
+for /f "delims=" %%A in ('%WHERE_BIN% java 2^>nul') do (
     if not defined FIRST_JAVA (
         set "FIRST_JAVA=%%A"
-        echo "%%A" | findstr /i "Common.Files\\Oracle\\Java\\javapath" >nul 2>&1 && set "SHADOW_FOUND=1"
-        echo "%%A" | findstr /i "ProgramData\\Oracle\\Java\\javapath" >nul 2>&1 && set "SHADOW_FOUND=1"
-        echo "%%A" | findstr /i "System32\\java.exe" >nul 2>&1 && set "SHADOW_FOUND=1"
+        echo "%%A" | %FINDSTR_BIN% /i /c:"Common Files\Oracle\Java\javapath" >nul 2>&1 && set "SHADOW_FOUND=1"
+        echo "%%A" | %FINDSTR_BIN% /i /c:"ProgramData\Oracle\Java\javapath" >nul 2>&1 && set "SHADOW_FOUND=1"
+        echo "%%A" | %FINDSTR_BIN% /i /c:"System32\java.exe" >nul 2>&1 && set "SHADOW_FOUND=1"
     )
 )
 
@@ -4120,7 +4194,7 @@ if not defined FIRST_JAVA (
 
 rem 5. PowerShell Profile Hook Check
 set "DOC_HOOK_OK=0"
-for /f "delims=" %%P in ('powershell -NoProfile -Command "$userProfile = [Environment]::GetFolderPath('UserProfile'); $myDocs = [Environment]::GetFolderPath('MyDocuments'); $docPaths = @($myDocs, (Join-Path $userProfile 'Documents')) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique; $p = @($PROFILE); foreach ($doc in $docPaths) { $p += (Join-Path $doc 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'); $p += (Join-Path $doc 'PowerShell\Microsoft.PowerShell_profile.ps1') }; foreach ($f in ($p | Select-Object -Unique)) { if ($f -and (Test-Path $f) -and (Select-String -Path $f -Pattern '# >>> jvm >>>' -Quiet)) { Write-Output 'FOUND'; break } }" 2^>nul') do (
+for /f "delims=" %%P in ('%PS_BIN% -NoProfile -Command "$userProfile = [Environment]::GetFolderPath('UserProfile'); $myDocs = [Environment]::GetFolderPath('MyDocuments'); $docPaths = @($myDocs, (Join-Path $userProfile 'Documents')) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique; $p = @($PROFILE); foreach ($doc in $docPaths) { $p += (Join-Path $doc 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'); $p += (Join-Path $doc 'PowerShell\Microsoft.PowerShell_profile.ps1') }; foreach ($f in ($p | Select-Object -Unique)) { if ($f -and (Test-Path $f) -and (Select-String -Path $f -Pattern '# >>> jvm >>>' -Quiet)) { Write-Output 'FOUND'; break } }" 2^>nul') do (
     if "%%P"=="FOUND" set "DOC_HOOK_OK=1"
 )
 if "!DOC_HOOK_OK!"=="1" (
@@ -4174,7 +4248,7 @@ if not defined FOUND_EXEC_JDK (
 
 if not defined FOUND_EXEC_JDK (
     for /l %%k in (1,1,!JDK_COUNT!) do (
-        echo "!JDK_PATH_%%k!" | findstr /i "!EXEC_TARGET!" >nul 2>&1 && (
+        echo "!JDK_PATH_%%k!" | %FINDSTR_BIN% /i "!EXEC_TARGET!" >nul 2>&1 && (
             if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
         )
     )
@@ -4190,7 +4264,7 @@ if not defined FOUND_EXEC_JDK (
 set "JAVA_HOME=!FOUND_EXEC_JDK!"
 set "PATH=!FOUND_EXEC_JDK!\bin;!PATH!"
 
-cmd /c "!EXEC_CMD!"
+"%CMD_BIN%" /c "!EXEC_CMD!"
 set "EXEC_EXIT_CODE=!errorlevel!"
 exit /b !EXEC_EXIT_CODE!
 
@@ -4271,7 +4345,7 @@ if not exist "!OPEN_PATH!" (
 )
 
 echo %cBLUE%[ ACTION ]%cRESET% Opening File Explorer: !OPEN_PATH!
-start "" explorer.exe "!OPEN_PATH!"
+start "" "%EXPLORER_BIN%" "!OPEN_PATH!"
 exit /b 0
 
 rem ============================================================
@@ -4407,7 +4481,7 @@ if "!UPDATE_FLAG!"=="UPDATE" (
     )
     echo.
     if not defined CLI_COMMAND (
-        choice /C yn /N /M "Would you like to download and install this update? (y/N): "
+        "%CHOICE_BIN%" /C yn /N /M "Would you like to download and install this update? (y/N): "
         if !errorlevel! EQU 1 (
             call :SelfUpdate
         )
@@ -4509,8 +4583,9 @@ if "!REMOTE_REF!"=="NONE" set "REMOTE_REF=HEAD"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
 
-set "INSTALL_SCRIPT=%TEMP%\jvm_install_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = $env:REMOTE_REF; try { Invoke-WebRequest -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/install.ps1?ref=' + $ref) -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile $env:INSTALL_SCRIPT -UseBasicParsing -TimeoutSec 5 } catch { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/install.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile $env:INSTALL_SCRIPT -UseBasicParsing -TimeoutSec 5 }"
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "INS_RANDOM_NAME=%%A"
+set "INSTALL_SCRIPT=%JVM_SECURE_TEMP%\jvm_install_!INS_RANDOM_NAME!.ps1"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = $env:REMOTE_REF; try { Invoke-WebRequest -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/install.ps1?ref=' + $ref) -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile $env:INSTALL_SCRIPT -UseBasicParsing -TimeoutSec 5 } catch { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/install.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile $env:INSTALL_SCRIPT -UseBasicParsing -TimeoutSec 5 }"
 
 if not exist "!INSTALL_SCRIPT!" (
     echo.
@@ -4520,8 +4595,8 @@ if not exist "!INSTALL_SCRIPT!" (
 )
 
 echo %cBLUE%[ ACTION ]%cRESET% Verifying installer cryptographic integrity...
-set "VERIFY_TMP=%TEMP%\jvm_sha_!RANDOM!_!RANDOM!_!RANDOM!.txt"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = $env:REMOTE_REF; $ch = $env:UPDATE_CHANNEL; $f = $env:INSTALL_SCRIPT; if (-not (Test-Path $f)) { Write-Output 'MISSING'; exit }; $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'rem END OF SCRIPT|# Java Version Manager') { Write-Output 'TRUNCATED'; exit }; $s = [System.Security.Cryptography.SHA256]::Create(); $fs = [System.IO.File]::OpenRead($f); $actual = try { ([System.BitConverter]::ToString($s.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $s.Dispose() }; if ($ch -eq 'STABLE' -and $ref -match '^v?[0-9]') { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt') -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if (-not $shaTxt) { try { $relJson = (Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/' + $ref) -UserAgent 'DiamTek-JVM'); $asset = $relJson.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1; if ($asset) { $shaTxt = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } } catch {} }; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NO_ENTRY|' + $actual) } } else { Write-Output ('NO_SHA_FILE|' + $actual) } } else { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/SHA256SUMS.txt?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } }" > "!VERIFY_TMP!" 2>nul
+set "VERIFY_TMP=%JVM_SECURE_TEMP%\jvm_sha_!RANDOM!_!RANDOM!_!RANDOM!.txt"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = $env:REMOTE_REF; $ch = $env:UPDATE_CHANNEL; $f = $env:INSTALL_SCRIPT; if (-not (Test-Path $f)) { Write-Output 'MISSING'; exit }; $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'rem END OF SCRIPT|# Java Version Manager') { Write-Output 'TRUNCATED'; exit }; $s = [System.Security.Cryptography.SHA256]::Create(); $fs = [System.IO.File]::OpenRead($f); $actual = try { ([System.BitConverter]::ToString($s.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $s.Dispose() }; if ($ch -eq 'STABLE' -and $ref -match '^v?[0-9]') { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt') -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if (-not $shaTxt) { try { $relJson = (Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/' + $ref) -UserAgent 'DiamTek-JVM'); $asset = $relJson.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1; if ($asset) { $shaTxt = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } } catch {} }; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NO_ENTRY|' + $actual) } } else { Write-Output ('NO_SHA_FILE|' + $actual) } } else { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/SHA256SUMS.txt?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } }" > "!VERIFY_TMP!" 2>nul
 
 set "SHA_STATUS=UNKNOWN"
 set "SHA_EXP="
@@ -4599,7 +4674,8 @@ if "!UPDATE_CHANNEL!"=="STABLE" (
 )
 
 echo %cBLUE%[ ACTION ]%cRESET% Preparing update handoff engine...
-set "UPDATER_BAT=%TEMP%\jvm_updater_!RANDOM!_!RANDOM!_!RANDOM!.bat"
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "BAT_RANDOM_NAME=%%A"
+set "UPDATER_BAT=%JVM_SECURE_TEMP%\jvm_updater_!BAT_RANDOM_NAME!.bat"
 (
     echo @echo off
     echo for /F "delims=#" %%%%a in ^('"prompt #$E# ^& echo on ^& for %%%%b in ^(1^) do rem"'^) do set "ESC=%%%%a"
@@ -4608,7 +4684,7 @@ set "UPDATER_BAT=%TEMP%\jvm_updater_!RANDOM!_!RANDOM!_!RANDOM!.bat"
     echo set "cBLUE=%%ESC%%[96m"
     echo set "cRESET=%%ESC%%[0m"
     echo echo.
-    echo powershell -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_SCRIPT!" -Update -TargetDir "!SCRIPT_DIR!" -Branch "!REMOTE_REF!" -Channel "!UPDATE_CHANNEL!"
+    echo "!PS_BIN!" -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_SCRIPT!" -Update -TargetDir "!SCRIPT_DIR!" -Branch "!REMOTE_REF!" -Channel "!UPDATE_CHANNEL!"
     echo set "UPD_ERR=%%errorlevel%%"
     echo if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" ^>nul 2^>^&1
     echo if %%UPD_ERR%% NEQ 0 ^(
@@ -4630,7 +4706,7 @@ set "UPDATER_BAT=%TEMP%\jvm_updater_!RANDOM!_!RANDOM!_!RANDOM!.bat"
     )
 ) > "!UPDATER_BAT!"
 
-rem Chain execution to external updater in %TEMP% so jvm.bat is immediately closed by cmd.exe!
+rem Chain execution to external updater in secure temp so jvm.bat is immediately closed by cmd.exe!
 "!UPDATER_BAT!"
 exit /b 0
 
@@ -4646,8 +4722,8 @@ if defined UPDATE_CHANNEL_OVERRIDE (
     )
 )
 set "PS_SCRIPT=[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072 -bor 12288; $ProgressPreference = 'SilentlyContinue'; $localVer = [version]'!JVM_VERSION!'; $localBld = [version]'!JVM_BUILD!'; $channel = '!UPDATE_CHANNEL!'; if ($channel -eq 'STABLE') { $data = $null; $tagName = $null; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/latest'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $data = $raw | ConvertFrom-Json; if ($data -and $data.tag_name) { $tagName = [string]$data.tag_name; } } catch { try { $req = [Net.HttpWebRequest]::Create('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'DiamTek-JVM'; $req.Timeout = 3000; $res = $req.GetResponse(); $loc = $res.Headers['Location']; $res.Close(); if ($loc -match '/releases/tag/(.+)$') { $tagName = $matches[1]; } } catch [Net.WebException] { $resp = $_.Exception.Response; if ($resp -and ($resp.StatusCode -eq [Net.HttpStatusCode]::NotFound)) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; } } catch {} }; if (-not $tagName) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; }; $tagVerStr = $null; if ($tagName -match '^v?([0-9]+(\.[0-9]+)+)') { $tagVerStr = $matches[1]; } elseif ($tagName -match '^v?([0-9]+)') { $tagVerStr = $matches[1] + '.0'; }; if (-not $tagVerStr) { Write-Output ($tagName + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; try { $remoteVer = [version]$tagVerStr; } catch { Write-Output ($tagVerStr + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; $remBuild = $null; $remBldStr = 'N/A'; try { $rawUrl = 'https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $tagName + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks; $req = [Net.HttpWebRequest]::Create($rawUrl); $req.Timeout = 3000; $req.UserAgent = 'DiamTek-JVM'; $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $c = $sr.ReadToEnd(); $sr.Close(); $res.Close(); if ($c -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBuild = [version]$matches[1]; $remBldStr = $matches[1]; } } catch {}; if ($remoteVer -gt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remoteVer -lt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { if ($remBuild) { if ($remBuild -gt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remBuild -lt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } } else { $commitSha = 'main'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $cData = $raw | ConvertFrom-Json; if ($cData -and $cData.sha) { $commitSha = $cData.sha.Substring(0, 7); } } catch { $commitSha = 'main'; }; $content = $null; try { $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 4000; $req.UserAgent = 'DiamTek-JVM'; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $res.Close(); } catch { try { $apiReq = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=main'); $apiReq.Method = 'GET'; $apiReq.Timeout = 4000; $apiReq.UserAgent = 'DiamTek-JVM'; $apiReq.Accept = 'application/vnd.github.v3.raw'; $apiReq.Headers.Add('Cache-Control', 'no-cache'); $apiReq.Headers.Add('Pragma', 'no-cache'); $apiRes = $apiReq.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); } catch {} }; if (-not $content) { Write-Output 'UNKNOWN|UNKNOWN|ERROR|main'; exit; }; $remVerStr = '1.0.1'; $remBldStr = 'UNKNOWN'; if ($content -match 'set \x22JVM_VERSION=(.*?)\x22') { $remVerStr = $matches[1]; }; if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBldStr = $matches[1]; }; try { $remoteVer = [version]$remVerStr; $remoteBld = [version]$remBldStr; if ($remoteVer -gt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteVer -lt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { if ($remoteBld -gt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteBld -lt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { Write-Output ($remVerStr + '|' + $remBldStr + '|OK|' + $commitSha); } } } catch { Write-Output ($remVerStr + '|' + $remBldStr + '|INVALID_REMOTE|' + $commitSha); } }
-set "REMOTE_TMP=%TEMP%\jvm_remote_build_!RANDOM!_!RANDOM!_!RANDOM!.txt"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "!REMOTE_TMP!" 2>nul
+set "REMOTE_TMP=%JVM_SECURE_TEMP%\jvm_remote_build_!RANDOM!_!RANDOM!_!RANDOM!.txt"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "!REMOTE_TMP!" 2>nul
 set "REMOTE_VER=UNKNOWN"
 set "REMOTE_BUILD=UNKNOWN"
 set "UPDATE_FLAG=ERROR"
@@ -4671,6 +4747,11 @@ if "%~1"=="" exit /b 0
 set "CLI_TARGET=%~1"
 set "CLI_TARGET=!CLI_TARGET:"=!"
 set "CLI_TARGET=!CLI_TARGET:;=!"
+call :ValidateStrictIdentifier "!CLI_TARGET!" CLI_TARGET
+if errorlevel 1 (
+    set "CLI_TARGET="
+    exit /b 1
+)
 shift
 :PARSE_JV_LOOP
 if "%~1"=="" exit /b 0
@@ -4708,6 +4789,10 @@ set "RAW_SDK_VER=!RAW_SDK_VER:"=!"
 set "RAW_SDK_VER=!RAW_SDK_VER:;=!"
 for /f "tokens=1,2 delims=-" %%V in ("!RAW_SDK_VER!") do (
     for /f "tokens=1 delims=." %%M in ("%%V") do set "CLI_TARGET=%%M"
+    if defined CLI_TARGET (
+        call :ValidateStrictIdentifier "!CLI_TARGET!" CLI_TARGET
+        if errorlevel 1 set "CLI_TARGET="
+    )
     if /i "%%W"=="tem" set "CLI_VENDOR=Adoptium"
     if /i "%%W"=="amzn" set "CLI_VENDOR=Corretto"
     if /i "%%W"=="zulu" set "CLI_VENDOR=Zulu"
@@ -4878,13 +4963,6 @@ if not "!_VSI_VAL!"=="!_VSI_SUB!" (
     set "JVM_EXIT_CODE=1"
     exit /b 1
 )
-set "_VSI_SUB=!_VSI_VAL:\"=!"
-if not "!_VSI_VAL!"=="!_VSI_SUB!" (
-    endlocal & endlocal
-    set "JVM_EXIT_CODE=1"
-    exit /b 1
-)
-
 :: Loop characters to detect wildcards (*, ?) without subshells or pipes
 set "_VSI_REM=!_VSI_VAL!"
 :VSI_CharLoop
@@ -4897,6 +4975,11 @@ if defined _VSI_REM (
         exit /b 1
     )
     if "!_VSI_CH!"=="?" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    if "!_VSI_CH!"=="""" (
         endlocal & endlocal
         set "JVM_EXIT_CODE=1"
         exit /b 1
@@ -4966,7 +5049,7 @@ set "CANDIDATE_DIR=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
 
 if /i "!TARGET_VER!"=="latest" (
     if exist "!CANDIDATE_DIR!" (
-        for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -First 1 -ExpandProperty Name" 2^>nul') do (
+        for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -First 1 -ExpandProperty Name" 2^>nul') do (
             set "TARGET_VER=%%V"
         )
     )
@@ -4992,24 +5075,14 @@ if errorlevel 1 (
 )
 echo            - Updating Directory Junction...
 
-powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable($env:CANDIDATE_ENV_VAR, $env:SYMLINK_PATH, 'User')"
+"%PS_BIN%" -NoProfile -Command "[Environment]::SetEnvironmentVariable($env:CANDIDATE_ENV_VAR, $env:SYMLINK_PATH, 'User')"
 
-rem Update user PATH to ensure %CANDIDATE_ENV_VAR%\bin is present
-set "HAS_CANDIDATE_PATH=0"
-set "USR_PATH="
-for /f "tokens=2*" %%P in ('reg query "HKCU\Environment" /v Path 2^>nul') do (
-    set "USR_PATH=%%Q"
+rem Update user PATH safely in PowerShell avoiding CMD pipe parsing hazards
+set "PATH_UPDATED=0"
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$varBin = [char]37 + $env:CANDIDATE_ENV_VAR + [char]37 + '\bin'; $p = [Environment]::GetEnvironmentVariable(''Path'', ''User''); if (-not $p) { Set-ItemProperty -Path ''HKCU:\Environment'' -Name ''Path'' -Value $varBin -Type ExpandString; Write-Output ''INJECTED'' } elseif (($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -eq $varBin }) -eq $null) { Set-ItemProperty -Path ''HKCU:\Environment'' -Name ''Path'' -Value ($varBin + '';'' + $p) -Type ExpandString; Write-Output ''INJECTED'' } else { Write-Output ''EXISTS'' }"') do (
+    if "%%A"=="INJECTED" set "PATH_UPDATED=1"
 )
-
-echo(!USR_PATH! | findstr /i "%%!CANDIDATE_ENV_VAR!%%\bin" >nul
-if !errorlevel!==0 set "HAS_CANDIDATE_PATH=1"
-
-if "!HAS_CANDIDATE_PATH!"=="0" (
-    set "NEW_PATH=%%!CANDIDATE_ENV_VAR!%%\bin;!USR_PATH!"
-    powershell -NoProfile -Command "Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $env:NEW_PATH -Type ExpandString"
-    if errorlevel 1 (
-        reg add "HKCU\Environment" /v Path /t REG_EXPAND_SZ /d "!NEW_PATH!" /f >nul
-    )
+if "!PATH_UPDATED!"=="1" (
     echo            - Injecting %%!CANDIDATE_ENV_VAR!%%\bin into PATH...
 ) else (
     echo            - Updating !CANDIDATE_ENV_VAR! variables...
@@ -5017,7 +5090,7 @@ if "!HAS_CANDIDATE_PATH!"=="0" (
 
 rem Inject immediately into active terminal session
 set "!CANDIDATE_ENV_VAR!=!SYMLINK_PATH!"
-echo(!PATH! | findstr /i "!SYMLINK_PATH!\bin" >nul
+echo(!PATH! | %FINDSTR_BIN% /i "!SYMLINK_PATH!\bin" >nul
 if !errorlevel! NEQ 0 (
     set "PATH=!SYMLINK_PATH!\bin;!PATH!"
 )
@@ -5053,8 +5126,9 @@ if /i not "!TARGET_VER!"=="latest" (
         echo %cRED%[ ERROR  ]%cRESET% 'current' is a reserved keyword and cannot be targeted.
         exit /b 1
     )
-    echo(!TARGET_VER!| findstr /r "^[0-9A-Za-z._-][0-9A-Za-z._-]*$" >nul || (
-        echo %cRED%[ ERROR  ]%cRESET% Version identifier contains invalid characters: !TARGET_VER!
+    call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier: !TARGET_VER!
         exit /b 1
     )
 )
@@ -5100,9 +5174,9 @@ if /i "!TARGET_CANDIDATE!"=="groovy" (
     set "CHECKSUM_TYPE=SHA256"
 )
 
-set "ZIP_DEST=%TEMP%\jvm_!TARGET_CANDIDATE!_!TARGET_VER!_!RANDOM!_!RANDOM!.zip"
+set "ZIP_DEST=%JVM_SECURE_TEMP%\jvm_!TARGET_CANDIDATE!_!TARGET_VER!_!RANDOM!_!RANDOM!.zip"
 set "EXTRACT_DEST=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\!TARGET_VER!"
-set "EXTRACT_DEST_TEMP=%TEMP%\jvm_!TARGET_CANDIDATE!_!TARGET_VER!_!RANDOM!_!RANDOM!_temp"
+set "EXTRACT_DEST_TEMP=%JVM_SECURE_TEMP%\jvm_!TARGET_CANDIDATE!_!TARGET_VER!_!RANDOM!_!RANDOM!_temp"
 
 if exist "!EXTRACT_DEST!" (
     echo.
@@ -5111,7 +5185,7 @@ if exist "!EXTRACT_DEST!" (
     if "!FORCE_YES!"=="1" (
         echo %cBLUE%[  INFO  ]%cRESET% Reinstalling/overwriting due to --yes flag...
     ) else (
-        choice /C yn /N /M "Would you like to reinstall and overwrite it? (y/N): "
+        "%CHOICE_BIN%" /C yn /N /M "Would you like to reinstall and overwrite it? (y/N): "
         if !errorlevel! NEQ 1 (
             echo %cBLUE%[  INFO  ]%cRESET% Installation cancelled.
             exit /b 0
@@ -5194,7 +5268,7 @@ if "!TARGET_VER!"=="" (
     )
     set "VER_COUNT=0"
     set "SINGLE_VER="
-    for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name" 2^>nul') do (
+    for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name" 2^>nul') do (
         set /a VER_COUNT+=1
         set "SINGLE_VER=%%V"
     )
@@ -5210,7 +5284,7 @@ if "!TARGET_VER!"=="" (
         echo %cBLUE%[  INFO  ]%cRESET% Multiple !CANDIDATE_PROPER_NAME! versions installed:
         echo.
         set "IDX=0"
-        for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name" 2^>nul') do (
+        for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name" 2^>nul') do (
             set /a IDX+=1
             set "VER_!IDX!=%%V"
             echo    !IDX!. %%V
@@ -5239,14 +5313,26 @@ set "CANDIDATE_DIR=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
 
 if /i "!TARGET_VER!"=="latest" (
     if exist "!CANDIDATE_DIR!" (
-        for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -First 1 -ExpandProperty Name" 2^>nul') do (
+        for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -First 1 -ExpandProperty Name" 2^>nul') do (
             set "TARGET_VER=%%V"
         )
     )
 )
 
+if not defined TARGET_VER (
+    echo %cRED%[ ERROR  ]%cRESET% No version specified to uninstall.
+    exit /b 1
+)
 set "TARGET_PATH=!CANDIDATE_DIR!\!TARGET_VER!"
 
+if /i "!TARGET_PATH!"=="!CANDIDATE_DIR!" (
+    echo %cRED%[ ERROR  ]%cRESET% Refusing to delete candidate root directory.
+    exit /b 1
+)
+if /i "!TARGET_PATH!"=="!CANDIDATE_DIR!\" (
+    echo %cRED%[ ERROR  ]%cRESET% Refusing to delete candidate root directory.
+    exit /b 1
+)
 if not exist "!TARGET_PATH!" (
     echo %cRED%[ ERROR  ]%cRESET% !CANDIDATE_PROPER_NAME! version !TARGET_VER! is not installed.
     exit /b 1
@@ -5258,10 +5344,10 @@ rmdir /S /Q "!TARGET_PATH!" >nul 2>&1
 rem Check if it was the active version
 set "SYMLINK_PATH=!CANDIDATE_DIR!\current"
 set "ACTIVE_TARGET="
-for /f "tokens=1,2*" %%A in ('fsutil reparsepoint query "!SYMLINK_PATH!" 2^>nul ^| findstr /i "Print Name:"') do set "ACTIVE_TARGET=%%C"
+for /f "tokens=1,2*" %%A in ('%FSUTIL_BIN% reparsepoint query "!SYMLINK_PATH!" 2^>nul ^| %FINDSTR_BIN% /i "Print Name:"') do set "ACTIVE_TARGET=%%C"
 if not defined ACTIVE_TARGET (
     set "QUERY_PATH=!SYMLINK_PATH!"
-    for /f "delims=" %%A in ('powershell -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "ACTIVE_TARGET=%%A"
+    for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "ACTIVE_TARGET=%%A"
 )
 if defined ACTIVE_TARGET (
     set "ACTIVE_TARGET=!ACTIVE_TARGET:\??\=!"
@@ -5271,7 +5357,7 @@ if defined ACTIVE_TARGET (
     if /i "!ACTIVE_TARGET!"=="!NORM_TARGET!" (
         echo %cYELLOW%[ WARNING]%cRESET% Uninstalled the active version. Removing symlink...
         rmdir "!SYMLINK_PATH!" >nul 2>&1
-        reg delete "HKCU\Environment" /v !CANDIDATE_ENV_VAR! /f >nul 2>&1
+        "%REG_BIN%" delete "HKCU\Environment" /v !CANDIDATE_ENV_VAR! /f >nul 2>&1
     )
 )
 
@@ -5289,10 +5375,10 @@ for /d %%C in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\*") do (
     echo  - !CANDIDATE_PROPER_NAME!
     
     set "ACTIVE_TARGET="
-    for /f "tokens=1,2*" %%A in ('fsutil reparsepoint query "%%C\current" 2^>nul ^| findstr /i "Print Name:"') do set "ACTIVE_TARGET=%%C"
+    for /f "tokens=1,2*" %%A in ('%FSUTIL_BIN% reparsepoint query "%%C\current" 2^>nul ^| %FINDSTR_BIN% /i "Print Name:"') do set "ACTIVE_TARGET=%%C"
     if not defined ACTIVE_TARGET (
         set "QUERY_PATH=%%C\current"
-        for /f "delims=" %%A in ('powershell -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "ACTIVE_TARGET=%%A"
+        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "ACTIVE_TARGET=%%A"
     )
     if defined ACTIVE_TARGET (
         set "ACTIVE_TARGET=!ACTIVE_TARGET:\??\=!"
@@ -5300,7 +5386,7 @@ for /d %%C in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\*") do (
         for /f "tokens=*" %%A in ("!ACTIVE_TARGET!") do set "ACTIVE_TARGET=%%A"
     )
 
-    for /f "delims=" %%V in ('powershell -NoProfile -Command "Get-ChildItem -LiteralPath '%%C' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name"') do (
+    for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -LiteralPath '%%C' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name"') do (
         set "V_NAME=%%V"
         set "IS_ACTIVE="
         for /f "delims=" %%A in ("%%~fC\%%V") do set "TP=%%~fA"
@@ -5328,7 +5414,7 @@ if not exist "!T_PATH!" (
     exit /b 0
 )
 echo %cBLUE%[ ACTION ]%cRESET% Setting !CANDIDATE_PROPER_NAME! to !TARGET_VER!...
->>"%TEMP%\.jvm_session_target" echo !CANDIDATE_ENV_VAR!=!T_PATH!
+>>"%JVM_SECURE_TEMP%\.jvm_session_target" echo !CANDIDATE_ENV_VAR!=!T_PATH!
 set "!CANDIDATE_ENV_VAR!=!T_PATH!"
 set "PATH=!T_PATH!\bin;!PATH!"
 exit /b 0
@@ -5339,14 +5425,14 @@ rem ============================================================
 :ResolveLatestEcosystemCandidate
 set "PS_RESOLVE_LATEST="
 set "PS_CATCH=catch { if ($_.Exception.Response -and $_.Exception.Response.StatusCode -eq 'Forbidden') { 'RATE_LIMITED' } else { 'ERROR' } }"
-if /i "!TARGET_CANDIDATE!"=="maven" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/apache/maven/releases?per_page=50'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; $r = Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing; $t = $r | Where-Object { -not $_.prerelease -and -not $_.draft -and $_.tag_name -like 'maven-*' } | Select-Object -First 1; if ($t) { $t.tag_name.Replace('maven-','') } else { 'ERROR' } } !PS_CATCH!"
-if /i "!TARGET_CANDIDATE!"=="gradle" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://services.gradle.org/versions/current'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing).version } catch { 'ERROR' }"
-if /i "!TARGET_CANDIDATE!"=="kotlin" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/JetBrains/kotlin/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; ((Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing).tag_name).TrimStart('v') } !PS_CATCH!"
-if /i "!TARGET_CANDIDATE!"=="scala" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/scala/scala3/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; (Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing).tag_name } !PS_CATCH!"
-if /i "!TARGET_CANDIDATE!"=="groovy" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.sdkman.io/2/candidates/default/groovy'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing) } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="maven" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/apache/maven/releases?per_page=50'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; $r = Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing -TimeoutSec 5; $t = $r | Where-Object { -not $_.prerelease -and -not $_.draft -and $_.tag_name -like 'maven-*' } | Select-Object -First 1; if ($t) { $t.tag_name.Replace('maven-','') } else { 'ERROR' } } !PS_CATCH!"
+if /i "!TARGET_CANDIDATE!"=="gradle" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://services.gradle.org/versions/current'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5).version } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="kotlin" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/JetBrains/kotlin/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; ((Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing -TimeoutSec 5).tag_name).TrimStart('v') } !PS_CATCH!"
+if /i "!TARGET_CANDIDATE!"=="scala" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/scala/scala3/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; (Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing -TimeoutSec 5).tag_name } !PS_CATCH!"
+if /i "!TARGET_CANDIDATE!"=="groovy" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.sdkman.io/2/candidates/default/groovy'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5) } catch { 'ERROR' }"
 
 set "LATEST_VER=ERROR"
-for /f "delims=" %%V in ('powershell -NoProfile -Command "!PS_RESOLVE_LATEST!"') do (
+for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "!PS_RESOLVE_LATEST!"') do (
     set "LATEST_VER=%%V"
 )
 if "!LATEST_VER!"=="RATE_LIMITED" (
@@ -5357,7 +5443,7 @@ if "!LATEST_VER!"=="RATE_LIMITED" (
     if /i "!TARGET_CANDIDATE!"=="scala" set "PS_REDIR=try { $r=[Net.HttpWebRequest]::Create('https://github.com/scala/scala3/releases/latest'); $r.AllowAutoRedirect=$false; $r.Timeout=10000; $resp=$r.GetResponse(); $loc=$resp.Headers['Location']; $resp.Close(); if ($loc -match '/tag/(.+)$') { $Matches[1] } else { 'ERROR' } } catch { 'ERROR' }"
     if defined PS_REDIR (
         set "REDIR_TAG="
-        for /f "delims=" %%T in ('powershell -NoProfile -Command "!PS_REDIR!"') do set "REDIR_TAG=%%T"
+        for /f "delims=" %%T in ('%PS_BIN% -NoProfile -Command "!PS_REDIR!"') do set "REDIR_TAG=%%T"
         if not "!REDIR_TAG!"=="ERROR" if not "!REDIR_TAG!"=="" (
             set "LATEST_VER=!REDIR_TAG!"
             echo %cGREEN%[   OK   ]%cRESET% Resolved via redirect fallback.
@@ -5376,7 +5462,8 @@ rem ============================================================
 rem Universal Downloader & Extractor (PowerShell)
 rem ============================================================
 :ExecuteSharedDownloader
-set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "PS_RANDOM_NAME=%%A"
+set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
 (
     echo $ErrorActionPreference = 'Stop'
     echo $ProgressPreference = 'SilentlyContinue'
@@ -5528,10 +5615,10 @@ set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
     echo         Write-Host "`n"
     echo         Remove-Item $out
     echo         if ^($env:DL_STRIP_ROOT -eq '1'^) {
-    echo             $items = Get-ChildItem $env:DL_EXTRACT
+    echo             $items = Get-ChildItem -LiteralPath $env:DL_EXTRACT
     echo             if ^($items.Count -eq 1 -and $items[0].PSIsContainer^) {
-    echo                 Move-Item -Path ^($items[0].FullName + '\*'^) -Destination ^($env:DL_EXTRACT + '\'^) -Force
-    echo                 Remove-Item $items[0].FullName -Recurse -Force
+    echo                 Get-ChildItem -LiteralPath $items[0].FullName -Force ^| Move-Item -Destination $env:DL_EXTRACT -Force
+    echo                 Remove-Item -LiteralPath $items[0].FullName -Recurse -Force
     echo             }
     echo         }
     echo     }
@@ -5543,7 +5630,7 @@ set "PS_SCRIPT=%TEMP%\jvm_dl_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
     echo }
 ) > "!PS_SCRIPT!"
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
 set PS_EXIT_CODE=!errorlevel!
 if exist "!PS_SCRIPT!" del "!PS_SCRIPT!" >nul 2>&1
 exit /b !PS_EXIT_CODE!
@@ -5556,8 +5643,32 @@ set "BAK_DATE=!BAK_DATE: =_!"
 set "BAK_TIME=%TIME::=-%"
 set "BAK_TIME=!BAK_TIME: =0!"
 set "BAK_TIME=!BAK_TIME:~0,6!"
-reg export "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "%LOCALAPPDATA%\DiamTek\JVM\backups\sys_env_!BAK_DATE!_!BAK_TIME!.reg" /y >nul 2>&1
-reg export "HKCU\Environment" "%LOCALAPPDATA%\DiamTek\JVM\backups\usr_env_!BAK_DATE!_!BAK_TIME!.reg" /y >nul 2>&1
+"%REG_BIN%" export "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "%LOCALAPPDATA%\DiamTek\JVM\backups\sys_env_!BAK_DATE!_!BAK_TIME!.reg" /y >nul 2>&1
+"%REG_BIN%" export "HKCU\Environment" "%LOCALAPPDATA%\DiamTek\JVM\backups\usr_env_!BAK_DATE!_!BAK_TIME!.reg" /y >nul 2>&1
+exit /b 0
+
+:EnsureSecureTemp
+if not exist "%JVM_SECURE_TEMP%" (
+    mkdir "%JVM_SECURE_TEMP%" >nul 2>&1
+)
+
+if not exist "%JVM_SECURE_TEMP%" (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to create secure temporary directory.
+    exit /b 1
+)
+
+"%SYS32%\icacls.exe" "%JVM_SECURE_TEMP%" /inheritance:r >nul 2>&1
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to disable inherited permissions on secure temp.
+    exit /b 1
+)
+
+"%SYS32%\icacls.exe" "%JVM_SECURE_TEMP%" /grant:r "%USERNAME%:(OI)(CI)F" >nul 2>&1
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to secure permissions on secure temp.
+    exit /b 1
+)
+
 exit /b 0
 
 rem END OF SCRIPT

@@ -15,12 +15,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 $ErrorActionPreference = 'Stop'
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288
 
 $packageName = 'jvm-windows'
 $packageVersion = '1.0.1'
 $url64 = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v$packageVersion/jvm-windows-$packageVersion-x64.msi"
 $checksum64 = 'C62A9A6CBB9EBA8A2E8585E83F4B538DAD189FEB38FF54D6A40D7F54C1118DF3'
+
+# Enforce fail-closed cryptographic assertion
+if ([string]::IsNullOrWhiteSpace($checksum64) -or $checksum64 -notmatch '^[A-Fa-f0-9]{64}$') {
+    throw "Security violation: Checksum64 must be a valid 64-character SHA-256 hexadecimal hash. Installation aborted."
+}
 
 $packageArgs = @{
     packageName    = $packageName

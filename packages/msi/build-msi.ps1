@@ -239,9 +239,27 @@ if (-not $profileMatch.Success) {
     Write-Host "Failed to extract profile code from install.ps1" -ForegroundColor Red
     exit 1
 }
-$profileCode = $profileMatch.Groups[1].Value
+# 4. Helper to generate RFC 4122 UUID v5 deterministic GUIDs
+function Get-DeterministicGuid([string]$namespaceGuid, [string]$name) {
+    $nsGuid = [guid]::Parse($namespaceGuid)
+    $nsBytes = $nsGuid.ToByteArray()
+    [array]::Reverse($nsBytes, 0, 4)
+    [array]::Reverse($nsBytes, 4, 2)
+    [array]::Reverse($nsBytes, 6, 2)
+    $nameBytes = [System.Text.Encoding]::UTF8.GetBytes($name)
+    $sha1 = [System.Security.Cryptography.SHA1]::Create()
+    $hash = $sha1.ComputeHash($nsBytes + $nameBytes)
+    $hash[6] = ($hash[6] -band 0x0F) -bor (5 -shl 4)
+    $hash[8] = ($hash[8] -band 0x3F) -bor 0x80
+    $guidBytes = New-Object byte[] 16
+    [Array]::Copy($hash, 0, $guidBytes, 0, 16)
+    [array]::Reverse($guidBytes, 0, 4)
+    [array]::Reverse($guidBytes, 4, 2)
+    [array]::Reverse($guidBytes, 6, 2)
+    return (New-Object System.Guid(,$guidBytes)).ToString('B').ToUpperInvariant()
+}
 
-# 4. Function to build an MSI for a specific architecture
+# 5. Function to build an MSI for a specific architecture
 function Build-MsiPackage {
     param(
         [string]$TargetArch
@@ -551,7 +569,9 @@ Remove-Item -Path (Join-Path $binDir 'msi-uninstall-hook.ps1') -Force -ErrorActi
 # Schedule background fallback cleanup of jvmDir if lingering files remain after msiexec finishes
 $sysPs = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "WindowsPowerShell\v1.0\powershell.exe"
 if (-not (Test-Path $sysPs)) { $sysPs = "powershell.exe" }
-$cleanScript = "Start-Sleep -Seconds 2; cmd.exe /c rmdir /s /q `"$jvmDir`""
+$sysCmd = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "cmd.exe"
+if (-not (Test-Path $sysCmd)) { $sysCmd = "cmd.exe" }
+$cleanScript = "Start-Sleep -Seconds 2; & `"$sysCmd`" /c rmdir /s /q `"$jvmDir`""
 $encoded = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cleanScript))
 Start-Process -FilePath $sysPs -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded) -WindowStyle Hidden
 
@@ -577,6 +597,9 @@ exit 0
         return [System.Security.SecurityElement]::Escape($val)
     }
 
+    $fileVer = if ($Version -match '^(\d+)\.(\d+)\.(\d+)$') { "$Version.0" } elseif ($Version -match '^(\d+)\.(\d+)$') { "$Version.0.0" } else { "1.0.0.0" }
+    $productCode = Get-DeterministicGuid "db30058e-1738-46cb-84ec-8c652dc99a22" "DiamTek.JVM.$Version.$TargetArch"
+
     $srcLicense = Escape-XmlAttr (Join-Path $RootDir "LICENSE")
     $srcReadme = Escape-XmlAttr (Join-Path $RootDir "README.md")
     $srcUninstall = Escape-XmlAttr (Join-Path $RootDir "uninstall.ps1")
@@ -588,7 +611,7 @@ exit 0
 
     $wxsContent = @"
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="Java Version Manager" Manufacturer="DiamTek" Version="$Version" UpgradeCode="db30058e-1738-46cb-84ec-8c652dc99a22" Scope="perUser">
+  <Package Name="Java Version Manager" Manufacturer="DiamTek" Version="$Version" ProductCode="$productCode" UpgradeCode="db30058e-1738-46cb-84ec-8c652dc99a22" Scope="perUser">
     <SummaryInformation Description="Java Version Manager (JVM) for Windows" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." AllowSameVersionUpgrades="yes" />
     <MediaTemplate EmbedCab="yes" />
@@ -598,6 +621,8 @@ exit 0
     <Property Id="ARPURLINFOABOUT" Value="https://diamtek.github.io/Java-Version-Manager-Windows" />
     <Property Id="ARPNOMODIFY" Value="1" />
     <Property Id="ARPNOREPAIR" Value="1" />
+    <Property Id="ALLUSERS" Value="2" />
+    <Property Id="MSIINSTALLPERUSER" Value="1" />
 
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="DIAMTEK_DIR" Name="DiamTek">
@@ -605,13 +630,13 @@ exit 0
           <Component Id="DocumentationComponent" Guid="01a08571-06d8-77a5-9f9d-77f21b5eb3e5">
             <File Id="LicenseFile" Source="$srcLicense" KeyPath="yes" />
             <File Id="ReadmeFile" Source="$srcReadme" />
-            <File Id="UninstallFile" Source="$srcUninstall" />
+            <File Id="UninstallFile" Source="$srcUninstall" DefaultVersion="$fileVer" />
             <RemoveFolder Id="RemoveJvmDir" Directory="JVM_DIR" On="uninstall" />
             <RemoveFolder Id="RemoveDiamtekDir" Directory="DIAMTEK_DIR" On="uninstall" />
           </Component>
           <Component Id="HookScriptsComponent" Guid="01a08571-06df-7d72-9fad-ccbdc9de1c26">
-            <File Id="MsiInstallHook" Source="$srcMsiInstallHook" KeyPath="yes" />
-            <File Id="MsiUninstallHook" Source="$srcMsiUninstallHook" />
+            <File Id="MsiInstallHook" Source="$srcMsiInstallHook" KeyPath="yes" DefaultVersion="$fileVer" />
+            <File Id="MsiUninstallHook" Source="$srcMsiUninstallHook" DefaultVersion="$fileVer" />
           </Component>
           <Directory Id="ASSETS_DIR" Name="assets">
             <Component Id="AssetsComponent" Guid="01a08571-06e0-7a41-b4d0-834e377e4377">
@@ -622,7 +647,7 @@ exit 0
           </Directory>
           <Directory Id="INSTALLFOLDER" Name="bin">
             <Component Id="JvmBatComponent" Guid="01a08571-06e0-7f19-a168-3e09b5dac718">
-              <File Id="JvmBat" Source="$srcJvmBat" KeyPath="yes" />
+              <File Id="JvmBat" Source="$srcJvmBat" KeyPath="yes" DefaultVersion="$fileVer" />
               <Environment Id="UpdatePath" Name="PATH" Action="set" Part="last" System="no" Value="[INSTALLFOLDER]" />
               <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
             </Component>
@@ -660,10 +685,10 @@ exit 0
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>
 
-    <SetProperty Id="RunInstallHook" Value="&quot;[WindowsFolder]System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[JVM_DIR]msi-install-hook.ps1&quot;" Sequence="execute" Before="RunInstallHook" Condition="NOT (REMOVE=&quot;ALL&quot;) AND NOT (SKIPHOOKS=&quot;1&quot;)" />
+    <SetProperty Id="RunInstallHook" Value="&quot;[SystemFolder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[JVM_DIR]msi-install-hook.ps1&quot;" Sequence="execute" Before="RunInstallHook" Condition="NOT (REMOVE=&quot;ALL&quot;) AND NOT (SKIPHOOKS=&quot;1&quot;)" />
     <CustomAction Id="RunInstallHook" BinaryRef="Wix4UtilCA_`$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec" Execute="deferred" Impersonate="yes" Return="ignore" />
 
-    <SetProperty Id="RunUninstallHook" Value="&quot;[WindowsFolder]System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[JVM_DIR]msi-uninstall-hook.ps1&quot;" Sequence="execute" Before="RunUninstallHook" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND NOT (SKIPHOOKS=&quot;1&quot;)" />
+    <SetProperty Id="RunUninstallHook" Value="&quot;[SystemFolder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[JVM_DIR]msi-uninstall-hook.ps1&quot;" Sequence="execute" Before="RunUninstallHook" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND NOT (SKIPHOOKS=&quot;1&quot;)" />
     <CustomAction Id="RunUninstallHook" BinaryRef="Wix4UtilCA_`$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec" Execute="deferred" Impersonate="yes" Return="ignore" />
 
     <InstallExecuteSequence>

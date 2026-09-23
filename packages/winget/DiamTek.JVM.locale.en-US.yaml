@@ -7,6 +7,7 @@ PublisherSupportUrl: https://github.com/DiamTek/Java-Version-Manager-Windows/iss
 Author: Alexéy Shishkin
 PackageName: Java Version Manager
 PackageUrl: https://diamtek.github.io/Java-Version-Manager-Windows
+Moniker: jvm
 License: AGPL-3.0-or-later
 LicenseUrl: https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/LICENSE
 ShortDescription: A lightweight, native Java Version Manager and superior SDKMAN! alternative for Windows.

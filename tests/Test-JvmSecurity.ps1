@@ -421,6 +421,49 @@ try {
         Assert-Contains $out "Invalid link name" "Output must reject question mark wildcard"
     }
 
+    Run-TestCase "Adversarial" "Pinned System Binaries CWD Planting Defense" {
+        $content = Get-Content $JvmBat -Raw
+        $bins = @('CMD_BIN', 'PS_BIN', 'FINDSTR_BIN', 'REG_BIN', 'FSUTIL_BIN', 'WHERE_BIN', 'TIMEOUT_BIN', 'CHOICE_BIN', 'CHCP_BIN')
+        foreach ($b in $bins) {
+            Assert-Contains $content "set `"$b=%SYS32%\" "jvm.bat must pin $b to %SYS32% to prevent binary planting"
+        }
+    }
+
+    Run-TestCase "Adversarial" "Metacharacter command injection defense in 'jvm pin'" {
+        $testDir = Join-Path $SandboxRoot "PinInjectionTest"
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        Push-Location $testDir
+        try {
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $out = & cmd.exe /c "call `"$JvmBat`" pin `"21;calc`"" 2>&1 | Out-String
+            $ErrorActionPreference = $prevEAP
+            Assert-True ($LASTEXITCODE -ne 0) "Expected failure on injection in 'jvm pin'"
+            Assert-Contains $out "Invalid version identifier for pin" "Output must reject metacharacters in 'jvm pin'"
+        } finally {
+            Pop-Location
+        }
+    }
+
+    Run-TestCase "Adversarial" "Path Traversal in 'jvm exec' command" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $out = & cmd.exe /c "call `"$JvmBat`" exec ../../evil -- java -version" 2>&1 | Out-String
+        $ErrorActionPreference = $prevEAP
+        Assert-True ($LASTEXITCODE -ne 0) "Expected failure on traversal in 'jvm exec'"
+        Assert-Contains $out "Invalid target version for exec" "Output must reject traversal in 'jvm exec'"
+    }
+
+    Run-TestCase "Adversarial" "PowerShell command injection defense in 'jvm install' candidate version" {
+        $testDir = Join-Path $SandboxRoot "InstallInjectTest"
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $pwnFile = Join-Path $testDir "INSTALL_PWNED.txt"
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $out = & cmd.exe /c "call `"$JvmBat`" install maven `"3.9;calc`"" 2>&1 | Out-String
+        $ErrorActionPreference = $prevEAP
+        Assert-True ($LASTEXITCODE -ne 0) "Expected failure on injection in candidate version"
+        Assert-True (-not (Test-Path $pwnFile)) "Injected payload in candidate version MUST NOT execute"
+        Assert-Contains $out "Invalid version identifier" "Output must reject injection in candidate version"
+    }
+
     # ==========================================================================
     # SUITE 2: Registry & Environment Variable Boundary & Elevation Tests
     # ==========================================================================
@@ -625,6 +668,13 @@ try {
         Assert-True (-not $hasBom) "jvm.nuspec MUST NOT contain UTF-8 BOM"
     }
 
+    Run-TestCase "PackageIntegrity" "Chocolatey install fail-closed checksum validation assertion" {
+        $chocoInstall = Join-Path $RepoRoot "packages\choco\tools\chocolateyInstall.ps1"
+        $content = Get-Content $chocoInstall -Raw
+        Assert-Contains $content "`$checksum64 -notmatch" "chocolateyInstall.ps1 must validate checksum format"
+        Assert-Contains $content "Security violation:" "Must throw fail-closed error on checksum invalidity"
+    }
+
     Run-TestCase "Manifest" "Scoop manifest schema & mandatory fields" {
         $scoopPath = Join-Path $RepoRoot "packages\scoop\jvm.json"
         $scoop = Get-Content $scoopPath -Raw | ConvertFrom-Json
@@ -718,6 +768,11 @@ try {
             $mB = Get-Content (Join-Path $juncSwitchDir "marker.txt") -Raw
             Assert-Contains $mB "NODE_B" "Junction switch to B must be immediate"
         }
+    }
+
+    Run-TestCase "Concurrency" "Parallel temp script isolation & startup non-interference" {
+        $content = Get-Content $JvmBat -Raw
+        Assert-NotContains $content "del `"%TEMP%\jvm_*" "jvm.bat must NOT wipe all temp files with blind wildcards at startup"
     }
 
     # ==========================================================================
@@ -862,6 +917,11 @@ namespace Win32 {
         foreach ($root in $forbiddenRoots) {
             Assert-True ($forbiddenRoots -contains $root) "Forbidden roots must include $root"
         }
+    }
+
+    Run-TestCase "UninstallSafety" "Strict boundary enforcement on extracted candidate directory" {
+        $content = Get-Content $JvmBat -Raw
+        Assert-Contains $content "destinationPath.StartsWith" "Archive extraction must enforce directory boundary to prevent ZipSlip"
     }
 
     # ==========================================================================

@@ -168,8 +168,22 @@ function Invoke-Git {
     return $proc.ExitCode
 }
 
-# Local MSI verification test runner
+# Local MSI & Security verification test runner
 function Invoke-TestRunner {
+    $secScript = Join-Path $RepoRoot "tests\Test-JvmSecurity.ps1"
+    if (Test-Path $secScript) {
+        Write-Host ""
+        Write-Host "${cCyan}${cBold}Executing Security & Adversarial Test Suite (Test-JvmSecurity.ps1)...${cReset}"
+        try {
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $secScript -Detailed
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "${cRed}[TEST FAILED] Security test suite reported failures!${cReset}" -ForegroundColor Red
+            }
+        } catch {
+            Write-Host "${cRed}[TEST ERROR]$cReset $_" -ForegroundColor Red
+        }
+    }
+
     $testMsiScript = Join-Path $RepoRoot "packages\msi\test-msi.ps1"
     if (Test-Path $testMsiScript) {
         Write-Host ""
@@ -474,6 +488,13 @@ function Invoke-WingetCoordinator {
                                 }
                                 [System.IO.File]::WriteAllText($installerYaml, $yamlText, $Utf8NoBom)
                                 Write-Host "${cGreen}[UPDATED]$cReset Synchronized DiamTek.JVM.installer.yaml with online MSI hashes and ProductCodes."
+                                $chocoInstallPath = Join-Path $RepoRoot "packages\choco\tools\chocolateyInstall.ps1"
+                                if (Test-Path $chocoInstallPath) {
+                                    $ciContent = [System.IO.File]::ReadAllText($chocoInstallPath, [System.Text.Encoding]::UTF8)
+                                    $ciContent = [regex]::Replace($ciContent, "(?m)^(\`$checksum64\s*=\s*')[^']*(')", "`${1}$hashX64`${2}")
+                                    [System.IO.File]::WriteAllText($chocoInstallPath, $ciContent, $Utf8NoBom)
+                                    Write-Host "${cGreen}[UPDATED]$cReset Synchronized chocolateyInstall.ps1 with online x64 MSI hash ($hashX64)."
+                                }
                             }
                         } catch {
                             Write-Host "${cYellow}[WARN]$cReset Could not auto-download MSIs to update hashes: $_"
@@ -1398,7 +1419,13 @@ Update-FileContent "packages\choco\build-choco.ps1" {
 
 Update-FileContent "packages\choco\tools\chocolateyInstall.ps1" {
     param($content)
-    [regex]::Replace($content, "(?m)^(\`$packageVersion\s*=\s*')[^']*(')", "`${1}$cleanVersion`${2}")
+    $res = [regex]::Replace($content, "(?m)^(\`$packageVersion\s*=\s*')[^']*(')", "`${1}$cleanVersion`${2}")
+    $localMsiX64 = Join-Path $RepoRoot "packages\msi\jvm-windows-$cleanVersion-x64.msi"
+    if (Test-Path $localMsiX64) {
+        $localHash = (Get-FileHash -Path $localMsiX64 -Algorithm SHA256).Hash.ToUpper()
+        $res = [regex]::Replace($res, "(?m)^(\`$checksum64\s*=\s*')[^']*(')", "`${1}$localHash`${2}")
+    }
+    $res
 } -StepName "Chocolatey Install"
 
 Update-FileContent "packages\choco\tools\chocolateyUninstall.ps1" {

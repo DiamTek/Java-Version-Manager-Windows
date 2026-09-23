@@ -60,6 +60,12 @@ $chocoInstall = Join-Path $ScriptDir "tools\chocolateyInstall.ps1"
 if (Test-Path $chocoInstall) {
     $content = [System.IO.File]::ReadAllText($chocoInstall, $utf8NoBom)
     $updated = [regex]::Replace($content, "(?m)^(\`$packageVersion\s*=\s*')[^']*(')", "`${1}$Version`${2}")
+    $msiX64 = Join-Path $RootDir "packages\msi\jvm-windows-$Version-x64.msi"
+    if (Test-Path $msiX64) {
+        $msiHash = (Get-FileHash -LiteralPath $msiX64 -Algorithm SHA256).Hash.ToUpperInvariant()
+        $updated = [regex]::Replace($updated, "(?m)^(\`$checksum64\s*=\s*')[^']*(')", "`${1}$msiHash`${2}")
+        Write-Host "[ OK ] Synchronized checksum64 in chocolateyInstall.ps1 ($msiHash)" -ForegroundColor Green
+    }
     [System.IO.File]::WriteAllText($chocoInstall, $updated, $utf8NoBom)
 }
 
