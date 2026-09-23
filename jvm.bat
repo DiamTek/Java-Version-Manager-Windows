@@ -45,7 +45,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260923.115"
+set "JVM_BUILD=20260923.116"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -89,6 +89,16 @@ set "LOCATIONS[11]=C:\Program Files\Microsoft"
 set "SCRIPT_PATH=%~f0"
 set "SCRIPT_DIR=%~dp0"
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+
+setlocal disabledelayedexpansion
+call :RejectExclamationArg "%~1" "%~2" "%~3" "%~4" "%~5"
+if errorlevel 1 (
+    endlocal
+    echo %cRED%[ ERROR  ]%cRESET% Invalid link name or argument: poison character '!' is forbidden.
+    if defined ORIG_CP "%CHCP_BIN%" %ORIG_CP% >nul
+    exit /b 1
+)
+endlocal
 
 setlocal enabledelayedexpansion
 set "LOC_IDX=12"
@@ -5646,6 +5656,17 @@ set "BAK_TIME=!BAK_TIME:~0,6!"
 "%REG_BIN%" export "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "%LOCALAPPDATA%\DiamTek\JVM\backups\sys_env_!BAK_DATE!_!BAK_TIME!.reg" /y >nul 2>&1
 "%REG_BIN%" export "HKCU\Environment" "%LOCALAPPDATA%\DiamTek\JVM\backups\usr_env_!BAK_DATE!_!BAK_TIME!.reg" /y >nul 2>&1
 exit /b 0
+
+:RejectExclamationArg
+if "%~1"=="" exit /b 0
+set "_REA_VAL=%~1"
+if "%_REA_VAL:~0,1%"=="!" exit /b 1
+if "%_REA_VAL:~-1%"=="!" exit /b 1
+for /f "tokens=1* delims=!" %%a in ("%_REA_VAL%") do (
+    if not "%%b"=="" exit /b 1
+)
+shift
+goto :RejectExclamationArg
 
 :EnsureSecureTemp
 if not exist "%JVM_SECURE_TEMP%" (
