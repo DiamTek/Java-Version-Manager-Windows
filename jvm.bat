@@ -45,7 +45,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260923.117"
+set "JVM_BUILD=20260923.118"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -3424,7 +3424,7 @@ set "JVM_TRME2=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRI
     echo(!JVM_TRIM2!
     echo(
     echo(        if ^(-not [string]::IsNullOrWhiteSpace^($NewValue^)^) {
-    echo(            if ^($NewValue -match '[\x00\x3B\x26\x7C\x3C\x3E\x22\x60\x24\r\n]'^) { return }
+    echo(            if ^($NewValue -match '[\x00\x3B\x26\x7C\x3C\x3E\x22\x60\x24\x25\r\n]'^) { return }
     echo(            if ^(-not ^(Test-Path -LiteralPath $NewValue -PathType Container^)^) { return }
     echo(        }
     echo(
@@ -3959,7 +3959,7 @@ if not defined CURR_JAVA_BIN (
 
 if not defined CURR_JAVA_VER (
     if defined CURR_JAVA_BIN (
-        for /f "tokens=3" %%A in ('"!CURR_JAVA_BIN!" -version 2^>^&1 ^| %FINDSTR_BIN% /i "version"') do (
+        for /f "tokens=3" %%A in ('"!CURR_JAVA_BIN!" -version 2^>^&1 ^| %FINDSTR_BIN% /i version') do (
             set "CURR_JAVA_VER=%%~A"
         )
     )
@@ -4974,6 +4974,7 @@ if not "!_VSI_VAL!"=="!_VSI_SUB!" (
     exit /b 1
 )
 :: Loop characters to detect wildcards (*, ?) without subshells or pipes
+set _VSI_DQ="
 set "_VSI_REM=!_VSI_VAL!"
 :VSI_CharLoop
 if defined _VSI_REM (
@@ -4989,7 +4990,7 @@ if defined _VSI_REM (
         set "JVM_EXIT_CODE=1"
         exit /b 1
     )
-    if "!_VSI_CH!"=="""" (
+    if "!_VSI_CH!"=="!_VSI_DQ!" (
         endlocal & endlocal
         set "JVM_EXIT_CODE=1"
         exit /b 1
@@ -5603,7 +5604,7 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo         }
     echo         foreach ^($entry in $entries^) {
     echo             $destinationPath = [System.IO.Path]::GetFullPath^([System.IO.Path]::Combine^($env:DL_EXTRACT, $entry.FullName^)^)
-    echo             if ^(-not $destinationPath.StartsWith^($fullRoot, [System.StringComparison]::OrdinalIgnoreCase^) -and $destinationPath -ne $fullRoot.TrimEnd^([System.IO.Path]::DirectorySeparatorChar^)^) {
+    echo             if ^($entry.FullName -match '^^[/\\]' -or ^(-not $destinationPath.StartsWith^($fullRoot, [System.StringComparison]::OrdinalIgnoreCase^) -and $destinationPath -ne $fullRoot.TrimEnd^([System.IO.Path]::DirectorySeparatorChar^)^)^) {
     echo                 throw ^('Blocked path traversal in archive entry: ' + $entry.FullName^)
     echo             }
     echo             if ^([string]::IsNullOrEmpty^($entry.Name^)^) {

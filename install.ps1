@@ -477,7 +477,9 @@ function jvm {
             )
             $isAllowed = $false
             foreach ($root in $allowedRoots) {
-                if ($canonicalPath -and $canonicalPath.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+                $normRoot = $root.TrimEnd('\')
+                $rootPrefix = $normRoot + '\'
+                if ($canonicalPath -and ($canonicalPath.Equals($normRoot, [StringComparison]::OrdinalIgnoreCase) -or $canonicalPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase))) {
                     $isAllowed = $true
                     break
                 }

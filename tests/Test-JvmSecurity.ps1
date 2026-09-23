@@ -33,10 +33,16 @@
 
 [CmdletBinding()]
 param(
-    [switch]$Detailed
+    [switch]$Detailed,
+    [Alias('Tag', 'Category')]
+    [string]$Suite = '',
+    [Alias('Name', 'Pattern')]
+    [string]$Filter = ''
 )
 
 $ErrorActionPreference = 'Stop'
+$RequestedSuite  = $Suite
+$RequestedFilter = $Filter
 
 # UI Colors
 $ESC = [char]27
@@ -64,9 +70,144 @@ if (-not (Test-Path $JvmBat)) {
     exit 1
 }
 
-$TestResults = [System.Collections.Generic.List[PSObject]]::new()
-$GlobalPassed = 0
-$GlobalFailed = 0
+$TestResults     = [System.Collections.Generic.List[PSObject]]::new()
+$GlobalPassed    = 0
+$GlobalFailed    = 0
+$GlobalSkipped   = 0
+$HasPassedSuite2 = $false
+$RunnerStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+# Canonical 8-Suite Catalog
+$SuiteTracker = [ordered]@{
+    'SUITE 1' = [PSCustomObject]@{ Id = 'SUITE 1'; Number = 1; Name = 'Suite 1: Adversarial & Fuzzing Defense';       Tag = 'Adversarial';      Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 2' = [PSCustomObject]@{ Id = 'SUITE 2'; Number = 2; Name = 'Suite 2: Registry & Env Boundaries';           Tag = 'Registry';         Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 3' = [PSCustomObject]@{ Id = 'SUITE 3'; Number = 3; Name = 'Suite 3: Symlink & Junction Lifecycle';        Tag = 'ReparsePoint';     Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 4' = [PSCustomObject]@{ Id = 'SUITE 4'; Number = 4; Name = 'Suite 4: Package Manifest Integrity';          Tag = 'Manifest';         Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 5' = [PSCustomObject]@{ Id = 'SUITE 5'; Number = 5; Name = 'Suite 5: Concurrency & Reparse Resilience';    Tag = 'Concurrency';      Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 6' = [PSCustomObject]@{ Id = 'SUITE 6'; Number = 6; Name = 'Suite 6: Corrupt Registry & PATH Resilience';  Tag = 'Registry';         Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 7' = [PSCustomObject]@{ Id = 'SUITE 7'; Number = 7; Name = 'Suite 7: Uninstallation Safety & Markers';     Tag = 'Uninstall';        Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 8' = [PSCustomObject]@{ Id = 'SUITE 8'; Number = 8; Name = 'Suite 8: Windows Terminal JSONC Parsing';      Tag = 'TerminalJSON';     Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+}
+
+# Canonical CWE Vulnerability Catalog (Sorted Numerically)
+$CweCatalog = [ordered]@{
+    'CWE-22'  = [PSCustomObject]@{ Id = 'CWE-22';  Number = 22;  Short = 'Path Traversal & ZipSlip' }
+    'CWE-41'  = [PSCustomObject]@{ Id = 'CWE-41';  Number = 41;  Short = 'Win32 Canonicalization Bypass' }
+    'CWE-59'  = [PSCustomObject]@{ Id = 'CWE-59';  Number = 59;  Short = 'Symlink & Junction Safety' }
+    'CWE-66'  = [PSCustomObject]@{ Id = 'CWE-66';  Number = 66;  Short = 'DOS Device & NTFS ADS Abuse' }
+    'CWE-73'  = [PSCustomObject]@{ Id = 'CWE-73';  Number = 73;  Short = 'Env & System Root Protection' }
+    'CWE-78'  = [PSCustomObject]@{ Id = 'CWE-78';  Number = 78;  Short = 'OS Command & Shell Injection' }
+    'CWE-88'  = [PSCustomObject]@{ Id = 'CWE-88';  Number = 88;  Short = 'Argument & Flag Injection' }
+    'CWE-155' = [PSCustomObject]@{ Id = 'CWE-155'; Number = 155; Short = 'Wildcard Expansion Injection' }
+    'CWE-377' = [PSCustomObject]@{ Id = 'CWE-377'; Number = 377; Short = 'Insecure Temp File & ACL Lock' }
+    'CWE-400' = [PSCustomObject]@{ Id = 'CWE-400'; Number = 400; Short = 'Hang & Parser Resilience' }
+    'CWE-426' = [PSCustomObject]@{ Id = 'CWE-426'; Number = 426; Short = 'Untrusted Search Path / Planting' }
+    'CWE-494' = [PSCustomObject]@{ Id = 'CWE-494'; Number = 494; Short = 'Supply Chain & Hash Integrity' }
+}
+
+function Resolve-TestCweMetadata {
+    param([string]$RawSuite, [string]$TestName)
+
+    $cweKey = switch -Regex ($TestName) {
+        'ZipSlip|Path Traversal|traversal|sibling prefix|boundary enforcement|target allowlisting' { 'CWE-22'; break }
+        'Trailing dot|Trailing space|trailing dots|trailing spaces|single dot|Reserved keyword'    { 'CWE-41'; break }
+        'DOS reserved|Alternative Data Stream|ADS'                                                 { 'CWE-66'; break }
+        'Leading hyphen|leading-hyphen|--vendor|invalid value rejection'                           { 'CWE-88'; break }
+        'Asterisk wildcard|Question mark wildcard'                                                 { 'CWE-155'; break }
+        'Pinned System Binaries|SystemRoot environment saturation|Base64 UTF-16LE'                 { 'CWE-426'; break }
+        'junction|Reparse|Remove-DirectorySafely|active development repository'                    { 'CWE-59'; break }
+        'ACL verification|Parallel temp script'                                                    { 'CWE-377'; break }
+        'REG_EXPAND_SZ|REG_SZ|Protected system roots|lacking JVM installation|Oracle javapath'     { 'CWE-73'; break }
+        'SendMessageTimeout|Extreme PATH|JSONC|Corrupt non-JSON|NO_COLOR'                          { 'CWE-400'; break }
+        'SHA|checksum|nuspec|Scoop|Winget|synchronization|DryRun|UTF-8|Get-DeterministicGuid|WIX1103' { 'CWE-494'; break }
+        default                                                                                    { 'CWE-78' }
+    }
+    return $script:CweCatalog[$cweKey]
+}
+
+function Resolve-CanonicalSuite {
+    param([string]$RawSuite)
+
+    if ($RawSuite -eq 'ReparsePoint') {
+        $script:HasPassedSuite2 = $true
+    }
+
+    $suiteKey = switch ($RawSuite) {
+        'Adversarial'      { 'SUITE 1' }
+        'Registry'         { if ($script:HasPassedSuite2) { 'SUITE 6' } else { 'SUITE 2' } }
+        'ReparsePoint'     { 'SUITE 3' }
+        'Manifest'         { 'SUITE 4' }
+        'PackageIntegrity' { 'SUITE 4' }
+        'Reparse'          { 'SUITE 5' }
+        'Concurrency'      { 'SUITE 5' }
+        'Uninstall'        { 'SUITE 7' }
+        'UninstallSafety'  { 'SUITE 7' }
+        'TerminalJSON'     { 'SUITE 8' }
+        default {
+            $dynKey = "SUITE_DYN_$RawSuite"
+            if (-not $script:SuiteTracker.Contains($dynKey)) {
+                $nextNum = $script:SuiteTracker.Count + 1
+                $script:SuiteTracker[$dynKey] = [PSCustomObject]@{
+                    Id        = "SUITE $nextNum"
+                    Number    = $nextNum
+                    Name      = "Suite ${nextNum}: $RawSuite"
+                    Tag       = $RawSuite
+                    Passed    = 0
+                    Failed    = 0
+                    Skipped   = 0
+                    Total     = 0
+                    ElapsedMs = 0L
+                }
+            }
+            $dynKey
+        }
+    }
+    return $script:SuiteTracker[$suiteKey]
+}
+
+function Test-RunnerFilterMatch {
+    param(
+        [PSCustomObject]$SuiteEntry,
+        [PSCustomObject]$CweMeta,
+        [string]$RawSuite,
+        [string]$TestName
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($script:RequestedSuite)) {
+        $q = $script:RequestedSuite.Trim()
+        $suiteCandidates = @(
+            $RawSuite,
+            $SuiteEntry.Tag,
+            $SuiteEntry.Id,
+            "Suite$($SuiteEntry.Number)",
+            "$($SuiteEntry.Number)",
+            $SuiteEntry.Name
+        )
+        $matchedSuite = $false
+        foreach ($cand in $suiteCandidates) {
+            if ($cand -like "*$q*" -or $cand -match $q) {
+                $matchedSuite = $true
+                break
+            }
+        }
+        if (-not $matchedSuite) { return $false }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($script:RequestedFilter)) {
+        $f = $script:RequestedFilter.Trim()
+        $matchedFilter = ($TestName -like "*$f*") -or ($RawSuite -like "*$f*") -or ($SuiteEntry.Name -like "*$f*") -or ($CweMeta.Id -like "*$f*") -or ($CweMeta.Short -like "*$f*")
+        if (-not $matchedFilter) {
+            try {
+                $matchedFilter = ($TestName -match $f) -or ($RawSuite -match $f) -or ($SuiteEntry.Name -match $f) -or ($CweMeta.Id -match $f) -or ($CweMeta.Short -match $f)
+            } catch {
+                $matchedFilter = $false
+            }
+        }
+        if (-not $matchedFilter) { return $false }
+    }
+
+    return $true
+}
 
 function Run-TestCase {
     param(
@@ -75,30 +216,55 @@ function Run-TestCase {
         [scriptblock]$TestLogic
     )
 
+    $suiteEntry = Resolve-CanonicalSuite -RawSuite $Suite
+    $cweMeta    = Resolve-TestCweMetadata -RawSuite $Suite -TestName $Name
+
+    if (-not (Test-RunnerFilterMatch -SuiteEntry $suiteEntry -CweMeta $cweMeta -RawSuite $Suite -TestName $Name)) {
+        $script:GlobalSkipped++
+        $suiteEntry.Skipped++
+        return
+    }
+
+    $suiteEntry.Total++
+    $cweBadge = "${cCyan}[$($cweMeta.Id)]${cReset}"
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         & $TestLogic
         $sw.Stop()
+        $elapsed = $sw.ElapsedMilliseconds
         $script:GlobalPassed++
-        Write-Host "  ${cGreen}[PASS]${cReset} $Name ${cGray}($($sw.ElapsedMilliseconds) ms)${cReset}"
+        $suiteEntry.Passed++
+        $suiteEntry.ElapsedMs += $elapsed
+        Write-Host "  ${cGreen}[PASS]${cReset} $cweBadge $Name ${cGray}($elapsed ms)${cReset}"
         $script:TestResults.Add([PSCustomObject]@{
-            Suite    = $Suite
-            Name     = $Name
-            Status   = "PASS"
-            Error    = $null
-            Duration = $sw.ElapsedMilliseconds
+            SuiteId    = $suiteEntry.Id
+            SuiteTitle = $suiteEntry.Name
+            Suite      = $Suite
+            CweId      = $cweMeta.Id
+            CweShort   = $cweMeta.Short
+            Name       = $Name
+            Status     = "PASS"
+            Error      = $null
+            Duration   = $elapsed
         })
     } catch {
         $sw.Stop()
+        $elapsed = $sw.ElapsedMilliseconds
         $script:GlobalFailed++
-        Write-Host "  ${cRed}[FAIL]${cReset} $Name ${cGray}($($sw.ElapsedMilliseconds) ms)${cReset}" -ForegroundColor Red
+        $suiteEntry.Failed++
+        $suiteEntry.ElapsedMs += $elapsed
+        Write-Host "  ${cRed}[FAIL]${cReset} $cweBadge $Name ${cGray}($elapsed ms)${cReset}" -ForegroundColor Red
         Write-Host "         Error: $($_.Exception.Message)" -ForegroundColor DarkRed
         $script:TestResults.Add([PSCustomObject]@{
-            Suite    = $Suite
-            Name     = $Name
-            Status   = "FAIL"
-            Error    = $_.Exception.Message
-            Duration = $sw.ElapsedMilliseconds
+            SuiteId    = $suiteEntry.Id
+            SuiteTitle = $suiteEntry.Name
+            Suite      = $Suite
+            CweId      = $cweMeta.Id
+            CweShort   = $cweMeta.Short
+            Name       = $Name
+            Status     = "FAIL"
+            Error      = $_.Exception.Message
+            Duration   = $elapsed
         })
     }
 }
@@ -464,6 +630,137 @@ try {
         Assert-Contains $out "Invalid version identifier" "Output must reject injection in candidate version"
     }
 
+    Run-TestCase "Adversarial" "Pre-delayed-expansion ':RejectExclamationArg' across positions %~1..%~5" {
+        $argVectors = @(
+            '!PATH!',
+            'use "jdk!21"',
+            'install maven "!lead"',
+            'exec 21 -- "trail!"',
+            'exec 21 -- java "mid!dle"'
+        )
+        foreach ($vec in $argVectors) {
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $out = & cmd.exe /c "call `"$JvmBat`" $vec" 2>&1 | Out-String
+            $ErrorActionPreference = $prevEAP
+            Assert-True ($LASTEXITCODE -ne 0) "Expected ':RejectExclamationArg' failure for vector: $vec"
+            Assert-Contains $out "poison character '!' is forbidden" "Output must reject '!' in vector: $vec"
+        }
+    }
+
+    Run-TestCase "Adversarial" "Embedded double-quote smuggling rejection in ':VSI_CharLoop'" {
+        $testDir = Join-Path $SandboxRoot "QuoteSmuggleTest"
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        Push-Location $testDir
+        try {
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            # 1. End-to-end CLI check: smuggled quote must abort with non-zero exit code and never write .java-version
+            $outPin = & cmd.exe /c "call `"$JvmBat`" pin 21^`"pwn" 2>&1 | Out-String
+            $pinExit = $LASTEXITCODE
+            $ErrorActionPreference = $prevEAP
+
+            Assert-True ($pinExit -ne 0) "jvm pin must fail closed on smuggled double quote"
+            Assert-PathNotExists (Join-Path $testDir ".java-version") ".java-version must not be written on quote smuggling"
+
+            # 2. Direct unit verification of :ValidateStrictIdentifier / :VSI_CharLoop on embedded '"'
+            $batRaw = Get-Content $JvmBat -Raw
+            $vsiMatch = [regex]::Match($batRaw, '(?s)(:VSI_CharLoop\r?\n.*?)(?=\r?\n:GetCandidateEnvVar)')
+            Assert-True $vsiMatch.Success "Must locate :VSI_CharLoop in jvm.bat"
+
+            $vsiHarness = Join-Path $testDir "vsi_quote_harness.bat"
+            $vsiCode = @"
+@echo off
+setlocal disabledelayedexpansion
+setlocal enabledelayedexpansion
+set _VSI_DQ="
+set _VSI_VAL=21"pwn
+set "_VSI_REM=!_VSI_VAL!"
+goto :VSI_CharLoop
+$($vsiMatch.Groups[1].Value)
+"@
+            [System.IO.File]::WriteAllText($vsiHarness, ($vsiCode -replace "\r?\n", "`r`n"), [System.Text.UTF8Encoding]::new($false))
+            $null = & cmd.exe /c "call `"$vsiHarness`"" 2>&1
+            Assert-Equals $LASTEXITCODE 1 ":VSI_CharLoop must return exit code 1 when _VSI_VAL contains an embedded double-quote"
+        } finally {
+            Pop-Location
+        }
+    }
+
+    Run-TestCase "Adversarial" "'--vendor' flag poisoning and unsupported vendor dispatch rejection" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $outSwitch = & cmd.exe /c "call `"$JvmBat`" 21 --vendor `"../../evil_vendor`"" 2>&1 | Out-String
+        $switchExit = $LASTEXITCODE
+
+        $outUpdate = & cmd.exe /c "call `"$JvmBat`" update 21 --vendor `"oracle;calc`"" 2>&1 | Out-String
+        $updateExit = $LASTEXITCODE
+        $ErrorActionPreference = $prevEAP
+
+        Assert-True ($switchExit -ne 0) "Switching with poisoned --vendor must fail closed"
+        Assert-Contains $outSwitch "JDK 21 not found" "Poisoned --vendor must prevent JDK match"
+
+        Assert-True ($updateExit -ne 0) "Updating with poisoned --vendor must fail closed"
+        Assert-Contains $outUpdate "JDK 21 not found" "Poisoned --vendor in update must prevent JDK match"
+
+        $batContent = Get-Content $JvmBat -Raw
+        Assert-NotContains $batContent "goto :Resolve_!CLI_VENDOR!" "jvm.bat must not use unvalidated dynamic goto on CLI_VENDOR"
+        Assert-Contains $batContent "Unknown or unsupported vendor: !CLI_VENDOR!" "jvm.bat must explicitly reject unknown vendors"
+    }
+
+    Run-TestCase "Adversarial" "'jvm channel' invalid value rejection and 'jvm open' target allowlisting" {
+        $origLocalAppData = $env:LOCALAPPDATA
+        try {
+            $env:LOCALAPPDATA = $FakeLocalAppData
+            $channelFile = Join-Path $FakeLocalAppData "DiamTek\JVM\channel.txt"
+            if (Test-Path -LiteralPath $channelFile) { Remove-Item -LiteralPath $channelFile -Force }
+
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $outChan = & cmd.exe /c "call `"$JvmBat`" channel `"../../evil_branch`"" 2>&1 | Out-String
+            $outOpen = & cmd.exe /c "call `"$JvmBat`" open candidates" 2>&1 | Out-String
+            $openExit = $LASTEXITCODE
+            $ErrorActionPreference = $prevEAP
+
+            Assert-Contains $outChan "Unknown channel" "jvm channel must reject invalid channel names"
+            Assert-Contains $outChan "Valid options are 'stable' or 'nightly'" "jvm channel must state valid options"
+            Assert-PathNotExists $channelFile "Invalid channel argument must NOT create or modify channel.txt"
+
+            Assert-True ($openExit -ne 0) "jvm open must fail closed when allowlisted target directory does not exist"
+            Assert-Contains $outOpen "Target path does not exist" "jvm open must report missing target path without launching explorer.exe"
+
+            $batContent = Get-Content $JvmBat -Raw
+            Assert-NotContains $batContent 'set "OPEN_PATH=!CLI_TARGET!"' "jvm open must never assign raw CLI_TARGET directly to OPEN_PATH"
+        } finally {
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    Run-TestCase "Adversarial" "Static code audit: 'for /f' subshells must never quote '%..._BIN%' binaries" {
+        $lines = Get-Content $JvmBat
+        $violations = @()
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i]
+            # 1. No pinned system binary (%..._BIN%) may be wrapped in quotes inside for /f ('...')
+            if ($line -match '(?i)^\s*for\s+/f\b.*\bin\s*\(\s*''[^'']*\"%[A-Z0-9_]+_BIN%\"') {
+                $violations += "Line $($i + 1) (quoted %..._BIN%): $($line.Trim())"
+            }
+            # 2. No for /f ('"..."..."..."') command may start AND end with a SINGLE quote (not ""..."" wrapper) when containing multiple quoted segments
+            if ($line -match '(?i)^\s*for\s+/f\b.*\bin\s*\(\s*''(\"(?!\")[^'']+\"[^'']*\"[^'']+?(?<!\")\")''\s*\)') {
+                $violations += "Line $($i + 1) (unwrapped multi-quote cmd.exe /c stripping hazard): $($line.Trim())"
+            }
+        }
+        Assert-True ($violations.Count -eq 0) ("Found 'for /f' quote-stripping hazard in jvm.bat:`n" + ($violations -join "`n"))
+    }
+
+    Run-TestCase "Adversarial" "':ValidateStrictIdentifier' clean execution on 'jvm which java' and leading-hyphen flag injection rejection" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $outWhichClean = & cmd.exe /c "call `"$JvmBat`" which java" 2>&1 | Out-String
+        $outHyphen = & cmd.exe /c "call `"$JvmBat`" pin `"-ExecutionPolicy`"" 2>&1 | Out-String
+        $hyphenExit = $LASTEXITCODE
+        $ErrorActionPreference = $prevEAP
+
+        Assert-NotContains $outWhichClean "is not recognized as an internal or external command" "jvm which java must not emit CMD quote-parser errors"
+        Assert-True ($hyphenExit -ne 0) "Leading hyphen flag injection must be rejected by :ValidateStrictIdentifier"
+        Assert-Contains $outHyphen "Invalid version identifier" "Leading hyphen must be rejected with clear diagnostic"
+    }
+
     # ==========================================================================
     # SUITE 2: Registry & Environment Variable Boundary & Elevation Tests
     # ==========================================================================
@@ -550,6 +847,22 @@ try {
         # Test split and deduplication without memory corruption
         $parts = @($longPath -split ';' | Where-Object { $_ -ne '' } | ForEach-Object { $_.TrimEnd('\') })
         Assert-True ($parts.Count -eq 100) "All 100 segments must parse successfully"
+    }
+
+    Run-TestCase "Registry" "'NO_COLOR=1' and '--no-color' strict ANSI escape sequence suppression" {
+        $prevNoColor = $env:NO_COLOR
+        try {
+            $env:NO_COLOR = "1"
+            $outEnv = & cmd.exe /c "call `"$JvmBat`" --version" 2>&1 | Out-String
+            $env:NO_COLOR = $null
+            $outFlag = & cmd.exe /c "call `"$JvmBat`" --version --no-color" 2>&1 | Out-String
+
+            Assert-False ($outEnv -match '\x1b\[') "NO_COLOR=1 must suppress all ANSI escape sequences (\x1b[)"
+            Assert-False ($outFlag -match '\x1b\[') "--no-color flag must suppress all ANSI escape sequences (\x1b[)"
+            Assert-Contains $outEnv "Java Version Manager" "Version banner text must still render under NO_COLOR=1"
+        } finally {
+            $env:NO_COLOR = $prevNoColor
+        }
     }
 
     # ==========================================================================
@@ -716,6 +1029,86 @@ try {
         }
     }
 
+    Run-TestCase "Manifest" "GitHub Actions workflow 40-char commit SHA pinning & explicit permissions audit" {
+        $workflowsDir = Join-Path $RepoRoot ".github\workflows"
+        $workflowFiles = Get-ChildItem -Path $workflowsDir -Filter "*.yml" -File
+        Assert-True ($workflowFiles.Count -ge 2) "At least ci.yml and release.yml must exist"
+
+        foreach ($wf in $workflowFiles) {
+            $wfContent = Get-Content $wf.FullName -Raw
+            Assert-Contains $wfContent "permissions:" "$($wf.Name) must declare explicit least-privilege 'permissions:' block"
+
+            $usesMatches = [regex]::Matches($wfContent, '(?m)^\s*-?\s*uses:\s*([^\s#]+)')
+            Assert-True ($usesMatches.Count -gt 0) "$($wf.Name) must contain at least one 'uses:' action reference"
+            foreach ($m in $usesMatches) {
+                $actionRef = $m.Groups[1].Value.Trim('''', '"')
+                if ($actionRef.StartsWith('./')) { continue }
+                Assert-True ($actionRef -match '@[0-9a-f]{40}$') "Action '$actionRef' in $($wf.Name) must be pinned to an immutable 40-char hex commit SHA"
+            }
+        }
+    }
+
+    Run-TestCase "PackageIntegrity" "jvm.bat UTF-8 No BOM, 100% CRLF, no U+00A0, and EOF sentinel integrity" {
+        $bytes = [System.IO.File]::ReadAllBytes($JvmBat)
+        $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+        Assert-False $hasBom "jvm.bat MUST NOT contain a UTF-8 BOM (0xEF,0xBB,0xBF breaks @echo off)"
+
+        $bareLfCount = 0
+        for ($i = 0; $i -lt $bytes.Length; $i++) {
+            if ($bytes[$i] -eq 0x0A -and ($i -eq 0 -or $bytes[$i - 1] -ne 0x0D)) {
+                $bareLfCount++
+            }
+        }
+        Assert-Equals $bareLfCount 0 "jvm.bat must use 100% CRLF line endings (0 bare LF allowed to prevent CMD label-offset desync)"
+
+        $text = [System.Text.Encoding]::UTF8.GetString($bytes)
+        Assert-False ($text.Contains([char]0x00A0)) "jvm.bat must not contain non-breaking spaces (U+00A0)"
+        Assert-True ($text.TrimEnd() -match 'rem END OF SCRIPT$') "jvm.bat must end with intact 'rem END OF SCRIPT' sentinel"
+    }
+
+    Run-TestCase "PackageIntegrity" "build-msi.ps1 RFC 4122 UUID v5 Get-DeterministicGuid reproducibility & collision resistance" {
+        $buildMsiPath = Join-Path $RepoRoot "packages\msi\build-msi.ps1"
+        Assert-PathExists $buildMsiPath "packages/msi/build-msi.ps1 must exist"
+        $msiSrc = Get-Content $buildMsiPath -Raw
+        Assert-Contains $msiSrc "function Get-DeterministicGuid" "build-msi.ps1 must define Get-DeterministicGuid"
+
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput($msiSrc, [ref]$null, [ref]$null)
+        $fnAst = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-DeterministicGuid' }, $true)
+        Assert-True ($null -ne $fnAst) "Get-DeterministicGuid AST node must be extractable"
+        . ([scriptblock]::Create($fnAst.Extent.Text))
+
+        $ns = "b20650a4-4212-4d64-9edf-744e9285e2be"
+        $g1 = Get-DeterministicGuid $ns "DiamTek.JVM.ProductCode:1.0.2:x64"
+        $g2 = Get-DeterministicGuid $ns "DiamTek.JVM.ProductCode:1.0.2:x64"
+        $gArm = Get-DeterministicGuid $ns "DiamTek.JVM.ProductCode:1.0.2:arm64"
+        $gNext = Get-DeterministicGuid $ns "DiamTek.JVM.ProductCode:1.0.3:x64"
+
+        Assert-Equals $g1 $g2 "Get-DeterministicGuid must be 100% reproducible for identical (Version, Arch)"
+        Assert-True ($g1 -ne $gArm) "Get-DeterministicGuid must produce distinct ProductCode for x64 vs arm64"
+        Assert-True ($g1 -ne $gNext) "Get-DeterministicGuid must produce distinct ProductCode across versions"
+        Assert-True ($g1 -match '^\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-5[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\}?$') "Generated GUID ($g1) must conform to RFC 4122 UUID v5 variant/version bits"
+    }
+
+    Run-TestCase "PackageIntegrity" "build-msi.ps1 `$profileCode extraction parity & WIX1103 unversioned script hash verification" {
+        $buildMsiPath = Join-Path $RepoRoot "packages\msi\build-msi.ps1"
+        $installPs1Path = Join-Path $RepoRoot "install.ps1"
+        $msiSrc = Get-Content $buildMsiPath -Raw
+        $installRaw = Get-Content $installPs1Path -Raw
+
+        Assert-Contains $msiSrc '$profileCode = $profileMatch.Groups[1].Value.Trim()' "build-msi.ps1 must assign extracted `$profileCode from `$profileMatch"
+        $profileMatch = [regex]::Match($installRaw, "(?s)\`$profileCode\s*=\s*@'\r?\n(.*?)\r?\n'@")
+        Assert-True $profileMatch.Success "build-msi.ps1 regex must successfully extract `$profileCode from install.ps1"
+        $extractedHook = $profileMatch.Groups[1].Value.Trim()
+        Assert-Contains $extractedHook "function jvm" "Extracted `$profileCode must contain function jvm"
+        Assert-Contains $extractedHook "function Set-JvmVar" "Extracted `$profileCode must contain Set-JvmVar"
+
+        $scriptFileTags = [regex]::Matches($msiSrc, '<File\s+Id="(?:UninstallFile|MsiInstallHook|MsiUninstallHook|JvmBat)"[^>]*>')
+        Assert-Equals $scriptFileTags.Count 4 "build-msi.ps1 must declare all 4 script <File> elements (UninstallFile, MsiInstallHook, MsiUninstallHook, JvmBat)"
+        foreach ($tag in $scriptFileTags) {
+            Assert-NotContains $tag.Value "DefaultVersion=" "Script <File> element must NOT specify DefaultVersion (prevents WIX1103 & ensures MsiFileHash population): $($tag.Value)"
+        }
+    }
+
     # ==========================================================================
     # SUITE 5: Concurrency & Reparse Point Non-Destructive Resilience
     # ==========================================================================
@@ -773,6 +1166,25 @@ try {
     Run-TestCase "Concurrency" "Parallel temp script isolation & startup non-interference" {
         $content = Get-Content $JvmBat -Raw
         Assert-NotContains $content "del `"%TEMP%\jvm_*" "jvm.bat must NOT wipe all temp files with blind wildcards at startup"
+    }
+
+    Run-TestCase "Concurrency" "Live ACL verification on %JVM_SECURE_TEMP% (Protected DACL, User F, no Everyone/Users)" {
+        $origLocalAppData = $env:LOCALAPPDATA
+        try {
+            $env:LOCALAPPDATA = $FakeLocalAppData
+            $null = & cmd.exe /c "call `"$JvmBat`" --version" 2>&1
+            $secTemp = Join-Path $FakeLocalAppData "DiamTek\JVM\temp"
+            Assert-PathExists $secTemp "%JVM_SECURE_TEMP% directory must be created during startup"
+
+            $acl = Get-Acl -LiteralPath $secTemp
+            Assert-True $acl.AreAccessRulesProtected "%JVM_SECURE_TEMP% DACL must have inheritance disabled (icacls /inheritance:r)"
+
+            $identities = @($acl.Access | ForEach-Object { $_.IdentityReference.Value })
+            $hasBroadGroup = ($identities | Where-Object { $_ -match '(^|\\)(Everyone|Users|Authenticated Users)$' }).Count -gt 0
+            Assert-False $hasBroadGroup "%JVM_SECURE_TEMP% ACL must not grant access to Everyone/Users/Authenticated Users (Actual: $($identities -join ', '))"
+        } finally {
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
     }
 
     # ==========================================================================
@@ -846,12 +1258,88 @@ namespace Win32 {
         $illegalPath = "C:\Windows\System32"
         $isAllowed = $false
         foreach ($root in $allowedRoots) {
-            if ($illegalPath.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+            $normRoot = $root.TrimEnd('\')
+            $rootPrefix = $normRoot + '\'
+            if ($illegalPath.Equals($normRoot, [StringComparison]::OrdinalIgnoreCase) -or $illegalPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
                 $isAllowed = $true
                 break
             }
         }
         Assert-False $isAllowed "Set-JvmVar boundary check must reject C:\Windows\System32"
+    }
+
+    Run-TestCase "Registry" "Set-JvmVar sibling prefix collision (CWE-22) and strict variable allowlist enforcement" {
+        $installRaw = Get-Content (Join-Path $RepoRoot "install.ps1") -Raw
+        $fnMatch = [regex]::Match($installRaw, '(?s)function Set-JvmVar\s*\{.*?\r?\n    \}')
+        Assert-True $fnMatch.Success "Set-JvmVar function must be extractable from install.ps1"
+        . ([scriptblock]::Create($fnMatch.Value))
+
+        $siblingEvilDir = Join-Path $FakeUserProfile ".jdks_evil"
+        New-Item -ItemType Directory -Path (Join-Path $siblingEvilDir "bin") -Force | Out-Null
+        $origUserProfile = $env:USERPROFILE
+        $origJavaHome = $env:JAVA_HOME
+        $origComSpec = $env:COMSPEC
+        try {
+            $env:USERPROFILE = $FakeUserProfile
+            $env:JAVA_HOME = "C:\OriginalJavaHome"
+
+            # 1. Attempt CWE-22 sibling prefix collision (.jdks_evil vs .jdks)
+            Set-JvmVar -Name "JAVA_HOME" -OldValue "" -NewValue $siblingEvilDir
+            Assert-Equals $env:JAVA_HOME "C:\OriginalJavaHome" "Set-JvmVar MUST block sibling prefix directory (.jdks_evil)"
+
+            # 2. Attempt non-allowlisted variable tampering (COMSPEC)
+            $legitJdk = Join-Path $FakeUserProfile ".jdks\temurin-21"
+            New-Item -ItemType Directory -Path (Join-Path $legitJdk "bin") -Force | Out-Null
+            Set-JvmVar -Name "COMSPEC" -OldValue "" -NewValue $legitJdk
+            Assert-Equals $env:COMSPEC $origComSpec "Set-JvmVar MUST reject non-allowlisted environment variable 'COMSPEC'"
+        } finally {
+            $env:USERPROFILE = $origUserProfile
+            $env:JAVA_HOME = $origJavaHome
+            $env:COMSPEC = $origComSpec
+        }
+    }
+
+    Run-TestCase "Registry" "PowerShell AST parser validation of :InstallPowerShellHook emitted profile script" {
+        $batRaw = Get-Content $JvmBat -Raw
+        $hookBlockMatch = [regex]::Match($batRaw, '(?s)(set JVM_TRIM_DQ=.*?echo\(''@\r?\n\s*echo\()')
+        Assert-True $hookBlockMatch.Success "Must locate :InstallPowerShellHook generator block in jvm.bat"
+
+        $harnessBat = Join-Path $SandboxRoot "emit_hook_harness.bat"
+        $emittedGenPs1 = Join-Path $SandboxRoot "emitted_setup_hook.ps1"
+        $emittedProfile = Join-Path $SandboxRoot "emitted_profile.ps1"
+
+        $harnessCode = @"
+@echo off
+setlocal enabledelayedexpansion
+set "SAFE_TARGET=$RepoRoot"
+$($hookBlockMatch.Groups[1].Value)
+    echo `$hook = `$hook.Replace^('__FALLBACK_BAT__', `$targetBatEscaped^)
+    echo [System.IO.File]::WriteAllText^('$emittedProfile', `$hook, [System.Text.Encoding]::UTF8^)
+) > "$emittedGenPs1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
+"@
+        [System.IO.File]::WriteAllText($harnessBat, ($harnessCode -replace "\r?\n", "`r`n"), [System.Text.UTF8Encoding]::new($false))
+        $null = & cmd.exe /c "call `"$harnessBat`"" 2>&1
+        Assert-PathExists $emittedProfile ":InstallPowerShellHook harness must emit PowerShell profile block"
+
+        $profileContent = Get-Content -LiteralPath $emittedProfile -Raw
+        $tokens = $null
+        $parseErrors = $null
+        $null = [System.Management.Automation.Language.Parser]::ParseInput($profileContent, [ref]$tokens, [ref]$parseErrors)
+        Assert-Equals $parseErrors.Count 0 ("Emitted PowerShell profile hook must have ZERO AST parser errors. Errors: " + ($parseErrors | Out-String))
+        Assert-NotContains $profileContent '""$OldValue\bin""' "Emitted hook must not contain doubled quotes around `$OldValue\bin"
+        Assert-NotContains $profileContent '^^^(' "Emitted hook must not contain unconsumed batch caret escapes"
+    }
+
+    Run-TestCase "Registry" "Security parity between install.ps1 (`$profileCode) and jvm.bat (:InstallPowerShellHook)" {
+        $installRaw = Get-Content (Join-Path $RepoRoot "install.ps1") -Raw
+        $batRaw     = Get-Content $JvmBat -Raw
+
+        foreach ($varName in @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')) {
+            Assert-Contains $installRaw "'$varName'" "install.ps1 Set-JvmVar must allowlist $varName"
+            Assert-Contains $batRaw "'$varName'" "jvm.bat Set-JvmVar must allowlist $varName"
+        }
+        Assert-Contains $batRaw '\x25' "jvm.bat Set-JvmVar metacharacter blocklist must include \x25 (%) for parity with install.ps1"
     }
 
     # ==========================================================================
@@ -922,6 +1410,34 @@ namespace Win32 {
     Run-TestCase "UninstallSafety" "Strict boundary enforcement on extracted candidate directory" {
         $content = Get-Content $JvmBat -Raw
         Assert-Contains $content "destinationPath.StartsWith" "Archive extraction must enforce directory boundary to prevent ZipSlip"
+    }
+
+    Run-TestCase "UninstallSafety" "ZipSlip CWE-22 sibling-prefix collision ('../cand_evil/payload.exe') and rooted path ('\rooted_escape.exe') rejection" {
+        $extractRoot = Join-Path $SandboxRoot "cand"
+        New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+
+        $fullRoot = [System.IO.Path]::GetFullPath($extractRoot)
+        if (-not $fullRoot.EndsWith([System.IO.Path]::DirectorySeparatorChar.ToString())) {
+            $fullRoot += [System.IO.Path]::DirectorySeparatorChar
+        }
+
+        $maliciousEntries = @(
+            "../cand_evil/payload.exe",
+            "..\cand_evil\payload.exe",
+            "\rooted_escape.exe",
+            "/rooted_escape.exe",
+            "jdk-21/../../../outside.dll"
+        )
+        foreach ($entryName in $maliciousEntries) {
+            $destinationPath = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($extractRoot, $entryName))
+            $blocked = ($entryName -match '^[/\\]') -or (-not $destinationPath.StartsWith($fullRoot, [System.StringComparison]::OrdinalIgnoreCase) -and $destinationPath -ne $fullRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar))
+            Assert-True $blocked "ZipSlip guard MUST block malicious archive entry '$entryName' (resolved to '$destinationPath' vs root '$fullRoot')"
+        }
+
+        $legitEntry = "jdk-21.0.2/bin/java.exe"
+        $legitDest = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($extractRoot, $legitEntry))
+        $legitBlocked = ($legitEntry -match '^[/\\]') -or (-not $legitDest.StartsWith($fullRoot, [System.StringComparison]::OrdinalIgnoreCase) -and $legitDest -ne $fullRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar))
+        Assert-False $legitBlocked "ZipSlip guard must allow legitimate nested entry '$legitEntry'"
     }
 
     # ==========================================================================
@@ -1015,21 +1531,159 @@ namespace Win32 {
 }
 
 # ------------------------------------------------------------------------------
-# Final Execution Summary
+# Final Execution Summary & Telemetry Export
 # ------------------------------------------------------------------------------
+$RunnerStopwatch.Stop()
+$TotalExecuted = $GlobalPassed + $GlobalFailed
+$TotalElapsedMs = ($SuiteTracker.Values | Measure-Object -Property ElapsedMs -Sum).Sum
+if ($null -eq $TotalElapsedMs) { $TotalElapsedMs = $RunnerStopwatch.ElapsedMilliseconds }
+
 Write-Host ""
 Write-Host "$cCyan$cBold========================================================================$cReset"
 Write-Host "$cCyan$cBold                         TEST EXECUTION SUMMARY                         $cReset"
 Write-Host "$cCyan$cBold========================================================================$cReset"
-Write-Host "  Total Tests Executed : $($GlobalPassed + $GlobalFailed)"
+Write-Host ("  {0,-43} {1,12}   {2,-8} {3,10}" -f "Suite", "Passed/Total", "Status", "Elapsed")
+Write-Host ("  {0,-43} {1,12}   {2,-8} {3,10}" -f ("-" * 43), ("-" * 12), ("-" * 8), ("-" * 10))
+
+foreach ($entry in $SuiteTracker.Values) {
+    if ($entry.Total -eq 0 -and $entry.Skipped -gt 0) {
+        $ratioStr = "0 / 0"
+        $statusStr = "${cGray}[SKIP]${cReset}  "
+        $timeStr = "-"
+    } elseif ($entry.Failed -gt 0) {
+        $ratioStr = "$($entry.Passed) / $($entry.Total)"
+        $statusStr = "${cRed}[FAIL]${cReset}  "
+        $timeStr = "$($entry.ElapsedMs) ms"
+    } else {
+        $ratioStr = "$($entry.Passed) / $($entry.Total)"
+        $statusStr = "${cGreen}[PASS]${cReset}  "
+        $timeStr = "$($entry.ElapsedMs) ms"
+    }
+    $displayTitle = if ($entry.Name.Length -gt 43) { $entry.Name.Substring(0, 40) + "..." } else { $entry.Name }
+    Write-Host ("  {0,-43} {1,12}   " -f $displayTitle, $ratioStr) -NoNewline
+    Write-Host $statusStr -NoNewline
+    Write-Host (" {0,10}" -f $timeStr)
+}
+
+Write-Host ("  {0,-43} {1,12}   {2,-8} {3,10}" -f ("-" * 43), ("-" * 12), ("-" * 8), ("-" * 10))
+Write-Host "  Total Tests Executed : $TotalExecuted ${cGray}(Test Time: $TotalElapsedMs ms | Wall Time: $($RunnerStopwatch.ElapsedMilliseconds) ms)${cReset}"
 Write-Host "  Passed               : ${cGreen}$GlobalPassed${cReset}"
 if ($GlobalFailed -gt 0) {
     Write-Host "  Failed               : ${cRed}$GlobalFailed${cReset}" -ForegroundColor Red
 } else {
     Write-Host "  Failed               : 0"
 }
+if ($GlobalSkipped -gt 0) {
+    Write-Host "  Skipped (Filtered)   : ${cYellow}$GlobalSkipped${cReset}"
+}
+
+if ($Detailed -and $TestResults.Count -gt 0) {
+    $slowest = $TestResults | Sort-Object Duration -Descending | Select-Object -First 3
+    Write-Host "  Slowest Tests        : " -NoNewline
+    $slowSummary = ($slowest | ForEach-Object { "$($_.Name) ($($_.Duration) ms)" }) -join "; "
+    Write-Host "${cGray}$slowSummary${cReset}"
+}
+
+Write-Host "$cCyan$cBold========================================================================$cReset"
+Write-Host "$cCyan$cBold                        CWE COVERAGE SUMMARY                            $cReset"
+Write-Host "$cCyan$cBold========================================================================$cReset"
+Write-Host ("  {0,-10} {1,-36} {2,10}   {3,-8}" -f "CWE ID", "Vulnerability Class", "Passed", "Status")
+Write-Host ("  {0,-10} {1,-36} {2,10}   {3,-8}" -f ("-" * 10), ("-" * 36), ("-" * 10), ("-" * 8))
+
+foreach ($cwe in ($CweCatalog.Values | Sort-Object Number)) {
+    $cweTests = @($TestResults | Where-Object { $_.CweId -eq $cwe.Id })
+    if ($cweTests.Count -eq 0) { continue }
+    $cwePassed = @($cweTests | Where-Object { $_.Status -eq 'PASS' }).Count
+    $cweFailed = @($cweTests | Where-Object { $_.Status -eq 'FAIL' }).Count
+    $cweRatio  = "$cwePassed / $($cweTests.Count)"
+    $cweStatus = if ($cweFailed -gt 0) { "${cRed}[FAIL]${cReset}  " } else { "${cGreen}[PASS]${cReset}  " }
+
+    Write-Host ("  ${cCyan}{0,-10}${cReset} {1,-36} {2,10}   " -f $cwe.Id, $cwe.Short, $cweRatio) -NoNewline
+    Write-Host $cweStatus
+}
 Write-Host "$cCyan$cBold========================================================================$cReset"
 Write-Host ""
+
+# Automatic GitHub Actions Step Summary Generation
+if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
+    try {
+        $overallBadge = if ($GlobalFailed -eq 0) { "✅ PASS" } else { "❌ FAIL" }
+        $passRate = if ($TotalExecuted -gt 0) { [math]::Round(($GlobalPassed / $TotalExecuted) * 100, 1) } else { 100.0 }
+        $mdLines = [System.Collections.Generic.List[string]]::new()
+
+        $mdLines.Add("## 🛡️ DiamTek JVM Security & Adversarial Test Suite — $overallBadge")
+        $mdLines.Add("")
+        $mdLines.Add("- **Total Executed:** $TotalExecuted (`$GlobalPassed` passed, `$GlobalFailed` failed, `$GlobalSkipped` skipped)")
+        $mdLines.Add("- **Pass Rate:** $passRate%")
+        $mdLines.Add("- **Execution Time:** $TotalElapsedMs ms (Wall clock: $($RunnerStopwatch.ElapsedMilliseconds) ms)")
+        $mdLines.Add("")
+        $mdLines.Add("### 📊 Per-Suite Execution Breakdown")
+        $mdLines.Add("")
+        $mdLines.Add("| Suite | Category Tag | Passed / Total | Status | Elapsed (ms) |")
+        $mdLines.Add("| :--- | :--- | :---: | :---: | ---: |")
+
+        foreach ($entry in $SuiteTracker.Values) {
+            $suiteStatus = if ($entry.Total -eq 0 -and $entry.Skipped -gt 0) {
+                "⏭️ SKIP"
+            } elseif ($entry.Failed -gt 0) {
+                "❌ FAIL"
+            } else {
+                "✅ PASS"
+            }
+            $mdLines.Add("| **$($entry.Name)** | ``$($entry.Tag)`` | $($entry.Passed) / $($entry.Total) | $suiteStatus | $($entry.ElapsedMs) ms |")
+        }
+
+        $mdLines.Add("| **Total** | *All Suites* | **$GlobalPassed / $TotalExecuted** | **$overallBadge** | **$TotalElapsedMs ms** |")
+        $mdLines.Add("")
+
+        $mdLines.Add("### 🏷️ CWE Coverage Summary")
+        $mdLines.Add("")
+        $mdLines.Add("| CWE ID | Vulnerability Class | Tests Passed |")
+        $mdLines.Add("| :--- | :--- | :---: |")
+        foreach ($cwe in ($CweCatalog.Values | Sort-Object Number)) {
+            $cweTests = @($TestResults | Where-Object { $_.CweId -eq $cwe.Id })
+            if ($cweTests.Count -eq 0) { continue }
+            $cwePassed = @($cweTests | Where-Object { $_.Status -eq 'PASS' }).Count
+            $cweFailed = @($cweTests | Where-Object { $_.Status -eq 'FAIL' }).Count
+            $cweBadgeMd = if ($cweFailed -gt 0) { "❌ $cwePassed / $($cweTests.Count)" } else { "✅ $cwePassed / $($cweTests.Count)" }
+            $mdLines.Add("| **``$($cwe.Id)``** | $($cwe.Short) | $cweBadgeMd |")
+        }
+        $mdLines.Add("")
+
+        if ($GlobalFailed -gt 0) {
+            $mdLines.Add("### ❌ Failed Test Cases")
+            $mdLines.Add("")
+            $mdLines.Add("| Suite | CWE | Test Case | Error Message |")
+            $mdLines.Add("| :--- | :--- | :--- | :--- |")
+            foreach ($fail in ($TestResults | Where-Object { $_.Status -eq 'FAIL' })) {
+                $safeName = ($fail.Name -replace '\|', '\|')
+                $safeErr  = (($fail.Error -replace '\r?\n', ' ') -replace '\|', '\|')
+                $mdLines.Add("| $($fail.SuiteTitle) | ``$($fail.CweId)`` ($($fail.CweShort)) | $safeName | ``$safeErr`` |")
+            }
+            $mdLines.Add("")
+        }
+
+        $mdLines.Add("<details>")
+        $mdLines.Add("<summary>📋 <strong>View All Executed Test Cases ($TotalExecuted tests)</strong></summary>")
+        $mdLines.Add("")
+        $mdLines.Add("| # | Suite | CWE | Vulnerability Type | Test Case | Status | Duration (ms) |")
+        $mdLines.Add("| ---: | :--- | :--- | :--- | :--- | :---: | ---: |")
+        $idx = 0
+        foreach ($res in $TestResults) {
+            $idx++
+            $icon = if ($res.Status -eq 'PASS') { "✅ PASS" } else { "❌ FAIL" }
+            $safeTestName = ($res.Name -replace '\|', '\|')
+            $mdLines.Add("| $idx | $($res.SuiteTitle) | ``$($res.CweId)`` | $($res.CweShort) | $safeTestName | $icon | $($res.Duration) ms |")
+        }
+        $mdLines.Add("")
+        $mdLines.Add("</details>")
+        $mdLines.Add("")
+
+        Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value ($mdLines -join [Environment]::NewLine) -Encoding UTF8
+    } catch {
+        Write-Host "${cYellow}[WARN] Failed to write GITHUB_STEP_SUMMARY: $($_.Exception.Message)${cReset}"
+    }
+}
 
 if ($GlobalFailed -gt 0) {
     exit 1
