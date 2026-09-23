@@ -20,7 +20,7 @@ $ErrorActionPreference = 'Stop'
 $packageName = 'jvm-windows'
 $packageVersion = '1.0.1'
 $url64 = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v$packageVersion/jvm-windows-$packageVersion-x64.msi"
-$checksum64 = 'C62A9A6CBB9EBA8A2E8585E83F4B538DAD189FEB38FF54D6A40D7F54C1118DF3'
+$checksum64 = 'E2A9471E4738A4F0456284BBD80B419F8901DDA122BFF3D39FF0042DA080E0DA'
 
 # Enforce fail-closed cryptographic assertion
 if ([string]::IsNullOrWhiteSpace($checksum64) -or $checksum64 -notmatch '^[A-Fa-f0-9]{64}$') {

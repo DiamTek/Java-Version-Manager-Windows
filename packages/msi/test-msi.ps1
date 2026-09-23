@@ -195,6 +195,19 @@ try {
 
     $MsiPath = (Resolve-Path $MsiPath).Path
     $allPassed = $true
+    $TotalChecks = 0
+    $PassedChecks = 0
+    $FailedChecks = 0
+
+    $ESC = [char]27
+    $cReset  = "$ESC[0m"
+    $cBold   = "$ESC[1m"
+    $cCyan   = "$ESC[36m"
+    $cGreen  = "$ESC[32m"
+    $cYellow = "$ESC[33m"
+    $cRed    = "$ESC[31m"
+    $cGray   = "$ESC[90m"
+    $script:checkSw = [System.Diagnostics.Stopwatch]::StartNew()
 
     function Report-Check {
         param(
@@ -202,43 +215,35 @@ try {
             [bool]$Passed,
             [string]$Details = ""
         )
+        $elapsed = $script:checkSw.ElapsedMilliseconds
+        $script:checkSw.Restart()
+        $script:TotalChecks++
+        $detailSuffix = if ($Details) { " ${cGray}($Details, $elapsed ms)${cReset}" } else { " ${cGray}($elapsed ms)${cReset}" }
         if ($Passed) {
-            Write-Host "    [  PASS  ] " -ForegroundColor Green -NoNewline
-            Write-Host $Title -NoNewline
-            if ($Details) {
-                Write-Host " ($Details)" -ForegroundColor DarkGray
-            } else {
-                Write-Host ""
-            }
+            $script:PassedChecks++
+            Write-Host "  ${cGreen}[PASS]${cReset} $Title$detailSuffix"
         } else {
+            $script:FailedChecks++
             $script:allPassed = $false
-            Write-Host "    [  FAIL  ] " -ForegroundColor Red -NoNewline
-            Write-Host $Title -NoNewline
-            if ($Details) {
-                Write-Host " ($Details)" -ForegroundColor Yellow
-            } else {
-                Write-Host ""
-            }
+            Write-Host "  ${cRed}[FAIL]${cReset} $Title$detailSuffix"
         }
     }
 
     Write-Host ""
-    Write-Host "  ============================================================" -ForegroundColor DarkCyan
-    Write-Host "   DiamTek JVM -- MSI Integration & Attestation Test Suite     " -ForegroundColor Cyan
-    Write-Host "  ============================================================" -ForegroundColor DarkCyan
-    Write-Host "   Target:   $(Split-Path $MsiPath -Leaf)" -ForegroundColor Gray
-    Write-Host "   Path:     $MsiPath" -ForegroundColor DarkGray
-    Write-Host "   Mode:     $(if ($ShowUI) { 'Interactive Dialog (/qb)' } else { 'Headless Attestation (/qn)' })" -ForegroundColor DarkGray
-    Write-Host "  ============================================================" -ForegroundColor DarkCyan
+    Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+    Write-Host "${cCyan}${cBold}        DiamTek JVM Automated MSI Integration & Attestation Suite       ${cReset}"
+    Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+    Write-Host "  Target MSI: $(Split-Path $MsiPath -Leaf)"
+    Write-Host "  Full Path : $MsiPath"
+    Write-Host "  Mode      : $(if ($ShowUI) { 'Interactive Dialog (/qb)' } else { 'Headless Attestation (/qn)' })"
+    Write-Host ""
 
     # -------------------------------------------------------------------------
     # Phase 1: Installation Verification
     # -------------------------------------------------------------------------
     $uiFlag = if ($ShowUI) { "/qb" } else { "/qn" }
-    Write-Host "`n  --- [ Phase 1: Installation & System Registration ] --------`n" -ForegroundColor Cyan
-    if (-not $ShowUI) {
-        Write-Host "    (Running silently in background. Pass -ShowUI to render the installer dialog)`n" -ForegroundColor DarkGray
-    }
+    Write-Host "${cBold}[SUITE 1] Phase 1: Installation & System Registration${cReset}"
+    $script:checkSw.Restart()
     $installProc = Start-Process msiexec.exe -ArgumentList "/i `"$MsiPath`" $uiFlag" -Wait -PassThru
     Report-Check -Title "Windows Installer execution completed cleanly" -Passed ($installProc.ExitCode -eq 0) -Details "ExitCode: $($installProc.ExitCode)"
 
@@ -345,7 +350,9 @@ try {
     # Phase 2: Uninstallation Verification
     # -------------------------------------------------------------------------
     if (-not $KeepInstalled) {
-        Write-Host "`n  --- [ Phase 2: Uninstallation & Residual Hygiene ] --------`n" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "${cBold}[SUITE 2] Phase 2: Uninstallation & Residual Hygiene${cReset}"
+        $script:checkSw.Restart()
         $uninstallProc = Start-Process msiexec.exe -ArgumentList "/x `"$MsiPath`" $uiFlag" -Wait -PassThru
         Report-Check -Title "Windows Installer uninstallation completed cleanly" -Passed ($uninstallProc.ExitCode -eq 0) -Details "ExitCode: $($uninstallProc.ExitCode)"
 
@@ -393,30 +400,23 @@ try {
         $pathCleaned = -not ($userPathAfter -and ($userPathAfter -match "DiamTek|JVM"))
         Report-Check -Title "User PATH sanitized of all JVM directories" -Passed $pathCleaned
     } else {
-        Write-Host "`n  --- [ Phase 2: Uninstallation & Residual Hygiene ] --------`n" -ForegroundColor Cyan
-        Write-Host "    [  SKIP  ] Uninstallation check bypassed (-KeepInstalled active)." -ForegroundColor DarkYellow
-        Write-Host "    [  INFO  ] JVM remains installed and ready for terminal use.`n" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "${cBold}[SUITE 2] Phase 2: Uninstallation & Residual Hygiene${cReset}"
+        Write-Host "  ${cYellow}[SKIP]${cReset} Uninstallation check bypassed (-KeepInstalled active)."
     }
 
     Write-Host ""
+    Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+    Write-Host "${cCyan}${cBold}                         TEST EXECUTION SUMMARY                         ${cReset}"
+    Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+    Write-Host "  Total Tests Executed : $TotalChecks"
+    Write-Host "  Passed               : ${cGreen}$PassedChecks${cReset}"
+    Write-Host "  Failed               : $(if ($FailedChecks -gt 0) { "${cRed}$FailedChecks${cReset}" } else { "0" })"
+    Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+    Write-Host ""
     if ($allPassed) {
-        Write-Host "  ============================================================" -ForegroundColor DarkGreen
-        Write-Host "   [ ALL CHECKS PASSED ]  Package Verified for Attestation   " -ForegroundColor Green
-        Write-Host "  ============================================================" -ForegroundColor DarkGreen
-        Write-Host ""
-        Write-Host "   Attestation & Provenance Summary:" -ForegroundColor Gray
-        Write-Host "   - 100% compliant for GitHub Actions: actions/attest-build-provenance" -ForegroundColor DarkGray
-        Write-Host "   - Windows Installer GUIDs, PATH, shortcuts, and CLI verified" -ForegroundColor DarkGray
-        Write-Host ""
-        Write-Host "   User Guidance:" -ForegroundColor Gray
-        Write-Host "   - To see the native progress dialog: pass -ShowUI" -ForegroundColor DarkGray
-        Write-Host "   - To keep JVM installed on machine:  pass -KeepInstalled" -ForegroundColor DarkGray
-        Write-Host "   - Full graphical wizard: double-click the .msi directly:`n     $MsiPath`n" -ForegroundColor DarkGray
         exit 0
     } else {
-        Write-Host "  ============================================================" -ForegroundColor DarkRed
-        Write-Host "   [ VERIFICATION FAILED ]  One or more checks did not pass   " -ForegroundColor Red
-        Write-Host "  ============================================================`n" -ForegroundColor DarkRed
         exit 1
     }
 } finally {

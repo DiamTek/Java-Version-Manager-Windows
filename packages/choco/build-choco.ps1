@@ -43,8 +43,27 @@ $Version = $Version.TrimStart('v')
 
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
+$ESC = [char]27
+$cReset  = "$ESC[0m"
+$cBold   = "$ESC[1m"
+$cCyan   = "$ESC[36m"
+$cGreen  = "$ESC[32m"
+$cYellow = "$ESC[33m"
+$cRed    = "$ESC[31m"
+$cGray   = "$ESC[90m"
+
+Write-Host ""
+Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+Write-Host "${cCyan}${cBold}        DiamTek JVM Chocolatey Package Builder & Validator              ${cReset}"
+Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+Write-Host "  Repository: $RootDir"
+Write-Host "  Version   : v$Version"
+Write-Host ""
+Write-Host "${cBold}[STAGE 1] Manifest Synchronization & Checksum Binding${cReset}"
+
 $nuspecPath = Join-Path $ScriptDir "jvm.nuspec"
 if (Test-Path $nuspecPath) {
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $nuspecContent = [System.IO.File]::ReadAllText($nuspecPath, $utf8NoBom)
     $updatedNuspec = $nuspecContent -replace '<version>.*?</version>', "<version>$Version</version>"
     [System.IO.File]::WriteAllText($nuspecPath, $updatedNuspec, $utf8NoBom)
@@ -53,30 +72,38 @@ if (Test-Path $nuspecPath) {
     } catch {
         throw "XML validation failed on jvm.nuspec: $($_.Exception.Message)"
     }
-    Write-Host "[ OK ] Synchronized and validated jvm.nuspec (v$Version)" -ForegroundColor Green
+    $sw.Stop()
+    Write-Host "  ${cGreen}[PASS]${cReset} Synchronized and validated jvm.nuspec (v$Version) ${cGray}($($sw.ElapsedMilliseconds) ms)${cReset}"
 }
 
 $chocoInstall = Join-Path $ScriptDir "tools\chocolateyInstall.ps1"
 if (Test-Path $chocoInstall) {
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $content = [System.IO.File]::ReadAllText($chocoInstall, $utf8NoBom)
     $updated = [regex]::Replace($content, "(?m)^(\`$packageVersion\s*=\s*')[^']*(')", "`${1}$Version`${2}")
     $msiX64 = Join-Path $RootDir "packages\msi\jvm-windows-$Version-x64.msi"
     if (Test-Path $msiX64) {
         $msiHash = (Get-FileHash -LiteralPath $msiX64 -Algorithm SHA256).Hash.ToUpperInvariant()
         $updated = [regex]::Replace($updated, "(?m)^(\`$checksum64\s*=\s*')[^']*(')", "`${1}$msiHash`${2}")
-        Write-Host "[ OK ] Synchronized checksum64 in chocolateyInstall.ps1 ($msiHash)" -ForegroundColor Green
+        $sw.Stop()
+        Write-Host "  ${cGreen}[PASS]${cReset} Synchronized checksum64 in chocolateyInstall.ps1 ($msiHash) ${cGray}($($sw.ElapsedMilliseconds) ms)${cReset}"
     }
     [System.IO.File]::WriteAllText($chocoInstall, $updated, $utf8NoBom)
 }
 
 $chocoUninstall = Join-Path $ScriptDir "tools\chocolateyUninstall.ps1"
 if (Test-Path $chocoUninstall) {
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $content = [System.IO.File]::ReadAllText($chocoUninstall, $utf8NoBom)
     $updated = $content -replace '/v[0-9a-zA-Z.-]+/uninstall\.ps1', "/v$Version/uninstall.ps1"
     [System.IO.File]::WriteAllText($chocoUninstall, $updated, $utf8NoBom)
+    $sw.Stop()
+    Write-Host "  ${cGreen}[PASS]${cReset} Synchronized chocolateyUninstall.ps1 (v$Version) ${cGray}($($sw.ElapsedMilliseconds) ms)${cReset}"
 }
 
 if (-not $NoPack) {
+    Write-Host ""
+    Write-Host "${cBold}[STAGE 2] Chocolatey NuGet Packaging (.nupkg)${cReset}"
     $chocoCmd = if (Get-Command choco -ErrorAction SilentlyContinue) {
         "choco"
     } elseif (Test-Path "C:\ProgramData\chocolatey\bin\choco.exe") {
@@ -86,11 +113,20 @@ if (-not $NoPack) {
     }
 
     if ($chocoCmd) {
-        Write-Host "Packing Chocolatey package (jvm-windows.$Version.nupkg)..." -ForegroundColor Cyan
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
         & $chocoCmd pack $nuspecPath --outputdirectory $ScriptDir
         if ($LASTEXITCODE -ne 0) { throw "choco pack failed with exit code $LASTEXITCODE" }
+        $sw.Stop()
+        Write-Host "  ${cGreen}[PASS]${cReset} Compiled Chocolatey package (jvm-windows.$Version.nupkg) ${cGray}($($sw.ElapsedMilliseconds) ms)${cReset}"
     } else {
-        Write-Host "[ INFO ] 'choco' CLI not found on PATH. jvm.nuspec updated to v$Version." -ForegroundColor DarkGray
-        Write-Host "         Run 'choco pack packages/choco/jvm.nuspec' to compile the package." -ForegroundColor DarkGray
+        Write-Host "  ${cYellow}[INFO]${cReset} 'choco' CLI not found on PATH. jvm.nuspec updated to v$Version."
     }
 }
+Write-Host ""
+Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+Write-Host "${cCyan}${cBold}                      CHOCOLATEY BUILD SUMMARY                          ${cReset}"
+Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+Write-Host "  Target Version       : v$Version"
+Write-Host "  Status               : ${cGreen}SUCCESS${cReset}"
+Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+Write-Host ""

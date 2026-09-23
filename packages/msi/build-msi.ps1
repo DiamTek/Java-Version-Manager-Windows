@@ -109,8 +109,26 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 
 Push-Location $ScriptDir
 
+$ESC = [char]27
+$cReset  = "$ESC[0m"
+$cBold   = "$ESC[1m"
+$cCyan   = "$ESC[36m"
+$cGreen  = "$ESC[32m"
+$cYellow = "$ESC[33m"
+$cRed    = "$ESC[31m"
+$cGray   = "$ESC[90m"
+
+Write-Host ""
+Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+Write-Host "${cCyan}${cBold}        DiamTek JVM Standalone Windows Installer (MSI) Compiler         ${cReset}"
+Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+Write-Host "  Repository: $RootDir"
+Write-Host "  Version   : v$Version ($Arch)"
+Write-Host ""
+Write-Host "${cBold}[STAGE 1] Toolchain & Payload Preparation${cReset}"
+
 # 1. Ensure .NET SDK is accessible
-Write-Host "Checking for .NET SDK (Required for WiX v4)..." -ForegroundColor Cyan
+$swDotnet = [System.Diagnostics.Stopwatch]::StartNew()
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     $dotnetCandidates = @(
         "$env:ProgramFiles\dotnet\dotnet.exe",
@@ -125,7 +143,7 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     }
 }
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    Write-Host ".NET SDK not found. Automatically bootstrapping user-space .NET SDK..." -ForegroundColor Yellow
+    Write-Host "  ${cYellow}[INFO]${cReset} .NET SDK not found. Automatically bootstrapping user-space .NET SDK..."
     $dotnetInstall = Join-Path $env:TEMP "dotnet-install.ps1"
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -133,13 +151,15 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
         & $dotnetInstall -Channel LTS -InstallDir "$env:LOCALAPPDATA\Microsoft\dotnet" -Quality GA
         $env:PATH = "$env:LOCALAPPDATA\Microsoft\dotnet;$env:PATH"
     } catch {
-        Write-Host "WARNING: Could not automatically bootstrap .NET SDK: $_" -ForegroundColor DarkGray
+        Write-Host "  ${cYellow}[WARN]${cReset} Could not automatically bootstrap .NET SDK: $_"
     }
 }
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    Write-Host "ERROR: .NET SDK is required to build MSIs. Please install it from https://dotnet.microsoft.com/download" -ForegroundColor Red
+    Write-Host "  ${cRed}[FAIL]${cReset} .NET SDK is required to build MSIs. Please install it from https://dotnet.microsoft.com/download"
     exit 1
 }
+$swDotnet.Stop()
+Write-Host "  ${cGreen}[PASS]${cReset} .NET SDK toolchain verified ${cGray}($($swDotnet.ElapsedMilliseconds) ms)${cReset}"
 
 # Ensure DOTNET_ROOT and DOTNET_ROOT_X64 are active in the current process
 # This is critical so .NET global tool apphosts (e.g. wix.exe) locate the runtime
@@ -151,7 +171,7 @@ if ($dotnetCmd) {
 }
 
 # 2. Ensure WiX Toolset v4 CLI and Util extension are available
-Write-Host "Checking for WiX Toolset CLI..." -ForegroundColor Cyan
+$swWix = [System.Diagnostics.Stopwatch]::StartNew()
 $dotnetTools = Join-Path $env:USERPROFILE ".dotnet\tools"
 if ($env:PATH -split ';' -notcontains $dotnetTools) {
     $env:PATH = "$dotnetTools;$env:PATH"
@@ -172,7 +192,7 @@ function Find-WixDll {
 
 $script:wixDll = Find-WixDll
 if ((-not (Get-Command wix -ErrorAction SilentlyContinue)) -and (-not $script:wixDll)) {
-    Write-Host "Installing WiX v4 globally..." -ForegroundColor Yellow
+    Write-Host "  ${cYellow}[INFO]${cReset} Installing WiX Toolset v4.0.6 globally..."
     dotnet tool install --global wix --version "4.0.6"
     $script:wixDll = Find-WixDll
 }
@@ -230,15 +250,21 @@ function Invoke-Wix {
 try {
     Invoke-Wix extension add -g WixToolset.Util.wixext/4.0.6 2>$null | Out-Null
 } catch { }
+$swWix.Stop()
+Write-Host "  ${cGreen}[PASS]${cReset} WiX Toolset v4 CLI & WixToolset.Util.wixext verified ${cGray}($($swWix.ElapsedMilliseconds) ms)${cReset}"
 
 # 3. Extract Profile Code from install.ps1 to bundle with MSI
-Write-Host "Extracting PowerShell profile hook from install.ps1..." -ForegroundColor Cyan
+$swHook = [System.Diagnostics.Stopwatch]::StartNew()
 $installPs1Content = Get-Content "$RootDir\install.ps1" -Raw
 $profileMatch = [regex]::Match($installPs1Content, '(?s)\$profileCode = @''(.*?)''@')
 if (-not $profileMatch.Success) {
-    Write-Host "Failed to extract profile code from install.ps1" -ForegroundColor Red
+    Write-Host "  ${cRed}[FAIL]${cReset} Failed to extract profile code from install.ps1"
     exit 1
 }
+$profileCode = $profileMatch.Groups[1].Value.Trim()
+$swHook.Stop()
+Write-Host "  ${cGreen}[PASS]${cReset} Extracted PowerShell profile hook from install.ps1 ${cGray}($($swHook.ElapsedMilliseconds) ms)${cReset}"
+
 # 4. Helper to generate RFC 4122 UUID v5 deterministic GUIDs
 function Get-DeterministicGuid([string]$namespaceGuid, [string]$name) {
     $nsGuid = [guid]::Parse($namespaceGuid)
@@ -259,15 +285,18 @@ function Get-DeterministicGuid([string]$namespaceGuid, [string]$name) {
     return (New-Object System.Guid(,$guidBytes)).ToString('B').ToUpperInvariant()
 }
 
+$script:BuiltPackages = 0
+
 # 5. Function to build an MSI for a specific architecture
 function Build-MsiPackage {
     param(
         [string]$TargetArch
     )
 
-    Write-Host "`n============================================================" -ForegroundColor Cyan
-    Write-Host "Building Java Version Manager MSI: v$Version ($TargetArch)" -ForegroundColor Cyan
-    Write-Host "============================================================" -ForegroundColor Cyan
+    $script:BuiltPackages++
+    $stageNum = $script:BuiltPackages + 1
+    Write-Host ""
+    Write-Host "${cBold}[STAGE $stageNum] Compiling MSI Package: v$Version ($TargetArch)${cReset}"
 
     # Generate msi-install-hook.ps1 (injects PowerShell profile hook, Windows Terminal profile & Start Menu shortcut polish)
     $msiInstallHook = @"
@@ -591,13 +620,12 @@ exit 0
     [System.IO.File]::WriteAllText("$ScriptDir\msi-uninstall-hook.ps1", $msiUninstallHook, [System.Text.Encoding]::UTF8)
 
     # Generate WiX v4 XML manifest
-    Write-Host "Generating jvm.wxs manifest..." -ForegroundColor Cyan
+    $swWxs = [System.Diagnostics.Stopwatch]::StartNew()
     function Escape-XmlAttr([string]$val) {
         if ([string]::IsNullOrEmpty($val)) { return '' }
         return [System.Security.SecurityElement]::Escape($val)
     }
 
-    $fileVer = if ($Version -match '^(\d+)\.(\d+)\.(\d+)$') { "$Version.0" } elseif ($Version -match '^(\d+)\.(\d+)$') { "$Version.0.0" } else { "1.0.0.0" }
     $productCode = Get-DeterministicGuid "db30058e-1738-46cb-84ec-8c652dc99a22" "DiamTek.JVM.$Version.$TargetArch"
 
     $srcLicense = Escape-XmlAttr (Join-Path $RootDir "LICENSE")
@@ -630,13 +658,13 @@ exit 0
           <Component Id="DocumentationComponent" Guid="01a08571-06d8-77a5-9f9d-77f21b5eb3e5">
             <File Id="LicenseFile" Source="$srcLicense" KeyPath="yes" />
             <File Id="ReadmeFile" Source="$srcReadme" />
-            <File Id="UninstallFile" Source="$srcUninstall" DefaultVersion="$fileVer" />
+            <File Id="UninstallFile" Source="$srcUninstall" />
             <RemoveFolder Id="RemoveJvmDir" Directory="JVM_DIR" On="uninstall" />
             <RemoveFolder Id="RemoveDiamtekDir" Directory="DIAMTEK_DIR" On="uninstall" />
           </Component>
           <Component Id="HookScriptsComponent" Guid="01a08571-06df-7d72-9fad-ccbdc9de1c26">
-            <File Id="MsiInstallHook" Source="$srcMsiInstallHook" KeyPath="yes" DefaultVersion="$fileVer" />
-            <File Id="MsiUninstallHook" Source="$srcMsiUninstallHook" DefaultVersion="$fileVer" />
+            <File Id="MsiInstallHook" Source="$srcMsiInstallHook" KeyPath="yes" />
+            <File Id="MsiUninstallHook" Source="$srcMsiUninstallHook" />
           </Component>
           <Directory Id="ASSETS_DIR" Name="assets">
             <Component Id="AssetsComponent" Guid="01a08571-06e0-7a41-b4d0-834e377e4377">
@@ -647,7 +675,7 @@ exit 0
           </Directory>
           <Directory Id="INSTALLFOLDER" Name="bin">
             <Component Id="JvmBatComponent" Guid="01a08571-06e0-7f19-a168-3e09b5dac718">
-              <File Id="JvmBat" Source="$srcJvmBat" KeyPath="yes" DefaultVersion="$fileVer" />
+              <File Id="JvmBat" Source="$srcJvmBat" KeyPath="yes" />
               <Environment Id="UpdatePath" Name="PATH" Action="set" Part="last" System="no" Value="[INSTALLFOLDER]" />
               <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
             </Component>
@@ -700,15 +728,17 @@ exit 0
 </Wix>
 "@
     [System.IO.File]::WriteAllText("$ScriptDir\jvm.wxs", $wxsContent, [System.Text.Encoding]::UTF8)
+    $swWxs.Stop()
+    Write-Host "  ${cGreen}[PASS]${cReset} Generated WiX v4 manifest (jvm.wxs) ${cGray}($($swWxs.ElapsedMilliseconds) ms)${cReset}"
 
     # Compile the MSI using WiX v4
+    $swCompile = [System.Diagnostics.Stopwatch]::StartNew()
     $outputMsi = "$ScriptDir\jvm-windows-$Version-$TargetArch.msi"
     Remove-Item $outputMsi -Force -ErrorAction SilentlyContinue
-    Write-Host "Compiling MSI ($TargetArch) using WiX v4..." -ForegroundColor Cyan
     $null = Invoke-Wix build jvm.wxs -arch $TargetArch -ext WixToolset.Util.wixext -o $outputMsi
+    $swCompile.Stop()
 
     # Clean up temporary build artifacts
-    Write-Host "Cleaning up build intermediate files..." -ForegroundColor DarkGray
     Remove-Item "$ScriptDir\jvm.wxs" -Force -ErrorAction SilentlyContinue
     Remove-Item "$ScriptDir\jvm.wixobj" -Force -ErrorAction SilentlyContinue
     Remove-Item "$ScriptDir\*.wixpdb" -Force -ErrorAction SilentlyContinue
@@ -732,7 +762,7 @@ exit 0
             }
         } catch { }
 
-        $prodCode = "N/A"
+        $prodCode = $productCode
         try {
             $wi = New-Object -ComObject WindowsInstaller.Installer
             $db = $wi.OpenDatabase((Resolve-Path $outputMsi).Path, 0)
@@ -750,18 +780,13 @@ exit 0
             [System.GC]::WaitForPendingFinalizers()
         } catch { }
 
-        Write-Host ""
-        Write-Host "  ============================================================" -ForegroundColor DarkGreen
-        Write-Host "   [ SUCCESS ] Built Standalone MSI ($TargetArch) Package!     " -ForegroundColor Green
-        Write-Host "  ============================================================" -ForegroundColor DarkGreen
-        Write-Host "   File:        $outputMsi" -ForegroundColor DarkGray
-        Write-Host "   Size:        $sizeKB KB" -ForegroundColor DarkGray
-        Write-Host "   SHA-256:     $sha256" -ForegroundColor DarkGray
-        Write-Host "   ProductCode: $prodCode" -ForegroundColor DarkGray
-        Write-Host "   UpgradeCode: {DB30058E-1738-46CB-84EC-8C652DC99A22}" -ForegroundColor DarkGray
-        Write-Host "  ============================================================`n" -ForegroundColor DarkGreen
+        Write-Host "  ${cGreen}[PASS]${cReset} Compiled standalone MSI ($TargetArch) ($sizeKB KB) ${cGray}($($swCompile.ElapsedMilliseconds) ms)${cReset}"
+        Write-Host "         ${cGray}Artifact   :${cReset} $outputMsi"
+        Write-Host "         ${cGray}SHA-256    :${cReset} $sha256"
+        Write-Host "         ${cGray}ProductCode:${cReset} $prodCode"
+        Write-Host "         ${cGray}UpgradeCode:${cReset} {DB30058E-1738-46CB-84EC-8C652DC99A22}"
     } else {
-        Write-Host "`n[ ERROR ] MSI build output not found: $outputMsi" -ForegroundColor Red
+        Write-Host "  ${cRed}[FAIL]${cReset} MSI build output not found: $outputMsi ${cGray}($($swCompile.ElapsedMilliseconds) ms)${cReset}"
         Pop-Location
         exit 1
     }
@@ -774,6 +799,14 @@ try {
     } else {
         Build-MsiPackage -TargetArch $Arch
     }
+    Write-Host ""
+    Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+    Write-Host "${cCyan}${cBold}                         MSI BUILD SUMMARY                              ${cReset}"
+    Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+    Write-Host "  Packages Compiled    : ${cGreen}$($script:BuiltPackages)${cReset}"
+    Write-Host "  Status               : ${cGreen}SUCCESS${cReset}"
+    Write-Host "${cCyan}${cBold}========================================================================${cReset}"
+    Write-Host ""
 } finally {
     if ($script:cleanupRemoteSource -and $RootDir -and (Test-Path $RootDir)) {
         Remove-Item (Split-Path $RootDir) -Recurse -Force -ErrorAction SilentlyContinue
