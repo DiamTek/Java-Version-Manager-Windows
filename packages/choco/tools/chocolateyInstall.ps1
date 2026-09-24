@@ -22,7 +22,11 @@ $packageVersion = '1.0.1'
 $url64 = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v$packageVersion/jvm-windows-$packageVersion-x64.msi"
 $checksum64 = 'E2A9471E4738A4F0456284BBD80B419F8901DDA122BFF3D39FF0042DA080E0DA'
 
-# Enforce fail-closed cryptographic assertion
+# Enforce fail-closed cryptographic and HTTPS transport assertions
+$parsedUri = $null
+if (-not [System.Uri]::TryCreate($url64, [System.UriKind]::Absolute, [ref]$parsedUri) -or $parsedUri.Scheme -ne 'https') {
+    throw "Security violation (CWE-319): Download URL64 must use HTTPS transport. Installation aborted."
+}
 if ([string]::IsNullOrWhiteSpace($checksum64) -or $checksum64 -notmatch '^[A-Fa-f0-9]{64}$') {
     throw "Security violation: Checksum64 must be a valid 64-character SHA-256 hexadecimal hash. Installation aborted."
 }

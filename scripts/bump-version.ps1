@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Automated version bumper and release coordinator for DiamTek Java Version Manager (Windows).
 
@@ -55,6 +55,23 @@ param (
 )
 
 $ErrorActionPreference = 'Stop'
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288
+} catch {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+    if ($Version -notmatch '^(patch|minor|major|v?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?)$' -or $Version -match '\.\.') {
+        throw "Security validation failed (CWE-20): Invalid Version parameter '$Version'."
+    }
+}
+if (-not [string]::IsNullOrWhiteSpace($Build)) {
+    if ($Build -notmatch '^\d{8}\.\d+$' -or $Build -match '\.\.') {
+        throw "Security validation failed (CWE-20): Invalid Build parameter '$Build'."
+    }
+}
+
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $RepoRoot = Split-Path -Parent $ScriptDir
 

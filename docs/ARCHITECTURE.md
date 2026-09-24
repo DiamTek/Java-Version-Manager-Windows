@@ -191,8 +191,9 @@ flowchart TD
         ParseNightlyBuild --> CompareNightlyBuild{"Local Build >= Nightly Build?"}
         CompareNightlyBuild -->|Local Build Newer| BlockDowngradeNightly["[SKIP] Local Build is Newer<br/>(Build X > Nightly Build Y)"]
         CompareNightlyBuild -->|Equal Build| UpToDate["[OK] Already Up to Date"]
-        CompareNightlyBuild -->|Nightly Build Newer| AuditSHA["Compute SHA-256 Digest & Log Audit Trail"]
-        AuditSHA --> SpawnRunner
+        CompareNightlyBuild -->|Nightly Build Newer| AuditSHA["Verify Git Blob SHA-1 vs GitHub Contents API & Compute SHA-256"]
+        AuditSHA -->|Blob SHA Mismatch| AbortSecurity
+        AuditSHA -->|Blob SHA Verified| SpawnRunner
     end
 
     subgraph AtomicHandoff["Decoupled Process Handoff & Atomic Swap"]
@@ -219,6 +220,7 @@ To prevent GitHub's 60-request-per-hour unauthenticated REST API quota from brea
 
 ### 3. Cryptographic Integrity & Downgrade Prevention
 - **SHA-256 Manifest Verification (`[Stable]`):** Official releases publish an authenticated `SHA256SUMS.txt` manifest. JVM computes the SHA-256 digest of downloaded payload files in memory via `System.Security.Cryptography.SHA256` and asserts strict byte equality before replacing executable files on disk.
+- **Git Blob SHA-1 Commit-Tree Verification (`[Nightly]`):** When updating on the `[Nightly]` channel where `main` is ahead of the last tagged release `SHA256SUMS.txt`, both `:SelfUpdate` (`jvm.bat` verifying `install.ps1`) and `install.ps1` (verifying `jvm.bat`) query the GitHub Contents API (`/repos/DiamTek/Java-Version-Manager-Windows/contents/<file>?ref=<ref>`) and verify `SHA1("blob " + length + "\0" + bytes)` against `.sha` in the commit tree, halting immediately (`MISMATCH`) if the downloaded file differs from the repository commit.
 - **Ahead-of-Remote Downgrade Blocking (`[Stable]` & `[Nightly]`):** Developers frequently iterate on local code, incrementing internal `JVM_BUILD` integers (format `YYYYMMDD.REV`). When running `jvm self-update`, the engine compares the local `JVM_BUILD` integer against the upstream payload. If `local_build > remote_build`, the updater outputs a protective skip message (`[ SKIP ] You are on a newer local build`) and halts cleanly, preventing accidental rollbacks. Passing `--force` explicitly overrides this safeguard.
 
 ### 4. Decoupled Runner Handoff & Atomic Swap

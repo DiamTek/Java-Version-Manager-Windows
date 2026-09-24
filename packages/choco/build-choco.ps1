@@ -40,6 +40,9 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     if (-not $Version) { $Version = "1.0.1" }
 }
 $Version = $Version.TrimStart('v')
+if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$' -or $Version -match '\.\.') {
+    throw "Security validation failed (CWE-20): Invalid semantic version '$Version'."
+}
 
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
@@ -62,13 +65,25 @@ Write-Host ""
 Write-Host "${cBold}[STAGE 1] Manifest Synchronization & Checksum Binding${cReset}"
 
 $nuspecPath = Join-Path $ScriptDir "jvm.nuspec"
-if (Test-Path $nuspecPath) {
+if (Test-Path -LiteralPath $nuspecPath) {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $nuspecContent = [System.IO.File]::ReadAllText($nuspecPath, $utf8NoBom)
     $updatedNuspec = $nuspecContent -replace '<version>.*?</version>', "<version>$Version</version>"
     [System.IO.File]::WriteAllText($nuspecPath, $updatedNuspec, $utf8NoBom)
     try {
-        [xml]$null = [System.IO.File]::ReadAllText($nuspecPath, $utf8NoBom)
+        $xmlSettings = New-Object System.Xml.XmlReaderSettings
+        $xmlSettings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+        $xmlSettings.XmlResolver = $null
+        $sr = New-Object System.IO.StringReader([System.IO.File]::ReadAllText($nuspecPath, $utf8NoBom))
+        $xr = [System.Xml.XmlReader]::Create($sr, $xmlSettings)
+        try {
+            $xmlDoc = New-Object System.Xml.XmlDocument
+            $xmlDoc.XmlResolver = $null
+            $xmlDoc.Load($xr)
+        } finally {
+            $xr.Close()
+            $sr.Close()
+        }
     } catch {
         throw "XML validation failed on jvm.nuspec: $($_.Exception.Message)"
     }

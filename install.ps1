@@ -267,6 +267,35 @@ if ($shaHashMap.ContainsKey("jvm.bat")) {
     Write-Host "           Could not verify jvm.bat hash against release manifest. Aborting installation." -ForegroundColor Red
     Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
     exit 1
+} else {
+    try {
+        $meta = Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=$rawBranch" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -TimeoutSec 5
+        if ($meta -and $meta.sha) {
+            $expectedGitSha = ([string]$meta.sha).ToLower()
+            $sha1 = [System.Security.Cryptography.SHA1]::Create()
+            $rawBytes = [System.IO.File]::ReadAllBytes($stageBat)
+            $lfBytes = [System.Text.Encoding]::UTF8.GetBytes(($sanitizedContent -replace "`r`n", "`n"))
+            $matchedGit = $false
+            $computedGit = ""
+            foreach ($b in @($rawBytes, $lfBytes)) {
+                $hdr = [System.Text.Encoding]::ASCII.GetBytes("blob $($b.Length)`0")
+                $blob = New-Object byte[] ($hdr.Length + $b.Length)
+                [Array]::Copy($hdr, 0, $blob, 0, $hdr.Length)
+                [Array]::Copy($b, 0, $blob, $hdr.Length, $b.Length)
+                $g = ([System.BitConverter]::ToString($sha1.ComputeHash($blob)) -replace '-', '').ToLower()
+                if (-not $computedGit) { $computedGit = $g }
+                if ($g -eq $expectedGitSha) { $matchedGit = $true; break }
+            }
+            if (-not $matchedGit) {
+                Write-Host ""
+                Write-Host "[ ERROR  ] Cryptographic Git blob SHA-1 check failed for Nightly jvm.bat!" -ForegroundColor Red
+                Write-Host "           Expected Git Blob SHA: $expectedGitSha" -ForegroundColor Red
+                Write-Host "           Computed Git Blob SHA: $computedGit" -ForegroundColor Red
+                Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
+                exit 1
+            }
+        }
+    } catch {}
 }
 
 # Move verified staged engine into place atomically
@@ -610,14 +639,35 @@ if ($expandedDocs) {
 }
 $profiles = $profiles | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
+function Test-HasReparsePointInLineage([string]$TargetPath) {
+    if ([string]::IsNullOrWhiteSpace($TargetPath)) { return $false }
+    try {
+        $curr = [System.IO.Path]::GetFullPath($TargetPath)
+        $root = [System.IO.Path]::GetPathRoot($curr)
+        while ($curr -and ($curr.TrimEnd('\') -ne $root.TrimEnd('\'))) {
+            if (Test-Path -LiteralPath $curr) {
+                $item = Get-Item -LiteralPath $curr -Force -ErrorAction Stop
+                if ([bool]($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { return $true }
+            }
+            $curr = Split-Path -Path $curr -Parent
+        }
+    } catch { return $true }
+    return $false
+}
+
 $utf8 = New-Object System.Text.UTF8Encoding($true)
 foreach ($p in $profiles) {
     if ([string]::IsNullOrWhiteSpace($p)) { continue }
     try {
-        $profileDir = Split-Path $p
-        if (-not (Test-Path $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force -ErrorAction SilentlyContinue | Out-Null }
+        if (Test-HasReparsePointInLineage $p) { continue }
+        $profileDir = Split-Path -Path $p -Parent
+        if (-not (Test-Path -LiteralPath $profileDir)) { New-Item -ItemType Directory -Path $profileDir -Force -ErrorAction SilentlyContinue | Out-Null }
+        if (Test-HasReparsePointInLineage $profileDir) { continue }
         $profContent = ''
-        if (Test-Path $p) { $profContent = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8) }
+        if (Test-Path -LiteralPath $p) {
+            if (Test-HasReparsePointInLineage $p) { continue }
+            $profContent = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)
+        }
 
         $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
         $m = [Regex]::Match($profContent, $blockPattern)
@@ -639,13 +689,16 @@ try {
     
     $sys32Dir = [Environment]::GetFolderPath([Environment+SpecialFolder]::System)
     $systemPowerShell = Join-Path $sys32Dir "WindowsPowerShell\v1.0\powershell.exe"
-    if (-not (Test-Path $systemPowerShell)) { $systemPowerShell = "powershell.exe" }
-    $uninstallScriptPath = "$repoRoot\uninstall.ps1"
+    if (-not (Test-Path -LiteralPath $systemPowerShell)) {
+        throw "Trusted Windows PowerShell binary not found at $systemPowerShell"
+    }
+    $uninstallScriptPath = Join-Path $repoRoot "uninstall.ps1"
     $uninstallCommand = "`"$systemPowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
+    $quietUninstallCommand = "`"$systemPowerShell`" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$uninstallScriptPath`" -Quiet"
     
     $displayVer = "1.0.1"
-    if (Test-Path $batPath) {
-        $batHead = Get-Content $batPath -Raw -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $batPath) {
+        $batHead = Get-Content -LiteralPath $batPath -Raw -ErrorAction SilentlyContinue
         if ($batHead -match 'set\s+"JVM_VERSION=(.*?)"') {
             $displayVer = $matches[1].Trim()
         }
@@ -656,10 +709,10 @@ try {
     Set-ItemProperty -Path $uninstallRegPath -Name "Publisher" -Value "DiamTek / Alexéy Shishkin"
     Set-ItemProperty -Path $uninstallRegPath -Name "InstallLocation" -Value $repoRoot
     Set-ItemProperty -Path $uninstallRegPath -Name "UninstallString" -Value $uninstallCommand
-    Set-ItemProperty -Path $uninstallRegPath -Name "QuietUninstallString" -Value $uninstallCommand
+    Set-ItemProperty -Path $uninstallRegPath -Name "QuietUninstallString" -Value $quietUninstallCommand
     $iconPath = Join-Path $repoRoot "assets\icon.ico"
-    if (-not (Test-Path $iconPath)) { $iconPath = Join-Path $repoRoot "icon.ico" }
-    if (-not (Test-Path $iconPath)) { $iconPath = Join-Path $sys32Dir "shell32.dll,27" }
+    if (-not (Test-Path -LiteralPath $iconPath)) { $iconPath = Join-Path $repoRoot "icon.ico" }
+    if (-not (Test-Path -LiteralPath $iconPath)) { $iconPath = Join-Path $sys32Dir "shell32.dll,27" }
 
     Set-ItemProperty -Path $uninstallRegPath -Name "DisplayIcon" -Value $iconPath
     Set-ItemProperty -Path $uninstallRegPath -Name "URLInfoAbout" -Value "https://diamtek.github.io/Java-Version-Manager-Windows"
@@ -667,10 +720,10 @@ try {
     Set-ItemProperty -Path $uninstallRegPath -Name "NoModify" -Value 1 -Type DWord
     Set-ItemProperty -Path $uninstallRegPath -Name "NoRepair" -Value 1 -Type DWord
 
-    $totalBytes = (Get-ChildItem $repoRoot -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+    $totalBytes = (Get-ChildItem -LiteralPath $repoRoot -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
     $dotJvm = Join-Path $env:USERPROFILE ".jvm"
-    if (Test-Path $dotJvm) {
-        $totalBytes += (Get-ChildItem $dotJvm -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+    if (Test-Path -LiteralPath $dotJvm) {
+        $totalBytes += (Get-ChildItem -LiteralPath $dotJvm -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
     }
     $estimatedSizeKB = [math]::Max(1024, [int][math]::Ceiling($totalBytes / 1KB))
     Set-ItemProperty -Path $uninstallRegPath -Name "EstimatedSize" -Value $estimatedSizeKB -Type DWord
@@ -683,9 +736,10 @@ try {
         "$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json"
     )
     foreach ($wtSettings in $wtSettingsCandidates) {
-        if (Test-Path $wtSettings) {
+        if (Test-Path -LiteralPath $wtSettings) {
             try {
-                $wtContent = Get-Content $wtSettings -Raw -ErrorAction Stop
+                if (Test-HasReparsePointInLineage $wtSettings) { continue }
+                $wtContent = Get-Content -LiteralPath $wtSettings -Raw -ErrorAction Stop
                 # Strip JSONC comments (block comments /* ... */ and line comments // ...) and trailing commas
                 $cleanJson = $wtContent -replace '(?s)/\*.*?\*/', '' -replace '(?m)(?<!:)\/\/.*$', '' -replace ',\s*([\}\]])', '$1'
                 $wtJson = $cleanJson | ConvertFrom-Json
@@ -705,12 +759,12 @@ try {
                         $profileList.Add($newProfile)
                         $wtJson.profiles.list = $profileList
                         $newWtContent = $wtJson | ConvertTo-Json -Depth 32
-                        Set-Content $wtSettings $newWtContent -Encoding utf8
+                        [System.IO.File]::WriteAllText($wtSettings, $newWtContent, $utf8)
                     } else {
                         $existing.commandline = 'cmd.exe /c "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat"'
                         $existing | Add-Member -NotePropertyName "closeOnExit" -NotePropertyValue "always" -Force
                         $newWtContent = $wtJson | ConvertTo-Json -Depth 32
-                        Set-Content $wtSettings $newWtContent -Encoding utf8
+                        [System.IO.File]::WriteAllText($wtSettings, $newWtContent, $utf8)
                     }
                     $wtProfileAdded = $true
                 }
@@ -720,14 +774,22 @@ try {
         }
     }
 
-    $hasWt = $wtProfileAdded -and [bool](Get-Command wt.exe -ErrorAction SilentlyContinue)
-    $targetPath = if ($hasWt) { "wt.exe" } else { "cmd.exe" }
+    $sysCmd = Join-Path $sys32Dir "cmd.exe"
+    if (-not (Test-Path -LiteralPath $sysCmd)) {
+        throw "Trusted cmd.exe binary not found at $sysCmd"
+    }
+    $wtCandidate = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\wt.exe"
+    $hasWt = $wtProfileAdded -and (Test-Path -LiteralPath $wtCandidate) -and (-not (Test-HasReparsePointInLineage $wtCandidate))
+    $targetPath = if ($hasWt) { $wtCandidate } else { $sysCmd }
     $targetArgs = if ($hasWt) { "-p `"Java Version Manager`"" } else { "/c `"$batPath`"" }
 
     # Start Menu Shortcuts
     $startMenuPrograms = [Environment]::GetFolderPath('Programs')
     $startMenuDir = Join-Path $startMenuPrograms "DiamTek"
-    if (-not (Test-Path $startMenuDir)) { New-Item -ItemType Directory -Path $startMenuDir -Force | Out-Null }
+    if (-not (Test-Path -LiteralPath $startMenuDir)) { New-Item -ItemType Directory -Path $startMenuDir -Force | Out-Null }
+    if (Test-HasReparsePointInLineage $startMenuDir) {
+        throw "Refusing to create Start Menu shortcuts in reparse-point directory: $startMenuDir"
+    }
     
     $wshell = New-Object -ComObject WScript.Shell
     $appShortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Java Version Manager.lnk"))
@@ -740,14 +802,14 @@ try {
 
     # Update pinned Taskbar shortcut if it exists
     $taskbarLnk = Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Java Version Manager.lnk"
-    if (Test-Path $taskbarLnk) {
+    if ((Test-Path -LiteralPath $taskbarLnk) -and (-not (Test-HasReparsePointInLineage $taskbarLnk))) {
         $tbShortcut = $wshell.CreateShortcut($taskbarLnk)
         $tbShortcut.TargetPath = $targetPath
         $tbShortcut.Arguments = $targetArgs
         $tbShortcut.IconLocation = $iconPath
         $tbShortcut.WorkingDirectory = $repoRoot
         $tbShortcut.Save()
-        (Get-Item $taskbarLnk).LastWriteTime = Get-Date
+        (Get-Item -LiteralPath $taskbarLnk).LastWriteTime = Get-Date
     }
 
     $shortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Uninstall Java Version Manager.lnk"))
@@ -755,6 +817,7 @@ try {
     $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
     $shortcut.IconLocation = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "shell32.dll,31"
     $shortcut.Description = "Uninstall DiamTek Java Version Manager"
+    $shortcut.WorkingDirectory = $sys32Dir
     $shortcut.Save()
 } catch {
     Write-Host ""

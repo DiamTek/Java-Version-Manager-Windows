@@ -164,17 +164,35 @@ $profiles = @(
     $PROFILE
 ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
+function Test-HasReparsePointInLineage([string]$TargetPath) {
+    if ([string]::IsNullOrWhiteSpace($TargetPath)) { return $false }
+    try {
+        $curr = [System.IO.Path]::GetFullPath($TargetPath)
+        $root = [System.IO.Path]::GetPathRoot($curr)
+        while ($curr -and ($curr.TrimEnd('\') -ne $root.TrimEnd('\'))) {
+            if (Test-Path -LiteralPath $curr) {
+                $item = Get-Item -LiteralPath $curr -Force -ErrorAction Stop
+                if ([bool]($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { return $true }
+            }
+            $curr = Split-Path -Path $curr -Parent
+        }
+    } catch { return $true }
+    return $false
+}
+
+$utf8 = New-Object System.Text.UTF8Encoding($true)
 $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
 foreach ($p in $profiles) {
-    if (Test-Path $p) {
-        $profContent = Get-Content $p -Raw -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $p) {
+        if (Test-HasReparsePointInLineage $p) { continue }
+        $profContent = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)
         $m = [Regex]::Match($profContent, $blockPattern)
         if ($m.Success) {
             $profContent = $profContent.Remove($m.Index, $m.Length).Trim()
             if ([string]::IsNullOrWhiteSpace($profContent)) {
-                Remove-Item $p -Force -ErrorAction SilentlyContinue
+                Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
             } else {
-                Set-Content -Path $p -Value $profContent -Encoding UTF8
+                [System.IO.File]::WriteAllText($p, $profContent, $utf8)
             }
             Write-Host "[   OK   ] Profile hook removed from: $p" -ForegroundColor Green
         }
@@ -228,7 +246,7 @@ $startMenuDirs = @(
     (Join-Path ([Environment]::GetFolderPath('CommonPrograms')) "DiamTek")
 )
 foreach ($sm in $startMenuDirs) {
-    if (Test-Path $sm) {
+    if ((Test-Path -LiteralPath $sm) -and (-not (Test-HasReparsePointInLineage $sm))) {
         Get-ChildItem -LiteralPath $sm -Filter "*Java Version Manager*" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
         Get-ChildItem -LiteralPath $sm -Filter "*JVM*" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
         $remaining = Get-ChildItem -LiteralPath $sm -Force -ErrorAction SilentlyContinue
@@ -240,8 +258,8 @@ foreach ($sm in $startMenuDirs) {
 }
 
 $taskbarLnk = Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Java Version Manager.lnk"
-if (Test-Path $taskbarLnk) {
-    Remove-Item -Path $taskbarLnk -Force -ErrorAction SilentlyContinue
+if ((Test-Path -LiteralPath $taskbarLnk) -and (-not (Test-HasReparsePointInLineage $taskbarLnk))) {
+    Remove-Item -LiteralPath $taskbarLnk -Force -ErrorAction SilentlyContinue
     Write-Host "[   OK   ] Removed pinned Taskbar shortcut." -ForegroundColor Green
 }
 
@@ -252,9 +270,9 @@ $wtSettingsCandidates = @(
     "$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json"
 )
 foreach ($wtSettings in $wtSettingsCandidates) {
-    if (Test-Path $wtSettings) {
+    if ((Test-Path -LiteralPath $wtSettings) -and (-not (Test-HasReparsePointInLineage $wtSettings))) {
         try {
-            $wtContent = Get-Content $wtSettings -Raw -ErrorAction Stop
+            $wtContent = Get-Content -LiteralPath $wtSettings -Raw -ErrorAction Stop
             # Strip JSONC comments (block comments /* ... */ and line comments // ...) and trailing commas
             $cleanJson = $wtContent -replace '(?s)/\*.*?\*/', '' -replace '(?m)(?<!:)\/\/.*$', '' -replace ',\s*([\}\]])', '$1'
             $wtJson = $cleanJson | ConvertFrom-Json
@@ -266,7 +284,7 @@ foreach ($wtSettings in $wtSettingsCandidates) {
                         $wtJson.defaultProfile = $filtered[0].guid
                     }
                     $newWtContent = $wtJson | ConvertTo-Json -Depth 32
-                    Set-Content $wtSettings $newWtContent -Encoding utf8
+                    [System.IO.File]::WriteAllText($wtSettings, $newWtContent, $utf8)
                     Write-Host "[   OK   ] Removed Windows Terminal profile." -ForegroundColor Green
                 }
             }

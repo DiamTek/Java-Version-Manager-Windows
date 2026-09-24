@@ -727,7 +727,21 @@ exit 0
   </Package>
 </Wix>
 "@
-    [System.IO.File]::WriteAllText("$ScriptDir\jvm.wxs", $wxsContent, [System.Text.Encoding]::UTF8)
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText("$ScriptDir\jvm.wxs", $wxsContent, $utf8NoBom)
+    $wxsReaderSettings = New-Object System.Xml.XmlReaderSettings
+    $wxsReaderSettings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+    $wxsReaderSettings.XmlResolver = $null
+    $wxsSr = New-Object System.IO.StringReader($wxsContent)
+    $wxsXr = [System.Xml.XmlReader]::Create($wxsSr, $wxsReaderSettings)
+    try {
+        $wxsDoc = New-Object System.Xml.XmlDocument
+        $wxsDoc.XmlResolver = $null
+        $wxsDoc.Load($wxsXr)
+    } finally {
+        $wxsXr.Close()
+        $wxsSr.Close()
+    }
     $swWxs.Stop()
     Write-Host "  ${cGreen}[PASS]${cReset} Generated WiX v4 manifest (jvm.wxs) ${cGray}($($swWxs.ElapsedMilliseconds) ms)${cReset}"
 

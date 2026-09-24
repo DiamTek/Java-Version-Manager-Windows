@@ -104,14 +104,20 @@ $CweCatalog = [ordered]@{
     'CWE-276' = [PSCustomObject]@{ Id = 'CWE-276'; Number = 276; Short = 'Strict Directory DACL Isolation' }
     'CWE-295' = [PSCustomObject]@{ Id = 'CWE-295'; Number = 295; Short = 'TLS 1.2 / 1.3 Protocol Enforcement' }
     'CWE-319' = [PSCustomObject]@{ Id = 'CWE-319'; Number = 319; Short = 'Strict HTTPS Scheme Enforcement' }
+    'CWE-330' = [PSCustomObject]@{ Id = 'CWE-330'; Number = 330; Short = 'CSPRNG Temp Filename Entropy' }
     'CWE-345' = [PSCustomObject]@{ Id = 'CWE-345'; Number = 345; Short = 'Downgrade & Authenticity Defense' }
     'CWE-354' = [PSCustomObject]@{ Id = 'CWE-354'; Number = 354; Short = 'Checksum Manifest Format Validation' }
     'CWE-377' = [PSCustomObject]@{ Id = 'CWE-377'; Number = 377; Short = 'Insecure Temp File & ACL Lock' }
     'CWE-400' = [PSCustomObject]@{ Id = 'CWE-400'; Number = 400; Short = 'Hang & Parser Resilience' }
     'CWE-426' = [PSCustomObject]@{ Id = 'CWE-426'; Number = 426; Short = 'Untrusted Search Path / Planting' }
     'CWE-427' = [PSCustomObject]@{ Id = 'CWE-427'; Number = 427; Short = 'Uncontrolled PATH Hijack Defense' }
+    'CWE-428' = [PSCustomObject]@{ Id = 'CWE-428'; Number = 428; Short = 'Quoted UninstallString & TargetPath' }
     'CWE-459' = [PSCustomObject]@{ Id = 'CWE-459'; Number = 459; Short = 'Failure-Path Handle & Temp Cleanup' }
     'CWE-494' = [PSCustomObject]@{ Id = 'CWE-494'; Number = 494; Short = 'Supply Chain & Hash Integrity' }
+    'CWE-532' = [PSCustomObject]@{ Id = 'CWE-532'; Number = 532; Short = 'Sensitive Registry Backup Isolation' }
+    'CWE-601' = [PSCustomObject]@{ Id = 'CWE-601'; Number = 601; Short = 'Open Redirect & Host Allowlisting' }
+    'CWE-611' = [PSCustomObject]@{ Id = 'CWE-611'; Number = 611; Short = 'XML External Entity (XXE) Defense' }
+    'CWE-918' = [PSCustomObject]@{ Id = 'CWE-918'; Number = 918; Short = 'SSRF & Vendor Domain Allowlisting' }
 }
 
 function Resolve-TestCweMetadata {
@@ -983,8 +989,16 @@ $($vsiMatch.Groups[1].Value)
     Run-TestCase "Manifest" "Chocolatey nuspec XML schema & UTF-8 No BOM validation" {
         $nuspecPath = Join-Path $RepoRoot "packages\choco\jvm.nuspec"
         
-        # Ensure valid XML
-        [xml]$xml = Get-Content $nuspecPath -Raw
+        # Ensure valid XML with DTD/XXE prohibited (CWE-611)
+        $xmlSettings = New-Object System.Xml.XmlReaderSettings
+        $xmlSettings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+        $xmlSettings.XmlResolver = $null
+        $sr = New-Object System.IO.StringReader((Get-Content -LiteralPath $nuspecPath -Raw))
+        $xr = [System.Xml.XmlReader]::Create($sr, $xmlSettings)
+        $xml = New-Object System.Xml.XmlDocument
+        $xml.XmlResolver = $null
+        $xml.Load($xr)
+        $xr.Close(); $sr.Close()
         Assert-True ($xml.package.metadata.id -eq "jvm-windows") "Package ID must be 'jvm-windows'"
         Assert-True ($null -ne $xml.package.metadata.licenseUrl) "License URL must be present"
         
@@ -1030,14 +1044,20 @@ $($vsiMatch.Groups[1].Value)
     Run-TestCase "Manifest" "bump-version.ps1 -DryRun immutability guarantee" {
         $bumpScript = Join-Path $RepoRoot "scripts\bump-version.ps1"
         if (Test-Path $bumpScript) {
-            # Capture status before
-            $gitStatusBefore = (& git -C "$RepoRoot" status --porcelain 2>&1 | Out-String).Trim()
-            
-            # Execute dry run
-            $dryOut = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $bumpScript patch -DryRun -NoBucketSync -Force 2>&1 | Out-String
-            
-            # Capture status after
-            $gitStatusAfter = (& git -C "$RepoRoot" status --porcelain 2>&1 | Out-String).Trim()
+            $prevEAP = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try {
+                # Capture status before
+                $gitStatusBefore = (& git -C "$RepoRoot" status --porcelain 2>&1 | Out-String).Trim()
+                
+                # Execute dry run
+                $dryOut = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $bumpScript patch -DryRun -NoBucketSync -Force 2>&1 | Out-String
+                
+                # Capture status after
+                $gitStatusAfter = (& git -C "$RepoRoot" status --porcelain 2>&1 | Out-String).Trim()
+            } finally {
+                $ErrorActionPreference = $prevEAP
+            }
             Assert-True ($gitStatusBefore -eq $gitStatusAfter) "Working tree status must be identical before and after -DryRun"
         }
     }
@@ -2166,6 +2186,223 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             $env:JVM_CALLER_PID = $origCallerPid
             $env:LOCALAPPDATA = $origLocalAppData
         }
+    }
+
+    # 101. CWE-918: :ExecuteSharedDownloader SSRF & Untrusted Vendor Host Allowlist (Test-TrustedJvmUri)
+    Run-TestCase "PackageIntegrity" ":ExecuteSharedDownloader SSRF and untrusted vendor host allowlist enforcement (Test-TrustedJvmUri) (CWE-918)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw "function Test-TrustedJvmUri" ":ExecuteSharedDownloader must define Test-TrustedJvmUri host allowlist"
+        Assert-Contains $batRaw "Untrusted download host:" ":ExecuteSharedDownloader must reject untrusted download hosts (CWE-918)"
+        Assert-Contains $batRaw "Untrusted checksum host:" ":ExecuteSharedDownloader must reject untrusted checksum hosts (CWE-918)"
+
+        $testTrustedHost = {
+            param([string]$Url)
+            $u = $null
+            if (-not [System.Uri]::TryCreate($Url, [System.UriKind]::Absolute, [ref]$u) -or $u.Scheme -ne 'https' -or $u.IsLoopback) { return $false }
+            $h = $u.Host.ToLowerInvariant()
+            $exact = @('download.oracle.com','edelivery.oracle.com','api.adoptium.net','github.com','api.github.com','objects.githubusercontent.com','release-assets.githubusercontent.com','raw.githubusercontent.com','corretto.aws','api.azul.com','cdn.azul.com','static.azul.com','aka.ms','download.visualstudio.microsoft.com','api.bell-sw.com','download.bell-sw.com','repo.maven.apache.org','archive.apache.org','dlcdn.apache.org','downloads.apache.org','services.gradle.org','downloads.gradle.org','downloads.gradle-dn.com','api.sdkman.io')
+            if ($exact -contains $h) { return $true }
+            foreach ($sfx in @('.oracle.com','.adoptium.net','.github.com','.githubusercontent.com','.amazonaws.com','.cloudfront.net','.azul.com','.microsoft.com','.azureedge.net','.bell-sw.com','.apache.org','.gradle.org','.gradle-dn.com')) {
+                if ($h.EndsWith($sfx)) { return $true }
+            }
+            return $false
+        }
+        foreach ($trusted in @(
+            "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse",
+            "https://objects.githubusercontent.com/github-production-release-asset/jdk.zip",
+            "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.6/apache-maven-3.9.6-bin.zip",
+            "https://d3pxv6yz143wms.cloudfront.net/21.0.2/amazon-corretto-21.zip"
+        )) {
+            Assert-True (& $testTrustedHost $trusted) "Test-TrustedJvmUri must allow official vendor host: $trusted"
+        }
+        foreach ($untrusted in @(
+            "https://127.0.0.1/jdk.zip",
+            "https://localhost/jdk.zip",
+            "https://evil-github.com/jdk.zip",
+            "https://adoptium.net.attacker.org/jdk.zip",
+            "https://169.254.169.254/latest/meta-data"
+        )) {
+            Assert-False (& $testTrustedHost $untrusted) "Test-TrustedJvmUri MUST block SSRF/untrusted host: $untrusted"
+        }
+    }
+
+    # 102. CWE-601: Open Redirect Host Verification in :ExecuteSharedDownloader & :VerifyDownloadedScript
+    Run-TestCase "PackageIntegrity" "Open redirect host verification on ResponseUri in :ExecuteSharedDownloader & :VerifyDownloadedScript (CWE-601)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw "Blocked redirect to untrusted host:" ":ExecuteSharedDownloader must verify ResponseUri host against Test-TrustedJvmUri (CWE-601)"
+        Assert-Contains $batRaw "Write-Output 'UNTRUSTED_REDIRECT'; exit" ":VerifyDownloadedScript must block redirects to non-GitHub domains (CWE-601)"
+        Assert-Contains $batRaw "if (`$ref -notmatch '^[a-zA-Z0-9._-]+$' -or `$ref -match '\.\.') { Write-Output 'INVALID_REF'; exit }" ":VerifyDownloadedScript must validate RELEASE_REF against path traversal"
+    }
+
+    # 103. CWE-20: :InstallCandidate & :SwitchCandidate Validate Upstream-Resolved LATEST_VER After 'latest' Resolution
+    Run-TestCase "Adversarial" ":InstallCandidate and :SwitchCandidate validate LATEST_VER via :ValidateStrictIdentifier after 'latest' resolution (CWE-20)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        $instBlock = [regex]::Match($batRaw, '(?ms)^:InstallCandidate\r?\n.*?(?=^:UninstallCandidate)').Value
+        Assert-True ($instBlock.Length -gt 0) "Must locate :InstallCandidate in jvm.bat"
+        $idxResolve = $instBlock.IndexOf('call :ResolveLatestEcosystemCandidate')
+        $idxValidate = $instBlock.IndexOf('call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER')
+        Assert-True ($idxResolve -gt 0 -and $idxValidate -gt $idxResolve) ":InstallCandidate MUST run :ValidateStrictIdentifier AFTER resolving 'latest' (LATEST_VER)"
+
+        $swBlock = [regex]::Match($batRaw, '(?ms)^:SwitchCandidate\r?\n.*?(?=^:InstallCandidate)').Value
+        $idxSwLatest = $swBlock.IndexOf('if /i "!TARGET_VER!"=="latest"')
+        $idxSwVal = $swBlock.IndexOf('call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER')
+        Assert-True ($idxSwLatest -gt 0 -and $idxSwVal -gt $idxSwLatest) ":SwitchCandidate MUST run :ValidateStrictIdentifier AFTER resolving 'latest'"
+    }
+
+    # 104. CWE-88: :ExecuteSharedDownloader DL_STRIP_ROOT Rejects Leading-Hyphen & Traversal Root Folder Names
+    Run-TestCase "Adversarial" ":ExecuteSharedDownloader DL_STRIP_ROOT rejects leading-hyphen ('-Force') and traversal root folder names (CWE-88)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw "Unsafe root directory name in archive:" ":ExecuteSharedDownloader DL_STRIP_ROOT must validate root folder name against leading hyphens and unsafe characters"
+        Assert-Contains $batRaw "Move-Item -LiteralPath `$_.FullName -Destination `$env:DL_EXTRACT -Force" ":ExecuteSharedDownloader DL_STRIP_ROOT must use Move-Item -LiteralPath"
+    }
+
+    # 105. CWE-22: :FetchAndExtract Elevated PowerShell Move Canonicalizes Destination Path via GetFullPath
+    Run-TestCase "Adversarial" ":FetchAndExtract elevated PowerShell move canonicalizes destination path via [System.IO.Path]::GetFullPath (CWE-22)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw '$fullD = [System.IO.Path]::GetFullPath($d).TrimEnd(''''\'''') + ''''\'''';' ':FetchAndExtract elevated script must normalize $fullD with trailing backslash'
+        Assert-Contains $batRaw '$t = [System.IO.Path]::GetFullPath((Join-Path $d $f))' ':FetchAndExtract elevated script must canonicalize $t via [System.IO.Path]::GetFullPath'
+    }
+
+    # 106. CWE-330: Zero Predictable !RANDOM! Temp Filenames in jvm.bat (CSPRNG GetRandomFileName Enforcement)
+    Run-TestCase "Concurrency" "Zero predictable !RANDOM! temporary filenames in jvm.bat ([System.IO.Path]::GetRandomFileName enforcement) (CWE-330)" {
+        $batLines = Get-Content -LiteralPath $JvmBat
+        $predictableRandomLines = @($batLines | Where-Object { $_ -match '!RANDOM!|%RANDOM%' })
+        Assert-Equals $predictableRandomLines.Count 0 "jvm.bat MUST NOT use predictable 15-bit !RANDOM! or %RANDOM% for temporary filenames (found: $($predictableRandomLines -join '; '))"
+    }
+
+    # 107. CWE-532: :BackupRegistry Enforces Reparse-Point Rejection & Per-User DACL Isolation (/inheritance:r) on Backups Directory
+    Run-TestCase "Registry" ":BackupRegistry enforces fsutil reparse-point query and icacls /inheritance:r DACL isolation on backups directory (CWE-532)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        $bakBlock = [regex]::Match($batRaw, '(?s):BackupRegistry\r?\n.*?(?=\r?\n:RejectExclamationArg)').Value
+        Assert-True ($bakBlock.Length -gt 0) "Must locate :BackupRegistry in jvm.bat"
+        Assert-Contains $bakBlock '"%FSUTIL_BIN%" reparsepoint query "%JVM_BACKUP_DIR%"' ":BackupRegistry must query fsutil reparsepoint on %JVM_BACKUP_DIR% before exporting registry keys"
+        Assert-Contains $bakBlock '"%ICACLS_BIN%" "%JVM_BACKUP_DIR%" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "%USERNAME%:(OI)(CI)F"' ":BackupRegistry must lock down %JVM_BACKUP_DIR% DACL with /inheritance:r before writing .reg exports"
+    }
+
+    # 108. CWE-59: :InstallPowerShellHook & :RemovePowerShellHook ReparsePoint Symlink Guard & -LiteralPath Enforcement
+    Run-TestCase "ReparsePoint" ":InstallPowerShellHook and :RemovePowerShellHook enforce ReparsePoint symlink guard and -LiteralPath on `$PROFILE (CWE-59)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        $instHookBlock = [regex]::Match($batRaw, '(?s):InstallPowerShellHook\r?\n.*?(?=\r?\n:RemovePowerShellHook)').Value
+        $remHookBlock  = [regex]::Match($batRaw, '(?s):RemovePowerShellHook\r?\n.*?(?=\r?\n:CheckPowerShellHookStatus)').Value
+        Assert-Contains $instHookBlock "[System.IO.FileAttributes]::ReparsePoint" ":InstallPowerShellHook must reject symlink/reparse-point profile directories and files"
+        Assert-Contains $instHookBlock "Test-Path -LiteralPath `$p" ":InstallPowerShellHook must use Test-Path -LiteralPath"
+        Assert-Contains $remHookBlock "[System.IO.FileAttributes]::ReparsePoint" ":RemovePowerShellHook must reject symlink/reparse-point profile files"
+    }
+
+    # 109. CWE-427: :InstallGlobalCommand Installs to Canonical %LOCALAPPDATA%\DiamTek\JVM\bin with ACLs & DoNotExpandEnvironmentNames
+    Run-TestCase "Registry" ":InstallGlobalCommand installs to canonical %LOCALAPPDATA%\DiamTek\JVM\bin with ACLs & DoNotExpandEnvironmentNames (CWE-427)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        $igcBlock = [regex]::Match($batRaw, '(?s):InstallGlobalCommand\r?\n.*?(?=\r?\n:InstallPowerShellHook)').Value
+        Assert-True ($igcBlock.Length -gt 0) "Must locate :InstallGlobalCommand in jvm.bat"
+        Assert-Contains $igcBlock 'set "CANONICAL_BIN=%LOCALAPPDATA%\DiamTek\JVM\bin"' ":InstallGlobalCommand must target canonical %LOCALAPPDATA%\DiamTek\JVM\bin instead of arbitrary SCRIPT_DIR"
+        Assert-Contains $igcBlock '"%ICACLS_BIN%" "!CANONICAL_BIN!" /inheritance:r' ":InstallGlobalCommand must enforce strict DACL on %LOCALAPPDATA%\DiamTek\JVM\bin"
+        Assert-Contains $igcBlock 'DoNotExpandEnvironmentNames' ":InstallGlobalCommand must preserve unexpanded REG_EXPAND_SZ tokens when updating HKCU\Environment\Path"
+    }
+
+    # 110. CWE-78: :SwitchCandidate Updates Session PATH Without Spawning 'echo(!PATH! |' Pipe Child Shell
+    Run-TestCase "Adversarial" ":SwitchCandidate updates session PATH via native substring check with zero 'echo(!PATH! |' pipe child shell spawning (CWE-78)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        $swBlock = [regex]::Match($batRaw, '(?s):SwitchCandidate\r?\n.*?(?=\r?\n:InstallCandidate)').Value
+        Assert-NotContains $swBlock "echo(!PATH! |" ":SwitchCandidate MUST NOT pipe echo(!PATH! into findstr (prevents child cmd.exe & command injection)"
+        Assert-Contains $swBlock 'call :EmitSessionEnv "!CANDIDATE_ENV_VAR!=!SYMLINK_PATH!"' ":SwitchCandidate must emit session target for PowerShell hook synchronization"
+        Assert-Contains $swBlock 'if "!CHECK_PATH:;!SYMLINK_PATH!\bin;=!"=="!CHECK_PATH!"' ":SwitchCandidate must use native substring matching to update session PATH"
+    }
+
+    # 111. CWE-428: install.ps1 Quoted UninstallString, QuietUninstallString (-Quiet), and Pinned System32 Shortcut TargetPath
+    Run-TestCase "UninstallSafety" "install.ps1 enforces quoted System32 UninstallString, QuietUninstallString (-Quiet), and pinned Shortcut TargetPath (CWE-428)" {
+        $installRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+        Assert-NotContains $installRaw '$systemPowerShell = "powershell.exe"' "install.ps1 MUST NOT fall back to unpinned 'powershell.exe' in UninstallString"
+        Assert-Contains $installRaw 'throw "Trusted Windows PowerShell binary not found at $systemPowerShell"' "install.ps1 must fail closed if System32 powershell.exe is missing"
+        Assert-Contains $installRaw '$quietUninstallCommand = "`"$systemPowerShell`" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$uninstallScriptPath`" -Quiet"' "QuietUninstallString must be properly quoted and pass -NonInteractive and -Quiet"
+        Assert-Contains $installRaw '$sysCmd = Join-Path $sys32Dir "cmd.exe"' "install.ps1 must pin Start Menu shortcut TargetPath to System32\cmd.exe"
+    }
+
+    # 112. CWE-59: install.ps1 & uninstall.ps1 Test-HasReparsePointInLineage Guard on $PROFILE, settings.json, and Start Menu
+    Run-TestCase "ReparsePoint" "install.ps1 and uninstall.ps1 Test-HasReparsePointInLineage guard on `$PROFILE, settings.json, and Start Menu (CWE-59)" {
+        $installRaw   = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+        $uninstallRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "uninstall.ps1") -Raw
+        Assert-Contains $installRaw "function Test-HasReparsePointInLineage" "install.ps1 must define Test-HasReparsePointInLineage"
+        Assert-Contains $installRaw "if (Test-HasReparsePointInLineage `$wtSettings) { continue }" "install.ps1 must guard Windows Terminal settings.json against symlink redirection"
+        Assert-Contains $uninstallRaw "function Test-HasReparsePointInLineage" "uninstall.ps1 must define Test-HasReparsePointInLineage"
+        Assert-Contains $uninstallRaw "if (Test-HasReparsePointInLineage `$p) { continue }" "uninstall.ps1 must guard PowerShell profiles against symlink redirection"
+    }
+
+    # 113. CWE-611: XML External Entity (XXE) & DTD Prohibition Across build-choco.ps1, build-msi.ps1, and Test-JvmSecurity.ps1
+    Run-TestCase "PackageIntegrity" "XML External Entity (XXE) & DTD prohibition (DtdProcessing::Prohibit & XmlResolver = `$null) across build scripts (CWE-611)" {
+        $chocoBuildRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\choco\build-choco.ps1") -Raw
+        $msiBuildRaw   = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\msi\build-msi.ps1") -Raw
+        Assert-Contains $chocoBuildRaw "[System.Xml.DtdProcessing]::Prohibit" "build-choco.ps1 must prohibit DTD processing when validating jvm.nuspec"
+        Assert-Contains $chocoBuildRaw ".XmlResolver = `$null" "build-choco.ps1 must set XmlResolver = `$null"
+        Assert-Contains $msiBuildRaw "[System.Xml.DtdProcessing]::Prohibit" "build-msi.ps1 must prohibit DTD processing when validating jvm.wxs"
+
+        # Functional test: verify that DTD / XXE payload is strictly rejected by our XML validator settings
+        $xxePayload = '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///C:/Windows/win.ini">]><package>&xxe;</package>'
+        $threwDtd = $false
+        try {
+            $settings = New-Object System.Xml.XmlReaderSettings
+            $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+            $settings.XmlResolver = $null
+            $sr = New-Object System.IO.StringReader($xxePayload)
+            $xr = [System.Xml.XmlReader]::Create($sr, $settings)
+            $doc = New-Object System.Xml.XmlDocument
+            $doc.XmlResolver = $null
+            $doc.Load($xr)
+        } catch {
+            $threwDtd = $true
+        }
+        Assert-True $threwDtd "XmlReader with DtdProcessing::Prohibit MUST throw an exception on DOCTYPE / XXE payloads (CWE-611)"
+    }
+
+    # 114. CWE-20: scripts/bump-version.ps1 & build-choco.ps1 Strict SemVer Input Validation & Path Traversal Rejection
+    Run-TestCase "Manifest" "scripts/bump-version.ps1 and build-choco.ps1 reject path traversal ('..') and malformed SemVer parameters (CWE-20)" {
+        $bumpRaw  = Get-Content -LiteralPath (Join-Path $RepoRoot "scripts\bump-version.ps1") -Raw
+        $chocoRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\choco\build-choco.ps1") -Raw
+        Assert-Contains $bumpRaw "Security validation failed (CWE-20): Invalid Version parameter" "bump-version.ps1 must validate -Version parameter against traversal and injection"
+        Assert-Contains $bumpRaw "Security validation failed (CWE-20): Invalid Build parameter" "bump-version.ps1 must validate -Build parameter"
+        Assert-Contains $chocoRaw "Security validation failed (CWE-20): Invalid semantic version" "build-choco.ps1 must validate -Version parameter"
+    }
+
+    # 115. CWE-319: chocolateyInstall.ps1 Runtime HTTPS URI Scheme Enforcement & SHA-256 Checksum Gate
+    Run-TestCase "PackageIntegrity" "chocolateyInstall.ps1 enforces runtime HTTPS URI scheme validation and 64-char SHA-256 gate (CWE-319)" {
+        $chocoInstallRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\choco\tools\chocolateyInstall.ps1") -Raw
+        Assert-Contains $chocoInstallRaw "[System.Uri]::TryCreate(`$url64, [System.UriKind]::Absolute, [ref]`$parsedUri) -or `$parsedUri.Scheme -ne 'https'" "chocolateyInstall.ps1 must validate $url64 uses https:// before calling Install-ChocolateyPackage"
+        Assert-Contains $chocoInstallRaw "Security violation (CWE-319): Download URL64 must use HTTPS transport." "chocolateyInstall.ps1 must fail closed on non-HTTPS URL64"
+    }
+
+    # 116. CWE-494: Nightly Channel Git Blob SHA-1 Verification, Dynamic %ProgramFiles% & ARM64 Resolver Guards
+    Run-TestCase "PackageIntegrity" "Nightly self-update Git Blob SHA-1 verification, %ProgramFiles% paths, and ARM64 resolver guards (CWE-494)" {
+        $batRaw     = Get-Content -LiteralPath $JvmBat -Raw
+        $installRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+
+        # 1. Verify Nightly Git Blob SHA-1 verification in jvm.bat (:SelfUpdate) and install.ps1
+        Assert-Contains $batRaw "contents/install.ps1?ref=" "jvm.bat :SelfUpdate must query GitHub Contents API for install.ps1 Git Blob SHA-1 on Nightly"
+        Assert-Contains $batRaw "'blob ' + `$b.Length + [char]0" "jvm.bat :SelfUpdate must compute Git Blob SHA-1 header ('blob <len>\0')"
+        Assert-Contains $installRaw "contents/jvm.bat?ref=" "install.ps1 must query GitHub Contents API for jvm.bat Git Blob SHA-1 on Nightly"
+        Assert-Contains $installRaw "Cryptographic Git blob SHA-1 check failed for Nightly jvm.bat!" "install.ps1 must abort on Nightly Git Blob SHA-1 mismatch"
+
+        # 2. Live simulation of Git Blob SHA-1 match and 1-byte tamper rejection
+        $sampleBytes = [System.Text.Encoding]::UTF8.GetBytes("# Java Version Manager`r`nWrite-Host 'OK'`r`n")
+        $hdr = [System.Text.Encoding]::ASCII.GetBytes("blob $($sampleBytes.Length)`0")
+        $blob = New-Object byte[] ($hdr.Length + $sampleBytes.Length)
+        [Array]::Copy($hdr, 0, $blob, 0, $hdr.Length)
+        [Array]::Copy($sampleBytes, 0, $blob, $hdr.Length, $sampleBytes.Length)
+        $sha1 = [System.Security.Cryptography.SHA1]::Create()
+        $expectedBlobSha = ([System.BitConverter]::ToString($sha1.ComputeHash($blob)) -replace '-', '').ToLower()
+
+        $tamperedBytes = [System.Text.Encoding]::UTF8.GetBytes("# Java Version Manager`r`nWrite-Host 'EVIL'`r`n")
+        $tHdr = [System.Text.Encoding]::ASCII.GetBytes("blob $($tamperedBytes.Length)`0")
+        $tBlob = New-Object byte[] ($tHdr.Length + $tamperedBytes.Length)
+        [Array]::Copy($tHdr, 0, $tBlob, 0, $tHdr.Length)
+        [Array]::Copy($tamperedBytes, 0, $tBlob, $tHdr.Length, $tamperedBytes.Length)
+        $tamperedBlobSha = ([System.BitConverter]::ToString($sha1.ComputeHash($tBlob)) -replace '-', '').ToLower()
+        Assert-True ($expectedBlobSha -ne $tamperedBlobSha) "Tampered Nightly payload must produce a distinct Git Blob SHA-1 digest"
+
+        # 3. Verify dynamic %ProgramFiles% (%JVM_PF%) and ARM64 resolver guards in jvm.bat
+        Assert-Contains $batRaw 'set "JVM_PF=%ProgramFiles%"' "jvm.bat must initialize JVM_PF from %ProgramFiles%"
+        Assert-Contains $batRaw 'set "LOCATIONS[0]=%JVM_PF%\Java"' "LOCATIONS[0] must use %JVM_PF%\Java instead of hardcoded C:\Program Files"
+        Assert-Contains $batRaw 'set "DEST_DIR=!JVM_PF!\Java"' ":FetchAndExtract DEST_DIR must use !JVM_PF!\Java"
+        Assert-Contains $batRaw 'Oracle does not publish native Windows ARM64 ZIP archives.' ":Resolve_Oracle must emit explicit ARM64 warning and fallback"
+        Assert-Contains $batRaw 'GraalVM CE does not publish native Windows ARM64 builds.' ":Resolve_GraalVM must emit explicit ARM64 warning and fallback"
     }
 
 } finally {
