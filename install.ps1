@@ -501,7 +501,7 @@ function jvm {
         $env:Path = $parts -join ';'
     }
 
-    $sessionFile = "$env:TEMP\.jvm_session_target"
+    $sessionFile = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\temp\.jvm_session_target'
     if (Test-Path $sessionFile) {
         $lines = Get-Content $sessionFile -ErrorAction SilentlyContinue
         Remove-Item $sessionFile -Force -ErrorAction SilentlyContinue

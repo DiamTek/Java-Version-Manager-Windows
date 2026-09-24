@@ -17,6 +17,7 @@ rem along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 rem Enforce pinned system executable paths against CWE-426 (Binary Planting in CWD)
 if not defined SystemRoot set "SystemRoot=C:\Windows"
+if not exist "%SystemRoot%\System32\cmd.exe" set "SystemRoot=C:\Windows"
 set "NoDefaultCurrentDirectoryInExePath=1"
 set "SYS32=%SystemRoot%\System32"
 set "CMD_BIN=%SYS32%\cmd.exe"
@@ -29,11 +30,18 @@ set "FSUTIL_BIN=%SYS32%\fsutil.exe"
 set "WHERE_BIN=%SYS32%\where.exe"
 set "TIMEOUT_BIN=%SYS32%\timeout.exe"
 set "CHCP_BIN=%SYS32%\chcp.com"
+set "ICACLS_BIN=%SYS32%\icacls.exe"
+set "ATTRIB_BIN=%SYS32%\attrib.exe"
 set "EXPLORER_BIN=%SystemRoot%\explorer.exe"
 
 rem Establish a secure, user-isolated temp workspace to prevent CWE-377 / CWE-378
 set "JVM_SECURE_TEMP=%LOCALAPPDATA%\DiamTek\JVM\temp"
 call :EnsureSecureTemp
+if errorlevel 1 exit /b 1
+
+set "SKIP_CHECKSUM=0"
+if /i "%JVM_SKIP_CHECKSUM%"=="1" set "SKIP_CHECKSUM=1"
+if /i "%JVM_SKIP_CHECKSUM%"=="true" set "SKIP_CHECKSUM=1"
 
 set "ORIG_CP="
 for /f "tokens=2 delims=:" %%A in ('%CHCP_BIN% 2^>nul') do (
@@ -45,7 +53,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260923.118"
+set "JVM_BUILD=20260924.119"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -91,7 +99,7 @@ set "SCRIPT_DIR=%~dp0"
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
 setlocal disabledelayedexpansion
-call :RejectExclamationArg "%~1" "%~2" "%~3" "%~4" "%~5"
+call :RejectExclamationArg "%~1" "%~2" "%~3" "%~4" "%~5" "%~6" "%~7" "%~8" "%~9"
 if errorlevel 1 (
     endlocal
     echo %cRED%[ ERROR  ]%cRESET% Invalid link name or argument: poison character '!' is forbidden.
@@ -165,6 +173,12 @@ if /i "%~1"=="groovy" ( set "TARGET_CANDIDATE=groovy" & shift & goto :PARSE_CLI_
 if /i "%~1"=="--groovy" ( set "TARGET_CANDIDATE=groovy" & shift & goto :PARSE_CLI_ARGS )
 if /i "%~1"=="--vendor" (
     set "CLI_VENDOR=%~2"
+    call :ValidateStrictIdentifier "!CLI_VENDOR!" CLI_VENDOR
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid vendor identifier: !CLI_VENDOR!
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b 1
+    )
     shift
     shift
     goto :PARSE_CLI_ARGS
@@ -484,6 +498,25 @@ if errorlevel 1 (
     if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     exit /b 1
 )
+if /i "!PIN_CONTENT!"=="current" (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% 'current' is a reserved keyword and cannot be pinned.
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b 1
+)
+if exist "%INVOCATION_DIR%\.java-version\" (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Security violation: .java-version is a directory or junction.
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b 1
+)
+"%FSUTIL_BIN%" reparsepoint query "%INVOCATION_DIR%\.java-version" >nul 2>&1
+if not errorlevel 1 (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Security violation: Refusing to overwrite symlink/reparse point .java-version.
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b 1
+)
 >"%INVOCATION_DIR%\.java-version" echo !PIN_CONTENT!
 echo.
 echo %cGREEN%[   OK   ]%cRESET% Successfully pinned Java version '!PIN_CONTENT!' to:
@@ -492,6 +525,18 @@ if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
 exit /b 0
 
 :PARSE_EXEC_ARGS
+if /i "%~1"=="--vendor" (
+    set "CLI_VENDOR=%~2"
+    call :ValidateStrictIdentifier "!CLI_VENDOR!" CLI_VENDOR
+    if errorlevel 1 (
+        echo.
+        >&2 echo %cRED%[ ERROR  ]%cRESET% Invalid vendor identifier for exec: !CLI_VENDOR!
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b 1
+    )
+    shift
+    shift
+)
 set "EXEC_TARGET=%~1"
 if not defined EXEC_TARGET (
     echo.
@@ -533,6 +578,14 @@ shift
 goto :COLLECT_EXEC_LOOP
 
 :DO_EXEC_RUN
+set "EXEC_TRIM=!EXEC_CMD: =!"
+set "EXEC_TRIM=!EXEC_TRIM:"=!"
+if not defined EXEC_TRIM (
+    echo.
+    >&2 echo %cRED%[ ERROR  ]%cRESET% No command specified to execute.
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b 1
+)
 set "CLI_COMMAND=exec"
 set "SILENT_MODE=1"
 set "SKIP_HEADER=1"
@@ -627,28 +680,37 @@ if /i not "!TARGET_CANDIDATE!"=="java" (
 )
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
-) else if exist "%INVOCATION_DIR%\.java-version" (
-    set "PARSED_JV="
-    for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /r "[0-9]" "%INVOCATION_DIR%\.java-version" 2^>nul ^| %FINDSTR_BIN% /v "[&|<>\`%%!;$()^{}]"') do (
-        if not defined PARSED_JV (
-            call :ParseJavaVersion %%L
-            set "PARSED_JV=1"
-            if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
-            set "SILENT_MODE=1"
-            set "SKIP_HEADER=1"
+) else if not defined CLI_COMMAND (
+    if exist "%INVOCATION_DIR%\.java-version" (
+        set "PARSED_JV="
+        set "JV_PARSE_ERR=0"
+        for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /r "[0-9]" "%INVOCATION_DIR%\.java-version" 2^>nul ^| %FINDSTR_BIN% /v "[&|<>\`%%!;$()^{}]"') do (
+            if not defined PARSED_JV (
+                call :ParseJavaVersion %%L
+                if errorlevel 1 set "JV_PARSE_ERR=1"
+                set "PARSED_JV=1"
+                if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
+                set "SILENT_MODE=1"
+                set "SKIP_HEADER=1"
+            )
         )
-    )
-) else if exist "%INVOCATION_DIR%\.sdkmanrc" (
-    set "FOUND_SDKMANRC=1"
-    for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /i /b "java=" "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| %FINDSTR_BIN% /v "[&|<>\`%%!;$()^{}]"') do (
-        for /f "tokens=1,2 delims==" %%A in ("%%L") do (
-            call :ParseSdkmanrc "%%B"
+        if "!JV_PARSE_ERR!"=="1" (
+            echo %cRED%[ ERROR  ]%cRESET% Invalid or unsafe configuration in .java-version.
+            if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+            exit /b 1
         )
+    ) else if exist "%INVOCATION_DIR%\.sdkmanrc" (
+        set "FOUND_SDKMANRC=1"
+        for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /i /b "java=" "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| %FINDSTR_BIN% /v "[&|<>\`%%!;$()^{}]"') do (
+            for /f "tokens=1,2 delims==" %%A in ("%%L") do (
+                call :ParseSdkmanrc "%%B"
+            )
+        )
+        if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
+        set "SILENT_MODE=1"
+        set "SKIP_HEADER=1"
+        if not defined CLI_TARGET set "CLI_TARGET=SKIP_JAVA"
     )
-    if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
-    set "SILENT_MODE=1"
-    set "SKIP_HEADER=1"
-    if not defined CLI_TARGET set "CLI_TARGET=SKIP_JAVA"
 )
 
 if /i "%CLI_COMMAND%"=="clear" set "SKIP_HEADER=1"
@@ -723,11 +785,15 @@ if "!CURRENT_JDK_PATH!"=="CLEAR" (
 )
 
 if "!SESSION_MODE!"=="1" (
+    call :EmitSessionEnv RESET
+    if errorlevel 1 (
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b 1
+    )
     echo.
-    if exist "%JVM_SECURE_TEMP%\.jvm_session_target" del "%JVM_SECURE_TEMP%\.jvm_session_target"
     if defined CURRENT_JDK_PATH (
         echo %cBLUE%[ ACTION ]%cRESET% Session mode active. Setting Java to !CURRENT_JDK_PATH!...
-        >>"%JVM_SECURE_TEMP%\.jvm_session_target" echo JAVA_HOME=!CURRENT_JDK_PATH!
+        call :EmitSessionEnv "JAVA_HOME=!CURRENT_JDK_PATH!"
         set "JAVA_HOME=!CURRENT_JDK_PATH!"
         set "PATH=!CURRENT_JDK_PATH!\bin;!PATH!"
     ) else (
@@ -755,7 +821,8 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     echo %cBLUE%[  INFO  ]%cRESET% Setting JAVA_HOME to: !CURRENT_JDK_PATH!
     
     rem Output session target so the parent PowerShell window can sync immediately
-    >"%JVM_SECURE_TEMP%\.jvm_session_target" echo !CURRENT_JDK_PATH!
+    call :EmitSessionEnv RESET
+    call :EmitSessionEnv "!CURRENT_JDK_PATH!"
     
     rem Deferring registry update to UpdateSystemPath to do both in one UAC prompt
     set "SYMLINK_OR_DIRECT=!CURRENT_JDK_PATH!"
@@ -775,7 +842,8 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
         goto MAIN_LOOP
     )
     
-    >"%JVM_SECURE_TEMP%\.jvm_session_target" echo !CURRENT_SYMLINK!
+    call :EmitSessionEnv RESET
+    call :EmitSessionEnv "!CURRENT_SYMLINK!"
     
     rem Ensure JAVA_HOME permanently points to the junction in the USER registry (bypasses UAC)
     set "REG_JAVA_HOME="
@@ -911,7 +979,7 @@ if "!SKIP_HEADER!"=="0" (
     echo Current Java information:
     echo ============================================================
     set "DISCOVERED_JAVA="
-    for /f "delims=" %%A in ('%WHERE_BIN% java 2^>nul') do (
+    for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do (
         if not defined DISCOVERED_JAVA set "DISCOVERED_JAVA=%%A"
     )
     if not defined DISCOVERED_JAVA (
@@ -980,16 +1048,16 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                             for /f "tokens=2 delims==" %%R in ('%FINDSTR_BIN% /b "IMPLEMENTOR=" "%%j\release" 2^>nul') do (
                                 set "VENDOR_RAW=%%~R"
                                 set "VENDOR_RAW=!VENDOR_RAW:"=!"
-                                echo !VENDOR_RAW! | %FIND_BIN% /i "Oracle" >nul && set "VENDOR_STR=Oracle"
-                                echo !VENDOR_RAW! | %FIND_BIN% /i "Adoptium" >nul && set "VENDOR_STR=Adoptium"
-                                echo !VENDOR_RAW! | %FIND_BIN% /i "GraalVM" >nul && set "VENDOR_STR=GraalVM"
-                                echo !VENDOR_RAW! | %FIND_BIN% /i "Amazon" >nul && set "VENDOR_STR=Corretto"
-                                echo !VENDOR_RAW! | %FIND_BIN% /i "Azul" >nul && set "VENDOR_STR=Zulu"
-                                echo !VENDOR_RAW! | %FIND_BIN% /i "Microsoft" >nul && set "VENDOR_STR=Microsoft"
-                                echo !VENDOR_RAW! | %FIND_BIN% /i "BellSoft" >nul && set "VENDOR_STR=Liberica"
-                                echo !VENDOR_RAW! | %FIND_BIN% /i "Liberica" >nul && set "VENDOR_STR=Liberica"
-                                echo !VENDOR_RAW! | %FIND_BIN% /i "IBM" >nul && set "VENDOR_STR=Semeru"
-                                echo !VENDOR_RAW! | %FIND_BIN% /i "Semeru" >nul && set "VENDOR_STR=Semeru"
+                                if /i not "!VENDOR_RAW:Oracle=!"=="!VENDOR_RAW!" set "VENDOR_STR=Oracle"
+                                if /i not "!VENDOR_RAW:Adoptium=!"=="!VENDOR_RAW!" set "VENDOR_STR=Adoptium"
+                                if /i not "!VENDOR_RAW:GraalVM=!"=="!VENDOR_RAW!" set "VENDOR_STR=GraalVM"
+                                if /i not "!VENDOR_RAW:Amazon=!"=="!VENDOR_RAW!" set "VENDOR_STR=Corretto"
+                                if /i not "!VENDOR_RAW:Azul=!"=="!VENDOR_RAW!" set "VENDOR_STR=Zulu"
+                                if /i not "!VENDOR_RAW:Microsoft=!"=="!VENDOR_RAW!" set "VENDOR_STR=Microsoft"
+                                if /i not "!VENDOR_RAW:BellSoft=!"=="!VENDOR_RAW!" set "VENDOR_STR=Liberica"
+                                if /i not "!VENDOR_RAW:Liberica=!"=="!VENDOR_RAW!" set "VENDOR_STR=Liberica"
+                                if /i not "!VENDOR_RAW:IBM=!"=="!VENDOR_RAW!" set "VENDOR_STR=Semeru"
+                                if /i not "!VENDOR_RAW:Semeru=!"=="!VENDOR_RAW!" set "VENDOR_STR=Semeru"
                             )
                         )
                         if not defined VER (
@@ -3687,35 +3755,71 @@ if errorlevel 2 (
 
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Locating uninstaller...
+set "UNINSTALL_REF=v!JVM_VERSION!"
 set "UNINSTALL_SCRIPT="
+set "UNINSTALL_VERIFIED=0"
+
 if exist "!SCRIPT_DIR!\uninstall.ps1" set "UNINSTALL_SCRIPT=!SCRIPT_DIR!\uninstall.ps1"
 if not defined UNINSTALL_SCRIPT if exist "!SCRIPT_DIR!\..\uninstall.ps1" set "UNINSTALL_SCRIPT=!SCRIPT_DIR!\..\uninstall.ps1"
 if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\uninstall.ps1" set "UNINSTALL_SCRIPT=%LOCALAPPDATA%\DiamTek\JVM\uninstall.ps1"
 if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\bin\uninstall.ps1" set "UNINSTALL_SCRIPT=%LOCALAPPDATA%\DiamTek\JVM\bin\uninstall.ps1"
 
+if defined UNINSTALL_SCRIPT (
+    if /i "!UPDATE_CHANNEL!"=="STABLE" (
+        call :VerifyDownloadedScript "!UNINSTALL_SCRIPT!" "!UNINSTALL_REF!" "uninstall.ps1"
+        if errorlevel 1 (
+            echo %cYELLOW%[ WARNING]%cRESET% Local uninstall.ps1 does not match !UNINSTALL_REF! digest. Fetching verified release copy...
+            set "UNINSTALL_SCRIPT="
+        ) else (
+            set "UNINSTALL_VERIFIED=1"
+            echo %cGREEN%[   OK   ]%cRESET% uninstall.ps1 SHA-256 verified.
+        )
+    )
+)
+
 if not defined UNINSTALL_SCRIPT (
-    echo %cBLUE%[ ACTION ]%cRESET% Downloading latest uninstall.ps1...
+    echo %cBLUE%[ ACTION ]%cRESET% Downloading verified uninstall.ps1...
+
+    if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
+        echo %cRED%[ ERROR  ]%cRESET% No verified nightly uninstaller is available.
+        echo            Refusing to execute an unverified remote script.
+        exit /b 1
+    )
+
     set "UNINSTALL_SCRIPT=%JVM_SECURE_TEMP%\jvm_uninstall_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
-    "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $f = '!UNINSTALL_SCRIPT!'; try { Invoke-WebRequest -Uri 'https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/uninstall.ps1?ref=HEAD' -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile $f -UseBasicParsing -TimeoutSec 5 } catch { try { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/uninstall.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile $f -UseBasicParsing -TimeoutSec 5 } catch {} }; if (Test-Path $f) { $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'Java Version Manager - Uninstaller') { Remove-Item $f -Force -ErrorAction SilentlyContinue } }"
+
+    "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+        "$ProgressPreference = 'SilentlyContinue';" ^
+        "$ref = $env:UNINSTALL_REF;" ^
+        "$f = $env:UNINSTALL_SCRIPT;" ^
+        "try {" ^
+        "  Invoke-WebRequest -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/uninstall.ps1?ref=' + $ref) -Headers @{'Accept'='application/vnd.github.v3.raw'} -UserAgent 'DiamTek-JVM' -OutFile $f -UseBasicParsing -TimeoutSec 5" ^
+        "} catch {" ^
+        "  try {" ^
+        "    Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/uninstall.ps1') -UserAgent 'DiamTek-JVM' -OutFile $f -UseBasicParsing -TimeoutSec 5" ^
+        "  } catch {}" ^
+        "}"
 )
 
 if not exist "!UNINSTALL_SCRIPT!" (
-    echo %cRED%[ ERROR  ]%cRESET% Could not find or download uninstall.ps1!
-    echo.
-    echo Press any key to return...
-    pause >nul
-    if defined CLI_COMMAND (
-        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
-        exit /b 1
-    )
-    goto :SettingsMenu
+    echo %cRED%[ ERROR  ]%cRESET% Failed to locate or download uninstall.ps1.
+    exit /b 1
 )
 
-rem Stage uninstaller to secure temp so the JVM directory is completely unlocked
+if /i "!UPDATE_CHANNEL!"=="STABLE" if "!UNINSTALL_VERIFIED!"=="0" (
+    call :VerifyDownloadedScript "!UNINSTALL_SCRIPT!" "!UNINSTALL_REF!" "uninstall.ps1"
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Cryptographic verification of uninstall.ps1 failed.
+        del "!UNINSTALL_SCRIPT!" >nul 2>&1
+        exit /b 1
+    )
+
+    echo %cGREEN%[   OK   ]%cRESET% uninstall.ps1 SHA-256 verified.
+)
+
 set "RUNNER_PS1=%JVM_SECURE_TEMP%\diamtek_uninstall_runner_!RANDOM!_!RANDOM!_!RANDOM!.ps1"
 copy /y "!UNINSTALL_SCRIPT!" "!RUNNER_PS1!" >nul 2>&1
 
-rem Switch working directory to secure temp to release directory lock from cmd.exe
 set "TARGET_UNINSTALL_DIR=!SCRIPT_DIR!"
 cd /d "%JVM_SECURE_TEMP%"
 
@@ -3762,6 +3866,24 @@ if /i "%~1"=="link" (
         echo Use "jvm link <path> [name]" to add a link.
         echo.
         exit /b 0
+    )
+
+    rem Reject Win32 device namespace paths (\\.\, \\?\, \??\) and NTFS ADS colons
+    set "RAW_LINK_PATH=%~2"
+    if "!RAW_LINK_PATH:~0,2!"=="\\" (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid JDK path: Win32 device or UNC paths are forbidden.
+        exit /b 1
+    )
+    if "!RAW_LINK_PATH:~0,4!"=="\??\" (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid JDK path: NT namespace paths are forbidden.
+        exit /b 1
+    )
+    set "LINK_AFTER_DRIVE=!RAW_LINK_PATH:~2!"
+    if defined LINK_AFTER_DRIVE (
+        if not "!LINK_AFTER_DRIVE!"=="!LINK_AFTER_DRIVE::=!" (
+            echo %cRED%[ ERROR  ]%cRESET% Invalid JDK path: NTFS Alternate Data Streams are forbidden.
+            exit /b 1
+        )
     )
 
     rem Resolve absolute path
@@ -3952,7 +4074,7 @@ if defined JAVA_HOME (
 )
 
 if not defined CURR_JAVA_BIN (
-    for /f "delims=" %%A in ('%WHERE_BIN% java 2^>nul') do (
+    for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do (
         if not defined CURR_JAVA_BIN set "CURR_JAVA_BIN=%%A"
     )
 )
@@ -4041,7 +4163,7 @@ echo.
 echo %cBLUE%[ ACTION ]%cRESET% Scanning temporary files, installer archives, and cache...
 set "FREED_MB=0"
 set "FREED_COUNT=0"
-set "CLEAN_CMD=$temp = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM\temp'); $appdata = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM'); $patterns = @((Join-Path $temp 'jdk_*_download.*'), (Join-Path $temp 'jdk_*_extract'), (Join-Path $temp 'jvm_dl_*.ps1'), (Join-Path $temp 'jvm_updater_*.bat'), (Join-Path $temp 'jvm_install_*.ps1'), (Join-Path $temp 'jvm_uninstall_*.bat'), (Join-Path $temp 'jvm_uninstall_*.ps1'), (Join-Path $temp '.jvm_session_target'), (Join-Path $appdata 'downloads\*'), (Join-Path $appdata 'candidates\*\temp_*')); $totalBytes = 0; $fileCount = 0; foreach ($p in $patterns) { Get-Item $p -ErrorAction SilentlyContinue | ForEach-Object { if ($_.PSIsContainer) { $subFiles = Get-ChildItem $_.FullName -Recurse -File -ErrorAction SilentlyContinue; foreach ($sf in $subFiles) { $totalBytes += $sf.Length; $fileCount++ }; Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } else { $totalBytes += $_.Length; $fileCount++; Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }; $mb = [math]::Round($totalBytes / 1MB, 2); Write-Output ('FREED_MB=' + $mb); Write-Output ('FREED_COUNT=' + $fileCount)"
+set "CLEAN_CMD=$temp = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM\temp'); $appdata = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM'); $patterns = @((Join-Path $temp 'jdk_*_download.*'), (Join-Path $temp 'jdk_*_extract'), (Join-Path $temp 'jvm_dl_*.ps1'), (Join-Path $temp 'jvm_updater_*.bat'), (Join-Path $temp 'jvm_install_*.ps1'), (Join-Path $temp 'jvm_uninstall_*.bat'), (Join-Path $temp 'jvm_uninstall_*.ps1'), (Join-Path $temp '.jvm_session_target*'), (Join-Path $appdata 'downloads\*'), (Join-Path $appdata 'candidates\*\temp_*')); $totalBytes = 0; $fileCount = 0; foreach ($p in $patterns) { Get-Item $p -Force -ErrorAction SilentlyContinue | ForEach-Object { if (($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { $fileCount++; if ($_.PSIsContainer) { try { [System.IO.Directory]::Delete($_.FullName, $false) } catch {} } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } elseif ($_.PSIsContainer) { Get-ChildItem -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { try { [System.IO.Directory]::Delete($_.FullName, $false) } catch {} } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } }; $subFiles = Get-ChildItem -LiteralPath $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue; foreach ($sf in $subFiles) { $totalBytes += $sf.Length; $fileCount++ }; Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } else { $totalBytes += $_.Length; $fileCount++; Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }; $mb = [math]::Round($totalBytes / 1MB, 2); Write-Output ('FREED_MB=' + $mb); Write-Output ('FREED_COUNT=' + $fileCount)"
 for /f "tokens=1,2 delims==" %%A in ('%PS_BIN% -NoProfile -Command "!CLEAN_CMD!"') do (
     if "%%A"=="FREED_MB" set "FREED_MB=%%B"
     if "%%A"=="FREED_COUNT" set "FREED_COUNT=%%B"
@@ -4083,7 +4205,7 @@ if /i "!WHICH_TARGET!"=="java" (
             exit /b 0
         )
     )
-    for /f "delims=" %%A in ('%WHERE_BIN% java 2^>nul') do (
+    for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do (
         echo %%A
         exit /b 0
     )
@@ -4182,12 +4304,12 @@ if defined HKCU_JH (
 rem 4. PATH Precedence & Shadowing Check
 set "FIRST_JAVA="
 set "SHADOW_FOUND=0"
-for /f "delims=" %%A in ('%WHERE_BIN% java 2^>nul') do (
+for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do (
     if not defined FIRST_JAVA (
         set "FIRST_JAVA=%%A"
-        echo "%%A" | %FINDSTR_BIN% /i /c:"Common Files\Oracle\Java\javapath" >nul 2>&1 && set "SHADOW_FOUND=1"
-        echo "%%A" | %FINDSTR_BIN% /i /c:"ProgramData\Oracle\Java\javapath" >nul 2>&1 && set "SHADOW_FOUND=1"
-        echo "%%A" | %FINDSTR_BIN% /i /c:"System32\java.exe" >nul 2>&1 && set "SHADOW_FOUND=1"
+        if /i not "!FIRST_JAVA:Common Files\Oracle\Java\javapath=!"=="!FIRST_JAVA!" set "SHADOW_FOUND=1"
+        if /i not "!FIRST_JAVA:ProgramData\Oracle\Java\javapath=!"=="!FIRST_JAVA!" set "SHADOW_FOUND=1"
+        if /i not "!FIRST_JAVA:System32\java.exe=!"=="!FIRST_JAVA!" set "SHADOW_FOUND=1"
     )
 )
 
@@ -4238,7 +4360,9 @@ if /i "!EXEC_TARGET!"=="latest" (
 ) else if /i "!EXEC_TARGET!"=="lts" (
     if !LATEST_LTS_NUM! GTR 0 (
         for /l %%k in (1,1,!JDK_COUNT!) do (
-            if "!JDK_MAJOR_%%k!"=="!LATEST_LTS_NUM!" (
+            set "EXEC_MATCH=1"
+            if defined CLI_VENDOR if /i "!JDK_VENDOR_%%k!" NEQ "!CLI_VENDOR!" set "EXEC_MATCH=0"
+            if "!EXEC_MATCH!"=="1" if "!JDK_MAJOR_%%k!"=="!LATEST_LTS_NUM!" (
                 if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
             )
         )
@@ -4247,19 +4371,29 @@ if /i "!EXEC_TARGET!"=="latest" (
 
 if not defined FOUND_EXEC_JDK (
     for /l %%k in (1,1,!JDK_COUNT!) do (
-        if "!JDK_MAJOR_%%k!"=="!EXEC_TARGET!" (
-            if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
-        )
-        if /i "!JDK_NAME_%%k!"=="!EXEC_TARGET!" (
-            if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
+        set "EXEC_MATCH=1"
+        if defined CLI_VENDOR if /i "!JDK_VENDOR_%%k!" NEQ "!CLI_VENDOR!" set "EXEC_MATCH=0"
+        if "!EXEC_MATCH!"=="1" (
+            if "!JDK_MAJOR_%%k!"=="!EXEC_TARGET!" (
+                if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
+            )
+            if /i "!JDK_NAME_%%k!"=="!EXEC_TARGET!" (
+                if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
+            )
         )
     )
 )
 
 if not defined FOUND_EXEC_JDK (
     for /l %%k in (1,1,!JDK_COUNT!) do (
-        echo "!JDK_PATH_%%k!" | %FINDSTR_BIN% /i "!EXEC_TARGET!" >nul 2>&1 && (
-            if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
+        set "EXEC_MATCH=1"
+        if defined CLI_VENDOR if /i "!JDK_VENDOR_%%k!" NEQ "!CLI_VENDOR!" set "EXEC_MATCH=0"
+        if "!EXEC_MATCH!"=="1" (
+            for /f "delims=" %%T in ("!EXEC_TARGET!") do (
+                if /i not "!JDK_NAME_%%k:%%T=!"=="!JDK_NAME_%%k!" (
+                    if not defined FOUND_EXEC_JDK set "FOUND_EXEC_JDK=!JDK_PATH_%%k!"
+                )
+            )
         )
     )
 )
@@ -4274,7 +4408,7 @@ if not defined FOUND_EXEC_JDK (
 set "JAVA_HOME=!FOUND_EXEC_JDK!"
 set "PATH=!FOUND_EXEC_JDK!\bin;!PATH!"
 
-"%CMD_BIN%" /c "!EXEC_CMD!"
+"%CMD_BIN%" /d /s /c ""!EXEC_CMD!""
 set "EXEC_EXIT_CODE=!errorlevel!"
 exit /b !EXEC_EXIT_CODE!
 
@@ -4527,7 +4661,7 @@ if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
     set "UPDATE_CHANNEL=STABLE"
     set "CH_TAG=%cGREEN%[Stable]%cRESET%"
 )
-if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1" (
+if "!CLI_COMMAND!"=="self-update" (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Checking for updates ^(!CH_TAG! channel^)...
     call :CheckUpdateStatus
@@ -4595,7 +4729,7 @@ echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
 
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "INS_RANDOM_NAME=%%A"
 set "INSTALL_SCRIPT=%JVM_SECURE_TEMP%\jvm_install_!INS_RANDOM_NAME!.ps1"
-"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = $env:REMOTE_REF; try { Invoke-WebRequest -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/install.ps1?ref=' + $ref) -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile $env:INSTALL_SCRIPT -UseBasicParsing -TimeoutSec 5 } catch { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/install.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile $env:INSTALL_SCRIPT -UseBasicParsing -TimeoutSec 5 }"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $ProgressPreference = 'SilentlyContinue'; $ref = $env:REMOTE_REF; try { Invoke-WebRequest -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/install.ps1?ref=' + $ref) -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile $env:INSTALL_SCRIPT -UseBasicParsing -TimeoutSec 5 } catch { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/install.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile $env:INSTALL_SCRIPT -UseBasicParsing -TimeoutSec 5 }"
 
 if not exist "!INSTALL_SCRIPT!" (
     echo.
@@ -4606,7 +4740,7 @@ if not exist "!INSTALL_SCRIPT!" (
 
 echo %cBLUE%[ ACTION ]%cRESET% Verifying installer cryptographic integrity...
 set "VERIFY_TMP=%JVM_SECURE_TEMP%\jvm_sha_!RANDOM!_!RANDOM!_!RANDOM!.txt"
-"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference = 'SilentlyContinue'; $ref = $env:REMOTE_REF; $ch = $env:UPDATE_CHANNEL; $f = $env:INSTALL_SCRIPT; if (-not (Test-Path $f)) { Write-Output 'MISSING'; exit }; $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'rem END OF SCRIPT|# Java Version Manager') { Write-Output 'TRUNCATED'; exit }; $s = [System.Security.Cryptography.SHA256]::Create(); $fs = [System.IO.File]::OpenRead($f); $actual = try { ([System.BitConverter]::ToString($s.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $s.Dispose() }; if ($ch -eq 'STABLE' -and $ref -match '^v?[0-9]') { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt') -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if (-not $shaTxt) { try { $relJson = (Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/' + $ref) -UserAgent 'DiamTek-JVM'); $asset = $relJson.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1; if ($asset) { $shaTxt = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } } catch {} }; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NO_ENTRY|' + $actual) } } else { Write-Output ('NO_SHA_FILE|' + $actual) } } else { $shaTxt = $null; try { $shaTxt = (Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/SHA256SUMS.txt?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content } catch {}; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } }" > "!VERIFY_TMP!" 2>nul
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $ProgressPreference = 'SilentlyContinue'; $ref = $env:REMOTE_REF; $ch = $env:UPDATE_CHANNEL; $f = $env:INSTALL_SCRIPT; if (-not (Test-Path $f)) { Write-Output 'MISSING'; exit }; $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'rem END OF SCRIPT|# Java Version Manager') { Write-Output 'TRUNCATED'; exit }; $s = [System.Security.Cryptography.SHA256]::Create(); $fs = [System.IO.File]::OpenRead($f); $actual = try { ([System.BitConverter]::ToString($s.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $s.Dispose() }; if ($ch -eq 'STABLE' -and $ref -match '^v?[0-9]') { $shaTxt = $null; try { $rc = (Invoke-WebRequest -Uri ('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt') -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content; $shaTxt = if ($rc -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($rc) } else { [string]$rc } } catch {}; if (-not $shaTxt) { try { $relJson = (Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/' + $ref) -UserAgent 'DiamTek-JVM'); $asset = $relJson.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1; if ($asset) { $rc = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content; $shaTxt = if ($rc -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($rc) } else { [string]$rc } } } catch {} }; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line.Trim() -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NO_ENTRY|' + $actual) } } else { Write-Output ('NO_SHA_FILE|' + $actual) } } else { $shaTxt = $null; try { $rc = (Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/SHA256SUMS.txt?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content; $shaTxt = if ($rc -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($rc) } else { [string]$rc } } catch {}; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line.Trim() -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } } else { Write-Output ('NIGHTLY|' + $actual) } }" > "!VERIFY_TMP!" 2>nul
 
 set "SHA_STATUS=UNKNOWN"
 set "SHA_EXP="
@@ -4694,15 +4828,18 @@ set "UPDATER_BAT=%JVM_SECURE_TEMP%\jvm_updater_!BAT_RANDOM_NAME!.bat"
     echo set "cBLUE=%%ESC%%[96m"
     echo set "cRESET=%%ESC%%[0m"
     echo echo.
+    echo if exist "!SCRIPT_DIR!\jvm.bat" copy /y "!SCRIPT_DIR!\jvm.bat" "!SCRIPT_DIR!\jvm.bat.old" ^>nul 2^>^&1
     echo "!PS_BIN!" -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_SCRIPT!" -Update -TargetDir "!SCRIPT_DIR!" -Branch "!REMOTE_REF!" -Channel "!UPDATE_CHANNEL!"
     echo set "UPD_ERR=%%errorlevel%%"
     echo if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" ^>nul 2^>^&1
     echo if %%UPD_ERR%% NEQ 0 ^(
+    echo     if exist "!SCRIPT_DIR!\jvm.bat.old" move /y "!SCRIPT_DIR!\jvm.bat.old" "!SCRIPT_DIR!\jvm.bat" ^>nul 2^>^&1
     echo     echo.
     echo     echo %%cRED%%[ ERROR  ]%%cRESET%% Update encountered an error.
     echo     pause
     echo     ^(goto^) 2^>nul ^& del "%%~f0"
     echo ^)
+    echo if exist "!SCRIPT_DIR!\jvm.bat.old" del "!SCRIPT_DIR!\jvm.bat.old" ^>nul 2^>^&1
     echo echo.
     echo echo %%cGREEN%%[   OK   ]%%cRESET%% Java Version Manager successfully updated.
     echo echo.
@@ -4757,6 +4894,16 @@ if "%~1"=="" exit /b 0
 set "CLI_TARGET=%~1"
 set "CLI_TARGET=!CLI_TARGET:"=!"
 set "CLI_TARGET=!CLI_TARGET:;=!"
+set "CLI_TARGET=!CLI_TARGET:ï»¿=!"
+if /i "!CLI_TARGET:~0,4!"=="jdk-" set "CLI_TARGET=!CLI_TARGET:~4!"
+if /i "!CLI_TARGET:~0,5!"=="java-" set "CLI_TARGET=!CLI_TARGET:~5!"
+for /f "tokens=1,2 delims=." %%M in ("!CLI_TARGET!") do (
+    if "%%M"=="1" (
+        if not "%%N"=="" set "CLI_TARGET=%%N"
+    ) else (
+        set "CLI_TARGET=%%M"
+    )
+)
 call :ValidateStrictIdentifier "!CLI_TARGET!" CLI_TARGET
 if errorlevel 1 (
     set "CLI_TARGET="
@@ -4767,6 +4914,12 @@ shift
 if "%~1"=="" exit /b 0
 if /i "%~1"=="--vendor" (
     set "CLI_VENDOR=%~2"
+    call :ValidateStrictIdentifier "!CLI_VENDOR!" CLI_VENDOR
+    if errorlevel 1 (
+        set "CLI_VENDOR="
+        set "CLI_TARGET="
+        exit /b 1
+    )
     shift
     shift
     goto PARSE_JV_LOOP
@@ -4777,14 +4930,14 @@ if /i "%~1"=="--symlink" (
     goto PARSE_JV_LOOP
 )
 if /i "%~1"=="--legacy" (
-    set "SWITCH_MODE_OVERRIDE=DIRECT"
-    shift
-    goto PARSE_JV_LOOP
+    echo %cRED%[ ERROR  ]%cRESET% Security policy: --legacy / --registry is forbidden inside .java-version.
+    set "CLI_TARGET="
+    exit /b 1
 )
 if /i "%~1"=="--registry" (
-    set "SWITCH_MODE_OVERRIDE=DIRECT"
-    shift
-    goto PARSE_JV_LOOP
+    echo %cRED%[ ERROR  ]%cRESET% Security policy: --legacy / --registry is forbidden inside .java-version.
+    set "CLI_TARGET="
+    exit /b 1
 )
 shift
 goto PARSE_JV_LOOP
@@ -4797,8 +4950,16 @@ if "%~1"=="" exit /b 0
 set "RAW_SDK_VER=%~1"
 set "RAW_SDK_VER=!RAW_SDK_VER:"=!"
 set "RAW_SDK_VER=!RAW_SDK_VER:;=!"
+for /f "tokens=1 delims=# " %%C in ("!RAW_SDK_VER!") do set "RAW_SDK_VER=%%C"
+set "CLI_VENDOR="
 for /f "tokens=1,2 delims=-" %%V in ("!RAW_SDK_VER!") do (
-    for /f "tokens=1 delims=." %%M in ("%%V") do set "CLI_TARGET=%%M"
+    for /f "tokens=1,2 delims=." %%M in ("%%V") do (
+        if "%%M"=="1" (
+            if not "%%N"=="" ( set "CLI_TARGET=%%N" ) else ( set "CLI_TARGET=%%M" )
+        ) else (
+            set "CLI_TARGET=%%M"
+        )
+    )
     if defined CLI_TARGET (
         call :ValidateStrictIdentifier "!CLI_TARGET!" CLI_TARGET
         if errorlevel 1 set "CLI_TARGET="
@@ -4817,6 +4978,31 @@ for /f "tokens=1,2 delims=-" %%V in ("!RAW_SDK_VER!") do (
     if /i "%%W"=="liberica" set "CLI_VENDOR=Liberica"
     if /i "%%W"=="sem" set "CLI_VENDOR=Semeru"
     if /i "%%W"=="semeru" set "CLI_VENDOR=Semeru"
+)
+exit /b 0
+
+:EmitSessionEnv
+if defined JVM_CALLER_PID (
+    set "_PID_BAD="
+    if "!JVM_CALLER_PID:~0,1!"=="-" set "_PID_BAD=1"
+    if "!JVM_CALLER_PID:~0,1!"=="." set "_PID_BAD=1"
+    if not "!JVM_CALLER_PID!"=="!JVM_CALLER_PID:\=!" set "_PID_BAD=1"
+    if not "!JVM_CALLER_PID!"=="!JVM_CALLER_PID:/=!" set "_PID_BAD=1"
+    if not "!JVM_CALLER_PID!"=="!JVM_CALLER_PID:..=!" set "_PID_BAD=1"
+    for /f "delims=0123456789" %%P in ("!JVM_CALLER_PID!") do set "_PID_BAD=1"
+    if defined _PID_BAD (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid JVM_CALLER_PID: non-numeric or path traversal characters forbidden.
+        exit /b 1
+    )
+)
+if /i "%~1"=="RESET" (
+    if exist "%JVM_SECURE_TEMP%\.jvm_session_target" del "%JVM_SECURE_TEMP%\.jvm_session_target" >nul 2>&1
+    if defined JVM_CALLER_PID if exist "%JVM_SECURE_TEMP%\.jvm_session_target_!JVM_CALLER_PID!" del "%JVM_SECURE_TEMP%\.jvm_session_target_!JVM_CALLER_PID!" >nul 2>&1
+    exit /b 0
+)
+if not "%~1"=="" (
+    >>"%JVM_SECURE_TEMP%\.jvm_session_target" echo %~1
+    if defined JVM_CALLER_PID >>"%JVM_SECURE_TEMP%\.jvm_session_target_!JVM_CALLER_PID!" echo %~1
 )
 exit /b 0
 rem ============================================================
@@ -4998,9 +5184,16 @@ if defined _VSI_REM (
     goto :VSI_CharLoop
 )
 
-:: Check DOS device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+:: Check DOS device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) including base name with extension (e.g., NUL.jdk)
+set "_VSI_BASE=!_VSI_VAL!"
+for /f "tokens=1 delims=." %%B in ("!_VSI_VAL!") do set "_VSI_BASE=%%B"
 for %%D in (CON PRN AUX NUL COM1 COM2 COM3 COM4 COM5 COM6 COM7 COM8 COM9 LPT1 LPT2 LPT3 LPT4 LPT5 LPT6 LPT7 LPT8 LPT9) do (
     if /i "!_VSI_VAL!"=="%%D" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    if /i "!_VSI_BASE!"=="%%D" (
         endlocal & endlocal
         set "JVM_EXIT_CODE=1"
         exit /b 1
@@ -5413,6 +5606,7 @@ set "TARGET_CANDIDATE=%~1"
 call :ValidateStrictIdentifier "!TARGET_CANDIDATE!" TARGET_CANDIDATE
 if errorlevel 1 exit /b 0
 set "TARGET_VER=%~2"
+for /f "tokens=1 delims=# " %%C in ("!TARGET_VER!") do set "TARGET_VER=%%C"
 call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
 if errorlevel 1 exit /b 0
 if /i "!TARGET_VER!"=="current" exit /b 0
@@ -5425,7 +5619,7 @@ if not exist "!T_PATH!" (
     exit /b 0
 )
 echo %cBLUE%[ ACTION ]%cRESET% Setting !CANDIDATE_PROPER_NAME! to !TARGET_VER!...
->>"%JVM_SECURE_TEMP%\.jvm_session_target" echo !CANDIDATE_ENV_VAR!=!T_PATH!
+call :EmitSessionEnv "!CANDIDATE_ENV_VAR!=!T_PATH!"
 set "!CANDIDATE_ENV_VAR!=!T_PATH!"
 set "PATH=!T_PATH!\bin;!PATH!"
 exit /b 0
@@ -5482,6 +5676,16 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo try {
     echo     $url = $env:DL_URL
     echo     $out = $env:DL_ZIP
+    echo     $dlUri = $null
+    echo     if ^(-not [System.Uri]::TryCreate^($url, [System.UriKind]::Absolute, [ref]$dlUri^) -or $dlUri.Scheme -ne 'https'^) {
+    echo         throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS download URL: ' + $url^)
+    echo     }
+    echo     if ^($env:DL_CHKSUM_URL^) {
+    echo         $chkUri = $null
+    echo         if ^(-not [System.Uri]::TryCreate^($env:DL_CHKSUM_URL, [System.UriKind]::Absolute, [ref]$chkUri^) -or $chkUri.Scheme -ne 'https'^) {
+    echo             throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS checksum URL: ' + $env:DL_CHKSUM_URL^)
+    echo         }
+    echo     }
     echo     Write-Host ^('[ ACTION ] Downloading from ' + $url + ' ...'^) -ForegroundColor Cyan
     echo     $maxRetries = 3; $retryCount = 0; $response = $null
     echo     while ^($retryCount -lt $maxRetries^) {
@@ -5490,6 +5694,10 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo             $request.Timeout = 15000
     echo             $request.ReadWriteTimeout = 30000
     echo             $response = $request.GetResponse^(^)
+    echo             if ^($response.ResponseUri -and $response.ResponseUri.Scheme -ne 'https'^) {
+    echo                 $badUri = $response.ResponseUri; $response.Close^(^)
+    echo                 throw ^('Security policy violation ^(CWE-319^): Blocked redirect to non-HTTPS URL: ' + $badUri^)
+    echo             }
     echo             break
     echo         } catch {
     echo             $retryCount++
@@ -5556,13 +5764,13 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo                     } catch { $expectedHash = $null }
     echo                 }
     echo             }
-    echo             if ^($expectedHash^) { $expectedHash = ^($expectedHash -split '\s+'^)[0].Trim^(^) }
-    echo             if ^($cryptoType -eq 'SHA256' -and $expectedHash -notmatch '^[0-9a-fA-F]{64}$'^) { $expectedHash = $null }
-    echo             if ^($cryptoType -eq 'SHA512' -and $expectedHash -notmatch '^[0-9a-fA-F]{128}$'^) { $expectedHash = $null }
-    echo             if ^($cryptoType -eq 'SHA1' -and $expectedHash -notmatch '^[0-9a-fA-F]{40}$'^) { $expectedHash = $null }
     echo         } else {
     echo             $expectedHash = $env:DL_CHKSUM_VAL
     echo         }
+    echo         if ^($expectedHash^) { $expectedHash = ^($expectedHash -split '\s+'^)[0].Trim^(^) }
+    echo         if ^($cryptoType -eq 'SHA256' -and $expectedHash -notmatch '^[0-9a-fA-F]{64}$'^) { $expectedHash = $null }
+    echo         if ^($cryptoType -eq 'SHA512' -and $expectedHash -notmatch '^[0-9a-fA-F]{128}$'^) { $expectedHash = $null }
+    echo         if ^($cryptoType -eq 'SHA1' -and $expectedHash -notmatch '^[0-9a-fA-F]{40}$'^) { $expectedHash = $null }
     echo         if ^([string]::IsNullOrWhiteSpace^($expectedHash^)^) {
     echo             Write-Host '[ WARNING] Integrity verification unavailable or failed to fetch.' -ForegroundColor Yellow
     echo             if ^($env:SKIP_CHECKSUM -ne '1'^) {
@@ -5576,8 +5784,7 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo             $crypto = [System.Security.Cryptography.HashAlgorithm]::Create^($cryptoType^)
     echo             if ^(-not $crypto^) { $crypto = [System.Security.Cryptography.SHA256]::Create^(^) }
     echo             $fs2 = [System.IO.File]::OpenRead^($out^)
-    echo             $hashBytes = $crypto.ComputeHash^($fs2^)
-    echo             $fs2.Close^(^)
+    echo             $hashBytes = try { $crypto.ComputeHash^($fs2^) } finally { $fs2.Close^(^); $fs2.Dispose^(^) }
     echo             $actualHash = [System.BitConverter]::ToString^($hashBytes^).Replace^('-', ''^).ToLower^(^)
     echo             if ^($actualHash -ne $expectedHash.ToLower^(^)^) {
     echo                 Write-Host '[ ERROR  ] Checksum mismatch. Download corrupted or compromised.' -ForegroundColor Red
@@ -5594,35 +5801,38 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo         Write-Host '[ ACTION ] Extracting archive...' -ForegroundColor Cyan
     echo         Add-Type -AssemblyName System.IO.Compression.FileSystem
     echo         $zip = [System.IO.Compression.ZipFile]::OpenRead^($out^)
-    echo         $entries = $zip.Entries
-    echo         $totalEntries = $entries.Count
-    echo         $extracted = 0
-    echo         $lastPercent = -1
-    echo         $fullRoot = [System.IO.Path]::GetFullPath^($env:DL_EXTRACT^)
-    echo         if ^(-not $fullRoot.EndsWith^([System.IO.Path]::DirectorySeparatorChar.ToString^(^)^)^) {
-    echo             $fullRoot += [System.IO.Path]::DirectorySeparatorChar
+    echo         try {
+    echo             $entries = $zip.Entries
+    echo             $totalEntries = $entries.Count
+    echo             $extracted = 0
+    echo             $lastPercent = -1
+    echo             $fullRoot = [System.IO.Path]::GetFullPath^($env:DL_EXTRACT^)
+    echo             if ^(-not $fullRoot.EndsWith^([System.IO.Path]::DirectorySeparatorChar.ToString^(^)^)^) {
+    echo                 $fullRoot += [System.IO.Path]::DirectorySeparatorChar
+    echo             }
+    echo             foreach ^($entry in $entries^) {
+    echo                 $destinationPath = [System.IO.Path]::GetFullPath^([System.IO.Path]::Combine^($env:DL_EXTRACT, $entry.FullName^)^)
+    echo                 if ^($entry.FullName -match '^^[/\\]' -or $entry.FullName -match ':' -or ^(-not $destinationPath.StartsWith^($fullRoot, [System.StringComparison]::OrdinalIgnoreCase^) -and $destinationPath -ne $fullRoot.TrimEnd^([System.IO.Path]::DirectorySeparatorChar^)^)^) {
+    echo                     throw ^('Blocked path traversal in archive entry: ' + $entry.FullName^)
+    echo                 }
+    echo                 if ^([string]::IsNullOrEmpty^($entry.Name^)^) {
+    echo                     [System.IO.Directory]::CreateDirectory^($destinationPath^) ^| Out-Null
+    echo                 } else {
+    echo                     [System.IO.Directory]::CreateDirectory^([System.IO.Path]::GetDirectoryName^($destinationPath^)^) ^| Out-Null
+    echo                     [System.IO.Compression.ZipFileExtensions]::ExtractToFile^($entry, $destinationPath, $true^)
+    echo                 }
+    echo                 $extracted++
+    echo                 $percent = [math]::Round^(^($extracted / $totalEntries^) * 100^)
+    echo                 if ^($percent -ne $lastPercent^) {
+    echo                     $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
+    echo                     Write-Host "`r[ ACTION ] Extracting: $bar $percent%% ($extracted / $totalEntries) " -NoNewline -ForegroundColor Cyan
+    echo                     $lastPercent = $percent
+    echo                 }
+    echo             }
+    echo             Write-Host "`r[ ACTION ] Extracting: [==================================================] 100%% ($totalEntries / $totalEntries) " -NoNewline -ForegroundColor Cyan
+    echo         } finally {
+    echo             if ^($zip^) { $zip.Dispose^(^) }
     echo         }
-    echo         foreach ^($entry in $entries^) {
-    echo             $destinationPath = [System.IO.Path]::GetFullPath^([System.IO.Path]::Combine^($env:DL_EXTRACT, $entry.FullName^)^)
-    echo             if ^($entry.FullName -match '^^[/\\]' -or ^(-not $destinationPath.StartsWith^($fullRoot, [System.StringComparison]::OrdinalIgnoreCase^) -and $destinationPath -ne $fullRoot.TrimEnd^([System.IO.Path]::DirectorySeparatorChar^)^)^) {
-    echo                 throw ^('Blocked path traversal in archive entry: ' + $entry.FullName^)
-    echo             }
-    echo             if ^([string]::IsNullOrEmpty^($entry.Name^)^) {
-    echo                 [System.IO.Directory]::CreateDirectory^($destinationPath^) ^| Out-Null
-    echo             } else {
-    echo                 [System.IO.Directory]::CreateDirectory^([System.IO.Path]::GetDirectoryName^($destinationPath^)^) ^| Out-Null
-    echo                 [System.IO.Compression.ZipFileExtensions]::ExtractToFile^($entry, $destinationPath, $true^)
-    echo             }
-    echo             $extracted++
-    echo             $percent = [math]::Round^(^($extracted / $totalEntries^) * 100^)
-    echo             if ^($percent -ne $lastPercent^) {
-    echo                 $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
-    echo                 Write-Host "`r[ ACTION ] Extracting: $bar $percent%% ($extracted / $totalEntries) " -NoNewline -ForegroundColor Cyan
-    echo                 $lastPercent = $percent
-    echo             }
-    echo         }
-    echo         Write-Host "`r[ ACTION ] Extracting: [==================================================] 100%% ($totalEntries / $totalEntries) " -NoNewline -ForegroundColor Cyan
-    echo         $zip.Dispose^(^)
     echo         Write-Host "`n"
     echo         Remove-Item $out
     echo         if ^($env:DL_STRIP_ROOT -eq '1'^) {
@@ -5636,7 +5846,8 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo } catch {
     echo     Write-Host "[ ERROR  ] Failed to download or extract." -ForegroundColor Red
     echo     Write-Host '[ DETAIL ] ' $_.Exception.Message -ForegroundColor Yellow
-    echo     if ^(Test-Path $out^) { Remove-Item $out -ErrorAction SilentlyContinue }
+    echo     if ^(Test-Path -LiteralPath $out^) { Remove-Item -LiteralPath $out -Force -ErrorAction SilentlyContinue }
+    echo     if ^($env:DL_EXTRACT -and ^(Test-Path -LiteralPath $env:DL_EXTRACT^)^) { Remove-Item -LiteralPath $env:DL_EXTRACT -Recurse -Force -ErrorAction SilentlyContinue }
     echo     exit 1
     echo }
 ) > "!PS_SCRIPT!"
@@ -5670,6 +5881,10 @@ shift
 goto :RejectExclamationArg
 
 :EnsureSecureTemp
+"%FSUTIL_BIN%" reparsepoint query "%JVM_SECURE_TEMP%" >nul 2>&1
+if not errorlevel 1 (
+    rmdir "%JVM_SECURE_TEMP%" >nul 2>&1
+)
 if not exist "%JVM_SECURE_TEMP%" (
     mkdir "%JVM_SECURE_TEMP%" >nul 2>&1
 )
@@ -5679,18 +5894,67 @@ if not exist "%JVM_SECURE_TEMP%" (
     exit /b 1
 )
 
-"%SYS32%\icacls.exe" "%JVM_SECURE_TEMP%" /inheritance:r >nul 2>&1
-if errorlevel 1 (
-    echo %cRED%[ ERROR  ]%cRESET% Failed to disable inherited permissions on secure temp.
+"%FSUTIL_BIN%" reparsepoint query "%JVM_SECURE_TEMP%" >nul 2>&1
+if not errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation: %JVM_SECURE_TEMP% is a reparse point.
     exit /b 1
 )
 
-"%SYS32%\icacls.exe" "%JVM_SECURE_TEMP%" /grant:r "%USERNAME%:(OI)(CI)F" >nul 2>&1
+"%ICACLS_BIN%" "%JVM_SECURE_TEMP%" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "%USERNAME%:(OI)(CI)F" >nul 2>&1
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Failed to secure permissions on secure temp.
     exit /b 1
 )
 
+exit /b 0
+
+:VerifyDownloadedScript
+set "VERIFY_FILE=%~1"
+set "VERIFY_REF=%~2"
+set "VERIFY_NAME=%~3"
+
+if not exist "%VERIFY_FILE%" exit /b 1
+
+set "VERIFY_RESULT=%JVM_SECURE_TEMP%\verify_!RANDOM!_!RANDOM!.txt"
+
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$ProgressPreference='SilentlyContinue';" ^
+    "try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288 } catch { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 };" ^
+    "$f=$env:VERIFY_FILE;" ^
+    "$ref=$env:VERIFY_REF;" ^
+    "$name=$env:VERIFY_NAME;" ^
+    "if (-not (Test-Path -LiteralPath $f)) { Write-Output 'MISSING'; exit };" ^
+    "$s=[System.Security.Cryptography.SHA256]::Create();" ^
+    "$fs=[System.IO.File]::OpenRead($f);" ^
+    "$actual=try { ([System.BitConverter]::ToString($s.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $s.Dispose() };" ^
+    "$txt=$null;" ^
+    "try { $raw=(Invoke-WebRequest -Uri ('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt') -UseBasicParsing -TimeoutSec 5).Content; $txt = if ($raw -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($raw) } else { [string]$raw } } catch {};" ^
+    "if (-not $txt) { Write-Output 'NO_SHA_FILE'; exit };" ^
+    "$expected=$null;" ^
+    "foreach ($line in ($txt -split '\r?\n')) {" ^
+    "  if ($line.Trim() -match ('^([0-9a-fA-F]{64})\s+\*?' + [regex]::Escape($name) + '$')) {" ^
+    "    $expected=$matches[1].ToLower(); break" ^
+    "  }" ^
+    "};" ^
+    "if (-not $expected) { Write-Output 'NO_ENTRY'; exit };" ^
+    "if ($actual -ne $expected) { Write-Output ('MISMATCH|' + $expected + '|' + $actual); exit };" ^
+    "Write-Output ('VERIFIED|' + $expected)" ^
+    > "%VERIFY_RESULT%" 2>nul
+
+set "VERIFY_STATUS="
+set "VERIFY_EXPECTED="
+set "VERIFY_ACTUAL="
+
+if exist "%VERIFY_RESULT%" (
+    for /f "usebackq tokens=1,2,3 delims=|" %%A in ("%VERIFY_RESULT%") do (
+        set "VERIFY_STATUS=%%A"
+        set "VERIFY_EXPECTED=%%B"
+        set "VERIFY_ACTUAL=%%C"
+    )
+    del "%VERIFY_RESULT%" >nul 2>&1
+)
+
+if /i not "!VERIFY_STATUS!"=="VERIFIED" exit /b 1
 exit /b 0
 
 rem END OF SCRIPT

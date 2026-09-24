@@ -91,6 +91,7 @@ $SuiteTracker = [ordered]@{
 
 # Canonical CWE Vulnerability Catalog (Sorted Numerically)
 $CweCatalog = [ordered]@{
+    'CWE-20'  = [PSCustomObject]@{ Id = 'CWE-20';  Number = 20;  Short = 'Improper Input & Config Validation' }
     'CWE-22'  = [PSCustomObject]@{ Id = 'CWE-22';  Number = 22;  Short = 'Path Traversal & ZipSlip' }
     'CWE-41'  = [PSCustomObject]@{ Id = 'CWE-41';  Number = 41;  Short = 'Win32 Canonicalization Bypass' }
     'CWE-59'  = [PSCustomObject]@{ Id = 'CWE-59';  Number = 59;  Short = 'Symlink & Junction Safety' }
@@ -99,14 +100,26 @@ $CweCatalog = [ordered]@{
     'CWE-78'  = [PSCustomObject]@{ Id = 'CWE-78';  Number = 78;  Short = 'OS Command & Shell Injection' }
     'CWE-88'  = [PSCustomObject]@{ Id = 'CWE-88';  Number = 88;  Short = 'Argument & Flag Injection' }
     'CWE-155' = [PSCustomObject]@{ Id = 'CWE-155'; Number = 155; Short = 'Wildcard Expansion Injection' }
+    'CWE-250' = [PSCustomObject]@{ Id = 'CWE-250'; Number = 250; Short = 'Privilege Boundary Isolation' }
+    'CWE-276' = [PSCustomObject]@{ Id = 'CWE-276'; Number = 276; Short = 'Strict Directory DACL Isolation' }
+    'CWE-295' = [PSCustomObject]@{ Id = 'CWE-295'; Number = 295; Short = 'TLS 1.2 / 1.3 Protocol Enforcement' }
+    'CWE-319' = [PSCustomObject]@{ Id = 'CWE-319'; Number = 319; Short = 'Strict HTTPS Scheme Enforcement' }
+    'CWE-345' = [PSCustomObject]@{ Id = 'CWE-345'; Number = 345; Short = 'Downgrade & Authenticity Defense' }
+    'CWE-354' = [PSCustomObject]@{ Id = 'CWE-354'; Number = 354; Short = 'Checksum Manifest Format Validation' }
     'CWE-377' = [PSCustomObject]@{ Id = 'CWE-377'; Number = 377; Short = 'Insecure Temp File & ACL Lock' }
     'CWE-400' = [PSCustomObject]@{ Id = 'CWE-400'; Number = 400; Short = 'Hang & Parser Resilience' }
     'CWE-426' = [PSCustomObject]@{ Id = 'CWE-426'; Number = 426; Short = 'Untrusted Search Path / Planting' }
+    'CWE-427' = [PSCustomObject]@{ Id = 'CWE-427'; Number = 427; Short = 'Uncontrolled PATH Hijack Defense' }
+    'CWE-459' = [PSCustomObject]@{ Id = 'CWE-459'; Number = 459; Short = 'Failure-Path Handle & Temp Cleanup' }
     'CWE-494' = [PSCustomObject]@{ Id = 'CWE-494'; Number = 494; Short = 'Supply Chain & Hash Integrity' }
 }
 
 function Resolve-TestCweMetadata {
     param([string]$RawSuite, [string]$TestName)
+
+    if ($TestName -match '\((CWE-\d+)\)' -and $script:CweCatalog.Contains($matches[1])) {
+        return $script:CweCatalog[$matches[1]]
+    }
 
     $cweKey = switch -Regex ($TestName) {
         'ZipSlip|Path Traversal|traversal|sibling prefix|boundary enforcement|target allowlisting' { 'CWE-22'; break }
@@ -695,10 +708,10 @@ $($vsiMatch.Groups[1].Value)
         $ErrorActionPreference = $prevEAP
 
         Assert-True ($switchExit -ne 0) "Switching with poisoned --vendor must fail closed"
-        Assert-Contains $outSwitch "JDK 21 not found" "Poisoned --vendor must prevent JDK match"
+        Assert-Contains $outSwitch "Invalid vendor identifier" "Poisoned --vendor must be blocked by ValidateStrictIdentifier"
 
         Assert-True ($updateExit -ne 0) "Updating with poisoned --vendor must fail closed"
-        Assert-Contains $outUpdate "JDK 21 not found" "Poisoned --vendor in update must prevent JDK match"
+        Assert-Contains $outUpdate "Invalid vendor identifier" "Poisoned --vendor in update must be blocked by ValidateStrictIdentifier"
 
         $batContent = Get-Content $JvmBat -Raw
         Assert-NotContains $batContent "goto :Resolve_!CLI_VENDOR!" "jvm.bat must not use unvalidated dynamic goto on CLI_VENDOR"
@@ -1511,6 +1524,650 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Assert-True $failed "Corrupt content should throw inside try/catch so fallback catches it silently"
     }
 
+    # ==========================================================================
+    # DEEP JVM.BAT CORE ENGINE AUDIT TESTS (+22 Tests -> 100 Total)
+    # ==========================================================================
+    Write-Host ""
+    Write-Host "$cBold[JVM.BAT CORE AUDIT] Deep Engine, Crypto, Config & Privilege Verification$cReset"
+
+    # 79. CWE-426: Runtime CWD Trojan Binary Planting Defense
+    Run-TestCase "Adversarial" "Pinned System Binaries runtime CWD Trojan binary planting immunity (CWE-426)" {
+        $poisonCwd = Join-Path $SandboxRoot "PoisonedCwdPlanting"
+        New-Item -ItemType Directory -Path $poisonCwd -Force | Out-Null
+        $canaryFile = Join-Path $poisonCwd "CWD_PLANT_EXECUTED.txt"
+
+        foreach ($rogueName in @('where.bat', 'findstr.bat', 'find.bat', 'reg.bat', 'chcp.bat', 'icacls.bat', 'fsutil.bat', 'powershell.bat')) {
+            Set-Content -Path (Join-Path $poisonCwd $rogueName) -Value "@echo off`r`necho PWNED > `"$canaryFile`"`r`nexit /b 0"
+        }
+
+        Push-Location $poisonCwd
+        try {
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $outVer = & cmd.exe /c "call `"$JvmBat`" --version --no-color" 2>&1 | Out-String
+            $ErrorActionPreference = $prevEAP
+
+            Assert-PathNotExists $canaryFile "Rogue binary planted in CWD MUST NOT execute (NoDefaultCurrentDirectoryInExePath=1 & %SYS32% pinning)"
+            Assert-Contains $outVer "Java Version Manager" "jvm.bat must execute normally from poisoned CWD"
+        } finally {
+            Pop-Location
+        }
+    }
+
+    # 80. CWE-427: Prepended Rogue PATH Hijacking Resistance
+    Run-TestCase "Adversarial" "Pinned System Binaries immunity against prepended rogue PATH hijacking (CWE-427)" {
+        $roguePathDir = Join-Path $SandboxRoot "RoguePathHijack"
+        New-Item -ItemType Directory -Path $roguePathDir -Force | Out-Null
+        $hijackCanary = Join-Path $roguePathDir "PATH_HIJACK_EXECUTED.txt"
+
+        foreach ($shim in @('findstr.cmd', 'reg.cmd', 'where.cmd', 'icacls.cmd', 'fsutil.cmd', 'chcp.cmd', 'choice.cmd')) {
+            Set-Content -Path (Join-Path $roguePathDir $shim) -Value "@echo off`r`necho HIJACKED > `"$hijackCanary`"`r`nexit /b 0"
+        }
+
+        $origPath = $env:PATH
+        $origLocalAppData = $env:LOCALAPPDATA
+        try {
+            $env:PATH = "$roguePathDir;$origPath"
+            $env:LOCALAPPDATA = $FakeLocalAppData
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $outStatus = & cmd.exe /c "call `"$JvmBat`" status --no-color" 2>&1 | Out-String
+            $ErrorActionPreference = $prevEAP
+
+            Assert-PathNotExists $hijackCanary "Trojanized utilities on prepended PATH MUST NOT be invoked by jvm.bat"
+            Assert-Contains $outStatus "Current JVM Environment Status" "jvm.bat status must succeed using pinned %SYS32% binaries"
+        } finally {
+            $env:PATH = $origPath
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # 81. CWE-276: %JVM_SECURE_TEMP% DACL Isolation & Reparse Point Rejection
+    Run-TestCase "Concurrency" "ACL verification and reparse point junction rejection on %JVM_SECURE_TEMP% (CWE-276)" {
+        $origLocalAppData = $env:LOCALAPPDATA
+        $testAppData = Join-Path $SandboxRoot "SecTempReparseAppData"
+        $jvmBase = Join-Path $testAppData "DiamTek\JVM"
+        $secTemp = Join-Path $jvmBase "temp"
+        $victimDir = Join-Path $SandboxRoot "VictimTargetDir"
+        New-Item -ItemType Directory -Path $jvmBase -Force | Out-Null
+        New-Item -ItemType Directory -Path $victimDir -Force | Out-Null
+        $victimCanary = Join-Path $victimDir "victim_secret.txt"
+        Set-Content -Path $victimCanary -Value "SENSITIVE_DATA"
+
+        $null = & cmd.exe /c "mklink /J `"$secTemp`" `"$victimDir`"" 2>&1
+        Assert-True (Test-Path -LiteralPath $secTemp) "Pre-planted junction must exist before startup"
+
+        try {
+            $env:LOCALAPPDATA = $testAppData
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $null = & cmd.exe /c "call `"$JvmBat`" --version --no-color" 2>&1
+            $ErrorActionPreference = $prevEAP
+
+            Assert-PathExists $victimCanary "Victim file behind pre-planted junction must not be destroyed"
+
+            if (Test-Path -LiteralPath $secTemp) {
+                $item = Get-Item -LiteralPath $secTemp -Force
+                $isReparse = ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
+                Assert-False $isReparse "%JVM_SECURE_TEMP% must NOT remain a ReparsePoint after :EnsureSecureTemp"
+
+                $acl = Get-Acl -LiteralPath $secTemp
+                Assert-True $acl.AreAccessRulesProtected "%JVM_SECURE_TEMP% DACL must have inheritance disabled (/inheritance:r)"
+                $identities = @($acl.Access | ForEach-Object { $_.IdentityReference.Value })
+                $hasBroad = ($identities | Where-Object { $_ -match '(^|\\)(Everyone|Users|Authenticated Users)$' }).Count -gt 0
+                Assert-False $hasBroad "%JVM_SECURE_TEMP% must not grant access to Everyone/Users/Authenticated Users"
+            }
+        } finally {
+            $env:LOCALAPPDATA = $origLocalAppData
+            if (Test-Path -LiteralPath $secTemp) {
+                & cmd.exe /c "rmdir `"$secTemp`"" >$null 2>&1
+            }
+        }
+    }
+
+    # 82. CWE-250: Base64 UTF-16LE -EncodedCommand UAC Elevation Boundary Isolation
+    Run-TestCase "Registry" "Base64 UTF-16LE -EncodedCommand privilege escalation boundary AST injection immunity (CWE-250)" {
+        $batRaw = Get-Content $JvmBat -Raw
+        $elevMatches = [regex]::Matches($batRaw, 'Start-Process\s+-FilePath\s+\$ps\s+-Verb\s+RunAs[^\r\n]+')
+        Assert-True ($elevMatches.Count -ge 6) "Must locate all 6 UAC elevation call sites in jvm.bat"
+
+        foreach ($m in $elevMatches) {
+            Assert-Contains $m.Value "-EncodedCommand" "Every RunAs elevation site must use -EncodedCommand"
+            Assert-Contains $m.Value "-WorkingDirectory `$s" "Every RunAs elevation site must pin -WorkingDirectory to System32 (`$s)"
+        }
+
+        $adversarialPath = "C:\Java\jdk-21'; Stop-Process -Name explorer; `$(calc.exe); '#"
+        $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($adversarialPath))
+        $script = '$target = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $target, ''Machine'')'
+
+        $tokens = $null; $errors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput($script, [ref]$tokens, [ref]$errors)
+        Assert-Equals $errors.Count 0 "Elevated script must parse with zero syntax errors"
+
+        $cmdAsts = $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true)
+        Assert-Equals $cmdAsts.Count 0 "Adversarial path MUST NOT inject any CommandAst nodes into the elevated script"
+    }
+
+    # 83. CWE-66: Extended DOS Device Names (NUL.jdk) & Win32 Device Namespace Rejection in 'jvm link'
+    Run-TestCase "Adversarial" "DOS reserved device extension ('NUL.jdk') and UNC device path ('\\.\') rejection in 'jvm link' (CWE-66)" {
+        $origLocalAppData = $env:LOCALAPPDATA
+        try {
+            $env:LOCALAPPDATA = $FakeLocalAppData
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+
+            foreach ($extDev in @('CON.jdk', 'NUL.21', 'AUX.txt', 'COM1.jdk')) {
+                $outDev = & cmd.exe /c "call `"$JvmBat`" link `"$FakeJdkDir`" `"$extDev`"" 2>&1 | Out-String
+                Assert-True ($LASTEXITCODE -ne 0) "jvm link must reject extended DOS device name: $extDev"
+                Assert-PathNotExists (Join-Path $FakeLocalAppData "JavaVersionManager\links\$extDev") "Link must not be created for $extDev"
+            }
+
+            foreach ($uncPath in @('\\.\C:\Windows', '\\?\C:\Windows')) {
+                $outUnc = & cmd.exe /c "call `"$JvmBat`" link `"$uncPath`" unc_test" 2>&1 | Out-String
+                Assert-True ($LASTEXITCODE -ne 0) "jvm link must reject Win32 device namespace path: $uncPath"
+            }
+            $ErrorActionPreference = $prevEAP
+        } finally {
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # 84. CWE-88: jvm exec Argument Injection, Poisoned --vendor, and Empty '--' Command Rejection
+    Run-TestCase "Adversarial" "jvm exec argument injection, poisoned '--vendor', and empty '--' command rejection (CWE-88)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $outEmpty = & cmd.exe /c "call `"$JvmBat`" exec 21 --" 2>&1 | Out-String
+        $exitEmpty = $LASTEXITCODE
+
+        $outFlag = & cmd.exe /c "call `"$JvmBat`" exec --evil-flag -- java -version" 2>&1 | Out-String
+        $exitFlag = $LASTEXITCODE
+
+        $pwnVendorFile = Join-Path $SandboxRoot "EXEC_VENDOR_PWNED.txt"
+        $outVendor = & cmd.exe /c "call `"$JvmBat`" --vendor `"adoptium&echo PWN>`"$pwnVendorFile`"`" exec 21 -- java -version" 2>&1 | Out-String
+        $exitVendor = $LASTEXITCODE
+        $ErrorActionPreference = $prevEAP
+
+        Assert-True ($exitEmpty -ne 0) "jvm exec must reject missing command after '--'"
+        Assert-Contains $outEmpty "No command specified to execute" "jvm exec must report missing command"
+        Assert-True ($exitFlag -ne 0) "jvm exec must reject leading-hyphen flag injection in version parameter"
+        Assert-Contains $outFlag "Invalid target version for exec" "jvm exec must reject '--evil-flag' as version"
+        Assert-True ($exitVendor -ne 0) "jvm exec with poisoned --vendor must fail closed"
+        Assert-PathNotExists $pwnVendorFile "Poisoned --vendor in jvm exec MUST NOT execute shell payload"
+    }
+
+    # 85. CWE-59: jvm pin Symlink/Reparse-Point Overwrite Protection & Reserved Keyword Defense
+    Run-TestCase "ReparsePoint" "jvm pin refuses to overwrite reparse point .java-version and blocks reserved keyword 'current' (CWE-59)" {
+        $pinTestDir = Join-Path $SandboxRoot "PinReparseGuardTest"
+        New-Item -ItemType Directory -Path $pinTestDir -Force | Out-Null
+        $externalTargetDir = Join-Path $SandboxRoot "ExternalProtectedTarget"
+        New-Item -ItemType Directory -Path $externalTargetDir -Force | Out-Null
+        $sentinelFile = Join-Path $externalTargetDir "sentinel.txt"
+        Set-Content -LiteralPath $sentinelFile -Value "IMMUTABLE_EXTERNAL_CONTENT"
+
+        $dotJavaVersionPath = Join-Path $pinTestDir ".java-version"
+        & cmd.exe /c "mklink /J `"$dotJavaVersionPath`" `"$externalTargetDir`"" >$null 2>&1
+
+        Push-Location $pinTestDir
+        try {
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $outReparse = & cmd.exe /c "call `"$JvmBat`" pin 21" 2>&1 | Out-String
+            $exitReparse = $LASTEXITCODE
+
+            & cmd.exe /c "rmdir `"$dotJavaVersionPath`"" >$null 2>&1
+            $outCurrent = & cmd.exe /c "call `"$JvmBat`" pin current" 2>&1 | Out-String
+            $exitCurrent = $LASTEXITCODE
+            $ErrorActionPreference = $prevEAP
+
+            Assert-True ($exitReparse -ne 0) "jvm pin must fail closed when .java-version is a junction/reparse point"
+            Assert-Equals (Get-Content -LiteralPath $sentinelFile -Raw).Trim() "IMMUTABLE_EXTERNAL_CONTENT" "External sentinel must remain untouched"
+            Assert-True ($exitCurrent -ne 0) "jvm pin must reject reserved keyword 'current'"
+            Assert-PathNotExists $dotJavaVersionPath ".java-version must not be created for reserved keyword 'current'"
+        } finally {
+            if (Test-Path -LiteralPath $dotJavaVersionPath) {
+                & cmd.exe /c "rmdir `"$dotJavaVersionPath`"" >$null 2>&1
+            }
+            Pop-Location
+        }
+    }
+
+    # 86. CWE-59: jvm clean / jvm prune Non-Destructive Cache Reparse-Point Unbinding
+    Run-TestCase "ReparsePoint" "jvm clean and jvm prune unbind junctions in downloads/temp without deleting external target files (CWE-59)" {
+        $origLocalAppData = $env:LOCALAPPDATA
+        $isolatedAppData = Join-Path $SandboxRoot "CleanTestAppData"
+        $downloadsDir = Join-Path $isolatedAppData "DiamTek\JVM\downloads"
+        $tempExtractDir = Join-Path $isolatedAppData "DiamTek\JVM\temp\jdk_adoptium_21_extract"
+        New-Item -ItemType Directory -Path $downloadsDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $tempExtractDir -Force | Out-Null
+
+        $protectedHostDir = Join-Path $SandboxRoot "ProtectedHostOutsideCache"
+        New-Item -ItemType Directory -Path $protectedHostDir -Force | Out-Null
+        $hostCanary = Join-Path $protectedHostDir "host_canary.txt"
+        Set-Content -LiteralPath $hostCanary -Value "HOST_DATA_MUST_SURVIVE_CLEAN"
+
+        $dlJunc = Join-Path $downloadsDir "junction_trap"
+        $nestedJunc = Join-Path $tempExtractDir "nested_junction_trap"
+        & cmd.exe /c "mklink /J `"$dlJunc`" `"$protectedHostDir`"" >$null 2>&1
+        & cmd.exe /c "mklink /J `"$nestedJunc`" `"$protectedHostDir`"" >$null 2>&1
+
+        try {
+            $env:LOCALAPPDATA = $isolatedAppData
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $outClean = & cmd.exe /c "call `"$JvmBat`" clean" 2>&1 | Out-String
+            $cleanExit = $LASTEXITCODE
+            $ErrorActionPreference = $prevEAP
+
+            Assert-Equals $cleanExit 0 "jvm clean must exit with code 0"
+            Assert-PathNotExists $dlJunc "Junction inside downloads\ must be unbound and removed"
+            Assert-PathNotExists $tempExtractDir "Temporary extract directory must be removed"
+            Assert-PathExists $protectedHostDir "External target directory pointed to by cache junction MUST survive"
+            Assert-PathExists $hostCanary "Sentinel file inside external target directory MUST NOT be deleted by jvm clean"
+            Assert-Equals (Get-Content -LiteralPath $hostCanary -Raw).Trim() "HOST_DATA_MUST_SURVIVE_CLEAN" "Sentinel file content must remain intact"
+        } finally {
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # 87. CWE-78: jvm doctor Resilience Against Poisoned PATH and JDK release Metadata Injection
+    Run-TestCase "Adversarial" "jvm doctor resilience against metacharacter injection in PATH and JDK release file (CWE-78)" {
+        $origLocalAppData = $env:LOCALAPPDATA
+        $origUserProfile  = $env:USERPROFILE
+        $origPath         = $env:PATH
+        $docSandbox = Join-Path $SandboxRoot "DoctorSandbox"
+        $docAppData = Join-Path $docSandbox "LocalAppData"
+        $docProfile = Join-Path $docSandbox "UserProfile"
+        $pwnDoctor  = Join-Path $docSandbox "DOCTOR_PWNED.txt"
+
+        $maliciousJdk = Join-Path $docProfile ".jdks\jdk-21-crafted"
+        New-Item -ItemType Directory -Path (Join-Path $maliciousJdk "bin") -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $maliciousJdk "bin\java.exe") -Value "MZ_FAKE"
+        Set-Content -LiteralPath (Join-Path $maliciousJdk "release") -Value "JAVA_VERSION=`"21.0.2`"`r`nIMPLEMENTOR=`"Oracle & echo PWNED > `"$pwnDoctor`"`""
+
+        try {
+            $env:LOCALAPPDATA = $docAppData
+            $env:USERPROFILE  = $docProfile
+            $env:PATH = "C:\PoisonPath&echo PWNED > `"$pwnDoctor`";$origPath"
+
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $outDoc = & cmd.exe /c "call `"$JvmBat`" doctor" 2>&1 | Out-String
+            $ErrorActionPreference = $prevEAP
+
+            Assert-PathNotExists $pwnDoctor "jvm doctor MUST NOT execute commands from poisoned PATH or release metadata"
+            Assert-Contains $outDoc "Running DiamTek JVM System Health Audit" "jvm doctor must execute audit banner cleanly"
+            Assert-Contains $outDoc "Discovered JDKs:" "jvm doctor must complete inventory scan without crashing"
+        } finally {
+            $env:LOCALAPPDATA = $origLocalAppData
+            $env:USERPROFILE  = $origUserProfile
+            $env:PATH         = $origPath
+        }
+    }
+
+    # 88. CWE-426: Untrusted CWD Binary Planting Defense ($PATH:java) in 'jvm which java'
+    Run-TestCase "Adversarial" "Pinned System Binaries CWD Planting Defense in 'jvm which java' ($PATH:java) (CWE-426)" {
+        $plantDir = Join-Path $SandboxRoot "UntrustedCwdPlanting"
+        New-Item -ItemType Directory -Path $plantDir -Force | Out-Null
+        $plantedJava = Join-Path $plantDir "java.bat"
+        $pwnPlantFile = Join-Path $plantDir "PLANT_EXECUTED.txt"
+        Set-Content -LiteralPath $plantedJava -Value "@echo off`r`necho PWN > `"$pwnPlantFile`"`r`necho java version `"99.0.0`""
+
+        $origJavaHome = $env:JAVA_HOME
+        Push-Location $plantDir
+        try {
+            $env:JAVA_HOME = ""
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $outWhich = (& cmd.exe /c "call `"$JvmBat`" which java" 2>&1 | Out-String).Trim()
+            $ErrorActionPreference = $prevEAP
+
+            Assert-NotContains $outWhich $plantDir "'jvm which java' MUST NOT resolve planted java.bat from untrusted CWD"
+            Assert-PathNotExists $pwnPlantFile "Planted java.bat in CWD MUST NOT be executed"
+        } finally {
+            $env:JAVA_HOME = $origJavaHome
+            Pop-Location
+        }
+    }
+
+    # 89. CWE-295: TLS 1.2 / 1.3 Protocol Enforcement Across :ExecuteSharedDownloader & :SelfUpdate
+    Run-TestCase "PackageIntegrity" "TLS 1.2+1.3 protocol enforcement in :ExecuteSharedDownloader and :SelfUpdate (CWE-295)" {
+        $batRaw = Get-Content $JvmBat -Raw
+        $dlBlock = [regex]::Match($batRaw, '(?s):ExecuteSharedDownloader\r?\n.*?(?=\r?\n:BackupRegistry)').Value
+        Assert-True ($dlBlock.Length -gt 0) "Must locate :ExecuteSharedDownloader in jvm.bat"
+        Assert-Contains $dlBlock "[Net.SecurityProtocolType]::Tls12 -bor 12288" ":ExecuteSharedDownloader must enforce TLS 1.2 and TLS 1.3 (12288)"
+        Assert-NotContains $dlBlock "Ssl3" ":ExecuteSharedDownloader must never enable SSLv3"
+
+        $suBlock = [regex]::Match($batRaw, '(?s):SelfUpdate\r?\n.*?(?=\r?\n:CheckUpdateStatus)').Value
+        Assert-True ($suBlock.Length -gt 0) "Must locate :SelfUpdate in jvm.bat"
+        Assert-Contains $suBlock "[Net.SecurityProtocolType]::Tls12 -bor 12288" ":SelfUpdate must enforce TLS 1.2 and TLS 1.3 on installer and SHA256SUMS downloads"
+    }
+
+    # 90. CWE-319: Strict HTTPS Scheme Enforcement & Non-HTTPS Redirect Rejection in :ExecuteSharedDownloader
+    Run-TestCase "PackageIntegrity" "Non-HTTPS URI scheme (http://, file://, UNC) rejection in :ExecuteSharedDownloader (CWE-319)" {
+        $batRaw = Get-Content $JvmBat -Raw
+        Assert-Contains $batRaw "Refusing non-HTTPS download URL:" ":ExecuteSharedDownloader must enforce https scheme on DL_URL"
+        Assert-Contains $batRaw "Refusing non-HTTPS checksum URL:" ":ExecuteSharedDownloader must enforce https scheme on DL_CHKSUM_URL"
+        Assert-Contains $batRaw "Blocked redirect to non-HTTPS URL:" ":ExecuteSharedDownloader must block HTTP downgrade redirects"
+
+        $uriGuardScript = {
+            param([string]$TestUrl)
+            $uri = $null
+            if (-not [System.Uri]::TryCreate($TestUrl, [System.UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'https') {
+                return $false
+            }
+            return $true
+        }
+        foreach ($badUrl in @(
+            "http://repo.maven.apache.org/maven2/apache-maven.zip",
+            "file:///C:/Windows/System32/calc.exe",
+            "\\127.0.0.1\c$\Windows\win.ini",
+            "ftp://mirror.example.com/jdk.zip"
+        )) {
+            Assert-False (& $uriGuardScript $badUrl) "Downloader URL guard MUST reject non-HTTPS URI: $badUrl"
+        }
+        Assert-True (& $uriGuardScript "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse") "Downloader URL guard must allow valid https:// URI"
+    }
+
+    # 91. CWE-345: :CheckUpdateStatus & :SelfUpdate Version & JVM_BUILD Downgrade Attack Rejection
+    Run-TestCase "PackageIntegrity" ":CheckUpdateStatus & :SelfUpdate version and JVM_BUILD downgrade attack rejection (CWE-345)" {
+        $batRaw = Get-Content $JvmBat -Raw
+        Assert-Contains $batRaw 'if "!UPDATE_FLAG!"=="AHEAD_OF_STABLE"' ":SelfUpdate must handle AHEAD_OF_STABLE downgrade flag"
+        Assert-Contains $batRaw 'if "!UPDATE_FLAG!"=="AHEAD_OF_NIGHTLY"' ":SelfUpdate must handle AHEAD_OF_NIGHTLY downgrade flag"
+        Assert-NotContains $batRaw 'if "!CLI_COMMAND!"=="self-update" if "!FORCE_YES!" NEQ "1"' ":SelfUpdate must NEVER skip :CheckUpdateStatus when --yes is passed"
+
+        $evalUpdateState = {
+            param([string]$LocalVerStr, [string]$LocalBldStr, [string]$RemoteVerStr, [string]$RemoteBldStr, [string]$Channel)
+            try {
+                $localVer  = [version]$LocalVerStr
+                $localBld  = [version]$LocalBldStr
+                $remoteVer = [version]$RemoteVerStr
+                $remoteBld = [version]$RemoteBldStr
+            } catch {
+                return "INVALID_REMOTE"
+            }
+            $aheadFlag = if ($Channel -eq 'STABLE') { 'AHEAD_OF_STABLE' } else { 'AHEAD_OF_NIGHTLY' }
+            if ($remoteVer -gt $localVer) { return "UPDATE" }
+            elseif ($remoteVer -lt $localVer) { return $aheadFlag }
+            else {
+                if ($remoteBld -gt $localBld) { return "UPDATE" }
+                elseif ($remoteBld -lt $localBld) { return $aheadFlag }
+                else { return "OK" }
+            }
+        }
+
+        Assert-Equals (& $evalUpdateState "1.0.1" "20260924.119" "1.0.0" "20260999.999" "STABLE") "AHEAD_OF_STABLE" "Lower remote semantic version must be rejected as AHEAD_OF_STABLE"
+        Assert-Equals (& $evalUpdateState "1.0.1" "20260924.119" "1.0.1" "20260920.100" "STABLE") "AHEAD_OF_STABLE" "Older REMOTE_BUILD on same version must be rejected as AHEAD_OF_STABLE"
+        Assert-Equals (& $evalUpdateState "1.0.1" "20260924.119" "1.0.1" "20260920.100" "NIGHTLY") "AHEAD_OF_NIGHTLY" "Older REMOTE_BUILD on Nightly must be rejected as AHEAD_OF_NIGHTLY"
+        Assert-Equals (& $evalUpdateState "1.0.1" "20260924.119" "1.0.1-evil&calc" "20260924.119" "STABLE") "INVALID_REMOTE" "Malformed remote version must return INVALID_REMOTE"
+    }
+
+    # 92. CWE-494: :SelfUpdate & :ExecuteSharedDownloader SHA-256 Mismatch Rejection & --skip-checksum Warning
+    Run-TestCase "PackageIntegrity" ":SelfUpdate & :ExecuteSharedDownloader SHA-256 mismatch fail-closed rejection and --skip-checksum warning (CWE-494)" {
+        $testDir = Join-Path $SandboxRoot "ShaMismatchTest"
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+
+        $stagedInstaller = Join-Path $testDir "jvm_install_test.ps1"
+        $payloadText = "# Java Version Manager`r`nWrite-Host 'TAMPERED PAYLOAD'`r`n" + ("# padding `r`n" * 20) + "rem END OF SCRIPT`r`n"
+        [System.IO.File]::WriteAllText($stagedInstaller, $payloadText, [System.Text.UTF8Encoding]::new($false))
+
+        $fakeExpected = "a" * 64
+        $shaManifest = "$fakeExpected  install.ps1`r`n"
+
+        $s = [System.Security.Cryptography.SHA256]::Create()
+        $fs = [System.IO.File]::OpenRead($stagedInstaller)
+        $actual = try { ([System.BitConverter]::ToString($s.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $s.Dispose() }
+
+        $exp = $null
+        foreach ($line in ($shaManifest -split '\r?\n')) {
+            if ($line.Trim() -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break }
+        }
+        $status = if ($exp) { if ($actual -eq $exp) { "VERIFIED|$exp" } else { "MISMATCH|$exp|$actual" } } else { "NO_ENTRY|$actual" }
+
+        Assert-True ($status.StartsWith("MISMATCH|")) "Tampered installer MUST produce MISMATCH status"
+
+        $batRaw = Get-Content $JvmBat -Raw
+        Assert-Contains $batRaw "Proceeding WITHOUT integrity verification ^(--skip-checksum active^)." ":ExecuteSharedDownloader must emit explicit security warning when --skip-checksum is active"
+        Assert-Contains $batRaw "set `"UNINSTALL_REF=v!JVM_VERSION!`"$([Environment]::NewLine)set `"UNINSTALL_SCRIPT=`"$([Environment]::NewLine)set `"UNINSTALL_VERIFIED=0`"" ":UninstallJVM_Complete must initialize UNINSTALL_REF and UNINSTALL_VERIFIED before local uninstall.ps1 lookup"
+        Assert-Contains $batRaw "Local uninstall.ps1 does not match !UNINSTALL_REF! digest. Fetching verified release copy..." ":UninstallJVM_Complete must fall back to downloading the matching release uninstall.ps1 when local hash differs"
+        Assert-Contains $batRaw "call :VerifyDownloadedScript `"!UNINSTALL_SCRIPT!`" `"!UNINSTALL_REF!`" `"uninstall.ps1`"" ":UninstallJVM_Complete must cryptographically verify uninstall.ps1 via :VerifyDownloadedScript"
+        Assert-Contains $batRaw "for /f `"usebackq tokens=1,2,3 delims=|`"" ":VerifyDownloadedScript must use 'usebackq' to parse %VERIFY_RESULT% file contents"
+
+        # Functional test of :VerifyDownloadedScript result file parsing via cmd.exe 'for /f "usebackq ..."'
+        $verifyResFile = Join-Path $testDir "verify_result_test.txt"
+        [System.IO.File]::WriteAllText($verifyResFile, "VERIFIED|$fakeExpected`r`n", [System.Text.UTF8Encoding]::new($false))
+        $parsedStatus = & cmd.exe /c "for /f `"usebackq tokens=1,2,3 delims=|`"` %A in (`"$verifyResFile`") do @echo %A" 2>&1 | Out-String
+        Assert-Equals $parsedStatus.Trim() "VERIFIED" "cmd.exe 'usebackq' loop in :VerifyDownloadedScript must extract VERIFIED status from result file"
+    }
+
+    # 93. CWE-354: Malformed, Empty, Partial-Hash, and Spoofed-Filename SHA256SUMS.txt Manifest Rejection
+    Run-TestCase "PackageIntegrity" "Malformed, empty, partial-hash, and filename-spoofed SHA256SUMS.txt manifest rejection (CWE-354)" {
+        $validHash64 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        $malformedManifests = @(
+            "",
+            "   `r`n  ",
+            "e3b0c44298fc1c149afbf4c8996fb924  install.ps1",
+            ("${validHash64}ff  install.ps1"),
+            ("g3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  install.ps1"),
+            ("$validHash64  evil_install.ps1"),
+            ("$validHash64  install.ps1.bak"),
+            ("$validHash64  ../install.ps1")
+        )
+
+        foreach ($manifest in $malformedManifests) {
+            $exp = $null
+            foreach ($line in ($manifest -split '\r?\n')) {
+                if ($line.Trim() -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') {
+                    $exp = $matches[1].ToLower()
+                    break
+                }
+            }
+            Assert-True ($null -eq $exp) "SHA256SUMS parser MUST reject malformed/spoofed manifest line: '$manifest'"
+        }
+    }
+
+    # 94. CWE-22: Live ZIP Archive Extraction Blocks ZipSlip ('../', Sibling-Prefix, Rooted '\', and ADS ':')
+    Run-TestCase "UninstallSafety" "Live ZIP archive extraction blocks ZipSlip ('../', sibling-prefix, rooted '\', and ADS ':') (CWE-22)" {
+        Add-Type -AssemblyName System.IO.Compression
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+        $zipTestDir  = Join-Path $SandboxRoot "LiveZipSlipTest"
+        $extractRoot = Join-Path $zipTestDir "extract_dest"
+        $escapeFile  = Join-Path $zipTestDir "escaped_pwn.txt"
+        $malZipPath  = Join-Path $zipTestDir "malicious.zip"
+        New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+
+        $fs = New-Object System.IO.FileStream($malZipPath, [System.IO.FileMode]::Create)
+        $archive = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Create, $false)
+        try {
+            $e1 = $archive.CreateEntry("jdk-21/release")
+            $sw1 = New-Object System.IO.StreamWriter($e1.Open())
+            $sw1.Write("JAVA_VERSION=21"); $sw1.Close()
+
+            $e2 = $archive.CreateEntry("../escaped_pwn.txt")
+            $sw2 = New-Object System.IO.StreamWriter($e2.Open())
+            $sw2.Write("PWNED"); $sw2.Close()
+        } finally {
+            $archive.Dispose()
+            $fs.Close()
+        }
+
+        $threwTraversal = $false
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($malZipPath)
+        try {
+            $fullRoot = [System.IO.Path]::GetFullPath($extractRoot)
+            if (-not $fullRoot.EndsWith([System.IO.Path]::DirectorySeparatorChar.ToString())) {
+                $fullRoot += [System.IO.Path]::DirectorySeparatorChar
+            }
+            foreach ($entry in $zip.Entries) {
+                $destinationPath = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($extractRoot, $entry.FullName))
+                if ($entry.FullName -match '^[/\\]' -or $entry.FullName -match ':' -or (-not $destinationPath.StartsWith($fullRoot, [System.StringComparison]::OrdinalIgnoreCase) -and $destinationPath -ne $fullRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar))) {
+                    throw ('Blocked path traversal in archive entry: ' + $entry.FullName)
+                }
+            }
+        } catch {
+            if ($_.Exception.Message -match 'Blocked path traversal in archive entry') {
+                $threwTraversal = $true
+            }
+        } finally {
+            if ($zip) { $zip.Dispose() }
+        }
+
+        Assert-True $threwTraversal "Extraction engine MUST throw 'Blocked path traversal in archive entry' on '../escaped_pwn.txt'"
+        Assert-PathNotExists $escapeFile "ZipSlip payload MUST NOT be written outside extraction root"
+    }
+
+    # 95. CWE-459: Complete Cleanup of Temp ZIP ($zip.Dispose()) and Partial Extraction Directory on Failure
+    Run-TestCase "Concurrency" "Complete cleanup of temp ZIP (`$zip.Dispose()) and partial extraction directory on ZipSlip or hash failure (CWE-459)" {
+        Add-Type -AssemblyName System.IO.Compression
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+        $cleanupDir  = Join-Path $SandboxRoot "Cwe459CleanupTest"
+        $tempZip     = Join-Path $cleanupDir "jvm_dl_payload.zip"
+        $tempExtract = Join-Path $cleanupDir "jvm_dl_extract_temp"
+        New-Item -ItemType Directory -Path $tempExtract -Force | Out-Null
+
+        $fs = New-Object System.IO.FileStream($tempZip, [System.IO.FileMode]::Create)
+        $archive = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Create, $false)
+        try {
+            $e1 = $archive.CreateEntry("benign.txt")
+            $sw1 = New-Object System.IO.StreamWriter($e1.Open()); $sw1.Write("OK"); $sw1.Close()
+            $e2 = $archive.CreateEntry("../evil.txt")
+            $sw2 = New-Object System.IO.StreamWriter($e2.Open()); $sw2.Write("BAD"); $sw2.Close()
+        } finally {
+            $archive.Dispose(); $fs.Close()
+        }
+
+        try {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($tempZip)
+            try {
+                $fullRoot = [System.IO.Path]::GetFullPath($tempExtract) + [System.IO.Path]::DirectorySeparatorChar
+                foreach ($entry in $zip.Entries) {
+                    $destinationPath = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($tempExtract, $entry.FullName))
+                    if ($entry.FullName -match '^[/\\]' -or (-not $destinationPath.StartsWith($fullRoot, [System.StringComparison]::OrdinalIgnoreCase))) {
+                        throw ('Blocked path traversal in archive entry: ' + $entry.FullName)
+                    }
+                    [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $destinationPath, $true)
+                }
+            } finally {
+                if ($zip) { $zip.Dispose() }
+            }
+        } catch {
+            if (Test-Path -LiteralPath $tempZip) { Remove-Item -LiteralPath $tempZip -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $tempExtract) { Remove-Item -LiteralPath $tempExtract -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+
+        Assert-PathNotExists $tempZip "CWE-459: Temporary downloaded archive ($tempZip) MUST be unlocked ($zip.Dispose()) and deleted on failure"
+        Assert-PathNotExists $tempExtract "CWE-459: Partial extraction directory ($tempExtract) MUST be recursively purged on failure"
+    }
+
+    # 96. CWE-78: .sdkmanrc Metacharacter, Backtick, Subshell $(), and Inline Comment Neutralization
+    Run-TestCase "Adversarial" ".sdkmanrc metacharacter, backtick, subshell `$(), and inline comment neutralization (CWE-78)" {
+        $testDir = Join-Path $SandboxRoot "SdkmanrcMetacharTest"
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $pwnFile = Join-Path $testDir "SDK_PWNED.txt"
+
+        $payloads = @(
+            "java=21.0.2-tem & echo PWN > `"$pwnFile`"",
+            "java=21.0.2-tem | echo PWN > `"$pwnFile`"",
+            "java=`$(echo PWN > `"$pwnFile`")",
+            "java=``echo PWN > `"$pwnFile`"`"",
+            "java=!PATH!%COMSPEC%",
+            "maven=3.9.6 & echo PWN > `"$pwnFile`""
+        )
+        Set-Content -Path (Join-Path $testDir ".sdkmanrc") -Value ($payloads -join "`r`n")
+
+        Push-Location $testDir
+        try {
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $out = & cmd.exe /c "call `"$JvmBat`"" 2>&1 | Out-String
+            $ErrorActionPreference = $prevEAP
+            Assert-PathNotExists $pwnFile ".sdkmanrc shell metacharacters MUST NOT execute arbitrary commands"
+        } finally {
+            Pop-Location
+        }
+    }
+
+    # 97. CWE-88: .java-version Inline Flag Poisoning (--vendor Traversal, --legacy, --registry) Defense
+    Run-TestCase "Adversarial" ".java-version inline flag poisoning (--vendor traversal, --legacy, --registry) defense (CWE-88)" {
+        $testDir = Join-Path $SandboxRoot "JavaVersionFlagPoisonTest"
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+
+        Set-Content -Path (Join-Path $testDir ".java-version") -Value "21 --vendor ../../evil_vendor --legacy --registry"
+
+        Push-Location $testDir
+        try {
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $out = & cmd.exe /c "call `"$JvmBat`"" 2>&1 | Out-String
+            $exitCode = $LASTEXITCODE
+            $ErrorActionPreference = $prevEAP
+
+            Assert-True ($exitCode -ne 0) "Poisoned --vendor or --legacy/--registry in .java-version must fail closed"
+            Assert-NotContains $out "Machine Registry" ".java-version must never trigger Machine HKLM Registry mode via --legacy/--registry"
+        } finally {
+            Pop-Location
+        }
+    }
+
+    # 98. CWE-20: .java-version CRLF, UTF-8 BOM, Comment Lines, and Prefix (jdk-/1.8) Parser Resilience
+    Run-TestCase "Adversarial" ".java-version CRLF, UTF-8 BOM, Comment lines, and prefix (jdk-/1.8) parser resilience (CWE-20)" {
+        $testDir = Join-Path $SandboxRoot "JavaVersionBomCrlfTest"
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $dotJv = Join-Path $testDir ".java-version"
+
+        $utf8WithBom = New-Object System.Text.UTF8Encoding($true)
+        [System.IO.File]::WriteAllText($dotJv, "# Pinned project version`r`njdk-21.0.2`r`n", $utf8WithBom)
+
+        Push-Location $testDir
+        try {
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $out = & cmd.exe /c "call `"$JvmBat`"" 2>&1 | Out-String
+            $ErrorActionPreference = $prevEAP
+
+            $bomMojibake = [string][char]0xEF + [char]0xBB + [char]0xBF
+            Assert-NotContains $out $bomMojibake ".java-version parser must strip UTF-8 BOM without corrupting version token"
+            Assert-Contains $out "21" ".java-version parser must normalize 'jdk-21.0.2' to major version '21'"
+        } finally {
+            Pop-Location
+        }
+    }
+
+    # 99. CWE-20: .sdkmanrc Read-Only Subcommand Isolation (--version / list Must Not Trigger Session Target Emission)
+    Run-TestCase "Adversarial" ".sdkmanrc read-only subcommand isolation (--version / list must not trigger session target emission) (CWE-20)" {
+        $testDir = Join-Path $SandboxRoot "SdkmanrcReadOnlySubcmdTest"
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        Set-Content -Path (Join-Path $testDir ".sdkmanrc") -Value "java=21.0.2-tem`r`nmaven=3.9.6"
+
+        $origLocalAppData = $env:LOCALAPPDATA
+        Push-Location $testDir
+        try {
+            $env:LOCALAPPDATA = $FakeLocalAppData
+            $secTemp = Join-Path $FakeLocalAppData "DiamTek\JVM\temp"
+            $sessFile = Join-Path $secTemp ".jvm_session_target"
+            if (Test-Path -LiteralPath $sessFile) { Remove-Item -LiteralPath $sessFile -Force }
+
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            $out = & cmd.exe /c "call `"$JvmBat`" --version" 2>&1 | Out-String
+            $ErrorActionPreference = $prevEAP
+
+            Assert-PathNotExists $sessFile "Read-only CLI commands (--version / list) must NOT trigger .sdkmanrc session target emission"
+        } finally {
+            $env:LOCALAPPDATA = $origLocalAppData
+            Pop-Location
+        }
+    }
+
+    # 100. CWE-20: JVM_CALLER_PID Non-Numeric and Path Traversal Rejection in :EmitSessionEnv
+    Run-TestCase "Adversarial" "JVM_CALLER_PID non-numeric and path traversal rejection in :EmitSessionEnv (CWE-20)" {
+        $origLocalAppData = $env:LOCALAPPDATA
+        $origCallerPid = $env:JVM_CALLER_PID
+        try {
+            $env:LOCALAPPDATA = $FakeLocalAppData
+            foreach ($badPid in @("../../evil_session", "..\pwn", "1234;calc.exe", "-999")) {
+                $env:JVM_CALLER_PID = $badPid
+                $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+                $out = & cmd.exe /c "call `"$JvmBat`" 21 --session" 2>&1 | Out-String
+                $ErrorActionPreference = $prevEAP
+
+                $traversedFile = Join-Path $FakeLocalAppData "evil_session"
+                Assert-PathNotExists $traversedFile "Traversal in JVM_CALLER_PID ('$badPid') must never write outside %JVM_SECURE_TEMP%"
+            }
+        } finally {
+            $env:JVM_CALLER_PID = $origCallerPid
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
 } finally {
     # --------------------------------------------------------------------------
     # Sandbox Cleanup
@@ -1607,28 +2264,28 @@ Write-Host ""
 # Automatic GitHub Actions Step Summary Generation
 if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
     try {
-        $overallBadge = if ($GlobalFailed -eq 0) { "✅ PASS" } else { "❌ FAIL" }
+        $overallBadge = if ($GlobalFailed -eq 0) { " PASS" } else { " FAIL" }
         $passRate = if ($TotalExecuted -gt 0) { [math]::Round(($GlobalPassed / $TotalExecuted) * 100, 1) } else { 100.0 }
         $mdLines = [System.Collections.Generic.List[string]]::new()
 
-        $mdLines.Add("## 🛡️ DiamTek JVM Security & Adversarial Test Suite — $overallBadge")
+        $mdLines.Add("##  DiamTek JVM Security & Adversarial Test Suite -- $overallBadge")
         $mdLines.Add("")
         $mdLines.Add("- **Total Executed:** $TotalExecuted (`$GlobalPassed` passed, `$GlobalFailed` failed, `$GlobalSkipped` skipped)")
         $mdLines.Add("- **Pass Rate:** $passRate%")
         $mdLines.Add("- **Execution Time:** $TotalElapsedMs ms (Wall clock: $($RunnerStopwatch.ElapsedMilliseconds) ms)")
         $mdLines.Add("")
-        $mdLines.Add("### 📊 Per-Suite Execution Breakdown")
+        $mdLines.Add("###  Per-Suite Execution Breakdown")
         $mdLines.Add("")
         $mdLines.Add("| Suite | Category Tag | Passed / Total | Status | Elapsed (ms) |")
         $mdLines.Add("| :--- | :--- | :---: | :---: | ---: |")
 
         foreach ($entry in $SuiteTracker.Values) {
             $suiteStatus = if ($entry.Total -eq 0 -and $entry.Skipped -gt 0) {
-                "⏭️ SKIP"
+                " SKIP"
             } elseif ($entry.Failed -gt 0) {
-                "❌ FAIL"
+                " FAIL"
             } else {
-                "✅ PASS"
+                " PASS"
             }
             $mdLines.Add("| **$($entry.Name)** | ``$($entry.Tag)`` | $($entry.Passed) / $($entry.Total) | $suiteStatus | $($entry.ElapsedMs) ms |")
         }
@@ -1636,7 +2293,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
         $mdLines.Add("| **Total** | *All Suites* | **$GlobalPassed / $TotalExecuted** | **$overallBadge** | **$TotalElapsedMs ms** |")
         $mdLines.Add("")
 
-        $mdLines.Add("### 🏷️ CWE Coverage Summary")
+        $mdLines.Add("###  CWE Coverage Summary")
         $mdLines.Add("")
         $mdLines.Add("| CWE ID | Vulnerability Class | Tests Passed |")
         $mdLines.Add("| :--- | :--- | :---: |")
@@ -1645,13 +2302,13 @@ if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
             if ($cweTests.Count -eq 0) { continue }
             $cwePassed = @($cweTests | Where-Object { $_.Status -eq 'PASS' }).Count
             $cweFailed = @($cweTests | Where-Object { $_.Status -eq 'FAIL' }).Count
-            $cweBadgeMd = if ($cweFailed -gt 0) { "❌ $cwePassed / $($cweTests.Count)" } else { "✅ $cwePassed / $($cweTests.Count)" }
+            $cweBadgeMd = if ($cweFailed -gt 0) { " $cwePassed / $($cweTests.Count)" } else { " $cwePassed / $($cweTests.Count)" }
             $mdLines.Add("| **``$($cwe.Id)``** | $($cwe.Short) | $cweBadgeMd |")
         }
         $mdLines.Add("")
 
         if ($GlobalFailed -gt 0) {
-            $mdLines.Add("### ❌ Failed Test Cases")
+            $mdLines.Add("###  Failed Test Cases")
             $mdLines.Add("")
             $mdLines.Add("| Suite | CWE | Test Case | Error Message |")
             $mdLines.Add("| :--- | :--- | :--- | :--- |")
@@ -1664,14 +2321,14 @@ if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
         }
 
         $mdLines.Add("<details>")
-        $mdLines.Add("<summary>📋 <strong>View All Executed Test Cases ($TotalExecuted tests)</strong></summary>")
+        $mdLines.Add("<summary> <strong>View All Executed Test Cases ($TotalExecuted tests)</strong></summary>")
         $mdLines.Add("")
         $mdLines.Add("| # | Suite | CWE | Vulnerability Type | Test Case | Status | Duration (ms) |")
         $mdLines.Add("| ---: | :--- | :--- | :--- | :--- | :---: | ---: |")
         $idx = 0
         foreach ($res in $TestResults) {
             $idx++
-            $icon = if ($res.Status -eq 'PASS') { "✅ PASS" } else { "❌ FAIL" }
+            $icon = if ($res.Status -eq 'PASS') { " PASS" } else { " FAIL" }
             $safeTestName = ($res.Name -replace '\|', '\|')
             $mdLines.Add("| $idx | $($res.SuiteTitle) | ``$($res.CweId)`` | $($res.CweShort) | $safeTestName | $icon | $($res.Duration) ms |")
         }

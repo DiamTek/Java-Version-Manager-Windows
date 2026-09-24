@@ -95,18 +95,18 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
     - **Path Traversal & Separator Quarantine:** Slashes (`\`, `/`) and relative directory traversals (`..`) are filtered using internal substring substitutions (`!_VSI_VAL:\=!`, `!_VSI_VAL:/=!`, `!_VSI_VAL:..=!`), completely preventing directory traversal escapes.
     - **Leading Flag/Hyphen Neutralization:** Identifiers beginning with a hyphen (`-`) are immediately rejected (`if "!_VSI_VAL:~0,1!"=="-"`), neutralizing command-line flag injection into downstream sub-commands or native tools.
     - **Internal Substitution Checks vs. Piped FINDSTR:** Characters with syntactic meaning in `cmd.exe` (`^`, `&`, `|`, `<`, `>`, `;`, `"`) are tested through internal batch substitution (`set "_VSI_SUB=!_VSI_VAL:&=!"` etc.). Using batch substitution rather than piping to `findstr` prevents poison metacharacters from escaping into subshells or pipeline boundaries during the check itself.
-    - **Wildcard and Reserved DOS Device Sanitization:** Wildcards (`*`, `?`) are detected using quoted regular-expression pattern matching (`echo("!_VSI_VAL!" | findstr /R /C:"[*?]"`). Additionally, legacy MS-DOS reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9`, `LPT1`-`LPT9`) are validated against a lookup loop to prevent Windows kernel file handle hangs.
-    - **Pre-Delayed-Expansion Exclamation Guard (`:RejectExclamationArg`):** Before `setlocal enabledelayedexpansion` is activated at script startup, `:RejectExclamationArg` inspects raw CLI parameters (`%~1`..`%~5`) under `setlocal disabledelayedexpansion`. This prevents `cmd.exe` from silently stripping unpaired `!` characters (e.g., turning `foo!bar` into `foobar`) during Phase 2 parser evaluation.
-    - **Zero-Subshell Pure-Batch Character Loop (`:VSI_CharLoop`):** Identifier character validation (including `*`, `?`, and `"`) executes entirely in pure batch using substring extraction in a loop, avoiding piping strings to external utilities (`findstr`) or spawning subshells where command injection could occur.
-    - **System32 Binary Pinning & CWD Planting Immunity (`CWE-426` / `CWE-427`):** `jvm.bat` sets `NoDefaultCurrentDirectoryInExePath=1` and pins all external Windows binaries (`reg.exe`, `findstr.exe`, `where.exe`, `choice.exe`, `timeout.exe`, `fsutil.exe`, `powershell.exe`, `chcp.com`, `icacls.exe`, `explorer.exe`) to `%SYS32%` (`%..._BIN%`), preventing Trojan binary execution from untrusted working directories.
-    - **ACL-Locked Isolated Temp Workspace (`:EnsureSecureTemp` — `CWE-377` / `CWE-378`):** All temporary helper scripts and `.jvm_session_target` files are isolated inside `%LOCALAPPDATA%\DiamTek\JVM\temp` with inherited permissions stripped (`icacls /inheritance:r /grant:r "%USERNAME%:(OI)(CI)F"`) and cryptographically random filenames (`[System.IO.Path]::GetRandomFileName()`).
+    - **Wildcard, Extended DOS Device & Win32 Namespace Sanitization (`CWE-66` / `CWE-155`):** Wildcards (`*`, `?`) are detected using pure-batch character loops and quoted regular-expression pattern matching. Legacy MS-DOS reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9`, `LPT1`-`LPT9`), extended DOS device names with extensions (`CON.jdk`, `NUL.21`, `AUX.txt`, `COM1.jdk` via base-name extraction before `.`), and Win32 raw device path namespaces (`\\.\`, `\\?\`, `\??\`) are explicitly blocked to prevent Windows kernel file handle hangs or device access.
+    - **Pre-Delayed-Expansion Exclamation Guard (`:RejectExclamationArg`):** Before `setlocal enabledelayedexpansion` is activated at script startup, `:RejectExclamationArg` inspects raw CLI parameters (`%~1`..`%~9`) under `setlocal disabledelayedexpansion`. This prevents `cmd.exe` from silently stripping unpaired `!` characters (e.g., turning `foo!bar` into `foobar`) during Phase 2 parser evaluation.
+    - **Zero-Subshell Pure-Batch Character Loop (`:VSI_CharLoop`):** Identifier character validation (including `*`, `?`, and `"`) and `jvm doctor` / `jvm list` vendor checks execute entirely in pure batch using substring extraction and delayed-expansion substitution (`!VAR:sub=!`), avoiding piping untrusted strings to external utilities (`find.exe`, `findstr.exe`) or spawning subshells where command injection could occur.
+    - **System32 Binary Pinning & CWD Planting Immunity (`CWE-426` / `CWE-427`):** `jvm.bat` verifies `%SystemRoot%\System32\cmd.exe` existence (`if not exist "%SystemRoot%\System32\cmd.exe" set "SystemRoot=C:\Windows"`), sets `NoDefaultCurrentDirectoryInExePath=1`, pins all external Windows binaries (`cmd.exe`, `reg.exe`, `find.exe`, `findstr.exe`, `where.exe`, `choice.exe`, `timeout.exe`, `fsutil.exe`, `powershell.exe`, `chcp.com`, `icacls.exe`, `attrib.exe`, `explorer.exe`) to `%SYS32%` (`%..._BIN%`), and executes `where.exe` exclusively as `%WHERE_BIN% $PATH:java`, preventing Trojan binary execution from untrusted working directories.
+    - **ACL-Locked & Reparse-Safe Isolated Temp Workspace (`:EnsureSecureTemp` & `:EmitSessionEnv` — `CWE-20` / `CWE-276` / `CWE-377`):** All temporary helper scripts and `.jvm_session_target` files are isolated inside `%LOCALAPPDATA%\DiamTek\JVM\temp` after verifying the directory is not a reparse point (`%FSUTIL_BIN% reparsepoint query`) and locking DACLs atomically (`icacls /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "%USERNAME%:(OI)(CI)F"`), with `JVM_CALLER_PID` validated strictly as a positive numeric PID in `:EmitSessionEnv`.
 
 ### 8. Non-Destructive Reparse Point & Junction Lifecycle
 - **Vulnerability Mitigated:** Accidental or malicious destruction of host JDK directories during unlinking, uninstallation, or switching; recursive traversal into junction targets; and reparse point auto-recovery deadlocks caused by Win32 `if exist` semantics on dangling junctions.
 - **Architectural Defense:**
-  - **Reparse Point Target Isolation (`Remove-DirectorySafely`):** Naive recursive folder deletion (such as standard PowerShell `Remove-Item -Recurse` or batch commands) can follow directory junctions and wipe the contents of the target installation folder (e.g., deleting the real JDK installation at `C:\Program Files\Java\jdk-21` when attempting to clean up `%LOCALAPPDATA%\DiamTek\JVM\current`). `Remove-DirectorySafely` (implemented in `uninstall.ps1` and `build-msi.ps1`) inspects directory attributes using `($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)`:
+  - **Reparse Point Target Isolation (`Remove-DirectorySafely`):** Naive recursive folder deletion (such as standard PowerShell `Remove-Item -Recurse` or batch commands) can follow directory junctions and wipe the contents of the target installation folder (e.g., deleting the real JDK installation at `C:\Program Files\Java\jdk-21` when attempting to clean up `%LOCALAPPDATA%\DiamTek\JVM\current`). `Remove-DirectorySafely` (implemented in `uninstall.ps1` and `build-msi.ps1`) and `:CleanCache` (`jvm clean` / `jvm prune`) inspect directory attributes using `($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)`:
     - If the directory root is a reparse point, it is unbound immediately using `[System.IO.Directory]::Delete($path, $false)` or `cmd.exe /c "rmdir /q \"$path\""`. The non-recursive unbind removes the junction pointer while leaving the target JDK directory contents 100% untouched.
-    - Child reparse points within candidate stores are enumerated and safely unbound bottom-up prior to deleting parent directories.
+    - Child reparse points within candidate and cache stores are enumerated and safely unbound bottom-up prior to deleting parent directories.
     - Tree deletion subsequently leverages `cmd.exe /c "rmdir /s /q \"$Path\""` to guarantee junction safety in Windows PowerShell 5.1 without risking target deletion.
   - **Broken Junction Auto-Recovery Without `if exist` Deadlock:**
     - In Windows `cmd.exe`, the `if exist <path>` operator evaluates whether the *target* directory of a directory junction exists, not whether the reparse point itself exists on disk.
@@ -159,6 +159,33 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
       $PSDefaultParameterValues['Invoke-RestMethod:ProxyUseDefaultCredentials'] = $true
       ```
     - This allows seamless downloads from vendor endpoints (Adoptium, GitHub, Azul) across enterprise proxy gateways without credential prompts or plaintext credential storage.
+
+### 11. Automated 100-Test Security Suite & 21-CWE Coverage Matrix (`tests/Test-JvmSecurity.ps1`)
+Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1`, which executes **100 automated adversarial test cases across 8 defensive suites** and outputs a numerically sorted **21-CWE Coverage Summary**:
+
+| CWE ID | Vulnerability Class | Tests Verified |
+|:---|:---|:---:|
+| **`CWE-20`** | Improper Input & Config Validation (`.java-version` BOM/CRLF, `.sdkmanrc` read-only isolation, `JVM_CALLER_PID`) | **3 / 3** |
+| **`CWE-22`** | Path Traversal & ZipSlip (`..`, `/`, `\`, sibling-prefix collisions, rooted archive entries) | **18 / 18** |
+| **`CWE-41`** | Win32 Canonicalization Bypass (`current.`, `current `, multiple trailing dots/spaces) | **6 / 6** |
+| **`CWE-59`** | Symlink & Junction Safety (`Remove-DirectorySafely`, `:CleanCache`, `jvm pin` reparse guard) | **8 / 8** |
+| **`CWE-66`** | DOS Reserved Device (`CON`, `NUL.jdk`) & NTFS ADS (`:stream`, `\\.\`) Abuse | **3 / 3** |
+| **`CWE-73`** | Environment, Registry ValueKind & System Root Protection | **5 / 5** |
+| **`CWE-78`** | OS Command & Shell Metacharacter Injection (`:ValidateStrictIdentifier`, `:RejectExclamationArg`) | **17 / 17** |
+| **`CWE-88`** | Argument & Flag Injection (`--evil-flag`, `--vendor` poisoning, `jvm exec`) | **5 / 5** |
+| **`CWE-155`** | Wildcard Expansion Injection (`*`, `?`) | **2 / 2** |
+| **`CWE-250`** | Privilege Boundary Isolation (Base64 UTF-16LE `-EncodedCommand` AST immunity) | **1 / 1** |
+| **`CWE-276`** | Strict Directory DACL & Reparse Isolation (`%JVM_SECURE_TEMP%`) | **1 / 1** |
+| **`CWE-295`** | TLS 1.2 / 1.3 Cryptographic Protocol Enforcement | **1 / 1** |
+| **`CWE-319`** | Strict `https://` URI Scheme & Redirect Enforcement | **1 / 1** |
+| **`CWE-345`** | Version & Monotonic `JVM_BUILD` Downgrade Attack Defense | **1 / 1** |
+| **`CWE-354`** | `SHA256SUMS.txt` Checksum Manifest Format Validation | **1 / 1** |
+| **`CWE-377`** | Insecure Temporary File & Protected DACL Verification | **2 / 2** |
+| **`CWE-400`** | Hang & Parser Resilience (`SendMessageTimeout`, PATH boundaries, `NO_COLOR`, JSONC) | **7 / 7** |
+| **`CWE-426`** | Untrusted Search Path & CWD Trojan Binary Planting Defense (`%SYS32%`, `$PATH:java`) | **5 / 5** |
+| **`CWE-427`** | Uncontrolled `PATH` Search-Order Hijack Immunity | **1 / 1** |
+| **`CWE-459`** | Failure-Path Archive Handle (`$zip.Dispose()`) & Temp Directory Cleanup | **1 / 1** |
+| **`CWE-494`** | Supply Chain, Package Manifest & Cryptographic Hash Integrity | **11 / 11** |
 
 ---
 
