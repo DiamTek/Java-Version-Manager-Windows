@@ -2481,6 +2481,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Assert-Contains $msiBuildRaw 'if (Test-HasReparsePointInLineage `$p) { continue }' "msiInstallHook must enforce Test-HasReparsePointInLineage on PowerShell profile paths"
         Assert-Contains $msiBuildRaw 'DoNotExpandEnvironmentNames' "msiInstallHook and msiUninstallHook must preserve REG_EXPAND_SZ via DoNotExpandEnvironmentNames"
         Assert-Contains $msiBuildRaw 'FromBase64String(''$b64Target'')' "msiUninstallHook deferred cleanup must Base64-isolate `$jvmDir inside -EncodedCommand"
+        Assert-Contains $msiBuildRaw 'After="WriteEnvironmentStrings"' "RunInstallHook must be scheduled After WriteEnvironmentStrings so MSI does not append duplicate trailing-backslash PATH entries"
+        Assert-Contains $msiBuildRaw 'DiamTek\\JVM|JavaVersionManager|\\\.jvm' "msiUninstallHook must scrub all JVM directories (bin, current\bin, candidates, legacy) from User PATH"
     }
 
     # Test 123: scripts/bump-version.ps1 enforces Assert-TrustedGitHubUri, Assert-ValidSha256Hex, and Assert-ValidMsiProductCode (CWE-354)

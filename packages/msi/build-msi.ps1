@@ -338,7 +338,7 @@ if (-not (Test-Path -LiteralPath `$channelFile) -and (-not (Test-HasReparsePoint
     Set-Content -LiteralPath `$channelFile -Value 'STABLE' -Encoding Ascii -Force
 }
 
-# Verify User PATH preserves REG_EXPAND_SZ (DoNotExpandEnvironmentNames) and respects 8191-char cmd.exe boundary (CWE-400 / CWE-665)
+# Verify User PATH preserves REG_EXPAND_SZ (DoNotExpandEnvironmentNames), deduplicates binDir, and respects 8191-char cmd.exe boundary (CWE-400 / CWE-665)
 try {
     `$uKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', `$true)
     if (`$uKey) {
@@ -346,11 +346,15 @@ try {
         `$mKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SYSTEM\CurrentControlSet\Control\Session Manager\Environment', `$false)
         `$rawMPath = if (`$mKey) { `$mKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } else { '' }
         if (`$mKey) { `$mKey.Close() }
-        if ((`$rawMPath.Length + `$rawUPath.Length + `$binDir.Length + 2) -le 8191) {
-            if (`$rawUPath -notlike "*`$binDir*") {
-                `$newUPath = if ([string]::IsNullOrWhiteSpace(`$rawUPath)) { `$binDir } else { "`$rawUPath;`$binDir" }
-                `$uKey.SetValue('Path', `$newUPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
-            }
+        `$normBin = `$binDir.TrimEnd('\')
+        `$parts = @(`$rawUPath -split ';' | Where-Object {
+            `$t = `$_.Trim().TrimEnd('\')
+            `$_ -and (`$t -ne `$normBin)
+        })
+        `$dedupUPath = `$parts -join ';'
+        if ((`$rawMPath.Length + `$dedupUPath.Length + `$normBin.Length + 2) -le 8191) {
+            `$newUPath = if ([string]::IsNullOrWhiteSpace(`$dedupUPath)) { `$normBin } else { "`$dedupUPath;`$normBin" }
+            `$uKey.SetValue('Path', `$newUPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
         }
         `$uKey.Close()
     }
@@ -580,17 +584,17 @@ if ((Test-Path -LiteralPath $taskbarLnk) -and (-not (Test-HasReparsePointInLinea
     Remove-Item -LiteralPath $taskbarLnk -Force -ErrorAction SilentlyContinue
 }
 
-# 4. Clean up any dangling symlink paths from User PATH while preserving REG_EXPAND_SZ
+# 4. Clean up all JVM paths (bin, current\bin, candidates, legacy) from User PATH while preserving REG_EXPAND_SZ
 try {
-    $currentBin = "$localAppData\DiamTek\JVM\current\bin"
+    $jvmRootPrefix = "$localAppData\DiamTek\JVM"
     $userKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
     if ($userKey) {
         $rawUserPath = $userKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
         $userKind = $userKey.GetValueKind('Path')
-        if ($rawUserPath -and ($rawUserPath -like "*$currentBin*")) {
+        if ($rawUserPath -and ($rawUserPath -match 'DiamTek\\JVM|JavaVersionManager|\\\.jvm')) {
             $cleanPath = ($rawUserPath -split ';' | Where-Object {
                 $trimmed = $_.Trim().TrimEnd('\')
-                $_ -and ($trimmed -ne $currentBin)
+                $_ -and ($trimmed -notlike "$jvmRootPrefix*") -and ($trimmed -notmatch 'DiamTek\\JVM|JavaVersionManager|\\\.jvm')
             }) -join ';'
             $targetKind = if ($userKind -eq [Microsoft.Win32.RegistryValueKind]::String) { [Microsoft.Win32.RegistryValueKind]::String } else { [Microsoft.Win32.RegistryValueKind]::ExpandString }
             $userKey.SetValue('Path', $cleanPath, $targetKind)
@@ -794,7 +798,7 @@ exit 0
     <CustomAction Id="RunUninstallHook" BinaryRef="Wix4UtilCA_`$(sys.BUILDARCHSHORT)" DllEntry="WixQuietExec" Execute="deferred" Impersonate="yes" Return="ignore" />
 
     <InstallExecuteSequence>
-      <Custom Action="RunInstallHook" After="CreateShortcuts" Condition="NOT (REMOVE=&quot;ALL&quot;) AND NOT (SKIPHOOKS=&quot;1&quot;)" />
+      <Custom Action="RunInstallHook" After="WriteEnvironmentStrings" Condition="NOT (REMOVE=&quot;ALL&quot;) AND NOT (SKIPHOOKS=&quot;1&quot;)" />
       <Custom Action="RunUninstallHook" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND NOT (SKIPHOOKS=&quot;1&quot;)" />
     </InstallExecuteSequence>
 
