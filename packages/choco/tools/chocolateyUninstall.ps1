@@ -16,8 +16,58 @@
 
 $ErrorActionPreference = 'Stop'
 
+function Test-HasReparsePointInLineage([string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    $curr = $Path
+    while (-not [string]::IsNullOrWhiteSpace($curr)) {
+        try {
+            if (Test-Path -LiteralPath $curr) {
+                $item = Get-Item -LiteralPath $curr -Force -ErrorAction Stop
+                if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                    return $true
+                }
+            }
+        } catch { }
+        $parent = Split-Path -Path $curr -Parent
+        if ([string]::IsNullOrWhiteSpace($parent) -or $parent -eq $curr) { break }
+        $curr = $parent
+    }
+    return $false
+}
+
+$sys32 = [Environment]::GetFolderPath([Environment+SpecialFolder]::System)
+$psExe = Join-Path $sys32 "WindowsPowerShell\v1.0\powershell.exe"
+$msiExec = Join-Path $sys32 "msiexec.exe"
+
+$uninstallerPath = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) "DiamTek\JVM\uninstall.ps1"
+if (Test-Path -LiteralPath $uninstallerPath) {
+    if (Test-HasReparsePointInLineage $uninstallerPath) {
+        throw "Security violation (CWE-59): NTFS reparse point or symlink detected on uninstaller lineage '$uninstallerPath'. Aborting."
+    }
+}
+
 $packageName = 'jvm-windows'
 Write-Host "Uninstalling JVM via Chocolatey package manager..."
+
+# Validate registered MSI ProductCode GUIDs if present before invoking Chocolatey MSI uninstall
+if (Get-Command Get-AppInstallLocation -ErrorAction SilentlyContinue) {
+    try {
+        [array]$keys = Get-UninstallRegistryKey -SoftwareName "Java Version Manager*" -ErrorAction SilentlyContinue
+        foreach ($key in $keys) {
+            if ($key.PSChildName -and $key.PSChildName -match '^\{[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}\}$') {
+                $packageArgs = @{
+                    packageName    = $packageName
+                    fileType       = 'MSI'
+                    silentArgs     = "$($key.PSChildName) /qn /norestart"
+                    validExitCodes = @(0, 3010)
+                }
+                Uninstall-ChocolateyPackage @packageArgs
+                return
+            }
+        }
+    } catch { }
+}
+
 $packageArgs = @{
     packageName    = $packageName
     fileType       = 'MSI'

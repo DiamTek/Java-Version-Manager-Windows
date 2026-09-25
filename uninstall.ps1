@@ -48,24 +48,106 @@ if (-not (Test-Path -LiteralPath $sysCmd)) {
     $sysCmd = "cmd.exe"
 }
 
+function Test-HasReparsePointInLineage([string]$TargetPath) {
+    if ([string]::IsNullOrWhiteSpace($TargetPath)) { return $false }
+    try {
+        $curr = [System.IO.Path]::GetFullPath($TargetPath)
+        $root = [System.IO.Path]::GetPathRoot($curr)
+        while ($curr -and ($curr.TrimEnd('\') -ne $root.TrimEnd('\'))) {
+            if (Test-Path -LiteralPath $curr) {
+                $item = Get-Item -LiteralPath $curr -Force -ErrorAction Stop
+                if ([bool]($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { return $true }
+            }
+            $curr = Split-Path -Path $curr -Parent
+        }
+    } catch { return $true }
+    return $false
+}
+
+function Invoke-DeferredDirectoryCleanup([string]$TargetDir) {
+    if ([string]::IsNullOrWhiteSpace($TargetDir) -or (Test-HasReparsePointInLineage $TargetDir)) { return }
+    $b64Target = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($TargetDir))
+    $cleanScript = "Start-Sleep -Seconds 2; `$t = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('$b64Target')); if (Test-Path -LiteralPath `$t) { Remove-Item -LiteralPath `$t -Recurse -Force -ErrorAction SilentlyContinue }"
+    $encoded = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cleanScript))
+    Start-Process -FilePath $systemPowerShell -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded) -WindowStyle Hidden
+}
+
 $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
 $userProfileDir = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
+$winDir = [Environment]::GetFolderPath([Environment+SpecialFolder]::Windows)
+$systemDriveRoot = [System.IO.Path]::GetPathRoot($winDir).TrimEnd('\')
+$progFiles = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)
+$progFilesX86 = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)
+$forbiddenRoots = @(
+    $systemDriveRoot, "$systemDriveRoot\",
+    $userProfileDir, "$userProfileDir\",
+    $winDir, "$winDir\",
+    $progFiles, "$progFiles\",
+    $progFilesX86, "$progFilesX86\"
+)
+
+function Test-TrustedJvmInstallDirectory([string]$CandidateDir) {
+    if ([string]::IsNullOrWhiteSpace($CandidateDir)) { return $null }
+    if ($CandidateDir -match '\.\.' -or (Test-HasReparsePointInLineage $CandidateDir)) {
+        Write-Host "[ ERROR  ] Security violation (CWE-59/CWE-73): Invalid or reparse-point directory rejected: $CandidateDir" -ForegroundColor Red
+        return $null
+    }
+    if (-not (Test-Path -LiteralPath $CandidateDir)) { return $null }
+    try {
+        $resolvedSrc = (Resolve-Path -LiteralPath $CandidateDir -ErrorAction Stop).Path.TrimEnd('\')
+        $normWinDir = $winDir.TrimEnd('\')
+        $normProg = $progFiles.TrimEnd('\')
+        $normProg86 = $progFilesX86.TrimEnd('\')
+        if (($forbiddenRoots -contains $resolvedSrc) -or
+            $resolvedSrc.StartsWith("$normWinDir\", [StringComparison]::OrdinalIgnoreCase) -or
+            $resolvedSrc.StartsWith("$normProg\", [StringComparison]::OrdinalIgnoreCase) -or
+            ($normProg86 -and $resolvedSrc.StartsWith("$normProg86\", [StringComparison]::OrdinalIgnoreCase))) {
+            Write-Host "[ ERROR  ] Security violation (CWE-73): Refusing protected system/user root folder: $resolvedSrc" -ForegroundColor Red
+            return $null
+        }
+        $normAppDataRoot = Join-Path $localAppData "DiamTek"
+        $isInsideAppData = $resolvedSrc.StartsWith($normAppDataRoot, [StringComparison]::OrdinalIgnoreCase)
+        $hasJvmMarker = (Test-Path -LiteralPath (Join-Path $resolvedSrc "jvm.bat")) -or
+                        (Test-Path -LiteralPath (Join-Path $resolvedSrc "bin\jvm.bat")) -or
+                        (Test-Path -LiteralPath (Join-Path $resolvedSrc "uninstall.ps1"))
+        if ($isInsideAppData -or $hasJvmMarker) {
+            return $resolvedSrc
+        }
+        Write-Host "[ ERROR  ] Security violation (CWE-73): Refusing unverified directory without JVM installation markers: $resolvedSrc" -ForegroundColor Red
+    } catch {}
+    return $null
+}
+
+$validatedSourceDir = if (-not [string]::IsNullOrWhiteSpace($SourceDir)) { Test-TrustedJvmInstallDirectory $SourceDir } else { $null }
+
 $jvmLocations = @(
     "$localAppData\DiamTek\JVM\bin",
     "$localAppData\DiamTek\JVM\current\bin"
 )
 
-# Also remove SourceDir and its bin folder if provided
-if ($SourceDir) {
-    if ($jvmLocations -notcontains $SourceDir) { $jvmLocations += $SourceDir }
-    $sourceBin = Join-Path $SourceDir "bin"
+# Validate Registry InstallLocation against tampering before adding to $jvmLocations (CWE-73)
+try {
+    $regInstallLoc = (Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Name "InstallLocation" -ErrorAction SilentlyContinue).InstallLocation
+    $validatedRegLoc = if ($regInstallLoc) { Test-TrustedJvmInstallDirectory $regInstallLoc } else { $null }
+    if ($validatedRegLoc) {
+        if ($jvmLocations -notcontains $validatedRegLoc) { $jvmLocations += $validatedRegLoc }
+        $regBin = Join-Path $validatedRegLoc "bin"
+        if ($jvmLocations -notcontains $regBin) { $jvmLocations += $regBin }
+    }
+} catch {}
+
+# Also remove validated SourceDir and its bin folder if provided
+if ($validatedSourceDir) {
+    if ($jvmLocations -notcontains $validatedSourceDir) { $jvmLocations += $validatedSourceDir }
+    $sourceBin = Join-Path $validatedSourceDir "bin"
     if ($jvmLocations -notcontains $sourceBin) { $jvmLocations += $sourceBin }
 }
 
-# Also remove the script's own directory if it differs
+# Also remove the script's own directory only if it passes Test-TrustedJvmInstallDirectory
 $scriptDir = Split-Path -Parent $PSCommandPath
-if ($scriptDir -and ($jvmLocations -notcontains $scriptDir)) {
-    $jvmLocations += $scriptDir
+$validatedScriptDir = if ($scriptDir) { Test-TrustedJvmInstallDirectory $scriptDir } else { $null }
+if ($validatedScriptDir -and ($jvmLocations -notcontains $validatedScriptDir)) {
+    $jvmLocations += $validatedScriptDir
 }
 
 $normJvmLocations = @($jvmLocations | ForEach-Object { $_.TrimEnd('\', '/') } | Where-Object { $_ } | Select-Object -Unique)
@@ -180,7 +262,7 @@ function Test-HasReparsePointInLineage([string]$TargetPath) {
     return $false
 }
 
-$utf8 = New-Object System.Text.UTF8Encoding($true)
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
 foreach ($p in $profiles) {
     if (Test-Path -LiteralPath $p) {
@@ -192,7 +274,13 @@ foreach ($p in $profiles) {
             if ([string]::IsNullOrWhiteSpace($profContent)) {
                 Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
             } else {
-                [System.IO.File]::WriteAllText($p, $profContent, $utf8)
+                $stageProf = "$p.stage.$([Guid]::NewGuid().ToString('N')).tmp"
+                [System.IO.File]::WriteAllText($stageProf, $profContent, $utf8NoBom)
+                if (-not (Test-HasReparsePointInLineage $p)) {
+                    Move-Item -LiteralPath $stageProf -Destination $p -Force
+                } else {
+                    Remove-Item -LiteralPath $stageProf -Force -ErrorAction SilentlyContinue
+                }
             }
             Write-Host "[   OK   ] Profile hook removed from: $p" -ForegroundColor Green
         }
@@ -284,7 +372,13 @@ foreach ($wtSettings in $wtSettingsCandidates) {
                         $wtJson.defaultProfile = $filtered[0].guid
                     }
                     $newWtContent = $wtJson | ConvertTo-Json -Depth 32
-                    [System.IO.File]::WriteAllText($wtSettings, $newWtContent, $utf8)
+                    $stageWt = "$wtSettings.stage.$([Guid]::NewGuid().ToString('N')).tmp"
+                    [System.IO.File]::WriteAllText($stageWt, $newWtContent, $utf8NoBom)
+                    if (-not (Test-HasReparsePointInLineage $wtSettings)) {
+                        Move-Item -LiteralPath $stageWt -Destination $wtSettings -Force
+                    } else {
+                        Remove-Item -LiteralPath $stageWt -Force -ErrorAction SilentlyContinue
+                    }
                     Write-Host "[   OK   ] Removed Windows Terminal profile." -ForegroundColor Green
                 }
             }
@@ -292,18 +386,16 @@ foreach ($wtSettings in $wtSettingsCandidates) {
     }
 }
 
-# Cleanup temporary session files
-Remove-Item -Path "$env:TEMP\.jvm_session_target" -Force -ErrorAction SilentlyContinue
-Get-ChildItem -Path $env:TEMP -Filter "jvm_*" -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'uninstall' } | Remove-Item -Force -ErrorAction SilentlyContinue
-Get-ChildItem -Path $env:TEMP -Filter "diamtek_uninstall_*" -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -ne $PSCommandPath } | Remove-Item -Force -ErrorAction SilentlyContinue
-
-Write-Host "[   OK   ] Windows uninstall registration removed." -ForegroundColor Green
-
 # ----------------------------------------------------------------
 # AppData & Ecosystem Candidate folders - always removed on a complete uninstall
 # ----------------------------------------------------------------
 function Remove-DirectorySafely([string]$Path) {
     if (-not $Path) { return }
+    $parentPath = Split-Path -Path $Path -Parent
+    if ($parentPath -and (Test-HasReparsePointInLineage $parentPath)) {
+        Write-Host "[ ERROR  ] Security violation (CWE-59): Ancestor reparse point detected for '$Path'. Refusing deletion." -ForegroundColor Red
+        return
+    }
     if (-not (Test-Path -LiteralPath $Path) -and -not (Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue)) {
         return
     }
@@ -344,10 +436,25 @@ function Remove-DirectorySafely([string]$Path) {
     }
 }
 
+# Cleanup temporary session & extraction files safely (preventing CWE-59 reparse traversal in shared %TEMP%)
+if (Test-Path -LiteralPath "$env:TEMP\.jvm_session_target") {
+    $stItem = Get-Item -LiteralPath "$env:TEMP\.jvm_session_target" -Force -ErrorAction SilentlyContinue
+    if ($stItem -and -not ($stItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+        Remove-Item -LiteralPath "$env:TEMP\.jvm_session_target" -Force -ErrorAction SilentlyContinue
+    }
+}
+Get-ChildItem -LiteralPath $env:TEMP -Filter "jdk_*_extract*" -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object {
+    Remove-DirectorySafely $_.FullName
+}
+Get-ChildItem -LiteralPath $env:TEMP -Filter "jvm_*" -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'uninstall' -and -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) } | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+Get-ChildItem -LiteralPath $env:TEMP -Filter "diamtek_uninstall_*" -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.FullName -ne $PSCommandPath -and -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) } | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+
+Write-Host "[   OK   ] Windows uninstall registration removed." -ForegroundColor Green
+
 Write-Host "`n[ ACTION ] Deleting JVM AppData and Candidate folders..." -ForegroundColor Cyan
 $diamtekAppData = Join-Path $localAppData "DiamTek"
 $jvmAppData = Join-Path $diamtekAppData "JVM"
-if (Test-Path $jvmAppData) {
+if (Test-Path -LiteralPath $jvmAppData) {
     # Terminate any dangling JVM processes locking files
     try {
         Get-Process | Where-Object {
@@ -358,13 +465,10 @@ if (Test-Path $jvmAppData) {
     } catch { }
 
     Remove-DirectorySafely $jvmAppData
-    if (-not (Test-Path $jvmAppData)) {
+    if (-not (Test-Path -LiteralPath $jvmAppData)) {
         Write-Host "[   OK   ] Deleted: $jvmAppData" -ForegroundColor Green
     } else {
-        $cleanScript = "Start-Sleep -Seconds 1; cmd.exe /c rmdir /s /q `"$jvmAppData`""
-        $bytes = [System.Text.Encoding]::Unicode.GetBytes($cleanScript)
-        $encoded = [System.Convert]::ToBase64String($bytes)
-        Start-Process -FilePath $systemPowerShell -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded) -WindowStyle Hidden
+        Invoke-DeferredDirectoryCleanup $jvmAppData
         Write-Host "[   OK   ] Scheduled deletion of: $jvmAppData" -ForegroundColor Green
     }
 } else {
@@ -502,13 +606,10 @@ if ($targetFolder) {
                 Set-Location $env:TEMP
 
                 Remove-DirectorySafely $targetFolder
-                if (-not (Test-Path $targetFolder)) {
+                if (-not (Test-Path -LiteralPath $targetFolder)) {
                     Write-Host "[   OK   ] Deleted directory: $targetFolder" -ForegroundColor Green
                 } else {
-                    $cleanScript = "Start-Sleep -Seconds 2; cmd.exe /c rmdir /s /q `"$targetFolder`""
-                    $bytes = [System.Text.Encoding]::Unicode.GetBytes($cleanScript)
-                    $encoded = [System.Convert]::ToBase64String($bytes)
-                    Start-Process -FilePath $systemPowerShell -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded) -WindowStyle Hidden
+                    Invoke-DeferredDirectoryCleanup $targetFolder
                     Write-Host "[   OK   ] Directory scheduled for deletion: $targetFolder" -ForegroundColor Green
                 }
 

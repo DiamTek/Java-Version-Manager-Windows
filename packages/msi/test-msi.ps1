@@ -21,6 +21,15 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
+$sys32 = [Environment]::GetFolderPath([Environment+SpecialFolder]::System)
+$msiExecBin = Join-Path $sys32 "msiexec.exe"
+
+if (-not [string]::IsNullOrWhiteSpace($MsiPath)) {
+    if ($MsiPath -match '(^|[\\/])\.\.([\\/]|$)' -or [System.IO.Path]::GetExtension($MsiPath) -ne '.msi') {
+        Write-Error "Security violation (CWE-20): -MsiPath must point to a valid .msi package without '..' traversal sequences."
+        exit 1
+    }
+}
 
 # Ensure process-level execution policy allows running hooks and commands
 try {
@@ -43,10 +52,10 @@ $ScriptDir = if ($PSScriptRoot) {
 # Auto-unblock script and companion files if flagged with Zone.Identifier (downloaded from web/untrusted zone)
 try {
     if (Get-Command Unblock-File -ErrorAction SilentlyContinue) {
-        if ($PSCommandPath) { Unblock-File -Path $PSCommandPath -ErrorAction SilentlyContinue }
+        if ($PSCommandPath) { Unblock-File -LiteralPath $PSCommandPath -ErrorAction SilentlyContinue }
         if ($ScriptDir) {
-            Get-ChildItem -Path $ScriptDir -Filter "*.ps1" -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
-            Get-ChildItem -Path $ScriptDir -Filter "*.msi" -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+            Get-ChildItem -LiteralPath $ScriptDir -Filter "*.ps1" -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+            Get-ChildItem -LiteralPath $ScriptDir -Filter "*.msi" -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
         }
     }
 } catch { }
@@ -63,10 +72,10 @@ try {
         (Join-Path (Get-Location).Path "jvm.bat"),
         (Join-Path (Get-Location).Path "..\jvm.bat")
     )
-    $sourceBat = $sourceBatCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $sourceBat = $sourceBatCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 
     if ($sourceBat) {
-        $batRaw = Get-Content $sourceBat -Raw -ErrorAction SilentlyContinue
+        $batRaw = Get-Content -LiteralPath $sourceBat -Raw -ErrorAction SilentlyContinue
         if ($batRaw -match '(?m)^set\s+("?)JVM_VERSION=([^"\r\n]+)') { $expectedVersion = $matches[2].Trim() }
         if ($batRaw -match '(?m)^set\s+("?)JVM_BUILD=([^"\r\n]+)')   { $expectedBuild = $matches[2].Trim() }
     }
@@ -83,10 +92,10 @@ try {
     # Resolve target MSI package
     if (-not $MsiPath) {
         # Check in script directory first
-        $candidate = Get-ChildItem -Path $ScriptDir -Filter "jvm-windows-*-x64.msi" -File -ErrorAction SilentlyContinue | Select-Object -First 1
+        $candidate = Get-ChildItem -LiteralPath $ScriptDir -Filter "jvm-windows-*-x64.msi" -File -ErrorAction SilentlyContinue | Select-Object -First 1
         if (-not $candidate) {
             # Check current working directory or subdirectories if invoked from repo root
-            $candidate = Get-ChildItem -Path (Get-Location).Path -Filter "jvm-windows-*-x64.msi" -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            $candidate = Get-ChildItem -LiteralPath (Get-Location).Path -Filter "jvm-windows-*-x64.msi" -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
         }
         if ($candidate) {
             $MsiPath = $candidate.FullName
@@ -95,14 +104,14 @@ try {
         }
     } else {
         # If explicitly specified, check if it's relative to current dir, script dir, or pure filename
-        if (-not (Test-Path $MsiPath)) {
+        if (-not (Test-Path -LiteralPath $MsiPath)) {
             $candidateScript = Join-Path $ScriptDir $MsiPath
-            if (Test-Path $candidateScript) {
+            if (Test-Path -LiteralPath $candidateScript) {
                 $MsiPath = $candidateScript
             } else {
                 $leafName = Split-Path $MsiPath -Leaf
                 $candidateLeaf = Join-Path $ScriptDir $leafName
-                if (Test-Path $candidateLeaf) {
+                if (Test-Path -LiteralPath $candidateLeaf) {
                     $MsiPath = $candidateLeaf
                 }
             }
@@ -110,7 +119,7 @@ try {
     }
 
     # Fallback Tier 2: If MSI is not found locally, compile using local build-msi.ps1
-    if (-not (Test-Path $MsiPath)) {
+    if (-not (Test-Path -LiteralPath $MsiPath)) {
         $buildScript = Join-Path $ScriptDir "build-msi.ps1"
         if (Test-Path $buildScript) {
             Write-Host "`n  [  INFO  ] MSI not found locally. Compiling with build-msi.ps1..." -ForegroundColor Cyan
@@ -244,7 +253,7 @@ try {
     $uiFlag = if ($ShowUI) { "/qb" } else { "/qn" }
     Write-Host "${cBold}[SUITE 1] Phase 1: Installation & System Registration${cReset}"
     $script:checkSw.Restart()
-    $installProc = Start-Process msiexec.exe -ArgumentList "/i `"$MsiPath`" $uiFlag" -Wait -PassThru
+    $installProc = Start-Process -FilePath $msiExecBin -ArgumentList "/i `"$MsiPath`" $uiFlag" -Wait -PassThru
     Report-Check -Title "Windows Installer execution completed cleanly" -Passed ($installProc.ExitCode -eq 0) -Details "ExitCode: $($installProc.ExitCode)"
 
     $jvmBatPath = "$env:LOCALAPPDATA\DiamTek\JVM\bin\jvm.bat"
@@ -353,7 +362,7 @@ try {
         Write-Host ""
         Write-Host "${cBold}[SUITE 2] Phase 2: Uninstallation & Residual Hygiene${cReset}"
         $script:checkSw.Restart()
-        $uninstallProc = Start-Process msiexec.exe -ArgumentList "/x `"$MsiPath`" $uiFlag" -Wait -PassThru
+        $uninstallProc = Start-Process -FilePath $msiExecBin -ArgumentList "/x `"$MsiPath`" $uiFlag" -Wait -PassThru
         Report-Check -Title "Windows Installer uninstallation completed cleanly" -Passed ($uninstallProc.ExitCode -eq 0) -Details "ExitCode: $($uninstallProc.ExitCode)"
 
         Start-Sleep -Seconds 1

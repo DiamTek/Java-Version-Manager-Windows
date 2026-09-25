@@ -21,11 +21,19 @@ $packageName = 'jvm-windows'
 $packageVersion = '1.0.1'
 $url64 = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v$packageVersion/jvm-windows-$packageVersion-x64.msi"
 $checksum64 = 'E2A9471E4738A4F0456284BBD80B419F8901DDA122BFF3D39FF0042DA080E0DA'
+$checksumType64 = 'sha256'
 
-# Enforce fail-closed cryptographic and HTTPS transport assertions
+# Enforce fail-closed cryptographic, HTTPS transport, and domain allowlist assertions
 $parsedUri = $null
+$allowedHosts = @('github.com', 'objects.githubusercontent.com')
 if (-not [System.Uri]::TryCreate($url64, [System.UriKind]::Absolute, [ref]$parsedUri) -or $parsedUri.Scheme -ne 'https') {
     throw "Security violation (CWE-319): Download URL64 must use HTTPS transport. Installation aborted."
+}
+if ($parsedUri.Host -notin $allowedHosts) {
+    throw "Security violation (CWE-918): Download URL64 host '$($parsedUri.Host)' is not in the trusted GitHub domain allowlist. Installation aborted."
+}
+if ($checksumType64 -ne 'sha256') {
+    throw "Security violation (CWE-354): ChecksumType64 must be strictly 'sha256'. Installation aborted."
 }
 if ([string]::IsNullOrWhiteSpace($checksum64) -or $checksum64 -notmatch '^[A-Fa-f0-9]{64}$') {
     throw "Security violation: Checksum64 must be a valid 64-character SHA-256 hexadecimal hash. Installation aborted."
@@ -38,7 +46,7 @@ $packageArgs = @{
     silentArgs     = "/qn /norestart"
     validExitCodes = @(0, 3010)
     checksum64     = $checksum64
-    checksumType64 = 'sha256'
+    checksumType64 = $checksumType64
 }
 
 Install-ChocolateyPackage @packageArgs

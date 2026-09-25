@@ -52,11 +52,11 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
   - Checksum validation is strictly decoupled from interactive prompts: passing `-y` / `--yes` only suppresses confirmation dialogs and will **never** bypass integrity verification.
   - Bypassing checksum validation requires an explicit, intentional `--skip-checksum` (or `--no-verify`) flag for air-gapped or legacy mirrors without published hashes.
 
-### 3. Repository File Metacharacter Filtering (Injection Hardening)
-- **Vulnerability Mitigated:** Arbitrary shell command execution via untrusted project repository files (`.java-version` or `.sdkmanrc`).
+### 3. Repository File Fail-Closed Validation (`.java-version` & `.sdkmanrc` Hardening)
+- **Vulnerability Mitigated:** Arbitrary shell command execution or silent validation bypass via untrusted project repository files (`.java-version` or `.sdkmanrc`).
 - **Architectural Defense:**
-  - Injected shell metacharacters (`&`, `|`, `<`, `>`) embedded in version strings (e.g., `21 & calc.exe`) are strictly filtered out by the parsing pipeline using `findstr /v "[&|<>]"`.
-  - Malicious lines are discarded before reaching the subshell execution boundary.
+  - **Fail-Closed Non-Filtering Parser Boundary:** Rather than using `findstr /v` as a pre-filter (which could silently drop an injected or malformed `java=` or ecosystem line and allow the rest of `.sdkmanrc` or `.java-version` to appear valid), `jvm.bat` inspects all non-comment lines (`%FINDSTR_BIN% /r /v "^[ \t]*# ^ï»¿[ \t]*# ^[ \t]*$"`) for shell and expansion metacharacters (`[&|<>`%%!;$()^{}\"]`) and missing `=` delimiters first—immediately setting `JV_PARSE_ERR=1`, `SDK_PARSE_ERR=1`, or `SDK_ECO_ERR=1` and aborting (`exit /b 1`) if any unsafe line is present.
+  - Every active `java=` and ecosystem entry (`maven=`, `gradle=`, `kotlin=`, `scala=`, `groovy=`) is then passed (`tokens=1,* delims==`) to `:ParseJavaVersion`, `:ParseSdkmanrc`, and `:ProcessEcosystemSession` (`:ValidateStrictIdentifier`), failing closed on any invalid version, unsupported vendor, or reserved keyword (`current`).
 
 ### 4. Buffer Overflow & Environment Truncation Defense
 - **Vulnerability Mitigated:** Legacy Windows `setx.exe` imposes a hard 1,024-character buffer limit on the `PATH` environment variable. Running `setx` on a workstation with a long `PATH` silently truncates the tail of the variable, corrupting system-wide software installations.
@@ -70,11 +70,11 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
   gh attestation verify jvm-windows-1.0.1-x64.msi --owner DiamTek
   ```
 
-### 6. Dual Update Channel Integrity & Downgrade Prevention
-- **Vulnerability Mitigated:** In-transit modification of self-updater payloads, malicious mirror spoofing, accidental or unauthorized rollbacks to older vulnerable versions, and script-locking denial-of-service.
+### 6. Dual Update Channel Integrity, Unified Uninstaller Verification & Downgrade Prevention
+- **Vulnerability Mitigated:** In-transit modification of self-updater or uninstaller payloads, local uninstaller tampering, malicious mirror spoofing, accidental or unauthorized rollbacks to older vulnerable versions, and script-locking denial-of-service.
 - **Architectural Defense:**
-  - **`[Stable]` Channel:** Pulls release artifacts and computes SHA-256 digests in-memory via `System.Security.Cryptography.SHA256`, strictly matching against signed upstream `SHA256SUMS.txt` manifests before replacing local files. Any hash deviation immediately aborts execution and purges temporary files.
-  - **`[Nightly]` Channel:** Fetches the direct commit tip of `main`, parses semantic build stamps (`JVM_BUILD`), and cryptographically verifies downloaded payloads (`install.ps1` in `:SelfUpdate` and `jvm.bat` in `install.ps1`) against the GitHub Contents API **Git Blob SHA-1** (`SHA1("blob " + length + "\0" + bytes)` matched against `.sha` at the target `ref`), aborting immediately with `MISMATCH` on any tampering or corruption while logging the local SHA-256 fingerprint in the audit trail.
+  - **`[Stable]` Channel:** Pulls release artifacts and computes SHA-256 digests in-memory via `System.Security.Cryptography.SHA256`, strictly matching against signed upstream `SHA256SUMS.txt` manifests before replacing or executing local files (`install.ps1`, `jvm.bat`, and `uninstall.ps1`). Any hash deviation immediately aborts execution and purges temporary files.
+  - **`[Nightly]` Channel & Unified `uninstall.ps1` Trust Model:** Fetches the direct commit tip of `main`, parses semantic build stamps (`JVM_BUILD`), and cryptographically verifies downloaded and local payloads (`install.ps1` in `:SelfUpdate`, `jvm.bat` and `uninstall.ps1` in `install.ps1`, and `uninstall.ps1` in `:UninstallJVM_Complete` / `:VerifyDownloadedScript`) against the GitHub Contents API **Git Blob SHA-1** (`SHA1("blob " + length + "\0" + bytes)` matched against `.sha` at `ref=main`), backed by a DACL-protected `uninstall.ps1.sha256` sidecar digest written by `install.ps1` at install time for offline verification. Any tampering or hash mismatch immediately aborts with `MISMATCH`.
   - **Downgrade Safeguard:** Both channels compare local `JVM_BUILD` integers against remote payloads. If a local workstation is running a build with an integer greater than the upstream target (`local > remote`), the updater halts execution (`[ SKIP ] You are on a newer local build`), preventing accidental regression.
   - **Decoupled Ephemeral Runner:** Executable replacement occurs via a detached runner script that polls for file handle release before atomic filesystem replacement, preventing partial write corruption.
 
@@ -160,38 +160,42 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
       ```
     - This allows seamless downloads from vendor endpoints (Adoptium, GitHub, Azul) across enterprise proxy gateways without credential prompts or plaintext credential storage.
 
-### 11. Automated 116-Test Security Suite & 27-CWE Coverage Matrix (`tests/Test-JvmSecurity.ps1`)
-Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1`, which executes **116 automated adversarial test cases across 8 defensive suites** and outputs a numerically sorted **27-CWE Coverage Summary**:
+### 11. Automated 150-Test Security Suite & 31-CWE Coverage Matrix (`tests/Test-JvmSecurity.ps1`)
+Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1`, which executes **150 automated adversarial test cases across 8 defensive suites** and outputs a numerically sorted **31-CWE Coverage Summary**:
 
 | CWE ID | Vulnerability Class | Tests Verified |
 |:---|:---|:---:|
-| **`CWE-20`** | Improper Input & Config Validation (`.java-version` BOM/CRLF, `.sdkmanrc` read-only isolation, `JVM_CALLER_PID`, `LATEST_VER`, `bump-version.ps1`) | **5 / 5** |
+| **`CWE-20`** | Improper Input & Config Validation (`.java-version` BOM/CRLF, `.sdkmanrc` fail-closed validation, `JVM_CALLER_PID`, `LATEST_VER`, `CUSTOM_VER`, `REL_ADOPTIUM`, `for /f "eol= delims=0123456789"`, `bump-version.ps1`) | **8 / 8** |
 | **`CWE-22`** | Path Traversal & ZipSlip (`..`, `/`, `\`, sibling-prefix collisions, rooted archive entries, `:FetchAndExtract` `GetFullPath`) | **19 / 19** |
 | **`CWE-41`** | Win32 Canonicalization Bypass (`current.`, `current `, multiple trailing dots/spaces) | **6 / 6** |
-| **`CWE-59`** | Symlink & Junction Safety (`Remove-DirectorySafely`, `Test-HasReparsePointInLineage`, `:CleanCache`, `jvm pin`, `$PROFILE` reparse guards) | **10 / 10** |
-| **`CWE-66`** | DOS Reserved Device (`CON`, `NUL.jdk`) & NTFS ADS (`:stream`, `\\.\`) Abuse | **3 / 3** |
-| **`CWE-73`** | Environment, Registry ValueKind & System Root Protection | **5 / 5** |
-| **`CWE-78`** | OS Command & Shell Metacharacter Injection (`:ValidateStrictIdentifier`, `:RejectExclamationArg`, pipe-free `:SwitchCandidate`) | **18 / 18** |
-| **`CWE-88`** | Argument & Flag Injection (`--evil-flag`, `--vendor` poisoning, `jvm exec`, `DL_STRIP_ROOT` leading hyphen guard) | **6 / 6** |
+| **`CWE-59`** | Symlink & Junction Safety (`Remove-DirectorySafely`, `Remove-ReparsePointOrFail`, `Test-HasReparsePointInLineage`, `CURRENT_SYMLINK`, `:WriteConfigFile` (`channel.txt`/`mode.txt`), `:EmitSessionEnv`, `jvm link`/`unlink`, `:UninstallCandidate`, elevated `:UninstallJDK`, `build-msi.ps1` hooks, `:CleanCache`, `jvm pin`, `$PROFILE` reparse guards) | **18 / 18** |
+| **`CWE-66`** | DOS Reserved Device (`CON`, `NUL.jdk`, archive entry device names) & NTFS ADS (`:stream`, `\\.\`) Abuse | **3 / 3** |
+| **`CWE-73`** | Environment, Registry ValueKind, `Test-TrustedJvmInstallDirectory` (`InstallLocation` / `-SourceDir`) & System Root Protection | **7 / 7** |
+| **`CWE-74`** | XML Attribute & Template Injection (`Escape-XmlAttr` / `[System.Security.SecurityElement]::Escape` in `build-msi.ps1`) | **1 / 1** |
+| **`CWE-78`** | OS Command & Shell Metacharacter Injection (`:ValidateStrictIdentifier`, `:RejectExclamationArg`, `:EcoPerformCheck`, `:ShowDynamicMenu`, `:ShowCurrentStatus`, `:DoctorDiagnostics`, pipe-free `:SwitchCandidate`, `Invoke-DeferredDirectoryCleanup`) | **22 / 22** |
+| **`CWE-88`** | Argument & Flag Injection (`--evil-flag`, `--vendor` poisoning, `jvm exec`, `jvm open` comma delimiter guard, `DL_STRIP_ROOT` leading hyphen guard, URL/PS metacharacter filter in `:ValidateStrictIdentifier`) | **8 / 8** |
+| **`CWE-94`** | Batch `set /a` Arithmetic Expression & Variable Assignment Evaluation Defense (`:ShowDynamicMenu` `JAVA_VERSION` numeric guard) | **1 / 1** |
 | **`CWE-155`** | Wildcard Expansion Injection (`*`, `?`) | **2 / 2** |
-| **`CWE-250`** | Privilege Boundary Isolation (Base64 UTF-16LE `-EncodedCommand` AST immunity) | **1 / 1** |
-| **`CWE-276`** | Strict Directory DACL & Reparse Isolation (`%JVM_SECURE_TEMP%`) | **1 / 1** |
-| **`CWE-295`** | TLS 1.2 / 1.3 Cryptographic Protocol Enforcement | **1 / 1** |
+| **`CWE-250`** | Privilege Boundary Isolation (Base64 UTF-16LE `-EncodedCommand` AST immunity & `persist-credentials: false` in GitHub Actions) | **2 / 2** |
+| **`CWE-276`** | Strict Directory DACL & Reparse Isolation (`%JVM_SECURE_TEMP%`, `Initialize-SecureDirectory`) | **1 / 1** |
+| **`CWE-295`** | TLS 1.2 / 1.3 Cryptographic Protocol Enforcement (`:ExecuteSharedDownloader`, `:SelfUpdate`, `:CheckUpdateStatus`) | **2 / 2** |
 | **`CWE-319`** | Strict `https://` URI Scheme & Redirect Enforcement (`:ExecuteSharedDownloader` & `chocolateyInstall.ps1`) | **2 / 2** |
 | **`CWE-330`** | CSPRNG Temp Filename Entropy (Zero predictable `!RANDOM!` paths; `[System.IO.Path]::GetRandomFileName()`) | **1 / 1** |
 | **`CWE-345`** | Version & Monotonic `JVM_BUILD` Downgrade Attack Defense | **1 / 1** |
-| **`CWE-354`** | `SHA256SUMS.txt` Checksum Manifest Format Validation | **1 / 1** |
+| **`CWE-354`** | `SHA256SUMS.txt` Checksum Manifest Format, `chocolateyInstall.ps1` `sha256` Gate & `bump-version.ps1` `Assert-ValidSha256Hex` Validation | **2 / 2** |
+| **`CWE-367`** | Atomic Staged Profile & Config File Writes (`Move-Item -LiteralPath` & UTF-8 No BOM on `$PROFILE` and `settings.json`) | **1 / 1** |
 | **`CWE-377`** | Insecure Temporary File & Protected DACL Verification | **2 / 2** |
 | **`CWE-400`** | Hang & Parser Resilience (`SendMessageTimeout`, PATH boundaries, `NO_COLOR`, JSONC) | **7 / 7** |
-| **`CWE-426`** | Untrusted Search Path & CWD Trojan Binary Planting Defense (`%SYS32%`, `$PATH:java`) | **5 / 5** |
+| **`CWE-409`** | Zip Bomb & Decompression Bounds (`40,000` entry ceiling & `1.75 GB` cumulative decompressed byte cap) | **1 / 1** |
+| **`CWE-426`** | Untrusted Search Path & CWD Trojan Binary Planting Defense (`%SYS32%`, `$PATH:java`, `chocolateyUninstall.ps1`, `test-msi.ps1`) | **7 / 7** |
 | **`CWE-427`** | Uncontrolled `PATH` Search-Order Hijack Immunity & Canonical `%LOCALAPPDATA%\DiamTek\JVM\bin` Registration | **2 / 2** |
 | **`CWE-428`** | Quoted `System32` `UninstallString` / `QuietUninstallString` & Pinned Shortcut `TargetPath` | **1 / 1** |
 | **`CWE-459`** | Failure-Path Archive Handle (`$zip.Dispose()`) & Temp Directory Cleanup | **1 / 1** |
-| **`CWE-494`** | Supply Chain, Package Manifest, Nightly Git Blob SHA-1 & Cryptographic Hash Integrity | **12 / 12** |
+| **`CWE-494`** | Supply Chain, Package Manifest, Fail-Closed Nightly Git Blob SHA-1 (`NO_META_SHA` / `Test-GitBlobSha1`), `Invoke-TrustedGitHubDownload` & Staged `uninstall.ps1` Hash Integrity | **15 / 15** |
 | **`CWE-532`** | Sensitive Registry Backup (`%LOCALAPPDATA%\DiamTek\JVM\backups`) DACL & Reparse Isolation | **1 / 1** |
-| **`CWE-601`** | Open Redirect Host Verification (`ResponseUri` validation in `:ExecuteSharedDownloader` & `:VerifyDownloadedScript`) | **1 / 1** |
+| **`CWE-601`** | Open Redirect Host Verification (`ResponseUri` validation on payload, `Get-TrustedChecksumText`, `:ResolveLatestEcosystemCandidate`, & `:CheckUpdateStatus`) | **3 / 3** |
 | **`CWE-611`** | XML External Entity (XXE) & DTD Prohibition (`DtdProcessing::Prohibit` & `XmlResolver = $null`) | **1 / 1** |
-| **`CWE-918`** | SSRF & Vendor Domain Allowlist Enforcement (`Test-TrustedJvmUri`) | **1 / 1** |
+| **`CWE-918`** | SSRF & Vendor Domain Allowlist Enforcement (`Test-TrustedJvmUri` & `chocolateyInstall.ps1` `$allowedHosts`) | **2 / 2** |
 
 ---
 

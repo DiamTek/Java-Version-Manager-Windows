@@ -53,7 +53,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260924.120"
+set "JVM_BUILD=20260925.121"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -488,19 +488,53 @@ if not defined PIN_VAL (
 set "PIN_CONTENT="
 :COLLECT_PIN_LOOP
 if "%~1"=="" goto :DO_PIN_WRITE
+set "_PIN_TOK=%~1"
+if /i "!_PIN_TOK!"=="--vendor" (
+    set "_PIN_VEND=%~2"
+    call :ValidateStrictIdentifier "!_PIN_VEND!" _PIN_VEND
+    if errorlevel 1 (
+        echo.
+        echo %cRED%[ ERROR  ]%cRESET% Invalid vendor identifier for pin: %~2
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b 1
+    )
+    if not defined PIN_CONTENT (
+        set "PIN_CONTENT=--vendor !_PIN_VEND!"
+    ) else (
+        set "PIN_CONTENT=!PIN_CONTENT! --vendor !_PIN_VEND!"
+    )
+    shift
+    shift
+    goto :COLLECT_PIN_LOOP
+)
+if /i "!_PIN_TOK!"=="--symlink" (
+    if not defined PIN_CONTENT (
+        set "PIN_CONTENT=--symlink"
+    ) else (
+        set "PIN_CONTENT=!PIN_CONTENT! --symlink"
+    )
+    shift
+    goto :COLLECT_PIN_LOOP
+)
+call :ValidateStrictIdentifier "!_PIN_TOK!" _PIN_TOK
+if errorlevel 1 (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier for pin: %~1
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b 1
+)
 if not defined PIN_CONTENT (
-    set "PIN_CONTENT=%~1"
+    set "PIN_CONTENT=!_PIN_TOK!"
 ) else (
-    set "PIN_CONTENT=!PIN_CONTENT! %~1"
+    set "PIN_CONTENT=!PIN_CONTENT! !_PIN_TOK!"
 )
 shift
 goto :COLLECT_PIN_LOOP
 
 :DO_PIN_WRITE
-call :ValidateStrictIdentifier "!PIN_CONTENT!" PIN_CONTENT
-if errorlevel 1 (
+if not defined PIN_CONTENT (
     echo.
-    echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier for pin: !PIN_CONTENT!
+    echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier for pin.
     if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     exit /b 1
 )
@@ -690,16 +724,21 @@ if defined CLI_TARGET (
     if exist "%INVOCATION_DIR%\.java-version" (
         set "PARSED_JV="
         set "JV_PARSE_ERR=0"
-        for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /r "[0-9]" "%INVOCATION_DIR%\.java-version" 2^>nul ^| %FINDSTR_BIN% /v "[&|<>\`%%!;$()^{}]"') do (
-            if not defined PARSED_JV (
-                call :ParseJavaVersion %%L
-                if errorlevel 1 set "JV_PARSE_ERR=1"
-                set "PARSED_JV=1"
-                if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
-                set "SILENT_MODE=1"
-                set "SKIP_HEADER=1"
+        %FINDSTR_BIN% /r /v "^[ \t]*# ^ï»¿[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.java-version" 2>nul | %FINDSTR_BIN% "[&|<>`%%!;$()^{}\"]" >nul 2>&1
+        if not errorlevel 1 set "JV_PARSE_ERR=1"
+        if "!JV_PARSE_ERR!"=="0" (
+            for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /r /v "^[ \t]*# ^ï»¿[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.java-version" 2^>nul ^| %FINDSTR_BIN% /r "[0-9]"') do (
+                if not defined PARSED_JV (
+                    call :ParseJavaVersion %%L
+                    if errorlevel 1 set "JV_PARSE_ERR=1"
+                    set "PARSED_JV=1"
+                    if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
+                    set "SILENT_MODE=1"
+                    set "SKIP_HEADER=1"
+                )
             )
         )
+        if not defined PARSED_JV set "JV_PARSE_ERR=1"
         if "!JV_PARSE_ERR!"=="1" (
             echo %cRED%[ ERROR  ]%cRESET% Invalid or unsafe configuration in .java-version.
             if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
@@ -707,10 +746,23 @@ if defined CLI_TARGET (
         )
     ) else if exist "%INVOCATION_DIR%\.sdkmanrc" (
         set "FOUND_SDKMANRC=1"
-        for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /i /b "java=" "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| %FINDSTR_BIN% /v "[&|<>\`%%!;$()^{}]"') do (
-            for /f "tokens=1,2 delims==" %%A in ("%%L") do (
-                call :ParseSdkmanrc "%%B"
+        set "SDK_PARSE_ERR=0"
+        %FINDSTR_BIN% /r /v "^[ \t]*# ^ï»¿[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.sdkmanrc" 2>nul | %FINDSTR_BIN% "[&|<>`%%!;$()^{}\"]" >nul 2>&1
+        if not errorlevel 1 set "SDK_PARSE_ERR=1"
+        %FINDSTR_BIN% /r /v "^[ \t]*# ^ï»¿[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.sdkmanrc" 2>nul | %FINDSTR_BIN% /v "=" >nul 2>&1
+        if not errorlevel 1 set "SDK_PARSE_ERR=1"
+        if "!SDK_PARSE_ERR!"=="0" (
+            for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /i /b "java=" "%INVOCATION_DIR%\.sdkmanrc" 2^>nul') do (
+                for /f "tokens=1,* delims==" %%A in ("%%L") do (
+                    call :ParseSdkmanrc "%%B"
+                    if errorlevel 1 set "SDK_PARSE_ERR=1"
+                )
             )
+        )
+        if "!SDK_PARSE_ERR!"=="1" (
+            echo %cRED%[ ERROR  ]%cRESET% Invalid or unsafe Java version in .sdkmanrc.
+            if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+            exit /b 1
         )
         if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
         set "SILENT_MODE=1"
@@ -807,10 +859,21 @@ if "!SESSION_MODE!"=="1" (
     )
     
     if "!FOUND_SDKMANRC!"=="1" (
-        for /f "tokens=1,2 delims==" %%A in ('type "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| %FINDSTR_BIN% /i /v "^java=" ^| %FINDSTR_BIN% /v "[&|<>`%%!;$()^{}]"') do (
-            set "ECO_CAND=%%A"
-            set "ECO_VER=%%B"
-            call :ProcessEcosystemSession "!ECO_CAND!" "!ECO_VER!"
+        set "SDK_ECO_ERR=0"
+        %FINDSTR_BIN% /r /v "^[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.sdkmanrc" 2>nul | %FINDSTR_BIN% "[&|<>`%%!;$()^{}\"]" >nul 2>&1
+        if not errorlevel 1 set "SDK_ECO_ERR=1"
+        if "!SDK_ECO_ERR!"=="0" (
+            for /f "eol=# tokens=1,* delims==" %%A in ('%FINDSTR_BIN% /r /v "^[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| %FINDSTR_BIN% /i /v "^java="') do (
+                set "ECO_CAND=%%A"
+                set "ECO_VER=%%B"
+                call :ProcessEcosystemSession "!ECO_CAND!" "!ECO_VER!"
+                if errorlevel 1 set "SDK_ECO_ERR=1"
+            )
+        )
+        if "!SDK_ECO_ERR!"=="1" (
+            echo %cRED%[ ERROR  ]%cRESET% Invalid or unsafe ecosystem configuration in .sdkmanrc.
+            if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+            exit /b 1
         )
     )
     
@@ -837,11 +900,30 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     
     echo %cBLUE%[ ACTION ]%cRESET% Updating Directory Junction: !JVM_DIR!\current...
     
-    rmdir "!CURRENT_SYMLINK!" >nul 2>&1
-    mklink /J "!CURRENT_SYMLINK!" "!CURRENT_JDK_PATH!" >nul
+    if exist "!CURRENT_SYMLINK!" (
+        "%FSUTIL_BIN%" reparsepoint query "!CURRENT_SYMLINK!" >nul 2>&1
+        if errorlevel 1 (
+            echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !CURRENT_SYMLINK! is a regular directory, not a junction.
+            pause
+            goto MAIN_LOOP
+        )
+        rmdir "!CURRENT_SYMLINK!" >nul 2>&1
+    )
+    mklink /J "!CURRENT_SYMLINK!" "!CURRENT_JDK_PATH!" >nul 2>&1
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Failed to create Directory Junction.
+        pause
+        goto MAIN_LOOP
+    )
+    "%FSUTIL_BIN%" reparsepoint query "!CURRENT_SYMLINK!" >nul 2>&1
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Junction verification failed.
+        pause
+        goto MAIN_LOOP
+    )
     
     if exist "!CURRENT_SYMLINK!\bin\java.exe" (
-        echo %cGREEN%[   OK   ]%cRESET% Junction successfully updated to point to !CURRENT_JDK_PATH%!
+        echo %cGREEN%[   OK   ]%cRESET% Junction successfully updated to point to !CURRENT_JDK_PATH!
     ) else (
         echo %cRED%[ ERROR  ]%cRESET% Failed to update Junction.
         pause
@@ -884,7 +966,7 @@ rem Use PowerShell to safely filter out old Java paths via exact string matching
     for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do set "CLEAN_PATH=%%A"
 
 rem Export the clean path back to the main session and apply at the front
-for /f "delims=" %%A in (""!CLEAN_PATH!"") do (
+for /f "delims=" %%A in ("!CLEAN_PATH!") do (
     endlocal & set "PATH=%SYMLINK_OR_DIRECT%\bin;%%~A"
 )
 
@@ -962,10 +1044,17 @@ if exist "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" (
     for /f "usebackq tokens=* delims= " %%A in ("%LOCALAPPDATA%\DiamTek\JVM\mode.txt") do set "SWITCH_MODE=%%A"
 )
 if /i not "!SWITCH_MODE!"=="DIRECT" set "SWITCH_MODE=SYMLINK"
+if not defined INITIAL_SESSION_JH (
+    if defined JAVA_HOME set "INITIAL_SESSION_JH=!JAVA_HOME!"
+)
 set "JAVA_HOME="
 for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "JAVA_HOME=%%B"
 if not defined JAVA_HOME (
     for /f "tokens=2*" %%A in ('%REG_BIN% query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME 2^>nul') do set "JAVA_HOME=%%B"
+)
+if defined INITIAL_SESSION_JH (
+    set "CLEAN_SESS_JH=!INITIAL_SESSION_JH:"=!"
+    if exist "!CLEAN_SESS_JH!\bin\java.exe" set "JAVA_HOME=!CLEAN_SESS_JH!"
 )
 if "!SKIP_HEADER!"=="0" (
     rem cls
@@ -1038,6 +1127,14 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                     ) else (
                         set "SKIP=0"
                     )
+                    call :ValidateStrictIdentifier "%%j"
+                    if errorlevel 1 set "SKIP=1"
+                    if /i "%%j"=="current" (
+                        for %%D in ("!LOCATIONS[%%i]!") do (
+                            call :ValidateStrictIdentifier "%%~nxD"
+                            if errorlevel 1 set "SKIP=1"
+                        )
+                    )
                     
                     if "!SKIP!"=="0" (
                         set /a JDK_COUNT+=1
@@ -1045,6 +1142,7 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                         
                         rem Parse version to find the latest
                         set "VER="
+                        set "VER_STR="
                         set "VENDOR_STR=Unknown"
                         if exist "%%j\release" (
                             for /f "tokens=2 delims==" %%R in ('%FINDSTR_BIN% /b "JAVA_VERSION=" "%%j\release" 2^>nul') do (
@@ -1072,14 +1170,26 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                                 set "VER_STR=!VER_STR:"=!"
                             )
                         )
-                        rem Handle legacy 1.x versioning (e.g., 1.8.0 -> 8)
+                        rem Handle legacy 1.x versioning (e.g., 1.8.0 -> 8) safely without set /a expression evaluation (CWE-78/CWE-94)
                         set "NUM_VER=0"
                         if defined VER_STR (
-                            for /f "tokens=1,2 delims=." %%V in ("!VER_STR!") do (
+                            set "VER_STR=!VER_STR:"=!"
+                            set "RAW_MAJOR="
+                            for /f "tokens=1,2 delims=._+-" %%V in ("!VER_STR!") do (
                                 if "%%V"=="1" (
-                                    set /a "NUM_VER=%%W" 2>nul
+                                    set "RAW_MAJOR=%%W"
                                 ) else (
-                                    set /a "NUM_VER=%%V" 2>nul
+                                    set "RAW_MAJOR=%%V"
+                                )
+                            )
+                            if defined RAW_MAJOR (
+                                set "MAJOR_BAD="
+                                if not "!RAW_MAJOR!"=="!RAW_MAJOR:;=!" set "MAJOR_BAD=1"
+                                if not "!RAW_MAJOR!"=="!RAW_MAJOR:,=!" set "MAJOR_BAD=1"
+                                if not "!RAW_MAJOR!"=="!RAW_MAJOR:==!" set "MAJOR_BAD=1"
+                                for /f "eol= delims=0123456789" %%D in ("!RAW_MAJOR!") do set "MAJOR_BAD=1"
+                                if not defined MAJOR_BAD (
+                                    set /a "NUM_VER=!RAW_MAJOR!" 2>nul
                                 )
                             )
                         )
@@ -1230,14 +1340,16 @@ if defined CLI_COMMAND (
         goto :eof
     )
     if /i "!CLI_COMMAND!"=="install" (
-        call :FetchLatestVersions
         if not defined CLI_TARGET (
+            call :FetchLatestVersions
             call :InstallWizard
             goto :CLI_DONE
         )
         if /i "!CLI_TARGET!"=="latest" (
+            call :FetchLatestVersions
             set "CLI_TARGET=!ORACLE_LATEST_FEATURE!"
         ) else if /i "!CLI_TARGET!"=="lts" (
+            call :FetchLatestVersions
             if defined FLAG_LATEST (
                 set "CLI_TARGET=!ORACLE_LATEST_LTS!"
             ) else (
@@ -1247,6 +1359,7 @@ if defined CLI_COMMAND (
         )
         set "DL_VERSION=!CLI_TARGET!"
         call :DownloadJDK_Headless
+        if errorlevel 1 set "JVM_EXIT_CODE=1"
         goto :CLI_DONE
     )
     
@@ -1306,8 +1419,11 @@ if defined CLI_COMMAND (
                 for /l %%k in (1,1,!JDK_COUNT!) do call :ProcessSingleUpdate %%k
                 for %%T in (maven gradle kotlin scala groovy) do (
                     if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current" (
+                        set "act_ver=none"
                         set "QUERY_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current"
                         for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do for %%X in ("%%A") do set "act_ver=%%~nxX"
+                        call :ValidateStrictIdentifier "!act_ver!" act_ver
+                        if errorlevel 1 set "act_ver=none"
                         call :EcoPerformCheck %%T "!act_ver!"
                     )
                 )
@@ -1393,7 +1509,7 @@ if defined CLI_COMMAND (
             echo %cBLUE%[ ACTION ]%cRESET% Deleting directory !DEL_PATH!...
             echo %cBLUE%[ ACTION ]%cRESET% Scrubbing environment variables...
             echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
-            "%PS_BIN%" -NoProfile -Command "$del = $env:DEL_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($del)); $script = '$del = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
+            "%PS_BIN%" -NoProfile -Command "$del = $env:DEL_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($del)); $script = '$del = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { $it = Get-Item -LiteralPath $del -Force -ErrorAction SilentlyContinue; if ($it -and (($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { [System.IO.Directory]::Delete($it.FullName, $false) } else { Get-ChildItem -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } }; Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue } }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
             
             rem Clean User PATH preserving REG_EXPAND_SZ
             set "DEL_BIN=!DEL_PATH!\bin"
@@ -1422,7 +1538,7 @@ if defined CLI_COMMAND (
 
     if /i "!CLI_COMMAND!"=="channel" (
         call :HandleChannelCommand !CLI_TARGET!
-        goto :eof
+        goto :CLI_DONE
     )
 
     if /i "!CLI_COMMAND!"=="self-update" (
@@ -1486,7 +1602,7 @@ if defined CLI_TARGET (
             echo %cBLUE%[ ACTION ]%cRESET% Quick-Switching to JDK !JDK_NAME_%%k! ^(!JDK_MAJOR_%%k!^)...
             set "CURRENT_JDK_PATH=!JDK_PATH_%%k!"
             rem Return to MAIN_LOOP to apply the changes
-            for /f "delims=" %%P in (""!CURRENT_JDK_PATH!"") do (
+            for /f "delims=" %%P in ("!CURRENT_JDK_PATH!") do (
                 endlocal & set "CURRENT_JDK_PATH=%%~P"
             )
             goto :eof
@@ -1500,6 +1616,13 @@ if defined CLI_TARGET (
     goto :CLI_DONE
 )
 
+:CLI_DONE
+if defined JVM_EXIT_CODE (
+    endlocal & set "CMD_EXIT_CODE=%JVM_EXIT_CODE%" & exit /b %JVM_EXIT_CODE%
+)
+if defined CMD_EXIT_CODE (
+    endlocal & set "CMD_EXIT_CODE=%CMD_EXIT_CODE%" & exit /b %CMD_EXIT_CODE%
+)
 if "!SILENT_MODE!"=="1" (
     rem Safety catch: If we are hidden and CLI_TARGET was empty, abort so we don't hang!
     goto :eof
@@ -1552,7 +1675,7 @@ if !choice!==2 (
 if !choice!==1 (
     call :JdkMenu
     if defined CURRENT_JDK_PATH (
-        for /f "delims=" %%P in (""!CURRENT_JDK_PATH!"") do (
+        for /f "delims=" %%P in ("!CURRENT_JDK_PATH!") do (
             endlocal & set "CURRENT_JDK_PATH=%%~P"
         )
         goto :eof
@@ -1762,8 +1885,14 @@ for %%T in (maven gradle kotlin scala groovy) do (
 goto :EcoPerformCheck_End
 
 :EcoPerformCheck
-set "CHK_T=%~1"
+set "CAND_NAME=%~1"
+call :ValidateStrictIdentifier "!CAND_NAME!" CAND_NAME
+if errorlevel 1 exit /b 1
+set "CHK_T=!CAND_NAME!"
 set "CHK_ACT=%~2"
+if not defined CHK_ACT set "CHK_ACT=none"
+call :ValidateStrictIdentifier "!CHK_ACT!" CHK_ACT
+if errorlevel 1 set "CHK_ACT=none"
 set "TARGET_CANDIDATE=!CHK_T!"
 set "c_dir=%LOCALAPPDATA%\DiamTek\JVM\candidates\!CHK_T!"
 call :GetCandidateEnvVar
@@ -1773,6 +1902,12 @@ echo %cBLUE%[  INFO  ]%cRESET% Checking vendor API for updates...
 echo %cBLUE%[  INFO  ]%cRESET% Active version: !CHK_ACT!
 
 call :ResolveLatestEcosystemCandidate
+
+if not "!LATEST_VER!"=="ERROR" (
+    call :ValidateStrictIdentifier "!LATEST_VER!" LATEST_VER
+    if errorlevel 1 set "LATEST_VER=ERROR"
+    if /i "!LATEST_VER!"=="current" set "LATEST_VER=ERROR"
+)
 
 if "!LATEST_VER!"=="ERROR" (
     echo %cRED%[ ERROR  ]%cRESET% Failed to resolve latest version for !CANDIDATE_PROPER_NAME!.
@@ -1787,6 +1922,19 @@ if "!LATEST_VER!"=="ERROR" (
             set "IS_UPDATER=1"
             call :InstallCandidate
             set "IS_UPDATER="
+            if exist "!c_dir!\!LATEST_VER!" (
+                call :SwitchCandidate "!LATEST_VER!"
+                for /d %%V in ("!c_dir!\*") do (
+                    set "V_NAME=%%~nxV"
+                    call :ValidateStrictIdentifier "!V_NAME!" V_NAME
+                    if not errorlevel 1 (
+                        if /i not "!V_NAME!"=="current" if /i not "!V_NAME!"=="!LATEST_VER!" (
+                            set "OLD_CAND_DIR=%%~fV"
+                            "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:OLD_CAND_DIR; if (Test-Path -LiteralPath $d) { Get-ChildItem -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { [System.IO.File]::Delete($_.FullName) } }; Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+                        )
+                    )
+                )
+            )
         ) else (
             "%CHOICE_BIN%" /C YN /M "Do you want to download and install !CANDIDATE_PROPER_NAME! !LATEST_VER! now? "
             if !errorlevel!==1 (
@@ -1902,9 +2050,21 @@ call :GetCandidateEnvVar
 
 if "!ECO_SUB_MODE!"=="INSTALL" (
     echo.
-    set /p TARGET_VER="Enter version of !CANDIDATE_PROPER_NAME! to install (or type 'latest'): "
-    if "!TARGET_VER!"=="" set "TARGET_VER=latest"
-    set "CLI_TARGET=!TARGET_VER!"
+    set "CUSTOM_VER="
+    set /p "CUSTOM_VER=Enter version of !CANDIDATE_PROPER_NAME! to install (or type 'latest'): "
+    if not defined CUSTOM_VER set "CUSTOM_VER=latest"
+    call :ValidateStrictIdentifier "!CUSTOM_VER!" CUSTOM_VER
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier. Metacharacters, spaces, and reserved keywords are forbidden.
+        pause
+        goto :EcoVersionMenu
+    )
+    if /i "!CUSTOM_VER!"=="current" (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier. Metacharacters, spaces, and reserved keywords are forbidden.
+        pause
+        goto :EcoVersionMenu
+    )
+    set "CLI_TARGET=!CUSTOM_VER!"
     call :InstallCandidate
     goto :EcoVersionMenu
 )
@@ -1912,11 +2072,23 @@ if "!ECO_SUB_MODE!"=="INSTALL" (
 if "!ECO_SUB_MODE!"=="UNINSTALL" (
     echo.
     echo %cBLUE%[  INFO  ]%cRESET% Installed !CANDIDATE_PROPER_NAME! versions:
-    for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -Path '%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name"') do (
+    for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -LiteralPath '%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name"') do (
         echo   - %%V
     )
     echo.
-    set /p TARGET_VER="Enter exact version to uninstall: "
+    set "TARGET_VER="
+    set /p "TARGET_VER=Enter exact version to uninstall: "
+    if not defined TARGET_VER (
+        echo %cYELLOW%[  INFO  ]%cRESET% No version entered. Uninstallation cancelled.
+        pause
+        goto :EcoVersionMenu
+    )
+    call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier.
+        pause
+        goto :EcoVersionMenu
+    )
     set "CLI_TARGET=!TARGET_VER!"
     call :UninstallCandidate
     pause
@@ -1997,9 +2169,12 @@ goto :PROCESS_ECO_CHOICE
 set user_choice=
 set /p user_choice="Select an option (1-!total_opts!): "
 if "!user_choice!"=="" goto :ECO_CHOICE_MANUAL
+set "user_choice=!user_choice:"=!"
 set "user_choice=!user_choice: =!"
+if "!user_choice!"=="" goto :ECO_CHOICE_MANUAL
 set "NUM_TEST="
-for /f "delims=0123456789" %%A in (""!user_choice!"") do set "NUM_TEST=%%A"
+if not "!user_choice!"=="!user_choice:;=!" set "NUM_TEST=;"
+for /f "eol= delims=0123456789" %%A in ("!user_choice!") do set "NUM_TEST=%%A"
 if defined NUM_TEST goto :ECO_CHOICE_MANUAL
 if !user_choice! LSS 1 goto :ECO_CHOICE_MANUAL
 if !user_choice! GTR !total_opts! goto :ECO_CHOICE_MANUAL
@@ -2061,6 +2236,22 @@ for %%C in (!LTS_CHOICE!) do set "CLI_TARGET=!LTS_VER_%%C!"
 goto :eof
 
 :DownloadJDK_Headless
+if not defined DL_VERSION (
+    echo %cRED%[ ERROR  ]%cRESET% No version specified.
+    if "!CLI_COMMAND!"=="" pause
+    exit /b 1
+)
+set "DL_VERSION=!DL_VERSION:"=!"
+set "VER_NUM_TEST="
+if not "!DL_VERSION!"=="!DL_VERSION:;=!" set "VER_NUM_TEST=;"
+for /f "eol= delims=0123456789" %%A in ("!DL_VERSION!") do set "VER_NUM_TEST=%%A"
+if defined VER_NUM_TEST (
+    echo %cRED%[ ERROR  ]%cRESET% '!DL_VERSION!' is not a JDK major version number.
+    echo            Expected a plain number, e.g. 8, 17, 21, 25.
+    if "!CLI_COMMAND!"=="" pause
+    exit /b 1
+)
+
 if "!CLI_VENDOR!"=="" (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Select JDK Distribution Vendor:
@@ -2121,20 +2312,6 @@ if "!IS_UPDATER!" NEQ "1" (
             )
         )
     )
-)
-
-if not defined DL_VERSION (
-    echo %cRED%[ ERROR  ]%cRESET% No version specified.
-    if "!CLI_COMMAND!"=="" pause
-    goto :eof
-)
-set "VER_NUM_TEST="
-for /f "delims=0123456789" %%A in ("!DL_VERSION!") do set "VER_NUM_TEST=%%A"
-if defined VER_NUM_TEST (
-    echo %cRED%[ ERROR  ]%cRESET% '!DL_VERSION!' is not a JDK major version number.
-    echo            Expected a plain number, e.g. 8, 17, 21, 25.
-    if "!CLI_COMMAND!"=="" pause
-    goto :eof
 )
 
 if !DL_VERSION! LEQ 16 (
@@ -2202,7 +2379,7 @@ goto :FetchAndExtract
 set "DL_VENDOR=Adoptium"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying Adoptium API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/assets/feature_releases/!DL_VERSION!/ga?architecture=!SYS_ARCH!&image_type=jdk&jvm_impl=hotspot&os=windows&page=0&page_size=1' -UseBasicParsing; if ($res[0].binaries[0].package.link -and $res[0].binaries[0].package.checksum) { Write-Output ('API_URL='+$res[0].binaries[0].package.link); Write-Output ('API_SHA256='+$res[0].binaries[0].package.checksum) } else { exit 1 } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/assets/feature_releases/!DL_VERSION!/ga?architecture=!SYS_ARCH!&image_type=jdk&jvm_impl=hotspot&os=windows&page=0&page_size=1' -UseBasicParsing -TimeoutSec 15; if ($res[0].binaries[0].package.link -and $res[0].binaries[0].package.checksum) { Write-Output ('API_URL='+$res[0].binaries[0].package.link); Write-Output ('API_SHA256='+$res[0].binaries[0].package.checksum) } else { exit 1 } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
 goto Run_API_Query
 
 :Resolve_GraalVM
@@ -2215,7 +2392,7 @@ if /i "!SYS_ARCH!" NEQ "x64" (
 )
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying GraalVM GitHub API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/graalvm/graalvm-ce-builds/releases' -UseBasicParsing; $t = $null; foreach ($r in $res) { if ($r.tag_name -like 'jdk-!DL_VERSION!*') { $t = $r; break } }; if (-not $t) { exit 1 }; $u = $null; $s = $null; foreach ($a in $t.assets) { if ($a.name -match 'windows-(x64|amd64)_bin\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'windows-(x64|amd64)_bin\.zip\.sha256$') { $s = $a.browser_download_url } }; if ($u -and $s) { Write-Output ('API_URL='+$u); Write-Output ('API_SHA256_URL='+$s) } else { exit 1 } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/graalvm/graalvm-ce-builds/releases' -UseBasicParsing -TimeoutSec 15; $t = $null; foreach ($r in $res) { if ($r.tag_name -like 'jdk-!DL_VERSION!*') { $t = $r; break } }; if (-not $t) { exit 1 }; $u = $null; $s = $null; foreach ($a in $t.assets) { if ($a.name -match 'windows-(x64|amd64)_bin\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'windows-(x64|amd64)_bin\.zip\.sha256$') { $s = $a.browser_download_url } }; if ($u -and $s) { Write-Output ('API_URL='+$u); Write-Output ('API_SHA256_URL='+$s) } else { exit 1 } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
 goto Run_API_Query
 
 :Resolve_Corretto
@@ -2231,7 +2408,7 @@ goto :FetchAndExtract
 set "DL_VENDOR=Zulu"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying Azul Zulu API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $list = Invoke-RestMethod -Uri 'https://api.azul.com/metadata/v1/zulu/packages/?java_version=!DL_VERSION!&os=windows&arch=!ZULU_ARCH!&archive_type=zip&java_package_type=jdk&javafx_bundled=false&release_status=ga&availability_types=CA&latest=true&page=1&page_size=1' -UseBasicParsing; if (-not $list -or -not $list[0].download_url) { exit 1 }; Write-Output ('API_URL='+$list[0].download_url); $uuid = $list[0].package_uuid; if ($uuid) { try { $d = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/'+$uuid) -UseBasicParsing; if ($d.sha256_hash) { Write-Output ('API_SHA256='+$d.sha256_hash) } } catch { } } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $list = Invoke-RestMethod -Uri 'https://api.azul.com/metadata/v1/zulu/packages/?java_version=!DL_VERSION!&os=windows&arch=!ZULU_ARCH!&archive_type=zip&java_package_type=jdk&javafx_bundled=false&release_status=ga&availability_types=CA&latest=true&page=1&page_size=1' -UseBasicParsing -TimeoutSec 15; if (-not $list -or -not $list[0].download_url) { exit 1 }; Write-Output ('API_URL='+$list[0].download_url); $uuid = $list[0].package_uuid; if ($uuid) { try { $d = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/'+$uuid) -UseBasicParsing -TimeoutSec 15; if ($d.sha256_hash) { Write-Output ('API_SHA256='+$d.sha256_hash) } } catch { } } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
 goto Run_API_Query
 
 :Resolve_Microsoft
@@ -2249,7 +2426,7 @@ rem BellSoft official REST API exclusively distributes SHA1 checksums.
 rem jvm verifies the provided SHA1 hash directly against the downloaded payload.
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying BellSoft Liberica API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.bell-sw.com/v1/liberica/releases?version-feature=!DL_VERSION!&version-modifier=latest&bitness=64&os=windows&arch=!ZULU_ARCH!&package-type=zip&bundle-type=jdk' -UseBasicParsing; if (-not $res -or -not $res[0].downloadUrl) { exit 1 }; Write-Output ('API_URL='+$res[0].downloadUrl); if ($res[0].sha1) { Write-Output ('API_SHA1='+$res[0].sha1) } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.bell-sw.com/v1/liberica/releases?version-feature=!DL_VERSION!&version-modifier=latest&bitness=64&os=windows&arch=!ZULU_ARCH!&package-type=zip&bundle-type=jdk' -UseBasicParsing -TimeoutSec 15; if (-not $res -or -not $res[0].downloadUrl) { exit 1 }; Write-Output ('API_URL='+$res[0].downloadUrl); if ($res[0].sha1) { Write-Output ('API_SHA1='+$res[0].sha1) } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
 goto Run_API_Query
 
 :Resolve_Semeru
@@ -2263,11 +2440,12 @@ if /i "!SYS_ARCH!" NEQ "x64" (
 )
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying IBM Semeru GitHub API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/ibmruntimes/semeru!DL_VERSION!-binaries/releases/latest' -UseBasicParsing; if (-not $res -or -not $res.assets) { exit 1 }; $u = $null; $s = $null; foreach ($a in $res.assets) { if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip\.sha256\.txt$') { $s = $a.browser_download_url } }; if ($u) { Write-Output ('API_URL='+$u); if ($s) { Write-Output ('API_SHA256_URL='+$s) } } else { exit 1 } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/ibmruntimes/semeru!DL_VERSION!-binaries/releases/latest' -UseBasicParsing -TimeoutSec 15; if (-not $res -or -not $res.assets) { exit 1 }; $u = $null; $s = $null; foreach ($a in $res.assets) { if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip\.sha256\.txt$') { $s = $a.browser_download_url } }; if ($u) { Write-Output ('API_URL='+$u); if ($s) { Write-Output ('API_SHA256_URL='+$s) } } else { exit 1 } } catch { Write-Output ('API_ERROR='+$_.Exception.Message); exit 1 }"
 goto Run_API_Query
 
 :Run_API_Query
 set "API_URL=" & set "API_SHA256=" & set "API_SHA256_URL=" & set "API_SHA1=" & set "API_ERROR="
+set "PS_CMD=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; !PS_CMD!"
 for /f "tokens=1,* delims==" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do (
     if "%%A"=="API_URL" set "API_URL=%%B"
     if "%%A"=="API_SHA256" set "API_SHA256=%%B"
@@ -2291,11 +2469,14 @@ goto :FetchAndExtract
 
 :FetchLatestVersions
 if defined ORACLE_LATEST_FEATURE goto :eof
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/info/available_releases' -UseBasicParsing -TimeoutSec 3; Write-Output ('LATEST_FEATURE='+$res.most_recent_feature_release); Write-Output ('LATEST_LTS='+$res.most_recent_lts) } catch { Write-Output 'LATEST_FEATURE=26'; Write-Output 'LATEST_LTS=25' }"
+set "PS_CMD=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/info/available_releases' -UseBasicParsing -TimeoutSec 5; $f = [int]$res.most_recent_feature_release; $l = [int]$res.most_recent_lts; if ($f -ge 8 -and $l -ge 8) { Write-Output ('LATEST_FEATURE='+$f); Write-Output ('LATEST_LTS='+$l) } else { throw 'invalid' } } catch { Write-Output 'LATEST_FEATURE=26'; Write-Output 'LATEST_LTS=25' }"
 for /f "tokens=1,* delims==" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do (
     if "%%A"=="LATEST_FEATURE" set "ORACLE_LATEST_FEATURE=%%B"
     if "%%A"=="LATEST_LTS" set "ORACLE_LATEST_LTS=%%B"
 )
+set "REL_ADOPTIUM=!ORACLE_LATEST_FEATURE!"
+call :ValidateStrictIdentifier "!REL_ADOPTIUM!" REL_ADOPTIUM
+call :ValidateStrictIdentifier "!ORACLE_LATEST_LTS!" ORACLE_LATEST_LTS
 goto :eof
 
 :FetchAndExtract
@@ -2434,19 +2615,26 @@ if "%~1"=="" (
 )
 if /i "%~1"=="stable" (
     set "UPDATE_CHANNEL=STABLE"
-    if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM"
-    > "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" echo STABLE
+    call :WriteConfigFile "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" "STABLE"
+    if errorlevel 1 (
+        set "JVM_EXIT_CODE=1"
+        goto :eof
+    )
     echo %cGREEN%[   OK   ]%cRESET% Switched update channel to %cGREEN%[Stable]%cRESET% ^(Official Releases^).
     goto :eof
 )
 if /i "%~1"=="nightly" (
     set "UPDATE_CHANNEL=NIGHTLY"
-    if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM"
-    > "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" echo NIGHTLY
+    call :WriteConfigFile "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" "NIGHTLY"
+    if errorlevel 1 (
+        set "JVM_EXIT_CODE=1"
+        goto :eof
+    )
     echo %cGREEN%[   OK   ]%cRESET% Switched update channel to %cPURPLE%[Nightly]%cRESET% ^(Cutting-edge main branch^).
     goto :eof
 )
 echo %cRED%[ ERROR  ]%cRESET% Unknown channel '%~1'. Valid options are 'stable' or 'nightly'.
+set "JVM_EXIT_CODE=1"
 goto :eof
 
 rem ============================================================
@@ -2540,7 +2728,7 @@ if defined GROOVY_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!GROOVY_HOME!\bin"
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$purges = $env:SESS_PURGE_LIST -split ';' | Where-Object { $_ } | ForEach-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') }; ($env:PATH -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') }) -join ';'"') do set "CLEAN_PATH=%%A"
 
 rem Export active session path
-for /f "delims=" %%A in (""!CLEAN_PATH!"") do (
+for /f "delims=" %%A in ("!CLEAN_PATH!") do (
     endlocal & set "PATH=%%~A" & set "JAVA_HOME=" & set "MAVEN_HOME=" & set "GRADLE_HOME=" & set "KOTLIN_HOME=" & set "SCALA_HOME=" & set "GROOVY_HOME="
 )
 echo %cGREEN%[   OK   ]%cRESET% Java environment variables cleared.
@@ -2755,9 +2943,12 @@ goto PROCESS_P_CHOICE
 set p_choice=
 set /p p_choice="Enter your choice (1-!P_CANCEL!): "
 if "!p_choice!"=="" goto GET_P_CHOICE_MANUAL
+set "p_choice=!p_choice:"=!"
 set "p_choice=!p_choice: =!"
+if "!p_choice!"=="" goto GET_P_CHOICE_MANUAL
 set "NUM_TEST="
-for /f "delims=0123456789" %%A in (""!p_choice!"") do set "NUM_TEST=%%A"
+if not "!p_choice!"=="!p_choice:;=!" set "NUM_TEST=;"
+for /f "eol= delims=0123456789" %%A in ("!p_choice!") do set "NUM_TEST=%%A"
 if defined NUM_TEST goto GET_P_CHOICE_MANUAL
 if !p_choice! LSS 1 goto GET_P_CHOICE_MANUAL
 if !p_choice! GTR !P_CANCEL! goto GET_P_CHOICE_MANUAL
@@ -2837,8 +3028,15 @@ echo             ^(e.g., 8, 11, 17, 21, 22, 23, 24, 25, 26^)
 echo             Type 'lts' for latest Long-Term Support
 echo             Type 'latest' for the absolute newest release
 echo.
-set /p TARGET_VER="Enter version: "
-if "!TARGET_VER!"=="" goto :eof
+set "TARGET_VER="
+set /p "TARGET_VER=Enter version: "
+if not defined TARGET_VER goto :eof
+call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier.
+    pause
+    goto :eof
+)
 if /i "!TARGET_VER!"=="latest" (
     call :FetchLatestVersions
     set "TARGET_VER=!ORACLE_LATEST_FEATURE!"
@@ -2980,20 +3178,21 @@ set "UPDATE_RESULT=" & set "LOCAL_VER=" & set "REMOTE_VER="
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "UPD_RANDOM_NAME=%%A"
 set "UPDATE_CHECKER_PS1=%JVM_SECURE_TEMP%\jvm_update_!UPD_RANDOM_NAME!.ps1"
 (
-    echo param^(
-    echo     [Parameter^(Mandatory=$true^)][string]$Vendor,
-    echo     [Parameter^(Mandatory=$true^)][string]$Major,
-    echo     [Parameter^(Mandatory=$true^)][string]$LocalPath
-    echo ^)
     echo $ProgressPreference = 'SilentlyContinue'
+    echo [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288
+    echo $Vendor = $env:UP_VENDOR
+    echo $Major = $env:UP_MAJOR
+    echo $LocalPath = $env:UP_PATH
+    echo if ^($Major -notmatch '^^\d+$'^) { Write-Output 'ERROR|Invalid major version'; exit 1 }
     echo $localVersion = "UNKNOWN"
     echo $releaseFile = Join-Path $LocalPath "release"
-    echo if ^(Test-Path $releaseFile^) {
-    echo     $content = Get-Content $releaseFile
-    echo     $semVerLine = $content ^| Where-Object { $_ -match "^^SEMANTIC_VERSION=" }
-    echo     $javaVerLine = $content ^| Where-Object { $_ -match "^^JAVA_VERSION=" }
-    echo     if ^($semVerLine^) { $localVersion = ^($semVerLine -split "="^)[1].Trim^([char]34, ' '^) }
-    echo     elseif ^($javaVerLine^) { $localVersion = ^($javaVerLine -split "="^)[1].Trim^([char]34, ' '^) }
+    echo if ^(Test-Path -LiteralPath $releaseFile^) {
+    echo     $content = Get-Content -LiteralPath $releaseFile -ErrorAction SilentlyContinue
+    echo     $semVerLine = $content ^| Where-Object { $_ -match "^^SEMANTIC_VERSION=" } ^| Select-Object -First 1
+    echo     $javaVerLine = $content ^| Where-Object { $_ -match "^^JAVA_VERSION=" } ^| Select-Object -First 1
+    echo     if ^($semVerLine^) { $localVersion = ^($semVerLine -split "=", 2^)[1].Trim^([char]34, ' '^) }
+    echo     elseif ^($javaVerLine^) { $localVersion = ^($javaVerLine -split "=", 2^)[1].Trim^([char]34, ' '^) }
+    echo     if ^($localVersion -notmatch '^^[0-9A-Za-z._+-]{1,64}$'^) { $localVersion = "UNKNOWN" }
     echo }
     echo $remoteVersion = "UNKNOWN"
     echo try {
@@ -3001,33 +3200,36 @@ set "UPDATE_CHECKER_PS1=%JVM_SECURE_TEMP%\jvm_update_!UPD_RANDOM_NAME!.ps1"
     echo         Write-Output "ORACLE_LEGACY"
     echo         exit 0
     echo     } elseif ^($Vendor -eq "Adoptium"^) {
-    echo         $res = Invoke-RestMethod -Uri "https://api.adoptium.net/v3/assets/feature_releases/$Major/ga?architecture=!SYS_ARCH!&image_type=jdk&jvm_impl=hotspot&os=windows&page=0&page_size=1" -UseBasicParsing -TimeoutSec 5
+    echo         $res = Invoke-RestMethod -Uri "https://api.adoptium.net/v3/assets/feature_releases/$Major/ga?architecture=$env:SYS_ARCH&image_type=jdk&jvm_impl=hotspot&os=windows&page=0&page_size=1" -UseBasicParsing -TimeoutSec 5
     echo         $remoteVersion = $res[0].version_data.openjdk_version.Replace^('-LTS', ''^)
     echo     } elseif ^($Vendor -eq "Corretto"^) {
-    echo         $req = [Net.HttpWebRequest]::Create^("https://corretto.aws/downloads/latest/amazon-corretto-$Major-!SYS_ARCH!-windows-jdk.zip"^)
+    echo         $req = [Net.HttpWebRequest]::Create^("https://corretto.aws/downloads/latest/amazon-corretto-$Major-$env:SYS_ARCH-windows-jdk.zip"^)
     echo         $req.AllowAutoRedirect = $false
     echo         $req.Timeout = 5000
     echo         $res = $req.GetResponse^(^)
     echo         if ^($res.Headers["Location"] -match "resources/([^^/]+)/"^) { $remoteVersion = $matches[1] }
+    echo         $res.Close^(^)
     echo     } elseif ^($Vendor -eq "GraalVM"^) {
     echo         $res = Invoke-RestMethod -Uri "https://api.github.com/repos/graalvm/graalvm-ce-builds/releases/latest" -UseBasicParsing -TimeoutSec 5
     echo         $remoteVersion = $res.tag_name -replace "^^jdk-", ""
     echo     } elseif ^($Vendor -eq "Zulu"^) {
-    echo         $res = Invoke-RestMethod -Uri "https://api.azul.com/metadata/v1/zulu/packages/?java_version=$Major&os=windows&arch=!ZULU_ARCH!&hw_bitness=64&archive_type=zip&java_package_type=jdk&latest=true" -UseBasicParsing -TimeoutSec 5
+    echo         $res = Invoke-RestMethod -Uri "https://api.azul.com/metadata/v1/zulu/packages/?java_version=$Major&os=windows&arch=$env:ZULU_ARCH&hw_bitness=64&archive_type=zip&java_package_type=jdk&latest=true" -UseBasicParsing -TimeoutSec 5
     echo         $remoteVersion = ^($res[0].java_version -join '.'^)
     echo     } elseif ^($Vendor -eq "Microsoft"^) {
-    echo         $req = [Net.HttpWebRequest]::Create^("https://aka.ms/download-jdk/microsoft-jdk-$Major-windows-!SYS_ARCH!.zip"^)
+    echo         $req = [Net.HttpWebRequest]::Create^("https://aka.ms/download-jdk/microsoft-jdk-$Major-windows-$env:SYS_ARCH.zip"^)
     echo         $req.AllowAutoRedirect = $false
     echo         $req.Timeout = 5000
     echo         $res = $req.GetResponse^(^)
     echo         if ^($res.Headers["Location"] -match "jdk-([^^/-]+)-"^) { $remoteVersion = $matches[1] }
+    echo         $res.Close^(^)
     echo     } elseif ^($Vendor -eq "Liberica"^) {
-    echo         $res = Invoke-RestMethod -Uri "https://api.bell-sw.com/v1/liberica/releases?version-feature=$Major&version-modifier=latest&bitness=64&os=windows&arch=!ZULU_ARCH!&package-type=zip&bundle-type=jdk" -UseBasicParsing -TimeoutSec 5
+    echo         $res = Invoke-RestMethod -Uri "https://api.bell-sw.com/v1/liberica/releases?version-feature=$Major&version-modifier=latest&bitness=64&os=windows&arch=$env:ZULU_ARCH&package-type=zip&bundle-type=jdk" -UseBasicParsing -TimeoutSec 5
     echo         if ^($res -and $res[0].version^) { $remoteVersion = $res[0].version }
     echo     } elseif ^($Vendor -eq "Semeru"^) {
     echo         $res = Invoke-RestMethod -Uri "https://api.github.com/repos/ibmruntimes/semeru$Major-binaries/releases/latest" -UseBasicParsing -TimeoutSec 5
     echo         if ^($res -and $res.tag_name^) { $remoteVersion = $res.tag_name -replace "^^jdk-", "" }
     echo     }
+    echo     if ^($remoteVersion -notmatch '^^[0-9A-Za-z._+-]{1,64}$'^) { $remoteVersion = "UNKNOWN" }
     echo } catch {
     echo     Write-Output "ERROR|$($_.Exception.Message)"
     echo     exit 1
@@ -3046,7 +3248,7 @@ set "UPDATE_CHECKER_PS1=%JVM_SECURE_TEMP%\jvm_update_!UPD_RANDOM_NAME!.ps1"
 ) > "!UPDATE_CHECKER_PS1!"
 
 set "API_ERROR="
-for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_CHECKER_PS1!" -Vendor "!UP_VENDOR!" -Major "!UP_MAJOR!" -LocalPath "!UP_PATH!"') do (
+for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!UPDATE_CHECKER_PS1!"') do (
     if "%%A"=="ORACLE_LEGACY" goto :Update_OracleLegacy
     if "%%A"=="LOCAL" set "LOCAL_VER=%%B"
     if "%%A"=="REMOTE" set "REMOTE_VER=%%B"
@@ -3081,7 +3283,7 @@ if not defined CLI_COMMAND (
 goto :TriggerUpdateDownload
 
 :Update_OracleLegacy
-set "PS_CMD=$req = [Net.HttpWebRequest]::Create('https://download.oracle.com/java/!UP_MAJOR!/latest/jdk-!UP_MAJOR!_windows-!SYS_ARCH!_bin.zip'); $req.Method = 'HEAD'; try { $res = $req.GetResponse(); $res.LastModified.ToString('yyyy-MM-dd') } catch { 'ERROR|' + $_.Exception.Message }"
+set "PS_CMD=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $req = [Net.HttpWebRequest]::Create('https://download.oracle.com/java/!UP_MAJOR!/latest/jdk-!UP_MAJOR!_windows-!SYS_ARCH!_bin.zip'); $req.Method = 'HEAD'; $req.Timeout = 5000; $req.AllowAutoRedirect = $false; try { $res = $req.GetResponse(); $d = $res.LastModified.ToString('yyyy-MM-dd'); $res.Close(); $d } catch { 'ERROR|' + $_.Exception.Message }"
 set "REMOTE_DATE=UNKNOWN" & set "API_ERROR="
 for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do (
     if "%%A"=="ERROR" ( set "API_ERROR=%%B" ) else ( set "REMOTE_DATE=%%A" )
@@ -3093,7 +3295,7 @@ if defined API_ERROR (
 )
 set "LOCAL_DATE=UNKNOWN"
 if exist "!UP_PATH!\release" (
-    for /f "tokens=2 delims==" %%A in ('%FINDSTR_BIN% "JAVA_VERSION_DATE" "!UP_PATH!\release"') do set "LOCAL_DATE=%%~A"
+    for /f "tokens=2 delims==" %%A in ('%FINDSTR_BIN% /b "JAVA_VERSION_DATE=" "!UP_PATH!\release"') do set "LOCAL_DATE=%%~A"
 )
 echo %cBLUE%[  INFO  ]%cRESET% Local Build Date : !LOCAL_DATE!
 echo %cBLUE%[  INFO  ]%cRESET% Remote Build Date: !REMOTE_DATE!
@@ -3157,8 +3359,12 @@ if !U_CANCEL! GTR 9 (
     set u_choice=
     set /p u_choice="Enter your choice (1-!U_CANCEL!): "
     if "!u_choice!"=="" goto :UninstallJDK
+    set "u_choice=!u_choice:"=!"
     set "u_choice=!u_choice: =!"
-    set "NUM_TEST=" & for /f "delims=0123456789" %%A in (""!u_choice!"") do set "NUM_TEST=%%A"
+    if "!u_choice!"=="" goto :UninstallJDK
+    set "NUM_TEST="
+    if not "!u_choice!"=="!u_choice:;=!" set "NUM_TEST=;"
+    for /f "eol= delims=0123456789" %%A in ("!u_choice!") do set "NUM_TEST=%%A"
     if defined NUM_TEST goto :UninstallJDK
     if !u_choice! LSS 1 goto :UninstallJDK
     if !u_choice! GTR !U_CANCEL! goto :UninstallJDK
@@ -3192,7 +3398,7 @@ echo %cBLUE%[ ACTION ]%cRESET% Terminating Java processes running from this JDK.
 
 echo %cBLUE%[ ACTION ]%cRESET% Deleting directory and scrubbing environment variables...
 echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply changes...
-"%PS_BIN%" -NoProfile -Command "$del = $env:DEL_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($del)); $script = '$del = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
+"%PS_BIN%" -NoProfile -Command "$del = $env:DEL_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($del)); $script = '$del = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { $it = Get-Item -LiteralPath $del -Force -ErrorAction SilentlyContinue; if ($it -and (($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { [System.IO.Directory]::Delete($it.FullName, $false) } else { Get-ChildItem -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } }; Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue } }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -ArgumentList @('-NoProfile', '-EncodedCommand', $enc)"
 
 rem Clean User PATH preserving REG_EXPAND_SZ
 set "DEL_BIN=!DEL_PATH!\bin"
@@ -3306,8 +3512,7 @@ if !sub_choice!==4 (
         set "UPDATE_CHANNEL=NIGHTLY"
         set "CH_NAME=%cPURPLE%[Nightly]%cRESET%"
     )
-    if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM"
-    > "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" echo !UPDATE_CHANNEL!
+    call :WriteConfigFile "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" "!UPDATE_CHANNEL!"
     echo.
     echo %cGREEN%[   OK   ]%cRESET% Switched update channel to !CH_NAME!.
     "%TIMEOUT_BIN%" /t 2 >nul
@@ -3335,8 +3540,7 @@ if !sub_choice!==3 (
     ) else (
         set "SWITCH_MODE=DIRECT"
     )
-    if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM"
-    echo !SWITCH_MODE!> "%LOCALAPPDATA%\DiamTek\JVM\mode.txt"
+    call :WriteConfigFile "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" "!SWITCH_MODE!"
     echo.
     echo %cGREEN%[   OK   ]%cRESET% Switched mode to !SWITCH_MODE!.
     "%TIMEOUT_BIN%" /t 2 >nul
@@ -3807,6 +4011,7 @@ echo %cBLUE%[ ACTION ]%cRESET% Locating uninstaller...
 set "UNINSTALL_REF=v!JVM_VERSION!"
 set "UNINSTALL_SCRIPT="
 set "UNINSTALL_VERIFIED=0"
+if /i "!UPDATE_CHANNEL!"=="NIGHTLY" set "UNINSTALL_REF=main"
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "UNINS_RANDOM_NAME=%%A"
 
 if exist "!SCRIPT_DIR!\uninstall.ps1" set "UNINSTALL_SCRIPT=!SCRIPT_DIR!\uninstall.ps1"
@@ -3815,30 +4020,29 @@ if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\uninstall.p
 if not defined UNINSTALL_SCRIPT if exist "%LOCALAPPDATA%\DiamTek\JVM\bin\uninstall.ps1" set "UNINSTALL_SCRIPT=%LOCALAPPDATA%\DiamTek\JVM\bin\uninstall.ps1"
 
 if defined UNINSTALL_SCRIPT (
-    if /i "!UPDATE_CHANNEL!"=="STABLE" (
+    "%FSUTIL_BIN%" reparsepoint query "!UNINSTALL_SCRIPT!" >nul 2>&1
+    if !errorlevel! EQU 0 (
+        echo %cYELLOW%[ WARNING]%cRESET% Local uninstall.ps1 is a symlink or reparse point. Ignoring local file...
+        set "UNINSTALL_SCRIPT="
+    ) else (
         call :VerifyDownloadedScript "!UNINSTALL_SCRIPT!" "!UNINSTALL_REF!" "uninstall.ps1"
         if errorlevel 1 (
             echo %cYELLOW%[ WARNING]%cRESET% Local uninstall.ps1 does not match !UNINSTALL_REF! digest. Fetching verified release copy...
             set "UNINSTALL_SCRIPT="
         ) else (
             set "UNINSTALL_VERIFIED=1"
-            echo %cGREEN%[   OK   ]%cRESET% uninstall.ps1 SHA-256 verified.
+            echo %cGREEN%[   OK   ]%cRESET% uninstall.ps1 cryptographic digest verified ^(!UPDATE_CHANNEL!^).
         )
     )
 )
 
 if not defined UNINSTALL_SCRIPT (
-    echo %cBLUE%[ ACTION ]%cRESET% Downloading verified uninstall.ps1...
-
-    if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
-        echo %cRED%[ ERROR  ]%cRESET% No verified nightly uninstaller is available.
-        echo            Refusing to execute an unverified remote script.
-        exit /b 1
-    )
+    echo %cBLUE%[ ACTION ]%cRESET% Downloading verified uninstall.ps1 ^(!UPDATE_CHANNEL! / !UNINSTALL_REF!^)...
 
     set "UNINSTALL_SCRIPT=%JVM_SECURE_TEMP%\jvm_uninstall_!UNINS_RANDOM_NAME!.ps1"
 
     "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+        "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288;" ^
         "$ProgressPreference = 'SilentlyContinue';" ^
         "$ref = $env:UNINSTALL_REF;" ^
         "$f = $env:UNINSTALL_SCRIPT;" ^
@@ -3856,15 +4060,21 @@ if not exist "!UNINSTALL_SCRIPT!" (
     exit /b 1
 )
 
-if /i "!UPDATE_CHANNEL!"=="STABLE" if "!UNINSTALL_VERIFIED!"=="0" (
+"%FSUTIL_BIN%" reparsepoint query "!UNINSTALL_SCRIPT!" >nul 2>&1
+if !errorlevel! EQU 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Downloaded uninstall.ps1 is a reparse point.
+    exit /b 1
+)
+
+if "!UNINSTALL_VERIFIED!"=="0" (
     call :VerifyDownloadedScript "!UNINSTALL_SCRIPT!" "!UNINSTALL_REF!" "uninstall.ps1"
     if errorlevel 1 (
-        echo %cRED%[ ERROR  ]%cRESET% Cryptographic verification of uninstall.ps1 failed.
+        echo %cRED%[ ERROR  ]%cRESET% Cryptographic verification of uninstall.ps1 failed ^(!UPDATE_CHANNEL!^).
         del "!UNINSTALL_SCRIPT!" >nul 2>&1
         exit /b 1
     )
 
-    echo %cGREEN%[   OK   ]%cRESET% uninstall.ps1 SHA-256 verified.
+    echo %cGREEN%[   OK   ]%cRESET% uninstall.ps1 cryptographic digest verified ^(!UPDATE_CHANNEL!^).
 )
 
 set "RUNNER_PS1=%JVM_SECURE_TEMP%\diamtek_uninstall_runner_!UNINS_RANDOM_NAME!.ps1"
@@ -3877,8 +4087,36 @@ cd /d "%JVM_SECURE_TEMP%"
 
 :HANDLE_LINKS
 setlocal enabledelayedexpansion
+set "LINK_PARENT=%LOCALAPPDATA%\JavaVersionManager"
 set "LINK_DIR=%LOCALAPPDATA%\JavaVersionManager\links"
-if not exist "%LINK_DIR%" mkdir "%LINK_DIR%"
+"%FSUTIL_BIN%" reparsepoint query "%LOCALAPPDATA%\DiamTek\JVM" >nul 2>&1
+if not errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): %LOCALAPPDATA%\DiamTek\JVM is a reparse point.
+    exit /b 1
+)
+"%FSUTIL_BIN%" reparsepoint query "%LOCALAPPDATA%\DiamTek\JVM\links" >nul 2>&1
+if not errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): %LOCALAPPDATA%\DiamTek\JVM\links is a reparse point.
+    exit /b 1
+)
+"%FSUTIL_BIN%" reparsepoint query "%LINK_PARENT%" >nul 2>&1
+if not errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): %LINK_PARENT% is a reparse point.
+    exit /b 1
+)
+if not exist "%LINK_PARENT%" mkdir "%LINK_PARENT%" >nul 2>&1
+"%FSUTIL_BIN%" reparsepoint query "%LINK_DIR%" >nul 2>&1
+if not errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): %LINK_DIR% is a reparse point.
+    exit /b 1
+)
+if not exist "%LINK_DIR%" mkdir "%LINK_DIR%" >nul 2>&1
+"%FSUTIL_BIN%" reparsepoint query "%LINK_DIR%" >nul 2>&1
+if not errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): %LINK_DIR% is a reparse point.
+    exit /b 1
+)
+"%ICACLS_BIN%" "%LINK_DIR%" /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "%USERNAME%:(OI)(CI)F" >nul 2>&1
 
 if /i "%~1"=="link" (
     if "%~2"=="" (
@@ -3918,7 +4156,8 @@ if /i "%~1"=="link" (
         exit /b 0
     )
 
-    rem Reject Win32 device namespace paths (\\.\, \\?\, \??\) and NTFS ADS colons
+    rem Reject Win32 device namespace paths (\\.\, \\?\, \??\), NTFS ADS colons, and PATH/batch delimiters (CWE-88/CWE-78)
+    rem Note: Commas (',') are valid in Windows directory names and allowed here since linked JDKs are accessed via their sanitized junction name in %LINK_DIR%
     set "RAW_LINK_PATH=%~2"
     if "!RAW_LINK_PATH:~0,2!"=="\\" (
         echo %cRED%[ ERROR  ]%cRESET% Invalid JDK path: Win32 device or UNC paths are forbidden.
@@ -3926,6 +4165,22 @@ if /i "%~1"=="link" (
     )
     if "!RAW_LINK_PATH:~0,4!"=="\??\" (
         echo %cRED%[ ERROR  ]%cRESET% Invalid JDK path: NT namespace paths are forbidden.
+        exit /b 1
+    )
+    if not "!RAW_LINK_PATH!"=="!RAW_LINK_PATH:;=!" (
+        echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-88^): JDK path cannot contain semicolon ';' characters.
+        exit /b 1
+    )
+    if not "!RAW_LINK_PATH!"=="!RAW_LINK_PATH:&=!" (
+        echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-78^): JDK path contains forbidden shell metacharacters.
+        exit /b 1
+    )
+    if not "!RAW_LINK_PATH!"=="!RAW_LINK_PATH:|=!" (
+        echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-78^): JDK path contains forbidden shell metacharacters.
+        exit /b 1
+    )
+    if not "!RAW_LINK_PATH!"=="!RAW_LINK_PATH:^=!" (
+        echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-78^): JDK path contains forbidden shell metacharacters.
         exit /b 1
     )
     set "LINK_AFTER_DRIVE=!RAW_LINK_PATH:~2!"
@@ -3944,6 +4199,7 @@ if /i "%~1"=="link" (
     )
     set "TARGET_PATH=!CD!"
     popd
+    for %%I in ("!TARGET_PATH!") do set "TARGET_PATH=%%~fI"
 
     if not exist "!TARGET_PATH!\bin\java.exe" (
         echo %cRED%[ ERROR  ]%cRESET% Invalid JDK path. Could not find bin\java.exe inside !TARGET_PATH!
@@ -3951,7 +4207,12 @@ if /i "%~1"=="link" (
     )
 
     set "LINK_NAME=%~nx2"
-    if "%~3" NEQ "" set "LINK_NAME=%~3"
+    if "%~3"=="" (
+        set "LINK_NAME=!LINK_NAME:,=-!"
+        set "LINK_NAME=!LINK_NAME: =-!"
+    ) else (
+        set "LINK_NAME=%~3"
+    )
     if "!LINK_NAME!"=="." (
         echo %cRED%[ ERROR  ]%cRESET% Invalid link name: '.' is forbidden.
         exit /b 1
@@ -3987,6 +4248,11 @@ if /i "%~1"=="link" (
     mklink /J "%LINK_DIR%\!LINK_NAME!" "!TARGET_PATH!" >nul
     if errorlevel 1 (
         echo %cRED%[ ERROR  ]%cRESET% Failed to create junction point.
+        exit /b 1
+    )
+    "%FSUTIL_BIN%" reparsepoint query "%LINK_DIR%\!LINK_NAME!" >nul 2>&1
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Junction verification failed for '!LINK_NAME!'.
         exit /b 1
     )
     echo %cGREEN%[   OK   ]%cRESET% Custom JDK linked successfully.
@@ -4027,6 +4293,11 @@ if /i "%~1"=="unlink" (
     )
     if not exist "%LINK_DIR%\!UNLINK_NAME!" (
         echo %cRED%[ ERROR  ]%cRESET% Link '!UNLINK_NAME!' not found.
+        exit /b 1
+    )
+    "%FSUTIL_BIN%" reparsepoint query "%LINK_DIR%\!UNLINK_NAME!" >nul 2>&1
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): '%LINK_DIR%\!UNLINK_NAME!' is a regular directory, not a junction.
         exit /b 1
     )
     echo %cBLUE%[ ACTION ]%cRESET% Removing link '!UNLINK_NAME!'...
@@ -4112,6 +4383,7 @@ set "CURR_JAVA_BIN="
 set "CURR_JAVA_VENDOR="
 
 if defined JAVA_HOME (
+    set "JAVA_HOME=!JAVA_HOME:"=!"
     if exist "!JAVA_HOME!\release" (
         for /f "tokens=1,* delims==" %%A in ('type "!JAVA_HOME!\release" 2^>nul ^| %FINDSTR_BIN% /i "^JAVA_VERSION= ^IMPLEMENTOR="') do (
             if /i "%%A"=="JAVA_VERSION" set "CURR_JAVA_VER=%%~B"
@@ -4186,14 +4458,18 @@ echo  Ecosystem Tools:
 set "ECO_FOUND=0"
 if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates" (
     for /d %%C in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\*") do (
-        set "C_NAME=%%~nxC"
-        set "C_TARGET="
-        if exist "%%C\current" (
-            for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath '%%C\current' -ErrorAction SilentlyContinue).Target" 2^>nul') do set "C_TARGET=%%A"
-            if defined C_TARGET (
-                set "ECO_FOUND=1"
-                for /f "delims=" %%V in ("!C_TARGET!") do (
-                    echo    - !C_NAME!:         %%~nxV %cGREEN%[ACTIVE]%cRESET%
+        set "CAND_ID=%%~nxC"
+        call :ValidateStrictIdentifier "!CAND_ID!" CAND_ID
+        if not errorlevel 1 (
+            set "C_NAME=!CAND_ID!"
+            set "C_TARGET="
+            if exist "%%C\current" (
+                for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath '%%C\current' -ErrorAction SilentlyContinue).Target" 2^>nul') do set "C_TARGET=%%A"
+                if defined C_TARGET (
+                    set "ECO_FOUND=1"
+                    for /f "delims=" %%V in ("!C_TARGET!") do (
+                        echo    - !C_NAME!:         %%~nxV %cGREEN%[ACTIVE]%cRESET%
+                    )
                 )
             )
         )
@@ -4250,8 +4526,9 @@ if errorlevel 1 (
 
 if /i "!WHICH_TARGET!"=="java" (
     if defined JAVA_HOME (
-        if exist "!JAVA_HOME!\bin\java.exe" (
-            echo !JAVA_HOME!\bin\java.exe
+        set "CLEAN_WHICH_JH=!JAVA_HOME:"=!"
+        if exist "!CLEAN_WHICH_JH!\bin\java.exe" (
+            for %%I in ("!CLEAN_WHICH_JH!\bin\java.exe") do echo %%~fI
             exit /b 0
         )
     )
@@ -4263,7 +4540,15 @@ if /i "!WHICH_TARGET!"=="java" (
     exit /b 1
 )
 
-set "CAND_ROOT=%LOCALAPPDATA%\DiamTek\JVM\candidates\!WHICH_TARGET!\current\bin"
+set "CAND_JUNC=%LOCALAPPDATA%\DiamTek\JVM\candidates\!WHICH_TARGET!\current"
+set "CAND_ROOT=!CAND_JUNC!\bin"
+if exist "!CAND_JUNC!" (
+    "%FSUTIL_BIN%" reparsepoint query "!CAND_JUNC!" >nul 2>&1
+    if errorlevel 1 (
+        >&2 echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !CAND_JUNC! is a regular directory, not a junction.
+        exit /b 1
+    )
+)
 if exist "!CAND_ROOT!" (
     if /i "!WHICH_TARGET!"=="maven" (
         for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\mvn.cmd" "!CAND_ROOT!\mvn.bat" 2^>nul') do (
@@ -4324,7 +4609,11 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     echo %cGREEN%[   OK   ]%cRESET% Architecture Mode:   [Symlink Mode] ^(User Junction, UAC-Free^)
     set "DOC_JUNC=%LOCALAPPDATA%\DiamTek\JVM\current"
     if exist "!DOC_JUNC!" (
-        if exist "!DOC_JUNC!\bin\java.exe" (
+        "%FSUTIL_BIN%" reparsepoint query "!DOC_JUNC!" >nul 2>&1
+        if errorlevel 1 (
+            echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !DOC_JUNC! is a regular directory, not a junction.
+            set /a DOC_ISSUES+=1
+        ) else if exist "!DOC_JUNC!\bin\java.exe" (
             echo %cGREEN%[   OK   ]%cRESET% Directory Junction:  !DOC_JUNC! -^> !RESOLVED_JAVA_HOME!
         ) else (
             echo %cRED%[ ERROR  ]%cRESET% Directory Junction:  !DOC_JUNC! is broken ^(target missing java.exe^)
@@ -4342,10 +4631,35 @@ for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v JAVA_HOME 2^>n
 set "HKLM_JH="
 for /f "tokens=2*" %%A in ('%REG_BIN% query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME 2^>nul') do set "HKLM_JH=%%B"
 
+if defined INITIAL_SESSION_JH (
+    set "CHK_SESS_JH=!INITIAL_SESSION_JH:"=!"
+    if not "!CHK_SESS_JH!"=="!CHK_SESS_JH:;=!" (
+        echo %cRED%[ ERROR  ]%cRESET% Session JAVA_HOME:   Security violation ^(CWE-88^): contains semicolon ';' delimiter
+        set /a DOC_ISSUES+=1
+    ) else if not exist "!CHK_SESS_JH!\bin\java.exe" (
+        echo %cRED%[ ERROR  ]%cRESET% Session JAVA_HOME:   !CHK_SESS_JH! ^(Broken - missing bin\java.exe^)
+        set /a DOC_ISSUES+=1
+    )
+)
 if defined HKCU_JH (
-    echo %cGREEN%[   OK   ]%cRESET% User JAVA_HOME:      !HKCU_JH!
+    set "CLEAN_HKCU_JH=!HKCU_JH:"=!"
+    if not "!CLEAN_HKCU_JH!"=="!CLEAN_HKCU_JH:;=!" (
+        echo %cRED%[ ERROR  ]%cRESET% User JAVA_HOME:      Security violation ^(CWE-88^): contains semicolon ';' delimiter
+        set /a DOC_ISSUES+=1
+    ) else if not exist "!CLEAN_HKCU_JH!\bin\java.exe" (
+        echo %cRED%[ ERROR  ]%cRESET% User JAVA_HOME:      !CLEAN_HKCU_JH! ^(Broken - missing bin\java.exe^)
+        set /a DOC_ISSUES+=1
+    ) else (
+        echo %cGREEN%[   OK   ]%cRESET% User JAVA_HOME:      !CLEAN_HKCU_JH!
+    )
 ) else if defined HKLM_JH (
-    echo %cBLUE%[  INFO  ]%cRESET% Machine JAVA_HOME:   !HKLM_JH!
+    set "CLEAN_HKLM_JH=!HKLM_JH:"=!"
+    if not exist "!CLEAN_HKLM_JH!\bin\java.exe" (
+        echo %cRED%[ ERROR  ]%cRESET% Machine JAVA_HOME:   !CLEAN_HKLM_JH! ^(Broken - missing bin\java.exe^)
+        set /a DOC_ISSUES+=1
+    ) else (
+        echo %cBLUE%[  INFO  ]%cRESET% Machine JAVA_HOME:   !CLEAN_HKLM_JH!
+    )
 ) else (
     echo %cYELLOW%[ WARNING]%cRESET% JAVA_HOME:           Not set in User or Machine registry
     set /a DOC_ISSUES+=1
@@ -4376,7 +4690,7 @@ if not defined FIRST_JAVA (
 
 rem 5. PowerShell Profile Hook Check
 set "DOC_HOOK_OK=0"
-for /f "delims=" %%P in ('%PS_BIN% -NoProfile -Command "$userProfile = [Environment]::GetFolderPath('UserProfile'); $myDocs = [Environment]::GetFolderPath('MyDocuments'); $docPaths = @($myDocs, (Join-Path $userProfile 'Documents')) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique; $p = @($PROFILE); foreach ($doc in $docPaths) { $p += (Join-Path $doc 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'); $p += (Join-Path $doc 'PowerShell\Microsoft.PowerShell_profile.ps1') }; foreach ($f in ($p | Select-Object -Unique)) { if ($f -and (Test-Path $f) -and (Select-String -Path $f -Pattern '# >>> jvm >>>' -Quiet)) { Write-Output 'FOUND'; break } }" 2^>nul') do (
+for /f "delims=" %%P in ('%PS_BIN% -NoProfile -Command "$userProfile = [Environment]::GetFolderPath('UserProfile'); $myDocs = [Environment]::GetFolderPath('MyDocuments'); $docPaths = @($myDocs, (Join-Path $userProfile 'Documents')) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique; $p = @($PROFILE); foreach ($doc in $docPaths) { $p += (Join-Path $doc 'WindowsPowerShell\Microsoft.PowerShell_profile.ps1'); $p += (Join-Path $doc 'PowerShell\Microsoft.PowerShell_profile.ps1') }; foreach ($f in ($p | Select-Object -Unique)) { if ($f -and (Test-Path -LiteralPath $f) -and (Select-String -LiteralPath $f -Pattern '# >>> jvm >>>' -Quiet)) { Write-Output 'FOUND'; break } }" 2^>nul') do (
     if "%%P"=="FOUND" set "DOC_HOOK_OK=1"
 )
 if "!DOC_HOOK_OK!"=="1" (
@@ -4520,6 +4834,12 @@ if not defined OPEN_PATH (
     )
 )
 
+if defined CLI_TARGET if not defined OPEN_PATH (
+    echo.
+    >&2 echo %cRED%[ ERROR  ]%cRESET% Unknown or uninstalled target for 'jvm open': !CLI_TARGET!
+    exit /b 1
+)
+
 if not defined OPEN_PATH (
     if defined RESOLVED_JAVA_HOME (
         set "OPEN_PATH=!RESOLVED_JAVA_HOME!"
@@ -4532,7 +4852,20 @@ if not defined OPEN_PATH (
     )
 )
 
-if not exist "!OPEN_PATH!" (
+rem Canonicalize OPEN_PATH and block explorer.exe comma/flag/UNC/CLSID injection (CWE-88)
+for /f "delims=" %%I in ("!OPEN_PATH!") do set "OPEN_PATH=%%~fI"
+if "!OPEN_PATH:~0,1!"=="/" ( >&2 echo %cRED%[ ERROR  ]%cRESET% Invalid path for explorer. & exit /b 1 )
+if "!OPEN_PATH:~0,2!"=="\\" ( >&2 echo %cRED%[ ERROR  ]%cRESET% UNC paths are forbidden in 'jvm open'. & exit /b 1 )
+if not "!OPEN_PATH!"=="!OPEN_PATH:,=!" (
+    >&2 echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-88^): Target path contains comma delimiter forbidden by explorer.exe.
+    exit /b 1
+)
+if not "!OPEN_PATH!"=="!OPEN_PATH:::{=!" (
+    >&2 echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-88^): Shell CLSID namespace forbidden.
+    exit /b 1
+)
+
+if not exist "!OPEN_PATH!\" (
     echo.
     >&2 echo %cRED%[ ERROR  ]%cRESET% Target path does not exist: !OPEN_PATH!
     exit /b 1
@@ -4779,6 +5112,11 @@ echo %cBLUE%[ ACTION ]%cRESET% Connecting to GitHub repository...
 
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "INS_RANDOM_NAME=%%A"
 set "INSTALL_SCRIPT=%JVM_SECURE_TEMP%\jvm_install_!INS_RANDOM_NAME!.ps1"
+"%FSUTIL_BIN%" reparsepoint query "!INSTALL_SCRIPT!" >nul 2>&1
+if !errorlevel! EQU 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Staged installer path is a reparse point.
+    exit /b 1
+)
 "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $ProgressPreference = 'SilentlyContinue'; $ref = $env:REMOTE_REF; try { Invoke-WebRequest -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/install.ps1?ref=' + $ref) -Headers @{ 'Accept'='application/vnd.github.v3.raw'; 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -UserAgent 'DiamTek-JVM' -OutFile $env:INSTALL_SCRIPT -UseBasicParsing -TimeoutSec 5 } catch { Invoke-WebRequest -Uri ('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $ref + '/install.ps1?t=' + [DateTimeOffset]::UtcNow.Ticks) -Headers @{ 'Cache-Control'='no-cache'; 'Pragma'='no-cache' } -OutFile $env:INSTALL_SCRIPT -UseBasicParsing -TimeoutSec 5 }"
 
 if not exist "!INSTALL_SCRIPT!" (
@@ -4787,10 +5125,15 @@ if not exist "!INSTALL_SCRIPT!" (
     pause
     goto :eof
 )
+"%FSUTIL_BIN%" reparsepoint query "!INSTALL_SCRIPT!" >nul 2>&1
+if !errorlevel! EQU 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Downloaded installer is a reparse point.
+    exit /b 1
+)
 
 echo %cBLUE%[ ACTION ]%cRESET% Verifying installer cryptographic integrity...
 set "VERIFY_TMP=%JVM_SECURE_TEMP%\jvm_sha_!INS_RANDOM_NAME!.txt"
-"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $ProgressPreference = 'SilentlyContinue'; $ref = $env:REMOTE_REF; $ch = $env:UPDATE_CHANNEL; $f = $env:INSTALL_SCRIPT; if (-not (Test-Path -LiteralPath $f)) { Write-Output 'MISSING'; exit }; $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'rem END OF SCRIPT|# Java Version Manager') { Write-Output 'TRUNCATED'; exit }; $s = [System.Security.Cryptography.SHA256]::Create(); $fs = [System.IO.File]::OpenRead($f); $actual = try { ([System.BitConverter]::ToString($s.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $s.Dispose() }; if ($ch -eq 'STABLE' -and $ref -match '^v?[0-9]') { $shaTxt = $null; try { $rc = (Invoke-WebRequest -Uri ('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt') -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content; $shaTxt = if ($rc -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($rc) } else { [string]$rc } } catch {}; if (-not $shaTxt) { try { $relJson = (Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/' + $ref) -UserAgent 'DiamTek-JVM'); $asset = $relJson.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1; if ($asset) { $rc = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content; $shaTxt = if ($rc -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($rc) } else { [string]$rc } } } catch {} }; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line.Trim() -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NO_ENTRY|' + $actual) } } else { Write-Output ('NO_SHA_FILE|' + $actual) } } else { $metaSha = $null; try { $meta = Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/install.ps1?ref=' + $ref) -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -TimeoutSec 5; if ($meta -and $meta.sha) { $metaSha = ([string]$meta.sha).ToLower() } } catch {}; if ($metaSha) { $sha1 = [System.Security.Cryptography.SHA1]::Create(); $rawBytes = [System.IO.File]::ReadAllBytes($f); $lfBytes = [System.Text.Encoding]::UTF8.GetBytes(($txt -replace '\r\n', \"`n\")); $crlfBytes = [System.Text.Encoding]::UTF8.GetBytes(($txt -replace '\r?\n', \"`r`n\")); $matchedGit = $false; $computedGit = ''; foreach ($b in @($rawBytes, $lfBytes, $crlfBytes)) { $hdr = [System.Text.Encoding]::ASCII.GetBytes('blob ' + $b.Length + [char]0); $blob = New-Object byte[] ($hdr.Length + $b.Length); [Array]::Copy($hdr, 0, $blob, 0, $hdr.Length); [Array]::Copy($b, 0, $blob, $hdr.Length, $b.Length); $g = ([System.BitConverter]::ToString($sha1.ComputeHash($blob)) -replace '-','').ToLower(); if (-not $computedGit) { $computedGit = $g }; if ($g -eq $metaSha) { $matchedGit = $true; break } }; if ($matchedGit) { Write-Output ('VERIFIED|' + $actual) } else { Write-Output ('MISMATCH|' + $metaSha + '|' + $computedGit) } } else { Write-Output ('NIGHTLY|' + $actual) } }" > "!VERIFY_TMP!" 2>nul
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $ProgressPreference = 'SilentlyContinue'; $ref = $env:REMOTE_REF; $ch = $env:UPDATE_CHANNEL; $f = $env:INSTALL_SCRIPT; if (-not (Test-Path -LiteralPath $f)) { Write-Output 'MISSING'; exit }; $txt = [System.IO.File]::ReadAllText($f); if ($txt.Length -lt 200 -or $txt -notmatch 'rem END OF SCRIPT|# Java Version Manager' -or $txt -notmatch 'param\s*\(' -or $txt -notmatch 'DiamTek') { Write-Output 'TRUNCATED'; exit }; $s = [System.Security.Cryptography.SHA256]::Create(); $fs = [System.IO.File]::OpenRead($f); $actual = try { ([System.BitConverter]::ToString($s.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $s.Dispose() }; if ($ch -eq 'STABLE' -and $ref -match '^v?[0-9]') { $shaTxt = $null; try { $rc = (Invoke-WebRequest -Uri ('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt') -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content; $shaTxt = if ($rc -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($rc) } else { [string]$rc } } catch {}; if (-not $shaTxt) { try { $relJson = (Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/tags/' + $ref) -UserAgent 'DiamTek-JVM'); $asset = $relJson.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1; if ($asset) { $rc = (Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent 'DiamTek-JVM' -UseBasicParsing -TimeoutSec 5).Content; $shaTxt = if ($rc -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($rc) } else { [string]$rc } } } catch {} }; if ($shaTxt) { $exp = $null; foreach ($line in ($shaTxt -split '\r?\n')) { if ($line.Trim() -match '^([0-9a-fA-F]{64})\s+[\*]?install\.ps1$') { $exp = $matches[1].ToLower(); break } }; if ($exp) { if ($actual -eq $exp) { Write-Output ('VERIFIED|' + $exp) } else { Write-Output ('MISMATCH|' + $exp + '|' + $actual) } } else { Write-Output ('NO_ENTRY|' + $actual) } } else { Write-Output ('NO_SHA_FILE|' + $actual) } } else { $metaSha = $null; try { $meta = Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/install.ps1?ref=' + $ref) -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -TimeoutSec 5; if ($meta -and $meta.sha) { $metaSha = ([string]$meta.sha).ToLower() } } catch {}; if ($metaSha) { $sha1 = [System.Security.Cryptography.SHA1]::Create(); $rawBytes = [System.IO.File]::ReadAllBytes($f); $lfBytes = [System.Text.Encoding]::UTF8.GetBytes(($txt -replace '\r\n', \"`n\")); $crlfBytes = [System.Text.Encoding]::UTF8.GetBytes(($txt -replace '\r?\n', \"`r`n\")); $matchedGit = $false; $computedGit = ''; foreach ($b in @($rawBytes, $lfBytes, $crlfBytes)) { $hdr = [System.Text.Encoding]::ASCII.GetBytes('blob ' + $b.Length + [char]0); $blob = New-Object byte[] ($hdr.Length + $b.Length); [Array]::Copy($hdr, 0, $blob, 0, $hdr.Length); [Array]::Copy($b, 0, $blob, $hdr.Length, $b.Length); $g = ([System.BitConverter]::ToString($sha1.ComputeHash($blob)) -replace '-','').ToLower(); if (-not $computedGit) { $computedGit = $g }; if ($g -eq $metaSha) { $matchedGit = $true; break } }; if ($matchedGit) { Write-Output ('VERIFIED|' + $actual) } else { Write-Output ('MISMATCH|' + $metaSha + '|' + $computedGit) } } else { Write-Output ('NO_META_SHA|' + $actual) } }" > "!VERIFY_TMP!" 2>nul
 
 set "SHA_STATUS=UNKNOWN"
 set "SHA_EXP="
@@ -4828,48 +5171,30 @@ if "!UPDATE_CHANNEL!"=="STABLE" (
     )
     echo %cGREEN%[   OK   ]%cRESET% Cryptographic integrity verified ^(SHA-256: !SHA_EXP:~0,16!...^)
 ) else (
-    if "!SHA_STATUS!"=="MISMATCH" (
+    if not "!SHA_STATUS!"=="VERIFIED" (
         echo.
-        echo %cRED%[ ERROR  ]%cRESET% Cryptographic integrity check failed for install.ps1!
-        echo            Expected: !SHA_EXP!
-        echo            Computed: !SHA_ACT!
-        echo            Update aborted to prevent untrusted execution.
-        if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" >nul 2>&1
-        pause
-        goto :eof
-    )
-    if "!SHA_STATUS!"=="TRUNCATED" (
-        echo.
-        echo %cRED%[ ERROR  ]%cRESET% Downloaded installer is truncated or empty.
-        echo            Update aborted to prevent untrusted execution.
-        if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" >nul 2>&1
-        pause
-        goto :eof
-    )
-    if "!SHA_STATUS!"=="VERIFIED" (
-        echo %cGREEN%[   OK   ]%cRESET% Cryptographic integrity verified ^(SHA-256: !SHA_EXP:~0,16!...^)
-    ) else (
-        if defined SHA_EXP (
-            if "!SHA_EXP!" NEQ "" (
-                echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity hash ^(SHA-256: !SHA_EXP:~0,16!...^)
-            ) else (
-                echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity verified.
-            )
-        ) else if defined SHA_ACT (
-            if "!SHA_ACT!" NEQ "" (
-                echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity hash ^(SHA-256: !SHA_ACT:~0,16!...^)
-            ) else (
-                echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity verified.
-            )
-        ) else (
-            echo %cBLUE%[  INFO  ]%cRESET% Nightly build integrity verified.
+        echo %cRED%[ ERROR  ]%cRESET% Cryptographic integrity check failed for install.ps1 on [Nightly] channel ^(!SHA_STATUS!^)!
+        if "!SHA_STATUS!"=="MISMATCH" (
+            echo            Expected: !SHA_EXP!
+            echo            Computed: !SHA_ACT!
         )
+        echo            Update aborted to prevent untrusted execution ^(CWE-494^).
+        if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" >nul 2>&1
+        pause
+        goto :eof
     )
+    echo %cGREEN%[   OK   ]%cRESET% Cryptographic integrity verified ^(SHA-256: !SHA_EXP:~0,16!...^)
 )
 
 echo %cBLUE%[ ACTION ]%cRESET% Preparing update handoff engine...
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "BAT_RANDOM_NAME=%%A"
 set "UPDATER_BAT=%JVM_SECURE_TEMP%\jvm_updater_!BAT_RANDOM_NAME!.bat"
+"%FSUTIL_BIN%" reparsepoint query "!UPDATER_BAT!" >nul 2>&1
+if !errorlevel! EQU 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Staged updater path is a reparse point.
+    if exist "!INSTALL_SCRIPT!" del "!INSTALL_SCRIPT!" >nul 2>&1
+    exit /b 1
+)
 (
     echo @echo off
     echo for /F "delims=#" %%%%a in ^('"prompt #$E# ^& echo on ^& for %%%%b in ^(1^) do rem"'^) do set "ESC=%%%%a"
@@ -4918,7 +5243,7 @@ if defined UPDATE_CHANNEL_OVERRIDE (
         set "UPDATE_CHANNEL=STABLE"
     )
 )
-set "PS_SCRIPT=[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072 -bor 12288; $ProgressPreference = 'SilentlyContinue'; $localVer = [version]'!JVM_VERSION!'; $localBld = [version]'!JVM_BUILD!'; $channel = '!UPDATE_CHANNEL!'; if ($channel -eq 'STABLE') { $data = $null; $tagName = $null; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/latest'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $data = $raw | ConvertFrom-Json; if ($data -and $data.tag_name) { $tagName = [string]$data.tag_name; } } catch { try { $req = [Net.HttpWebRequest]::Create('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'DiamTek-JVM'; $req.Timeout = 3000; $res = $req.GetResponse(); $loc = $res.Headers['Location']; $res.Close(); if ($loc -match '/releases/tag/(.+)$') { $tagName = $matches[1]; } } catch [Net.WebException] { $resp = $_.Exception.Response; if ($resp -and ($resp.StatusCode -eq [Net.HttpStatusCode]::NotFound)) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; } } catch {} }; if (-not $tagName) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; }; $tagVerStr = $null; if ($tagName -match '^v?([0-9]+(\.[0-9]+)+)') { $tagVerStr = $matches[1]; } elseif ($tagName -match '^v?([0-9]+)') { $tagVerStr = $matches[1] + '.0'; }; if (-not $tagVerStr) { Write-Output ($tagName + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; try { $remoteVer = [version]$tagVerStr; } catch { Write-Output ($tagVerStr + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; $remBuild = $null; $remBldStr = 'N/A'; try { $rawUrl = 'https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $tagName + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks; $req = [Net.HttpWebRequest]::Create($rawUrl); $req.Timeout = 3000; $req.UserAgent = 'DiamTek-JVM'; $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $c = $sr.ReadToEnd(); $sr.Close(); $res.Close(); if ($c -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBuild = [version]$matches[1]; $remBldStr = $matches[1]; } } catch {}; if ($remoteVer -gt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remoteVer -lt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { if ($remBuild) { if ($remBuild -gt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remBuild -lt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } } else { $commitSha = 'main'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $cData = $raw | ConvertFrom-Json; if ($cData -and $cData.sha) { $commitSha = $cData.sha.Substring(0, 7); } } catch { $commitSha = 'main'; }; $content = $null; try { $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 4000; $req.UserAgent = 'DiamTek-JVM'; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $res.Close(); } catch { try { $apiReq = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=main'); $apiReq.Method = 'GET'; $apiReq.Timeout = 4000; $apiReq.UserAgent = 'DiamTek-JVM'; $apiReq.Accept = 'application/vnd.github.v3.raw'; $apiReq.Headers.Add('Cache-Control', 'no-cache'); $apiReq.Headers.Add('Pragma', 'no-cache'); $apiRes = $apiReq.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); } catch {} }; if (-not $content) { Write-Output 'UNKNOWN|UNKNOWN|ERROR|main'; exit; }; $remVerStr = '1.0.1'; $remBldStr = 'UNKNOWN'; if ($content -match 'set \x22JVM_VERSION=(.*?)\x22') { $remVerStr = $matches[1]; }; if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBldStr = $matches[1]; }; try { $remoteVer = [version]$remVerStr; $remoteBld = [version]$remBldStr; if ($remoteVer -gt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteVer -lt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { if ($remoteBld -gt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteBld -lt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { Write-Output ($remVerStr + '|' + $remBldStr + '|OK|' + $commitSha); } } } catch { Write-Output ($remVerStr + '|' + $remBldStr + '|INVALID_REMOTE|' + $commitSha); } }
+set "PS_SCRIPT=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $ProgressPreference = 'SilentlyContinue'; $localVer = [version]'!JVM_VERSION!'; $localBld = [version]'!JVM_BUILD!'; $channel = '!UPDATE_CHANNEL!'; if ($channel -eq 'STABLE') { $data = $null; $tagName = $null; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/latest'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $data = $raw | ConvertFrom-Json; if ($data -and $data.tag_name) { $tagName = [string]$data.tag_name; } } catch { try { $req = [Net.HttpWebRequest]::Create('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'DiamTek-JVM'; $req.Timeout = 3000; $res = $req.GetResponse(); $loc = [string]$res.Headers['Location']; $res.Close(); if ($loc -match '^https://github\.com/DiamTek/Java-Version-Manager-Windows/releases/tag/(v?[0-9]+\.[0-9]+\.[0-9]+)$') { $tagName = $matches[1]; } } catch [Net.WebException] { $resp = $_.Exception.Response; if ($resp -and ($resp.StatusCode -eq [Net.HttpStatusCode]::NotFound)) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; } } catch {} }; if (-not $tagName) { Write-Output 'NONE|NONE|NO_STABLE_RELEASE|NONE'; exit; }; $tagVerStr = $null; if ($tagName -match '^v?([0-9]+(\.[0-9]+)+)') { $tagVerStr = $matches[1]; } elseif ($tagName -match '^v?([0-9]+)') { $tagVerStr = $matches[1] + '.0'; }; if (-not $tagVerStr) { Write-Output ($tagName + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; try { $remoteVer = [version]$tagVerStr; } catch { Write-Output ($tagVerStr + '|UNKNOWN|INVALID_REMOTE|' + $tagName); exit; }; $remBuild = $null; $remBldStr = 'N/A'; try { $rawUrl = 'https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/' + $tagName + '/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks; $req = [Net.HttpWebRequest]::Create($rawUrl); $req.Timeout = 3000; $req.UserAgent = 'DiamTek-JVM'; $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $c = $sr.ReadToEnd(); $sr.Close(); $res.Close(); if ($c -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBuild = [version]$matches[1]; $remBldStr = $matches[1]; } } catch {}; if ($remoteVer -gt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remoteVer -lt $localVer) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { if ($remBuild) { if ($remBuild -gt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|UPDATE|' + $tagName); } elseif ($remBuild -lt $localBld) { Write-Output ($tagVerStr + '|' + $remBldStr + '|AHEAD_OF_STABLE|' + $tagName); } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } else { Write-Output ($tagVerStr + '|' + $remBldStr + '|OK|' + $tagName); } } } else { $commitSha = 'main'; try { $api = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main'); $api.UserAgent = 'DiamTek-JVM'; $api.Timeout = 3000; $apiRes = $api.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $raw = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); $cData = $raw | ConvertFrom-Json; if ($cData -and $cData.sha) { $commitSha = $cData.sha.Substring(0, 7); } } catch { $commitSha = 'main'; }; $content = $null; try { $req = [Net.HttpWebRequest]::Create('https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/jvm.bat?t=' + [DateTimeOffset]::UtcNow.Ticks); $req.Method = 'GET'; $req.Timeout = 4000; $req.UserAgent = 'DiamTek-JVM'; $req.Headers.Add('Cache-Control', 'no-cache'); $req.Headers.Add('Pragma', 'no-cache'); $res = $req.GetResponse(); $sr = New-Object System.IO.StreamReader($res.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $res.Close(); } catch { try { $apiReq = [Net.HttpWebRequest]::Create('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=main'); $apiReq.Method = 'GET'; $apiReq.Timeout = 4000; $apiReq.UserAgent = 'DiamTek-JVM'; $apiReq.Accept = 'application/vnd.github.v3.raw'; $apiReq.Headers.Add('Cache-Control', 'no-cache'); $apiReq.Headers.Add('Pragma', 'no-cache'); $apiRes = $apiReq.GetResponse(); $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream()); $content = $sr.ReadToEnd(); $sr.Close(); $apiRes.Close(); } catch {} }; if (-not $content) { Write-Output 'UNKNOWN|UNKNOWN|ERROR|main'; exit; }; $remVerStr = '1.0.1'; $remBldStr = 'UNKNOWN'; if ($content -match 'set \x22JVM_VERSION=(.*?)\x22') { $remVerStr = $matches[1]; }; if ($content -match 'set \x22JVM_BUILD=(.*?)\x22') { $remBldStr = $matches[1]; }; try { $remoteVer = [version]$remVerStr; $remoteBld = [version]$remBldStr; if ($remoteVer -gt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteVer -lt $localVer) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { if ($remoteBld -gt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|UPDATE|' + $commitSha); } elseif ($remoteBld -lt $localBld) { Write-Output ($remVerStr + '|' + $remBldStr + '|AHEAD_OF_NIGHTLY|' + $commitSha); } else { Write-Output ($remVerStr + '|' + $remBldStr + '|OK|' + $commitSha); } } } catch { Write-Output ($remVerStr + '|' + $remBldStr + '|INVALID_REMOTE|' + $commitSha); } }
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "REM_RANDOM_NAME=%%A"
 set "REMOTE_TMP=%JVM_SECURE_TEMP%\jvm_remote_build_!REM_RANDOM_NAME!.txt"
 "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "!PS_SCRIPT!" > "!REMOTE_TMP!" 2>nul
@@ -4934,6 +5259,25 @@ if exist "!REMOTE_TMP!" (
         set "REMOTE_REF=%%D"
     )
     del "!REMOTE_TMP!" >nul 2>&1
+)
+call :ValidateStrictIdentifier "!REMOTE_VER!" REMOTE_VER
+if errorlevel 1 (
+    set "REMOTE_VER=UNKNOWN"
+    set "UPDATE_FLAG=INVALID_REMOTE"
+)
+if not "!REMOTE_BUILD!"=="N/A" if not "!REMOTE_BUILD!"=="NONE" if not "!REMOTE_BUILD!"=="UNKNOWN" (
+    call :ValidateStrictIdentifier "!REMOTE_BUILD!" REMOTE_BUILD
+    if errorlevel 1 (
+        set "REMOTE_BUILD=UNKNOWN"
+        set "UPDATE_FLAG=INVALID_REMOTE"
+    )
+)
+if not "!REMOTE_REF!"=="NONE" (
+    call :ValidateStrictIdentifier "!REMOTE_REF!" REMOTE_REF
+    if errorlevel 1 (
+        set "REMOTE_REF=HEAD"
+        set "UPDATE_FLAG=INVALID_REMOTE"
+    )
 )
 exit /b 0
 
@@ -4997,12 +5341,14 @@ rem ============================================================
 rem Hijack SDKMAN configuration file
 rem ============================================================
 :ParseSdkmanrc
-if "%~1"=="" exit /b 0
+if "%~1"=="" exit /b 1
 set "RAW_SDK_VER=%~1"
 set "RAW_SDK_VER=!RAW_SDK_VER:"=!"
 set "RAW_SDK_VER=!RAW_SDK_VER:;=!"
 for /f "tokens=1 delims=# " %%C in ("!RAW_SDK_VER!") do set "RAW_SDK_VER=%%C"
+if not defined RAW_SDK_VER exit /b 1
 set "CLI_VENDOR="
+set "CLI_TARGET="
 for /f "tokens=1,2 delims=-" %%V in ("!RAW_SDK_VER!") do (
     for /f "tokens=1,2 delims=." %%M in ("%%V") do (
         if "%%M"=="1" (
@@ -5013,23 +5359,44 @@ for /f "tokens=1,2 delims=-" %%V in ("!RAW_SDK_VER!") do (
     )
     if defined CLI_TARGET (
         call :ValidateStrictIdentifier "!CLI_TARGET!" CLI_TARGET
-        if errorlevel 1 set "CLI_TARGET="
+        if errorlevel 1 (
+            set "CLI_TARGET="
+            exit /b 1
+        )
+        if /i "!CLI_TARGET!"=="current" (
+            set "CLI_TARGET="
+            exit /b 1
+        )
+    ) else (
+        exit /b 1
     )
-    if /i "%%W"=="tem" set "CLI_VENDOR=Adoptium"
-    if /i "%%W"=="amzn" set "CLI_VENDOR=Corretto"
-    if /i "%%W"=="zulu" set "CLI_VENDOR=Zulu"
-    if /i "%%W"=="ms" set "CLI_VENDOR=Microsoft"
-    if /i "%%W"=="msft" set "CLI_VENDOR=Microsoft"
-    if /i "%%W"=="open" set "CLI_VENDOR=Oracle"
-    if /i "%%W"=="graal" set "CLI_VENDOR=GraalVM"
-    if /i "%%W"=="graalce" set "CLI_VENDOR=GraalVM"
-    if /i "%%W"=="oracle" set "CLI_VENDOR=Oracle"
-    if /i "%%W"=="librca" set "CLI_VENDOR=Liberica"
-    if /i "%%W"=="nik" set "CLI_VENDOR=Liberica"
-    if /i "%%W"=="liberica" set "CLI_VENDOR=Liberica"
-    if /i "%%W"=="sem" set "CLI_VENDOR=Semeru"
-    if /i "%%W"=="semeru" set "CLI_VENDOR=Semeru"
+    if not "%%W"=="" (
+        call :ValidateStrictIdentifier "%%W"
+        if errorlevel 1 (
+            set "CLI_TARGET="
+            exit /b 1
+        )
+        if /i "%%W"=="tem" set "CLI_VENDOR=Adoptium"
+        if /i "%%W"=="amzn" set "CLI_VENDOR=Corretto"
+        if /i "%%W"=="zulu" set "CLI_VENDOR=Zulu"
+        if /i "%%W"=="ms" set "CLI_VENDOR=Microsoft"
+        if /i "%%W"=="msft" set "CLI_VENDOR=Microsoft"
+        if /i "%%W"=="open" set "CLI_VENDOR=Oracle"
+        if /i "%%W"=="graal" set "CLI_VENDOR=GraalVM"
+        if /i "%%W"=="graalce" set "CLI_VENDOR=GraalVM"
+        if /i "%%W"=="oracle" set "CLI_VENDOR=Oracle"
+        if /i "%%W"=="librca" set "CLI_VENDOR=Liberica"
+        if /i "%%W"=="nik" set "CLI_VENDOR=Liberica"
+        if /i "%%W"=="liberica" set "CLI_VENDOR=Liberica"
+        if /i "%%W"=="sem" set "CLI_VENDOR=Semeru"
+        if /i "%%W"=="semeru" set "CLI_VENDOR=Semeru"
+        if not defined CLI_VENDOR (
+            set "CLI_TARGET="
+            exit /b 1
+        )
+    )
 )
+if not defined CLI_TARGET exit /b 1
 exit /b 0
 
 :EmitSessionEnv
@@ -5046,15 +5413,61 @@ if defined JVM_CALLER_PID (
         exit /b 1
     )
 )
+set "SESSION_ENV_BASE=%JVM_SECURE_TEMP%\.jvm_session_target"
+set "SESSION_ENV_PID="
+if defined JVM_CALLER_PID set "SESSION_ENV_PID=%JVM_SECURE_TEMP%\.jvm_session_target_!JVM_CALLER_PID!"
+if exist "!SESSION_ENV_BASE!\" (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !SESSION_ENV_BASE! is a directory.
+    exit /b 1
+)
+"%FSUTIL_BIN%" reparsepoint query "!SESSION_ENV_BASE!" >nul 2>&1
+if !errorlevel! EQU 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !SESSION_ENV_BASE! is a symlink or reparse point.
+    exit /b 1
+)
+if defined SESSION_ENV_PID (
+    if exist "!SESSION_ENV_PID!\" (
+        echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !SESSION_ENV_PID! is a directory.
+        exit /b 1
+    )
+    "%FSUTIL_BIN%" reparsepoint query "!SESSION_ENV_PID!" >nul 2>&1
+    if !errorlevel! EQU 0 (
+        echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !SESSION_ENV_PID! is a symlink or reparse point.
+        exit /b 1
+    )
+)
 if /i "%~1"=="RESET" (
-    if exist "%JVM_SECURE_TEMP%\.jvm_session_target" del "%JVM_SECURE_TEMP%\.jvm_session_target" >nul 2>&1
-    if defined JVM_CALLER_PID if exist "%JVM_SECURE_TEMP%\.jvm_session_target_!JVM_CALLER_PID!" del "%JVM_SECURE_TEMP%\.jvm_session_target_!JVM_CALLER_PID!" >nul 2>&1
+    if exist "!SESSION_ENV_BASE!" del "!SESSION_ENV_BASE!" >nul 2>&1
+    if defined SESSION_ENV_PID if exist "!SESSION_ENV_PID!" del "!SESSION_ENV_PID!" >nul 2>&1
     exit /b 0
 )
 if not "%~1"=="" (
-    >>"%JVM_SECURE_TEMP%\.jvm_session_target" echo %~1
-    if defined JVM_CALLER_PID >>"%JVM_SECURE_TEMP%\.jvm_session_target_!JVM_CALLER_PID!" echo %~1
+    >>"!SESSION_ENV_BASE!" echo %~1
+    if defined SESSION_ENV_PID >>"!SESSION_ENV_PID!" echo %~1
 )
+exit /b 0
+
+:WriteConfigFile
+set "_CFG_FILE=%~1"
+set "_CFG_VAL=%~2"
+for %%F in ("!_CFG_FILE!") do set "_CFG_DIR=%%~dpF"
+if "!_CFG_DIR:~-1!"=="\" set "_CFG_DIR=!_CFG_DIR:~0,-1!"
+if not exist "!_CFG_DIR!" mkdir "!_CFG_DIR!" >nul 2>&1
+"%FSUTIL_BIN%" reparsepoint query "!_CFG_DIR!" >nul 2>&1
+if !errorlevel! EQU 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Config directory !_CFG_DIR! is a reparse point.
+    exit /b 1
+)
+if exist "!_CFG_FILE!\" (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Config path !_CFG_FILE! is a directory.
+    exit /b 1
+)
+"%FSUTIL_BIN%" reparsepoint query "!_CFG_FILE!" >nul 2>&1
+if !errorlevel! EQU 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Config file !_CFG_FILE! is a symlink or reparse point.
+    exit /b 1
+)
+>"!_CFG_FILE!" echo !_CFG_VAL!
 exit /b 0
 rem ============================================================
 rem Universal Candidate Engine
@@ -5210,7 +5623,13 @@ if not "!_VSI_VAL!"=="!_VSI_SUB!" (
     set "JVM_EXIT_CODE=1"
     exit /b 1
 )
-:: Loop characters to detect wildcards (*, ?) without subshells or pipes
+set "_VSI_SUB=!_VSI_VAL:,=!"
+if not "!_VSI_VAL!"=="!_VSI_SUB!" (
+    endlocal & endlocal
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+:: Loop characters to detect wildcards (*, ?) and URL/PowerShell injection metacharacters without subshells or pipes
 set _VSI_DQ="
 set "_VSI_REM=!_VSI_VAL!"
 :VSI_CharLoop
@@ -5228,6 +5647,46 @@ if defined _VSI_REM (
         exit /b 1
     )
     if "!_VSI_CH!"=="!_VSI_DQ!" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    if "!_VSI_CH!"=="#" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    if "!_VSI_CH!"=="@" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    if "!_VSI_CH!"=="'" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    if "!_VSI_CH!"=="$" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    if "!_VSI_CH!"=="`" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    if "!_VSI_CH!"=="(" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    if "!_VSI_CH!"==")" (
+        endlocal & endlocal
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    if "!_VSI_CH!"==" " (
         endlocal & endlocal
         set "JVM_EXIT_CODE=1"
         exit /b 1
@@ -5321,10 +5780,22 @@ set "SYMLINK_PATH=!CANDIDATE_DIR!\current"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Activating !CANDIDATE_PROPER_NAME! !TARGET_VER!...
 
-rmdir "!SYMLINK_PATH!" >nul 2>&1
+if exist "!SYMLINK_PATH!" (
+    "%FSUTIL_BIN%" reparsepoint query "!SYMLINK_PATH!" >nul 2>&1
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !SYMLINK_PATH! is a regular directory, not a junction.
+        exit /b 1
+    )
+    rmdir "!SYMLINK_PATH!" >nul 2>&1
+)
 mklink /j "!SYMLINK_PATH!" "!TARGET_PATH!" >nul 2>&1
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Failed to create directory junction for !CANDIDATE_PROPER_NAME!.
+    exit /b 1
+)
+"%FSUTIL_BIN%" reparsepoint query "!SYMLINK_PATH!" >nul 2>&1
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Junction verification failed for !CANDIDATE_PROPER_NAME!.
     exit /b 1
 )
 echo            - Updating Directory Junction...
@@ -5448,7 +5919,7 @@ if exist "!EXTRACT_DEST!" (
     )
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Removing existing installation...
-    rmdir /S /Q "!EXTRACT_DEST!" >nul 2>&1
+    "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:EXTRACT_DEST; if (Test-Path -LiteralPath $d) { Get-ChildItem -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { [System.IO.File]::Delete($_.FullName) } }; $item = Get-Item -LiteralPath $d -Force -ErrorAction SilentlyContinue; if ($item -and ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { [System.IO.Directory]::Delete($d, $false) } else { Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue } }" >nul 2>&1
 )
 
 if exist "!EXTRACT_DEST_TEMP!" rmdir /s /q "!EXTRACT_DEST_TEMP!"
@@ -5523,7 +5994,7 @@ if "!TARGET_VER!"=="" (
     )
     set "VER_COUNT=0"
     set "SINGLE_VER="
-    for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name" 2^>nul') do (
+    for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -LiteralPath '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name" 2^>nul') do (
         set /a VER_COUNT+=1
         set "SINGLE_VER=%%V"
     )
@@ -5539,7 +6010,7 @@ if "!TARGET_VER!"=="" (
         echo %cBLUE%[  INFO  ]%cRESET% Multiple !CANDIDATE_PROPER_NAME! versions installed:
         echo.
         set "IDX=0"
-        for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name" 2^>nul') do (
+        for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -LiteralPath '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name" 2^>nul') do (
             set /a IDX+=1
             set "VER_!IDX!=%%V"
             echo    !IDX!. %%V
@@ -5549,11 +6020,16 @@ if "!TARGET_VER!"=="" (
         set /p "ver_choice=Select version to uninstall (1-!IDX!): "
         set "TARGET_VER="
         if defined ver_choice (
-            set "NUM_TEST="
-            for /f "delims=0123456789" %%A in ("!ver_choice!") do set "NUM_TEST=%%A"
-            if not defined NUM_TEST (
-                if !ver_choice! GEQ 1 if !ver_choice! LEQ !IDX! (
-                    for %%C in (!ver_choice!) do set "TARGET_VER=!VER_%%C!"
+            set "ver_choice=!ver_choice:"=!"
+            set "ver_choice=!ver_choice: =!"
+            if defined ver_choice (
+                set "NUM_TEST="
+                if not "!ver_choice!"=="!ver_choice:;=!" set "NUM_TEST=;"
+                for /f "eol= delims=0123456789" %%A in ("!ver_choice!") do set "NUM_TEST=%%A"
+                if not defined NUM_TEST (
+                    if !ver_choice! GEQ 1 if !ver_choice! LEQ !IDX! (
+                        for %%C in (!ver_choice!) do set "TARGET_VER=!VER_%%C!"
+                    )
                 )
             )
         )
@@ -5567,8 +6043,9 @@ if "!TARGET_VER!"=="" (
 set "CANDIDATE_DIR=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
 
 if /i "!TARGET_VER!"=="latest" (
+    set "TARGET_VER="
     if exist "!CANDIDATE_DIR!" (
-        for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -Path '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -First 1 -ExpandProperty Name" 2^>nul') do (
+        for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -LiteralPath '!CANDIDATE_DIR!' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -First 1 -ExpandProperty Name" 2^>nul') do (
             set "TARGET_VER=%%V"
         )
     )
@@ -5576,6 +6053,15 @@ if /i "!TARGET_VER!"=="latest" (
 
 if not defined TARGET_VER (
     echo %cRED%[ ERROR  ]%cRESET% No version specified to uninstall.
+    exit /b 1
+)
+call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier: !TARGET_VER!
+    exit /b 1
+)
+if /i "!TARGET_VER!"=="current" (
+    echo %cRED%[ ERROR  ]%cRESET% 'current' is a reserved keyword and cannot be targeted.
     exit /b 1
 )
 set "TARGET_PATH=!CANDIDATE_DIR!\!TARGET_VER!"
@@ -5594,7 +6080,7 @@ if not exist "!TARGET_PATH!" (
 )
 
 echo %cBLUE%[ ACTION ]%cRESET% Uninstalling !CANDIDATE_PROPER_NAME! version !TARGET_VER!...
-rmdir /S /Q "!TARGET_PATH!" >nul 2>&1
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:TARGET_PATH; if (Test-Path -LiteralPath $d) { Get-ChildItem -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { [System.IO.File]::Delete($_.FullName) } }; $item = Get-Item -LiteralPath $d -Force -ErrorAction SilentlyContinue; if ($item -and ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { [System.IO.Directory]::Delete($d, $false) } else { Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue } }" >nul 2>&1
 
 rem Check if it was the active version
 set "SYMLINK_PATH=!CANDIDATE_DIR!\current"
@@ -5655,19 +6141,24 @@ exit /b 0
 :ProcessEcosystemSession
 set "TARGET_CANDIDATE=%~1"
 call :ValidateStrictIdentifier "!TARGET_CANDIDATE!" TARGET_CANDIDATE
-if errorlevel 1 exit /b 0
+if errorlevel 1 exit /b 1
 set "TARGET_VER=%~2"
 for /f "tokens=1 delims=# " %%C in ("!TARGET_VER!") do set "TARGET_VER=%%C"
 call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
-if errorlevel 1 exit /b 0
-if /i "!TARGET_VER!"=="current" exit /b 0
+if errorlevel 1 exit /b 1
+if /i "!TARGET_VER!"=="current" exit /b 1
 call :GetCandidateEnvVar
-if not defined CANDIDATE_ENV_VAR exit /b 0
+if not defined CANDIDATE_ENV_VAR exit /b 1
 
 set "T_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\!TARGET_VER!"
 if not exist "!T_PATH!" (
     echo %cYELLOW%[ WARNING]%cRESET% !CANDIDATE_PROPER_NAME! !TARGET_VER! is not installed.
     exit /b 0
+)
+"%FSUTIL_BIN%" reparsepoint query "!T_PATH!" >nul 2>&1
+if !errorlevel! EQU 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !T_PATH! is a reparse point.
+    exit /b 1
 )
 echo %cBLUE%[ ACTION ]%cRESET% Setting !CANDIDATE_PROPER_NAME! to !TARGET_VER!...
 call :EmitSessionEnv "!CANDIDATE_ENV_VAR!=!T_PATH!"
@@ -5680,12 +6171,13 @@ rem Shared API Resolver for Ecosystem Tools
 rem ============================================================
 :ResolveLatestEcosystemCandidate
 set "PS_RESOLVE_LATEST="
+set "PS_TLS=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $ProgressPreference = 'SilentlyContinue';"
 set "PS_CATCH=catch { if ($_.Exception.Response -and $_.Exception.Response.StatusCode -eq 'Forbidden') { 'RATE_LIMITED' } else { 'ERROR' } }"
-if /i "!TARGET_CANDIDATE!"=="maven" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/apache/maven/releases?per_page=50'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; $r = Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing -TimeoutSec 5; $t = $r | Where-Object { -not $_.prerelease -and -not $_.draft -and $_.tag_name -like 'maven-*' } | Select-Object -First 1; if ($t) { $t.tag_name.Replace('maven-','') } else { 'ERROR' } } !PS_CATCH!"
-if /i "!TARGET_CANDIDATE!"=="gradle" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://services.gradle.org/versions/current'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5).version } catch { 'ERROR' }"
-if /i "!TARGET_CANDIDATE!"=="kotlin" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/JetBrains/kotlin/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; ((Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing -TimeoutSec 5).tag_name).TrimStart('v') } !PS_CATCH!"
-if /i "!TARGET_CANDIDATE!"=="scala" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.github.com/repos/scala/scala3/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; (Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing -TimeoutSec 5).tag_name } !PS_CATCH!"
-if /i "!TARGET_CANDIDATE!"=="groovy" set "PS_RESOLVE_LATEST=$ProgressPreference = 'SilentlyContinue'; $url='https://api.sdkman.io/2/candidates/default/groovy'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5) } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="maven" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.github.com/repos/apache/maven/releases?per_page=50'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; $r = Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing -TimeoutSec 5; $t = $r | Where-Object { -not $_.prerelease -and -not $_.draft -and $_.tag_name -like 'maven-*' } | Select-Object -First 1; if ($t) { $t.tag_name.Replace('maven-','') } else { 'ERROR' } } !PS_CATCH!"
+if /i "!TARGET_CANDIDATE!"=="gradle" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://services.gradle.org/versions/current'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5).version } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="kotlin" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.github.com/repos/JetBrains/kotlin/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; ((Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing -TimeoutSec 5).tag_name).TrimStart('v') } !PS_CATCH!"
+if /i "!TARGET_CANDIDATE!"=="scala" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.github.com/repos/scala/scala3/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; (Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing -TimeoutSec 5).tag_name } !PS_CATCH!"
+if /i "!TARGET_CANDIDATE!"=="groovy" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.sdkman.io/2/candidates/default/groovy'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5) } catch { 'ERROR' }"
 
 set "LATEST_VER=ERROR"
 for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "!PS_RESOLVE_LATEST!"') do (
@@ -5694,9 +6186,9 @@ for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "!PS_RESOLVE_LATEST!"') d
 if "!LATEST_VER!"=="RATE_LIMITED" (
     echo %cYELLOW%[ WARNING]%cRESET% GitHub API Rate Limit reached. Trying redirect fallback...
     set "PS_REDIR="
-    if /i "!TARGET_CANDIDATE!"=="maven" set "PS_REDIR=try { $r=[Net.HttpWebRequest]::Create('https://github.com/apache/maven/releases/latest'); $r.AllowAutoRedirect=$false; $r.Timeout=10000; $resp=$r.GetResponse(); $loc=$resp.Headers['Location']; $resp.Close(); if ($loc -match '/tag/maven-(.+)$') { $Matches[1] } else { 'ERROR' } } catch { 'ERROR' }"
-    if /i "!TARGET_CANDIDATE!"=="kotlin" set "PS_REDIR=try { $r=[Net.HttpWebRequest]::Create('https://github.com/JetBrains/kotlin/releases/latest'); $r.AllowAutoRedirect=$false; $r.Timeout=10000; $resp=$r.GetResponse(); $loc=$resp.Headers['Location']; $resp.Close(); if ($loc -match '/tag/v?(.+)$') { $Matches[1] } else { 'ERROR' } } catch { 'ERROR' }"
-    if /i "!TARGET_CANDIDATE!"=="scala" set "PS_REDIR=try { $r=[Net.HttpWebRequest]::Create('https://github.com/scala/scala3/releases/latest'); $r.AllowAutoRedirect=$false; $r.Timeout=10000; $resp=$r.GetResponse(); $loc=$resp.Headers['Location']; $resp.Close(); if ($loc -match '/tag/(.+)$') { $Matches[1] } else { 'ERROR' } } catch { 'ERROR' }"
+    if /i "!TARGET_CANDIDATE!"=="maven" set "PS_REDIR=!PS_TLS! try { $r=[Net.HttpWebRequest]::Create('https://github.com/apache/maven/releases/latest'); $r.AllowAutoRedirect=$false; $r.Timeout=10000; $resp=$r.GetResponse(); $loc=[string]$resp.Headers['Location']; $resp.Close(); if ($loc -match '^https://github\.com/apache/maven/releases/tag/maven-([0-9A-Za-z._+-]{1,64})$') { $Matches[1] } else { 'ERROR' } } catch { 'ERROR' }"
+    if /i "!TARGET_CANDIDATE!"=="kotlin" set "PS_REDIR=!PS_TLS! try { $r=[Net.HttpWebRequest]::Create('https://github.com/JetBrains/kotlin/releases/latest'); $r.AllowAutoRedirect=$false; $r.Timeout=10000; $resp=$r.GetResponse(); $loc=[string]$resp.Headers['Location']; $resp.Close(); if ($loc -match '^https://github\.com/JetBrains/kotlin/releases/tag/v?([0-9A-Za-z._+-]{1,64})$') { $Matches[1] } else { 'ERROR' } } catch { 'ERROR' }"
+    if /i "!TARGET_CANDIDATE!"=="scala" set "PS_REDIR=!PS_TLS! try { $r=[Net.HttpWebRequest]::Create('https://github.com/scala/scala3/releases/latest'); $r.AllowAutoRedirect=$false; $r.Timeout=10000; $resp=$r.GetResponse(); $loc=[string]$resp.Headers['Location']; $resp.Close(); if ($loc -match '^https://github\.com/scala/scala3/releases/tag/v?([0-9A-Za-z._+-]{1,64})$') { $Matches[1] } else { 'ERROR' } } catch { 'ERROR' }"
     if defined PS_REDIR (
         set "REDIR_TAG="
         for /f "delims=" %%T in ('%PS_BIN% -NoProfile -Command "!PS_REDIR!"') do set "REDIR_TAG=%%T"
@@ -5711,6 +6203,12 @@ if "!LATEST_VER!"=="RATE_LIMITED" (
         echo %cRED%[ ERROR  ]%cRESET% GitHub API Rate Limit reached. Set GITHUB_TOKEN environment variable or try again later.
         set "LATEST_VER=ERROR"
     )
+)
+if not "!LATEST_VER!"=="ERROR" (
+    call :ValidateStrictIdentifier "!LATEST_VER!" LATEST_VER
+    if errorlevel 1 set "LATEST_VER=ERROR"
+    if /i "!LATEST_VER!"=="current" set "LATEST_VER=ERROR"
+    if /i "!LATEST_VER!"=="latest" set "LATEST_VER=ERROR"
 )
 exit /b 0
 
@@ -5821,18 +6319,49 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo         Write-Host ""
     echo     } else {
     echo         Write-Host "[ ACTION ] Verifying $cryptoType checksum..." -ForegroundColor Cyan
+    echo         function Get-TrustedChecksumText^([string]$chkUrl^) {
+    echo             $u = $null
+    echo             if ^(-not [System.Uri]::TryCreate^($chkUrl, [System.UriKind]::Absolute, [ref]$u^) -or $u.Scheme -ne 'https'^) {
+    echo                 throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS checksum URL: ' + $chkUrl^)
+    echo             }
+    echo             if ^(-not ^(Test-TrustedJvmUri $u^)^) {
+    echo                 throw ^('Security policy violation ^(CWE-918^): Untrusted checksum host: ' + $u.Host^)
+    echo             }
+    echo             $req = [System.Net.WebRequest]::Create^($chkUrl^)
+    echo             $req.Timeout = 15000
+    echo             $req.ReadWriteTimeout = 15000
+    echo             $resp = $req.GetResponse^(^)
+    echo             try {
+    echo                 if ^($resp.ResponseUri -and $resp.ResponseUri.Scheme -ne 'https'^) {
+    echo                     throw ^('Security policy violation ^(CWE-319^): Blocked checksum redirect to non-HTTPS URL: ' + $resp.ResponseUri^)
+    echo                 }
+    echo                 if ^($resp.ResponseUri -and -not ^(Test-TrustedJvmUri $resp.ResponseUri^)^) {
+    echo                     throw ^('Security policy violation ^(CWE-601^): Blocked checksum redirect to untrusted host: ' + $resp.ResponseUri.Host^)
+    echo                 }
+    echo                 $sr = New-Object System.IO.StreamReader^($resp.GetResponseStream^(^)^)
+    echo                 $buf = New-Object char[] 4096
+    echo                 $n = $sr.Read^($buf, 0, $buf.Length^)
+    echo                 return ^(New-Object string^($buf, 0, $n^)^).Trim^(^)
+    echo             } finally {
+    echo                 $resp.Close^(^)
+    echo             }
+    echo         }
     echo         $expectedHash = $null
     echo         if ^($env:DL_CHKSUM_URL^) {
     echo             try {
-    echo                 $expectedHash = ^(Invoke-RestMethod -Uri $env:DL_CHKSUM_URL -UseBasicParsing^).Trim^(^)
+    echo                 $expectedHash = Get-TrustedChecksumText $env:DL_CHKSUM_URL
     echo             } catch {
+    echo                 if ^($_.Exception.Message -like 'Security policy violation*'^) { throw }
     echo                 if ^($env:DL_CHKSUM_URL -match '\.sha512$'^) {
     echo                     Write-Host "[ WARNING] SHA512 checksum not found, falling back to SHA1..." -ForegroundColor Yellow
     echo                     $fallbackUrl = $env:DL_CHKSUM_URL -replace '\.sha512$', '.sha1'
     echo                     try {
-    echo                         $expectedHash = ^(Invoke-RestMethod -Uri $fallbackUrl -UseBasicParsing^).Trim^(^)
+    echo                         $expectedHash = Get-TrustedChecksumText $fallbackUrl
     echo                         $cryptoType = 'SHA1'
-    echo                     } catch { $expectedHash = $null }
+    echo                     } catch {
+    echo                         if ^($_.Exception.Message -like 'Security policy violation*'^) { throw }
+    echo                         $expectedHash = $null
+    echo                     }
     echo                 }
     echo             }
     echo         } else {
@@ -5875,6 +6404,11 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo         try {
     echo             $entries = $zip.Entries
     echo             $totalEntries = $entries.Count
+    echo             if ^($totalEntries -le 0 -or $totalEntries -gt 40000^) {
+    echo                 throw ^('Security policy violation ^(CWE-409^): Archive entry count out of safe bounds: ' + $totalEntries^)
+    echo             }
+    echo             $maxTotalBytes = 1879048192L
+    echo             $totalExtractedBytes = 0L
     echo             $extracted = 0
     echo             $lastPercent = -1
     echo             $fullRoot = [System.IO.Path]::GetFullPath^($env:DL_EXTRACT^)
@@ -5885,6 +6419,13 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo                 $destinationPath = [System.IO.Path]::GetFullPath^([System.IO.Path]::Combine^($env:DL_EXTRACT, $entry.FullName^)^)
     echo                 if ^($entry.FullName -match '^^[/\\]' -or $entry.FullName -match ':' -or ^(-not $destinationPath.StartsWith^($fullRoot, [System.StringComparison]::OrdinalIgnoreCase^) -and $destinationPath -ne $fullRoot.TrimEnd^([System.IO.Path]::DirectorySeparatorChar^)^)^) {
     echo                     throw ^('Blocked path traversal in archive entry: ' + $entry.FullName^)
+    echo                 }
+    echo                 if ^($entry.FullName -match '[\x00-\x1F]' -or $entry.FullName -match '^(^^^|[/\\]^)^(CON^|PRN^|AUX^|NUL^|COM[1-9]^|LPT[1-9]^)^(\.[0-9A-Za-z._-]*^)?^([/\\]^|$^)' -or $entry.FullName -match '[\. ]^([/\\]^|$^)'^) {
+    echo                     throw ^('Security policy violation ^(CWE-66^): Unsafe Win32 device or control char in archive entry: ' + $entry.FullName^)
+    echo                 }
+    echo                 $totalExtractedBytes += [math]::Max^(0L, [int64]$entry.Length^)
+    echo                 if ^($totalExtractedBytes -gt $maxTotalBytes^) {
+    echo                     throw ^('Security policy violation ^(CWE-409^): Archive decompression limit exceeded ^(Zip Bomb protection^).'^)
     echo                 }
     echo                 if ^([string]::IsNullOrEmpty^($entry.Name^)^) {
     echo                     [System.IO.Directory]::CreateDirectory^($destinationPath^) ^| Out-Null
@@ -6013,18 +6554,53 @@ set "VERIFY_RESULT=%JVM_SECURE_TEMP%\verify_!VER_RANDOM_NAME!.txt"
     "$s=[System.Security.Cryptography.SHA256]::Create();" ^
     "$fs=[System.IO.File]::OpenRead($f);" ^
     "$actual=try { ([System.BitConverter]::ToString($s.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $s.Dispose() };" ^
-    "$txt=$null;" ^
-    "try { $req=[System.Net.WebRequest]::Create('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt'); $req.Timeout=5000; $res=$req.GetResponse(); $rHost=$res.ResponseUri.Host.ToLowerInvariant(); if ($res.ResponseUri.Scheme -ne 'https' -or (@('github.com','objects.githubusercontent.com','release-assets.githubusercontent.com','raw.githubusercontent.com') -notcontains $rHost -and -not $rHost.EndsWith('.githubusercontent.com'))) { $res.Close(); Write-Output 'UNTRUSTED_REDIRECT'; exit }; $sr=New-Object System.IO.StreamReader($res.GetResponseStream(), [System.Text.Encoding]::UTF8); $txt=$sr.ReadToEnd(); $sr.Close(); $res.Close() } catch {};" ^
-    "if (-not $txt) { Write-Output 'NO_SHA_FILE'; exit };" ^
-    "$expected=$null;" ^
-    "foreach ($line in ($txt -split '\r?\n')) {" ^
-    "  if ($line.Trim() -match ('^([0-9a-fA-F]{64})\s+\*?' + [regex]::Escape($name) + '$')) {" ^
-    "    $expected=$matches[1].ToLower(); break" ^
-    "  }" ^
-    "};" ^
-    "if (-not $expected) { Write-Output 'NO_ENTRY'; exit };" ^
-    "if ($actual -ne $expected) { Write-Output ('MISMATCH|' + $expected + '|' + $actual); exit };" ^
-    "Write-Output ('VERIFIED|' + $expected)" ^
+    "if ($ref -match '^v?[0-9]') {" ^
+    "  $txt=$null;" ^
+    "  try { $req=[System.Net.WebRequest]::Create('https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/' + $ref + '/SHA256SUMS.txt'); $req.Timeout=5000; $res=$req.GetResponse(); $rHost=$res.ResponseUri.Host.ToLowerInvariant(); if ($res.ResponseUri.Scheme -ne 'https' -or (@('github.com','objects.githubusercontent.com','release-assets.githubusercontent.com','raw.githubusercontent.com') -notcontains $rHost -and -not $rHost.EndsWith('.githubusercontent.com'))) { $res.Close(); Write-Output 'UNTRUSTED_REDIRECT'; exit }; $sr=New-Object System.IO.StreamReader($res.GetResponseStream(), [System.Text.Encoding]::UTF8); $txt=$sr.ReadToEnd(); $sr.Close(); $res.Close() } catch {};" ^
+    "  if (-not $txt) { Write-Output 'NO_SHA_FILE'; exit };" ^
+    "  $expected=$null;" ^
+    "  foreach ($line in ($txt -split '\r?\n')) {" ^
+    "    if ($line.Trim() -match ('^([0-9a-fA-F]{64})\s+\*?' + [regex]::Escape($name) + '$')) {" ^
+    "      $expected=$matches[1].ToLower(); break" ^
+    "    }" ^
+    "  };" ^
+    "  if (-not $expected) { Write-Output 'NO_ENTRY'; exit };" ^
+    "  if ($actual -ne $expected) { Write-Output ('MISMATCH|' + $expected + '|' + $actual); exit };" ^
+    "  Write-Output ('VERIFIED|' + $expected)" ^
+    "} else {" ^
+    "  $metaSha=$null;" ^
+    "  try { $meta=Invoke-RestMethod -Uri ('https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/' + $name + '?ref=' + $ref) -Headers @{'Cache-Control'='no-cache'} -UserAgent 'DiamTek-JVM' -TimeoutSec 5; if ($meta -and $meta.sha -and $meta.sha -match '^[0-9a-fA-F]{40}$') { $metaSha=([string]$meta.sha).ToLower() } } catch {};" ^
+    "  if ($metaSha) {" ^
+    "    $sha1=[System.Security.Cryptography.SHA1]::Create();" ^
+    "    $rawBytes=[System.IO.File]::ReadAllBytes($f);" ^
+    "    $rawTxt=[System.IO.File]::ReadAllText($f, [System.Text.Encoding]::UTF8);" ^
+    "    $lfBytes=[System.Text.Encoding]::UTF8.GetBytes(($rawTxt -replace '\r\n', \"`n\"));" ^
+    "    $crlfBytes=[System.Text.Encoding]::UTF8.GetBytes(($rawTxt -replace '\r?\n', \"`r`n\"));" ^
+    "    $matchedGit=$false; $computedGit='';" ^
+    "    foreach ($b in @($rawBytes, $lfBytes, $crlfBytes)) {" ^
+    "      $hdr=[System.Text.Encoding]::ASCII.GetBytes('blob ' + $b.Length + [char]0);" ^
+    "      $blob=New-Object byte[] ($hdr.Length + $b.Length);" ^
+    "      [Array]::Copy($hdr, 0, $blob, 0, $hdr.Length);" ^
+    "      [Array]::Copy($b, 0, $blob, $hdr.Length, $b.Length);" ^
+    "      $g=([System.BitConverter]::ToString($sha1.ComputeHash($blob)) -replace '-','').ToLower();" ^
+    "      if (-not $computedGit) { $computedGit=$g };" ^
+    "      if ($g -eq $metaSha) { $matchedGit=$true; break }" ^
+    "    };" ^
+    "    if ($matchedGit) { Write-Output ('VERIFIED|' + $actual); exit }" ^
+    "    Write-Output ('MISMATCH|' + $metaSha + '|' + $computedGit); exit" ^
+    "  };" ^
+    "  $sidecar=$f + '.sha256';" ^
+    "  if (Test-Path -LiteralPath $sidecar) {" ^
+    "    $scItem=Get-Item -LiteralPath $sidecar -Force -ErrorAction SilentlyContinue;" ^
+    "    if ($scItem -and -not ($scItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {" ^
+    "      $pinned=([System.IO.File]::ReadAllText($sidecar, [System.Text.Encoding]::UTF8)).Trim().ToLower();" ^
+    "      if ($pinned -match '^[0-9a-fA-F]{64}$') {" ^
+    "        if ($actual -eq $pinned) { Write-Output ('VERIFIED|' + $actual); exit } else { Write-Output ('MISMATCH|' + $pinned + '|' + $actual); exit }" ^
+    "      }" ^
+    "    }" ^
+    "  };" ^
+    "  Write-Output 'NO_META_SHA'" ^
+    "}" ^
     > "%VERIFY_RESULT%" 2>nul
 
 set "VERIFY_STATUS="

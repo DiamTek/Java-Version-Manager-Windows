@@ -107,6 +107,11 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     }
 }
 
+$Version = $Version.TrimStart('v')
+if ($Version -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Security violation (CWE-20): Invalid MSI Version '$Version'. Expected strict numeric X.Y.Z format."
+}
+
 Push-Location $ScriptDir
 
 $ESC = [char]27
@@ -290,6 +295,7 @@ $script:BuiltPackages = 0
 # 5. Function to build an MSI for a specific architecture
 function Build-MsiPackage {
     param(
+        [ValidateSet('x64', 'arm64')]
         [string]$TargetArch
     )
 
@@ -307,16 +313,54 @@ function Build-MsiPackage {
 `$iconIco = Join-Path `$jvmRoot 'assets\icon.ico'
 `$iconPng = Join-Path `$jvmRoot 'assets\icon.png'
 
+function Test-HasReparsePointInLineage([string]`$TargetPath) {
+    if ([string]::IsNullOrWhiteSpace(`$TargetPath)) { return `$false }
+    try { `$curr = [System.IO.Path]::GetFullPath(`$TargetPath) } catch { return `$true }
+    while (-not [string]::IsNullOrWhiteSpace(`$curr)) {
+        if (Test-Path -LiteralPath `$curr) {
+            try {
+                `$item = Get-Item -LiteralPath `$curr -Force -ErrorAction Stop
+                if (`$item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return `$true }
+            } catch { return `$true }
+        }
+        `$parent = Split-Path -Path `$curr -Parent
+        if (`$parent -eq `$curr) { break }
+        `$curr = `$parent
+    }
+    return `$false
+}
+
+if (Test-HasReparsePointInLineage `$jvmRoot) { exit 1 }
+
 # Record active release channel in JVM root (STABLE by default for MSI official release)
 `$channelFile = Join-Path `$jvmRoot 'channel.txt'
-if (-not (Test-Path `$channelFile)) {
-    Set-Content -Path `$channelFile -Value 'STABLE' -Encoding Ascii -Force
+if (-not (Test-Path -LiteralPath `$channelFile) -and (-not (Test-HasReparsePointInLineage `$channelFile))) {
+    Set-Content -LiteralPath `$channelFile -Value 'STABLE' -Encoding Ascii -Force
 }
+
+# Verify User PATH preserves REG_EXPAND_SZ (DoNotExpandEnvironmentNames) and respects 8191-char cmd.exe boundary (CWE-400 / CWE-665)
+try {
+    `$uKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', `$true)
+    if (`$uKey) {
+        `$rawUPath = `$uKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        `$mKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SYSTEM\CurrentControlSet\Control\Session Manager\Environment', `$false)
+        `$rawMPath = if (`$mKey) { `$mKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } else { '' }
+        if (`$mKey) { `$mKey.Close() }
+        if ((`$rawMPath.Length + `$rawUPath.Length + `$binDir.Length + 2) -le 8191) {
+            if (`$rawUPath -notlike "*`$binDir*") {
+                `$newUPath = if ([string]::IsNullOrWhiteSpace(`$rawUPath)) { `$binDir } else { "`$rawUPath;`$binDir" }
+                `$uKey.SetValue('Path', `$newUPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
+            }
+        }
+        `$uKey.Close()
+    }
+} catch { }
 
 `$profileCode = @'
 $profileCode
 '@
-`$profileCode = `$profileCode.Replace('__FALLBACK_BAT__', `$batPath)
+`$safeBatPath = `$batPath.Replace("'", "''")
+`$profileCode = `$profileCode.Replace('__FALLBACK_BAT__', `$safeBatPath)
 
 `$userProfile = [Environment]::GetFolderPath('UserProfile')
 `$myDocs = [Environment]::GetFolderPath('MyDocuments')
@@ -331,10 +375,12 @@ $profileCode
 `$utf8 = New-Object System.Text.UTF8Encoding(`$true)
 foreach (`$p in `$profiles) {
     if ([string]::IsNullOrWhiteSpace(`$p)) { continue }
+    if (Test-HasReparsePointInLineage `$p) { continue }
     `$profileDir = Split-Path `$p
-    if (-not (Test-Path `$profileDir)) { New-Item -ItemType Directory -Path `$profileDir -Force | Out-Null }
+    if (-not (Test-Path -LiteralPath `$profileDir)) { New-Item -ItemType Directory -Path `$profileDir -Force | Out-Null }
+    if (Test-HasReparsePointInLineage `$p) { continue }
     `$profContent = ''
-    if (Test-Path `$p) { `$profContent = [System.IO.File]::ReadAllText(`$p, [System.Text.Encoding]::UTF8) }
+    if (Test-Path -LiteralPath `$p) { `$profContent = [System.IO.File]::ReadAllText(`$p, [System.Text.Encoding]::UTF8) }
 
     `$blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
     `$m = [Regex]::Match(`$profContent, `$blockPattern)
@@ -354,9 +400,9 @@ foreach (`$p in `$profiles) {
     "`$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json"
 )
 foreach (`$wtSettings in `$wtSettingsCandidates) {
-    if (Test-Path `$wtSettings) {
+    if ((Test-Path -LiteralPath `$wtSettings) -and (-not (Test-HasReparsePointInLineage `$wtSettings))) {
         try {
-            `$wtContent = Get-Content `$wtSettings -Raw -ErrorAction Stop
+            `$wtContent = Get-Content -LiteralPath `$wtSettings -Raw -ErrorAction Stop
             `$cleanJson = `$wtContent -replace '(?s)/\*.*?\*/', '' -replace '(?m)(?<!:)\/\/.*$', '' -replace ',\s*([\}\]])', '`$1'
             `$wtJson = `$cleanJson | ConvertFrom-Json
             if (`$wtJson.profiles -and `$wtJson.profiles.list) {
@@ -375,13 +421,13 @@ foreach (`$wtSettings in `$wtSettingsCandidates) {
                     `$profileList.Add(`$newProfile)
                     `$wtJson.profiles.list = `$profileList
                     `$newWtContent = `$wtJson | ConvertTo-Json -Depth 32
-                    Set-Content `$wtSettings `$newWtContent -Encoding utf8
+                    Set-Content -LiteralPath `$wtSettings -Value `$newWtContent -Encoding utf8
                 } else {
                     `$existing.commandline = 'cmd.exe /c "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat"'
                     `$existing.icon = '%LOCALAPPDATA%\DiamTek\JVM\assets\icon.png'
                     `$existing | Add-Member -NotePropertyName 'closeOnExit' -NotePropertyValue 'always' -Force
                     `$newWtContent = `$wtJson | ConvertTo-Json -Depth 32
-                    Set-Content `$wtSettings `$newWtContent -Encoding utf8
+                    Set-Content -LiteralPath `$wtSettings -Value `$newWtContent -Encoding utf8
                 }
                 `$wtProfileAdded = `$true
             }
@@ -390,18 +436,18 @@ foreach (`$wtSettings in `$wtSettingsCandidates) {
 }
 
 # Polish Start Menu shortcut to launch via Windows Terminal if available
-`$wtExe = if (Test-Path "`$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe") { "`$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe" } elseif (Get-Command wt.exe -ErrorAction SilentlyContinue) { 'wt.exe' } else { `$null }
+`$wtExe = if (Test-Path -LiteralPath "`$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe") { "`$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe" } elseif (Get-Command wt.exe -ErrorAction SilentlyContinue) { (Get-Command wt.exe -ErrorAction SilentlyContinue).Source } else { `$null }
 `$hasWt = `$wtProfileAdded -and [bool]`$wtExe
 if (`$hasWt) {
     `$startMenuPrograms = [Environment]::GetFolderPath('Programs')
     `$lnkPath = Join-Path `$startMenuPrograms 'DiamTek\Java Version Manager.lnk'
-    if (Test-Path `$lnkPath) {
+    if ((Test-Path -LiteralPath `$lnkPath) -and (-not (Test-HasReparsePointInLineage `$lnkPath))) {
         try {
             `$wshell = New-Object -ComObject WScript.Shell
             `$shortcut = `$wshell.CreateShortcut(`$lnkPath)
             `$shortcut.TargetPath = `$wtExe
             `$shortcut.Arguments = '-p "Java Version Manager"'
-            if (Test-Path `$iconIco) { `$shortcut.IconLocation = `$iconIco }
+            if (Test-Path -LiteralPath `$iconIco) { `$shortcut.IconLocation = `$iconIco }
             `$shortcut.WorkingDirectory = `$jvmRoot
             `$shortcut.Save()
         } catch { }
@@ -409,8 +455,8 @@ if (`$hasWt) {
 }
 
 # Clean legacy hook scripts from bin/ if upgrading from older package version
-Remove-Item -Path (Join-Path $binDir 'msi-install-hook.ps1') -Force -ErrorAction SilentlyContinue
-Remove-Item -Path (Join-Path $binDir 'msi-uninstall-hook.ps1') -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path `$binDir 'msi-install-hook.ps1') -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path `$binDir 'msi-uninstall-hook.ps1') -Force -ErrorAction SilentlyContinue
 
 # Clean legacy manual install registry entry to prevent duplicate entries in Settings
 Remove-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM' -Recurse -Force -ErrorAction SilentlyContinue
@@ -423,9 +469,35 @@ exit 0
 $ErrorActionPreference = 'SilentlyContinue'
 Set-Location $env:TEMP
 
+function Test-HasReparsePointInLineage([string]$TargetPath) {
+    if ([string]::IsNullOrWhiteSpace($TargetPath)) { return $false }
+    try { $curr = [System.IO.Path]::GetFullPath($TargetPath) } catch { return $true }
+    while (-not [string]::IsNullOrWhiteSpace($curr)) {
+        if (Test-Path -LiteralPath $curr) {
+            try {
+                $item = Get-Item -LiteralPath $curr -Force -ErrorAction Stop
+                if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $true }
+            } catch { return $true }
+        }
+        $parent = Split-Path -Path $curr -Parent
+        if ($parent -eq $curr) { break }
+        $curr = $parent
+    }
+    return $false
+}
+
 function Remove-DirectorySafely {
     param([string]$Path)
     if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return }
+    $parentPath = Split-Path -Path $Path -Parent
+    if ($parentPath -and (Test-HasReparsePointInLineage $parentPath)) { return }
+    try {
+        $rootItem = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if ($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+            [System.IO.Directory]::Delete($rootItem.FullName, $false)
+            return
+        }
+    } catch { return }
     try {
         Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
             $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint
@@ -458,14 +530,14 @@ $profiles = @(
 # 1. PowerShell Profile Hook Removal
 $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
 foreach ($p in $profiles) {
-    if (Test-Path $p) {
-        $profContent = Get-Content $p -Raw -ErrorAction SilentlyContinue
+    if ((Test-Path -LiteralPath $p) -and (-not (Test-HasReparsePointInLineage $p))) {
+        $profContent = Get-Content -LiteralPath $p -Raw -ErrorAction SilentlyContinue
         if ($profContent) {
             $m = [Regex]::Match($profContent, $blockPattern)
             if ($m.Success) {
                 $profContent = $profContent.Remove($m.Index, $m.Length).Trim()
                 if ([string]::IsNullOrWhiteSpace($profContent)) {
-                    Remove-Item $p -Force -ErrorAction SilentlyContinue
+                    Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
                 } else {
                     [System.IO.File]::WriteAllText($p, $profContent, [System.Text.Encoding]::UTF8)
                 }
@@ -481,9 +553,9 @@ $wtSettingsCandidates = @(
     "$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json"
 )
 foreach ($wtSettings in $wtSettingsCandidates) {
-    if (Test-Path $wtSettings) {
+    if ((Test-Path -LiteralPath $wtSettings) -and (-not (Test-HasReparsePointInLineage $wtSettings))) {
         try {
-            $wtContent = Get-Content $wtSettings -Raw -ErrorAction Stop
+            $wtContent = Get-Content -LiteralPath $wtSettings -Raw -ErrorAction Stop
             # Strip JSONC comments and trailing commas
             $cleanJson = $wtContent -replace '(?s)/\*.*?\*/', '' -replace '(?m)(?<!:)\/\/.*$', '' -replace ',\s*([\}\]])', '$1'
             $wtJson = $cleanJson | ConvertFrom-Json
@@ -495,7 +567,7 @@ foreach ($wtSettings in $wtSettingsCandidates) {
                         $wtJson.defaultProfile = $filtered[0].guid
                     }
                     $newWtContent = $wtJson | ConvertTo-Json -Depth 32
-                    Set-Content $wtSettings $newWtContent -Encoding utf8
+                    Set-Content -LiteralPath $wtSettings -Value $newWtContent -Encoding utf8
                 }
             }
         } catch { }
@@ -504,8 +576,8 @@ foreach ($wtSettings in $wtSettingsCandidates) {
 
 # 3. Taskbar shortcut cleanup
 $taskbarLnk = Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Java Version Manager.lnk"
-if (Test-Path $taskbarLnk) {
-    Remove-Item -Path $taskbarLnk -Force -ErrorAction SilentlyContinue
+if ((Test-Path -LiteralPath $taskbarLnk) -and (-not (Test-HasReparsePointInLineage $taskbarLnk))) {
+    Remove-Item -LiteralPath $taskbarLnk -Force -ErrorAction SilentlyContinue
 }
 
 # 4. Clean up any dangling symlink paths from User PATH while preserving REG_EXPAND_SZ
@@ -550,12 +622,12 @@ try {
 } catch { }
 
 # 7. Temporary session cleanup
-Remove-Item -Path "$env:TEMP\.jvm_session_target" -Force -ErrorAction SilentlyContinue
-Get-ChildItem -Path $env:TEMP -Filter "jvm_*" -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath "$env:TEMP\.jvm_session_target" -Force -ErrorAction SilentlyContinue
+Get-ChildItem -LiteralPath $env:TEMP -Filter "jvm_*" -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
 # 8. Candidate tools and caches cleanup (~/.jvm)
 $userJvmCandidates = Join-Path $userProfile ".jvm"
-if (Test-Path $userJvmCandidates) {
+if (Test-Path -LiteralPath $userJvmCandidates) {
     Remove-DirectorySafely $userJvmCandidates
 }
 
@@ -573,41 +645,42 @@ try {
 
 # Remove candidate tool directories and active symlinks/junctions
 $candidatesDir = Join-Path $jvmDir "candidates"
-if (Test-Path $candidatesDir) {
+if (Test-Path -LiteralPath $candidatesDir) {
     Remove-DirectorySafely $candidatesDir
 }
 
 $current = Join-Path $jvmDir "current"
-if (Test-Path $current) { cmd.exe /c rmdir "$current" 2>$null }
+if (Test-Path -LiteralPath $current) { cmd.exe /c rmdir "$current" 2>$null }
 
 # Clean all runtime-generated files and directories so Windows Installer's RemoveFolder succeeds cleanly
 $runtimeItems = @('channel.txt', 'mode.txt', 'config.ini', '.installed', 'backups', 'downloads', 'cache', 'temp', 'logs')
 foreach ($item in $runtimeItems) {
     $itemPath = Join-Path $jvmDir $item
-    if (Test-Path $itemPath) { Remove-Item -LiteralPath $itemPath -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $itemPath) { Remove-DirectorySafely $itemPath }
 }
 
 $legacyJvm = Join-Path $localAppData "JavaVersionManager"
-if (Test-Path $legacyJvm) { Remove-DirectorySafely $legacyJvm }
+if (Test-Path -LiteralPath $legacyJvm) { Remove-DirectorySafely $legacyJvm }
 
 # Clean legacy hook scripts from bin/ if any existed from older MSI revisions
 $binDir = Join-Path $jvmDir "bin"
-Remove-Item -Path (Join-Path $binDir 'msi-install-hook.ps1') -Force -ErrorAction SilentlyContinue
-Remove-Item -Path (Join-Path $binDir 'msi-uninstall-hook.ps1') -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $binDir 'msi-install-hook.ps1') -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $binDir 'msi-uninstall-hook.ps1') -Force -ErrorAction SilentlyContinue
 
 # Schedule background fallback cleanup of jvmDir if lingering files remain after msiexec finishes
-$sysPs = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "WindowsPowerShell\v1.0\powershell.exe"
-if (-not (Test-Path $sysPs)) { $sysPs = "powershell.exe" }
-$sysCmd = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "cmd.exe"
-if (-not (Test-Path $sysCmd)) { $sysCmd = "cmd.exe" }
-$cleanScript = "Start-Sleep -Seconds 2; & `"$sysCmd`" /c rmdir /s /q `"$jvmDir`""
-$encoded = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cleanScript))
-Start-Process -FilePath $sysPs -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded) -WindowStyle Hidden
+if (-not (Test-HasReparsePointInLineage $jvmDir)) {
+    $sysPs = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "WindowsPowerShell\v1.0\powershell.exe"
+    if (-not (Test-Path -LiteralPath $sysPs)) { $sysPs = "powershell.exe" }
+    $b64Target = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($jvmDir))
+    $cleanScript = "Start-Sleep -Seconds 2; `$t = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('$b64Target')); if (Test-Path -LiteralPath `$t) { Remove-Item -LiteralPath `$t -Recurse -Force -ErrorAction SilentlyContinue }"
+    $encoded = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cleanScript))
+    Start-Process -FilePath $sysPs -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded) -WindowStyle Hidden
+}
 
 # 10. Start Menu folder cleanup (removes JVM shortcuts and empty folder)
 $startMenuPrograms = [Environment]::GetFolderPath('Programs')
 $diamtekStartMenu = Join-Path $startMenuPrograms 'DiamTek'
-if (Test-Path $diamtekStartMenu) {
+if ((Test-Path -LiteralPath $diamtekStartMenu) -and (-not (Test-HasReparsePointInLineage $diamtekStartMenu))) {
     Get-ChildItem -LiteralPath $diamtekStartMenu -Filter "*Java Version Manager*" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
     Get-ChildItem -LiteralPath $diamtekStartMenu -Filter "*JVM*" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
     $remaining = Get-ChildItem -LiteralPath $diamtekStartMenu -Force -ErrorAction SilentlyContinue
@@ -627,6 +700,7 @@ exit 0
     }
 
     $productCode = Get-DeterministicGuid "db30058e-1738-46cb-84ec-8c652dc99a22" "DiamTek.JVM.$Version.$TargetArch"
+    $safeVersion = Escape-XmlAttr $Version
 
     $srcLicense = Escape-XmlAttr (Join-Path $RootDir "LICENSE")
     $srcReadme = Escape-XmlAttr (Join-Path $RootDir "README.md")
@@ -639,7 +713,7 @@ exit 0
 
     $wxsContent = @"
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="Java Version Manager" Manufacturer="DiamTek" Version="$Version" ProductCode="$productCode" UpgradeCode="db30058e-1738-46cb-84ec-8c652dc99a22" Scope="perUser">
+  <Package Name="Java Version Manager" Manufacturer="DiamTek" Version="$safeVersion" ProductCode="$productCode" UpgradeCode="db30058e-1738-46cb-84ec-8c652dc99a22" Scope="perUser">
     <SummaryInformation Description="Java Version Manager (JVM) for Windows" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." AllowSameVersionUpgrades="yes" />
     <MediaTemplate EmbedCab="yes" />

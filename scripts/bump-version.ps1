@@ -72,6 +72,29 @@ if (-not [string]::IsNullOrWhiteSpace($Build)) {
     }
 }
 
+function Assert-TrustedGitHubUri([string]$UriString) {
+    $u = $null
+    if (-not [System.Uri]::TryCreate($UriString, [System.UriKind]::Absolute, [ref]$u) -or $u.Scheme -ne 'https') {
+        throw "Security validation failed (CWE-319): Manifest URI '$UriString' must use HTTPS."
+    }
+    $allowedHosts = @('github.com', 'api.github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com', 'raw.githubusercontent.com')
+    if ($u.Host.ToLowerInvariant() -notin $allowedHosts) {
+        throw "Security validation failed (CWE-601): Untrusted GitHub host '$($u.Host)' in URI '$UriString'."
+    }
+}
+
+function Assert-ValidSha256Hex([string]$HashString, [string]$Context) {
+    if ([string]::IsNullOrWhiteSpace($HashString) -or $HashString -notmatch '^[0-9A-Fa-f]{64}$') {
+        throw "Security validation failed (CWE-354): Invalid SHA-256 hex digest for $Context: '$HashString'."
+    }
+}
+
+function Assert-ValidMsiProductCode([string]$GuidString, [string]$Context) {
+    if ([string]::IsNullOrWhiteSpace($GuidString) -or $GuidString -notmatch '^\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}$') {
+        throw "Security validation failed (CWE-20): Invalid MSI ProductCode GUID for $Context: '$GuidString'."
+    }
+}
+
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $RepoRoot = Split-Path -Parent $ScriptDir
 
@@ -615,6 +638,7 @@ function Invoke-ScoopCoordinator {
         }
         '2' {
             $shaUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v$TargetVersion/SHA256SUMS.txt"
+            Assert-TrustedGitHubUri $shaUrl
             Write-Host "Waiting for release checksums on CDN..." -ForegroundColor Yellow
             Write-Host "Probing: $shaUrl" -ForegroundColor Gray
 
@@ -628,6 +652,7 @@ function Invoke-ScoopCoordinator {
                     $req = [System.Net.WebRequest]::Create($shaUrl)
                     $req.Timeout = 5000
                     $res = $req.GetResponse()
+                    if ($res.ResponseUri) { Assert-TrustedGitHubUri $res.ResponseUri.AbsoluteUri }
                     $sr = New-Object System.IO.StreamReader($res.GetResponseStream())
                     $shaText = $sr.ReadToEnd()
                     $sr.Close()
@@ -648,6 +673,7 @@ function Invoke-ScoopCoordinator {
                 }
 
                 if ($portableZipHash) {
+                    Assert-ValidSha256Hex $portableZipHash "Scoop portable zip"
                     Write-Host "${cGreen}[FOUND]$cReset Portable zip SHA256: $portableZipHash"
 
                     if (Test-Path $internalScoop) {
@@ -1440,6 +1466,7 @@ Update-FileContent "packages\choco\tools\chocolateyInstall.ps1" {
     $localMsiX64 = Join-Path $RepoRoot "packages\msi\jvm-windows-$cleanVersion-x64.msi"
     if (Test-Path $localMsiX64) {
         $localHash = (Get-FileHash -Path $localMsiX64 -Algorithm SHA256).Hash.ToUpper()
+        Assert-ValidSha256Hex $localHash "Chocolatey checksum64"
         $res = [regex]::Replace($res, "(?m)^(\`$checksum64\s*=\s*')[^']*(')", "`${1}$localHash`${2}")
     }
     $res
@@ -1482,7 +1509,10 @@ Update-FileContent "packages\scoop\jvm.json" {
     param($content)
     $c = [regex]::Replace($content, '("version":\s*")[^"]*(")', "`${1}$cleanVersion`${2}")
     $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
-    [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
+    $c = [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
+    if ($c -match '"url":\s*"([^"]+)"') { Assert-TrustedGitHubUri $matches[1] }
+    if ($c -match '"hash":\s*"([^"]+)"') { Assert-ValidSha256Hex $matches[1] "Scoop jvm.json hash" }
+    $c
 } -StepName "Scoop Internal"
 
 # --- 5. Winget Package Manifests ---
@@ -1502,7 +1532,11 @@ Update-FileContent "packages\winget\DiamTek.JVM.installer.yaml" {
     $c = [regex]::Replace($content, '(?m)^(PackageVersion:\s*)\S+', "`${1}$cleanVersion")
     $c = [regex]::Replace($c, '(?m)^(ReleaseDate:\s*)\S+', "`${1}$todayDate")
     $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
-    [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
+    $c = [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
+    foreach ($m in [regex]::Matches($c, '(?m)^\s*InstallerUrl:\s*(\S+)')) { Assert-TrustedGitHubUri $m.Groups[1].Value }
+    foreach ($m in [regex]::Matches($c, '(?m)^\s*InstallerSha256:\s*(\S+)')) { Assert-ValidSha256Hex $m.Groups[1].Value "Winget InstallerSha256" }
+    foreach ($m in [regex]::Matches($c, '(?m)^\s*ProductCode:\s*[''"]?(\{[^''"\s]+\})[''"]?')) { Assert-ValidMsiProductCode $m.Groups[1].Value "Winget ProductCode" }
+    $c
 } -StepName "Winget Installer"
 
 # --- 6. GitHub Release Workflow ---
