@@ -26,7 +26,7 @@ $ErrorActionPreference = 'Stop'
 # Ensure process-level execution policy allows running build commands
 try {
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction SilentlyContinue
-} catch { }
+} catch { Write-Verbose "Process ExecutionPolicy bypass skipped: $($_.Exception.Message)" }
 
 # Resolve script directory robustly across PowerShell hosts and invocation modes
 $ScriptDir = if ($PSScriptRoot) {
@@ -49,7 +49,23 @@ try {
             Get-ChildItem -Path $ScriptDir -Filter "*.ps1" -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
         }
     }
-} catch { }
+} catch { Write-Verbose "Unblock-File skipped: $($_.Exception.Message)" }
+
+function Remove-BuildArtifactSafely([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    $maxRetries = 4
+    for ($i = 1; $i -le $maxRetries; $i++) {
+        try {
+            Remove-Item -LiteralPath $Path -Force -Recurse:$([System.IO.Directory]::Exists($Path)) -ErrorAction Stop
+            break
+        } catch [System.IO.IOException] {
+            if ($i -lt $maxRetries) { Start-Sleep -Milliseconds 100 } else { Write-Verbose "Could not delete artifact '$Path': $($_.Exception.Message)" }
+        } catch {
+            Write-Verbose "Could not delete artifact '$Path': $($_.Exception.Message)"
+            break
+        }
+    }
+}
 
 # Resolve repository root directory containing install.ps1, jvm.bat, and assets/
 $RootDir = $null
@@ -85,9 +101,12 @@ if (-not $RootDir) {
             $script:cleanupRemoteSource = $true
         }
     } catch {
-        Write-Host "WARNING: Could not automatically bootstrap repository source: $_" -ForegroundColor DarkGray
+        Write-Host "WARNING: Could not automatically bootstrap repository source: $($_.Exception.Message)" -ForegroundColor DarkGray
     } finally {
         Remove-Item $sourceZip -Force -ErrorAction SilentlyContinue
+        if (-not $script:cleanupRemoteSource -and (Test-Path -LiteralPath $sourceExtract)) {
+            Remove-Item -LiteralPath $sourceExtract -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 
@@ -112,7 +131,9 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
     throw "Security violation (CWE-20): Invalid MSI Version '$Version'. Expected strict numeric X.Y.Z format."
 }
 
+$dotnetInstall = $null
 Push-Location $ScriptDir
+try {
 
 $ESC = [char]27
 $cReset  = "$ESC[0m"
@@ -156,7 +177,11 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
         & $dotnetInstall -Channel LTS -InstallDir "$env:LOCALAPPDATA\Microsoft\dotnet" -Quality GA
         $env:PATH = "$env:LOCALAPPDATA\Microsoft\dotnet;$env:PATH"
     } catch {
-        Write-Host "  ${cYellow}[WARN]${cReset} Could not automatically bootstrap .NET SDK: $_"
+        Write-Host "  ${cYellow}[WARN]${cReset} Could not automatically bootstrap .NET SDK: $($_.Exception.Message)"
+    } finally {
+        if ($dotnetInstall -and (Test-Path -LiteralPath $dotnetInstall)) {
+            Remove-Item -LiteralPath $dotnetInstall -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
@@ -223,6 +248,7 @@ function Invoke-Wix {
     }
 
     # Strategy 1: Try native wix.exe
+    $proc = $null
     try {
         if (Get-Command wix -ErrorAction SilentlyContinue) {
             $wixExe = (Get-Command wix).Source
@@ -230,7 +256,11 @@ function Invoke-Wix {
             $proc = Start-Process -FilePath "wix" -ArgumentList $escapedArgs -NoNewWindow -Wait -PassThru -ErrorAction Stop
             if ($proc.ExitCode -eq 0) { return 0 }
         }
-    } catch { }
+    } catch {
+        Write-Verbose "WiX Strategy 1 (wix.exe) fallback triggered: $($_.Exception.Message)"
+    } finally {
+        if ($null -ne $proc) { $proc.Dispose(); $proc = $null }
+    }
 
     # Strategy 2: Fallback to dotnet exec wix.dll (bypasses apphost runtime resolution issues & AppLocker)
     $resolvedDll = if ($script:wixDll) { $script:wixDll } else { Find-WixDll }
@@ -240,21 +270,31 @@ function Invoke-Wix {
             $execArgs = @("exec", "`"$resolvedDll`"") + $escapedArgs
             $proc = Start-Process -FilePath $dotnetExec -ArgumentList $execArgs -NoNewWindow -Wait -PassThru -ErrorAction Stop
             return $proc.ExitCode
-        } catch { }
+        } catch {
+            Write-Verbose "WiX Strategy 2 (dotnet exec wix.dll) fallback triggered: $($_.Exception.Message)"
+        } finally {
+            if ($null -ne $proc) { $proc.Dispose(); $proc = $null }
+        }
     }
 
     # Strategy 3: Try dotnet tool run wix
     try {
         $proc = Start-Process -FilePath "dotnet" -ArgumentList (@("tool", "run", "wix") + $escapedArgs) -NoNewWindow -Wait -PassThru -ErrorAction Stop
         return $proc.ExitCode
-    } catch { }
+    } catch {
+        Write-Verbose "WiX Strategy 3 (dotnet tool run wix) failed: $($_.Exception.Message)"
+    } finally {
+        if ($null -ne $proc) { $proc.Dispose() }
+    }
 
     return 1
 }
 
 try {
     Invoke-Wix extension add -g WixToolset.Util.wixext/4.0.6 2>$null | Out-Null
-} catch { }
+} catch {
+    Write-Verbose "WiX Util extension registration note: $($_.Exception.Message)"
+}
 $swWix.Stop()
 Write-Host "  ${cGreen}[PASS]${cReset} WiX Toolset v4 CLI & WixToolset.Util.wixext verified ${cGray}($($swWix.ElapsedMilliseconds) ms)${cReset}"
 
@@ -279,7 +319,11 @@ function Get-DeterministicGuid([string]$namespaceGuid, [string]$name) {
     [array]::Reverse($nsBytes, 6, 2)
     $nameBytes = [System.Text.Encoding]::UTF8.GetBytes($name)
     $sha1 = [System.Security.Cryptography.SHA1]::Create()
-    $hash = $sha1.ComputeHash($nsBytes + $nameBytes)
+    try {
+        $hash = $sha1.ComputeHash($nsBytes + $nameBytes)
+    } finally {
+        if ($null -ne $sha1) { $sha1.Dispose() }
+    }
     $hash[6] = ($hash[6] -band 0x0F) -bor (5 -shl 4)
     $hash[8] = ($hash[8] -band 0x3F) -bor 0x80
     $guidBytes = New-Object byte[] 16
@@ -304,8 +348,13 @@ function Build-MsiPackage {
     Write-Host ""
     Write-Host "${cBold}[STAGE $stageNum] Compiling MSI Package: v$Version ($TargetArch)${cReset}"
 
-    # Generate msi-install-hook.ps1 (injects PowerShell profile hook, Windows Terminal profile & Start Menu shortcut polish)
-    $msiInstallHook = @"
+    $outputMsi = "$ScriptDir\jvm-windows-$Version-$TargetArch.msi"
+    $productCode = Get-DeterministicGuid "db30058e-1738-46cb-84ec-8c652dc99a22" "DiamTek.JVM.$Version.$TargetArch"
+    $swCompile = [System.Diagnostics.Stopwatch]::New()
+
+    try {
+        # Generate msi-install-hook.ps1 (injects PowerShell profile hook, Windows Terminal profile & Start Menu shortcut polish)
+        $msiInstallHook = @"
 `$ErrorActionPreference = 'SilentlyContinue'
 `$jvmRoot = if (`$PSScriptRoot) { `$PSScriptRoot } else { "`$env:LOCALAPPDATA\DiamTek\JVM" }
 `$binDir = Join-Path `$jvmRoot 'bin'
@@ -315,13 +364,13 @@ function Build-MsiPackage {
 
 function Test-HasReparsePointInLineage([string]`$TargetPath) {
     if ([string]::IsNullOrWhiteSpace(`$TargetPath)) { return `$false }
-    try { `$curr = [System.IO.Path]::GetFullPath(`$TargetPath) } catch { return `$true }
+    try { `$curr = [System.IO.Path]::GetFullPath(`$TargetPath) } catch { Write-Verbose "MSI hook path resolution failed: `$(`$_.Exception.Message)"; return `$true }
     while (-not [string]::IsNullOrWhiteSpace(`$curr)) {
         if (Test-Path -LiteralPath `$curr) {
             try {
                 `$item = Get-Item -LiteralPath `$curr -Force -ErrorAction Stop
                 if (`$item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return `$true }
-            } catch { return `$true }
+            } catch { Write-Verbose "MSI hook attribute inspection failed: `$(`$_.Exception.Message)"; return `$true }
         }
         `$parent = Split-Path -Path `$curr -Parent
         if (`$parent -eq `$curr) { break }
@@ -339,13 +388,14 @@ if (-not (Test-Path -LiteralPath `$channelFile) -and (-not (Test-HasReparsePoint
 }
 
 # Verify User PATH preserves REG_EXPAND_SZ (DoNotExpandEnvironmentNames), deduplicates binDir, and respects 8191-char cmd.exe boundary (CWE-400 / CWE-665)
+`$uKey = `$null
+`$mKey = `$null
 try {
     `$uKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', `$true)
-    if (`$uKey) {
+    if (`$null -ne `$uKey) {
         `$rawUPath = `$uKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
         `$mKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SYSTEM\CurrentControlSet\Control\Session Manager\Environment', `$false)
-        `$rawMPath = if (`$mKey) { `$mKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } else { '' }
-        if (`$mKey) { `$mKey.Close() }
+        `$rawMPath = if (`$null -ne `$mKey) { `$mKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } else { '' }
         `$normBin = `$binDir.TrimEnd('\')
         `$parts = @(`$rawUPath -split ';' | Where-Object {
             `$t = `$_.Trim().TrimEnd('\')
@@ -356,9 +406,13 @@ try {
             `$newUPath = if ([string]::IsNullOrWhiteSpace(`$dedupUPath)) { `$normBin } else { "`$dedupUPath;`$normBin" }
             `$uKey.SetValue('Path', `$newUPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
         }
-        `$uKey.Close()
     }
-} catch { }
+} catch {
+    Write-Verbose "MSI install hook PATH update warning: `$(`$_.Exception.Message)"
+} finally {
+    if (`$null -ne `$mKey) { `$mKey.Close() }
+    if (`$null -ne `$uKey) { `$uKey.Close() }
+}
 
 `$profileCode = @'
 $profileCode
@@ -376,24 +430,37 @@ $profileCode
     (Join-Path `$myDocs 'PowerShell\Microsoft.PowerShell_profile.ps1')
 ) | Where-Object { -not [string]::IsNullOrWhiteSpace(`$_) } | Select-Object -Unique
 
-`$utf8 = New-Object System.Text.UTF8Encoding(`$true)
+`$utf8 = New-Object System.Text.UTF8Encoding(`$false)
 foreach (`$p in `$profiles) {
     if ([string]::IsNullOrWhiteSpace(`$p)) { continue }
     if (Test-HasReparsePointInLineage `$p) { continue }
-    `$profileDir = Split-Path `$p
-    if (-not (Test-Path -LiteralPath `$profileDir)) { New-Item -ItemType Directory -Path `$profileDir -Force | Out-Null }
-    if (Test-HasReparsePointInLineage `$p) { continue }
-    `$profContent = ''
-    if (Test-Path -LiteralPath `$p) { `$profContent = [System.IO.File]::ReadAllText(`$p, [System.Text.Encoding]::UTF8) }
+    `$stageProf = `$null
+    try {
+        `$profileDir = Split-Path `$p
+        if (-not (Test-Path -LiteralPath `$profileDir)) { New-Item -ItemType Directory -Path `$profileDir -Force | Out-Null }
+        if (Test-HasReparsePointInLineage `$p) { continue }
+        `$profContent = ''
+        if (Test-Path -LiteralPath `$p) { `$profContent = [System.IO.File]::ReadAllText(`$p, [System.Text.Encoding]::UTF8) }
 
-    `$blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
-    `$m = [Regex]::Match(`$profContent, `$blockPattern)
-    if (`$m.Success) {
-        `$profContent = `$profContent.Substring(0, `$m.Index) + `$profileCode + `$profContent.Substring(`$m.Index + `$m.Length)
-    } else {
-        `$profContent = if ([string]::IsNullOrWhiteSpace(`$profContent)) { `$profileCode } else { "`$profContent`r`n`r`n`$profileCode" }
+        `$blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
+        `$m = [Regex]::Match(`$profContent, `$blockPattern)
+        if (`$m.Success) {
+            `$profContent = `$profContent.Substring(0, `$m.Index) + `$profileCode + `$profContent.Substring(`$m.Index + `$m.Length)
+        } else {
+            `$profContent = if ([string]::IsNullOrWhiteSpace(`$profContent)) { `$profileCode } else { "`$profContent`r`n`r`n`$profileCode" }
+        }
+        `$stageProf = "`$p.stage.`$([Guid]::NewGuid().ToString('N')).tmp"
+        [System.IO.File]::WriteAllText(`$stageProf, `$profContent, `$utf8)
+        if (-not (Test-HasReparsePointInLineage `$p)) {
+            Move-Item -LiteralPath `$stageProf -Destination `$p -Force
+        }
+    } catch {
+        Write-Verbose "MSI install hook profile update warning for '`$p': `$(`$_.Exception.Message)"
+    } finally {
+        if (`$stageProf -and (Test-Path -LiteralPath `$stageProf)) {
+            Remove-Item -LiteralPath `$stageProf -Force -ErrorAction SilentlyContinue
+        }
     }
-    [System.IO.File]::WriteAllText(`$p, `$profContent, `$utf8)
 }
 
 # Windows Terminal Profile Registration
@@ -405,6 +472,7 @@ foreach (`$p in `$profiles) {
 )
 foreach (`$wtSettings in `$wtSettingsCandidates) {
     if ((Test-Path -LiteralPath `$wtSettings) -and (-not (Test-HasReparsePointInLineage `$wtSettings))) {
+        `$stageWt = `$null
         try {
             `$wtContent = Get-Content -LiteralPath `$wtSettings -Raw -ErrorAction Stop
             `$cleanJson = `$wtContent -replace '(?s)/\*.*?\*/', '' -replace '(?m)(?<!:)\/\/.*$', '' -replace ',\s*([\}\]])', '`$1'
@@ -424,18 +492,26 @@ foreach (`$wtSettings in `$wtSettingsCandidates) {
                     `$profileList = [System.Collections.Generic.List[object]]@(`$wtJson.profiles.list)
                     `$profileList.Add(`$newProfile)
                     `$wtJson.profiles.list = `$profileList
-                    `$newWtContent = `$wtJson | ConvertTo-Json -Depth 32
-                    Set-Content -LiteralPath `$wtSettings -Value `$newWtContent -Encoding utf8
                 } else {
                     `$existing.commandline = 'cmd.exe /c "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat"'
                     `$existing.icon = '%LOCALAPPDATA%\DiamTek\JVM\assets\icon.png'
                     `$existing | Add-Member -NotePropertyName 'closeOnExit' -NotePropertyValue 'always' -Force
-                    `$newWtContent = `$wtJson | ConvertTo-Json -Depth 32
-                    Set-Content -LiteralPath `$wtSettings -Value `$newWtContent -Encoding utf8
+                }
+                `$newWtContent = `$wtJson | ConvertTo-Json -Depth 32
+                `$stageWt = "`$wtSettings.stage.`$([Guid]::NewGuid().ToString('N')).tmp"
+                [System.IO.File]::WriteAllText(`$stageWt, `$newWtContent, `$utf8)
+                if (-not (Test-HasReparsePointInLineage `$wtSettings)) {
+                    Move-Item -LiteralPath `$stageWt -Destination `$wtSettings -Force
                 }
                 `$wtProfileAdded = `$true
             }
-        } catch { }
+        } catch {
+            Write-Verbose "MSI install hook Windows Terminal update warning: `$(`$_.Exception.Message)"
+        } finally {
+            if (`$stageWt -and (Test-Path -LiteralPath `$stageWt)) {
+                Remove-Item -LiteralPath `$stageWt -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
 }
 
@@ -446,6 +522,8 @@ if (`$hasWt) {
     `$startMenuPrograms = [Environment]::GetFolderPath('Programs')
     `$lnkPath = Join-Path `$startMenuPrograms 'DiamTek\Java Version Manager.lnk'
     if ((Test-Path -LiteralPath `$lnkPath) -and (-not (Test-HasReparsePointInLineage `$lnkPath))) {
+        `$wshell = `$null
+        `$shortcut = `$null
         try {
             `$wshell = New-Object -ComObject WScript.Shell
             `$shortcut = `$wshell.CreateShortcut(`$lnkPath)
@@ -454,7 +532,12 @@ if (`$hasWt) {
             if (Test-Path -LiteralPath `$iconIco) { `$shortcut.IconLocation = `$iconIco }
             `$shortcut.WorkingDirectory = `$jvmRoot
             `$shortcut.Save()
-        } catch { }
+        } catch {
+            Write-Verbose "MSI install hook shortcut polish warning: `$(`$_.Exception.Message)"
+        } finally {
+            if (`$null -ne `$shortcut) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject(`$shortcut) | Out-Null }
+            if (`$null -ne `$wshell) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject(`$wshell) | Out-Null }
+        }
     }
 }
 
@@ -466,22 +549,22 @@ Remove-Item -LiteralPath (Join-Path `$binDir 'msi-uninstall-hook.ps1') -Force -E
 Remove-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM' -Recurse -Force -ErrorAction SilentlyContinue
 exit 0
 "@
-    [System.IO.File]::WriteAllText("$ScriptDir\msi-install-hook.ps1", $msiInstallHook, [System.Text.Encoding]::UTF8)
+        [System.IO.File]::WriteAllText("$ScriptDir\msi-install-hook.ps1", $msiInstallHook, [System.Text.Encoding]::UTF8)
 
-    # Generate msi-uninstall-hook.ps1 (cleans PowerShell hook, Windows Terminal, shortcuts, environment vars & session files)
-    $msiUninstallHook = @'
+        # Generate msi-uninstall-hook.ps1 (cleans PowerShell hook, Windows Terminal, shortcuts, environment vars & session files)
+        $msiUninstallHook = @'
 $ErrorActionPreference = 'SilentlyContinue'
 Set-Location $env:TEMP
 
 function Test-HasReparsePointInLineage([string]$TargetPath) {
     if ([string]::IsNullOrWhiteSpace($TargetPath)) { return $false }
-    try { $curr = [System.IO.Path]::GetFullPath($TargetPath) } catch { return $true }
+    try { $curr = [System.IO.Path]::GetFullPath($TargetPath) } catch { Write-Verbose "MSI uninstall hook path resolution failed: $($_.Exception.Message)"; return $true }
     while (-not [string]::IsNullOrWhiteSpace($curr)) {
         if (Test-Path -LiteralPath $curr) {
             try {
                 $item = Get-Item -LiteralPath $curr -Force -ErrorAction Stop
                 if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $true }
-            } catch { return $true }
+            } catch { Write-Verbose "MSI uninstall hook attribute check failed: $($_.Exception.Message)"; return $true }
         }
         $parent = Split-Path -Path $curr -Parent
         if ($parent -eq $curr) { break }
@@ -501,7 +584,7 @@ function Remove-DirectorySafely {
             [System.IO.Directory]::Delete($rootItem.FullName, $false)
             return
         }
-    } catch { return }
+    } catch { Write-Verbose "MSI uninstall hook root item inspection skipped: $($_.Exception.Message)"; return }
     try {
         Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
             $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint
@@ -510,13 +593,16 @@ function Remove-DirectorySafely {
                 try {
                     [System.IO.Directory]::Delete($_.FullName, $false)
                 } catch {
+                    Write-Verbose "Falling back to cmd rmdir for child reparse point: $($_.Exception.Message)"
                     cmd.exe /c "rmdir /q `"$($_.FullName)`"" 2>$null
                 }
             } else {
                 Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
             }
         }
-    } catch { }
+    } catch {
+        Write-Verbose "MSI uninstall hook child reparse point enumeration warning: $($_.Exception.Message)"
+    }
     Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
 }
 
@@ -532,19 +618,33 @@ $profiles = @(
 ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
 # 1. PowerShell Profile Hook Removal
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
 foreach ($p in $profiles) {
     if ((Test-Path -LiteralPath $p) -and (-not (Test-HasReparsePointInLineage $p))) {
-        $profContent = Get-Content -LiteralPath $p -Raw -ErrorAction SilentlyContinue
-        if ($profContent) {
-            $m = [Regex]::Match($profContent, $blockPattern)
-            if ($m.Success) {
-                $profContent = $profContent.Remove($m.Index, $m.Length).Trim()
-                if ([string]::IsNullOrWhiteSpace($profContent)) {
-                    Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
-                } else {
-                    [System.IO.File]::WriteAllText($p, $profContent, [System.Text.Encoding]::UTF8)
+        $stageProf = $null
+        try {
+            $profContent = Get-Content -LiteralPath $p -Raw -ErrorAction SilentlyContinue
+            if ($profContent) {
+                $m = [Regex]::Match($profContent, $blockPattern)
+                if ($m.Success) {
+                    $profContent = $profContent.Remove($m.Index, $m.Length).Trim()
+                    if ([string]::IsNullOrWhiteSpace($profContent)) {
+                        Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
+                    } else {
+                        $stageProf = "$p.stage.$([Guid]::NewGuid().ToString('N')).tmp"
+                        [System.IO.File]::WriteAllText($stageProf, $profContent, $utf8NoBom)
+                        if (-not (Test-HasReparsePointInLineage $p)) {
+                            Move-Item -LiteralPath $stageProf -Destination $p -Force
+                        }
+                    }
                 }
+            }
+        } catch {
+            Write-Verbose "MSI uninstall hook profile cleanup warning: $($_.Exception.Message)"
+        } finally {
+            if ($stageProf -and (Test-Path -LiteralPath $stageProf)) {
+                Remove-Item -LiteralPath $stageProf -Force -ErrorAction SilentlyContinue
             }
         }
     }
@@ -558,6 +658,7 @@ $wtSettingsCandidates = @(
 )
 foreach ($wtSettings in $wtSettingsCandidates) {
     if ((Test-Path -LiteralPath $wtSettings) -and (-not (Test-HasReparsePointInLineage $wtSettings))) {
+        $stageWt = $null
         try {
             $wtContent = Get-Content -LiteralPath $wtSettings -Raw -ErrorAction Stop
             # Strip JSONC comments and trailing commas
@@ -571,10 +672,20 @@ foreach ($wtSettings in $wtSettingsCandidates) {
                         $wtJson.defaultProfile = $filtered[0].guid
                     }
                     $newWtContent = $wtJson | ConvertTo-Json -Depth 32
-                    Set-Content -LiteralPath $wtSettings -Value $newWtContent -Encoding utf8
+                    $stageWt = "$wtSettings.stage.$([Guid]::NewGuid().ToString('N')).tmp"
+                    [System.IO.File]::WriteAllText($stageWt, $newWtContent, $utf8NoBom)
+                    if (-not (Test-HasReparsePointInLineage $wtSettings)) {
+                        Move-Item -LiteralPath $stageWt -Destination $wtSettings -Force
+                    }
                 }
             }
-        } catch { }
+        } catch {
+            Write-Verbose "MSI uninstall hook Windows Terminal cleanup warning: $($_.Exception.Message)"
+        } finally {
+            if ($stageWt -and (Test-Path -LiteralPath $stageWt)) {
+                Remove-Item -LiteralPath $stageWt -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
 }
 
@@ -585,12 +696,13 @@ if ((Test-Path -LiteralPath $taskbarLnk) -and (-not (Test-HasReparsePointInLinea
 }
 
 # 4. Clean up all JVM paths (bin, current\bin, candidates, legacy) from User PATH while preserving REG_EXPAND_SZ
+$userKey = $null
 try {
     $jvmRootPrefix = "$localAppData\DiamTek\JVM"
     $userKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
-    if ($userKey) {
+    if ($null -ne $userKey) {
         $rawUserPath = $userKey.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-        $userKind = $userKey.GetValueKind('Path')
+        $userKind = try { $userKey.GetValueKind('Path') } catch { Write-Verbose "Defaulting User Path kind to ExpandString: $($_.Exception.Message)"; [Microsoft.Win32.RegistryValueKind]::ExpandString }
         if ($rawUserPath -and ($rawUserPath -match 'DiamTek\\JVM|JavaVersionManager|\\\.jvm')) {
             $cleanPath = ($rawUserPath -split ';' | Where-Object {
                 $trimmed = $_.Trim().TrimEnd('\')
@@ -599,9 +711,12 @@ try {
             $targetKind = if ($userKind -eq [Microsoft.Win32.RegistryValueKind]::String) { [Microsoft.Win32.RegistryValueKind]::String } else { [Microsoft.Win32.RegistryValueKind]::ExpandString }
             $userKey.SetValue('Path', $cleanPath, $targetKind)
         }
-        $userKey.Close()
     }
-} catch { }
+} catch {
+    Write-Verbose "MSI uninstall hook User PATH cleanup warning: $($_.Exception.Message)"
+} finally {
+    if ($null -ne $userKey) { $userKey.Close() }
+}
 
 # 5. Clean up Environment Variables set by JVM (User scope)
 $vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')
@@ -610,7 +725,9 @@ foreach ($v in $vars) {
         if ([Environment]::GetEnvironmentVariable($v, 'User')) {
             [Environment]::SetEnvironmentVariable($v, $null, 'User')
         }
-    } catch { }
+    } catch {
+        Write-Verbose "MSI uninstall hook env var '$v' removal warning: $($_.Exception.Message)"
+    }
 }
 
 # 6. Broadcast WM_SETTINGCHANGE for environment updates
@@ -623,7 +740,9 @@ try {
     $WM_SETTINGCHANGE = 0x001A
     $result = [UIntPtr]::Zero
     [Win32.NativeMethods]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result) | Out-Null
-} catch { }
+} catch {
+    Write-Verbose "MSI uninstall hook WM_SETTINGCHANGE broadcast warning: $($_.Exception.Message)"
+}
 
 # 7. Temporary session cleanup
 Remove-Item -LiteralPath "$env:TEMP\.jvm_session_target" -Force -ErrorAction SilentlyContinue
@@ -643,9 +762,14 @@ try {
     Get-Process | Where-Object {
         try {
             $_.Path -and $_.Path.StartsWith($jvmDir, [System.StringComparison]::OrdinalIgnoreCase)
-        } catch { $false }
+        } catch {
+            Write-Verbose "MSI uninstall hook process path check skipped: $($_.Exception.Message)"
+            $false
+        }
     } | Stop-Process -Force -ErrorAction SilentlyContinue
-} catch { }
+} catch {
+    Write-Verbose "MSI uninstall hook process cleanup warning: $($_.Exception.Message)"
+}
 
 # Remove candidate tool directories and active symlinks/junctions
 $candidatesDir = Join-Path $jvmDir "candidates"
@@ -694,32 +818,33 @@ if ((Test-Path -LiteralPath $diamtekStartMenu) -and (-not (Test-HasReparsePointI
 }
 exit 0
 '@
-    [System.IO.File]::WriteAllText("$ScriptDir\msi-uninstall-hook.ps1", $msiUninstallHook, [System.Text.Encoding]::UTF8)
+        [System.IO.File]::WriteAllText("$ScriptDir\msi-uninstall-hook.ps1", $msiUninstallHook, [System.Text.Encoding]::UTF8)
 
-    # Generate WiX v4 XML manifest
-    $swWxs = [System.Diagnostics.Stopwatch]::StartNew()
-    function Escape-XmlAttr([string]$val) {
-        if ([string]::IsNullOrEmpty($val)) { return '' }
-        return [System.Security.SecurityElement]::Escape($val)
-    }
+        # Generate WiX v4 XML manifest
+        $swWxs = [System.Diagnostics.Stopwatch]::StartNew()
+        function Escape-XmlAttr([string]$val) {
+            if ([string]::IsNullOrEmpty($val)) { return '' }
+            return [System.Security.SecurityElement]::Escape($val)
+        }
 
-    $productCode = Get-DeterministicGuid "db30058e-1738-46cb-84ec-8c652dc99a22" "DiamTek.JVM.$Version.$TargetArch"
-    $safeVersion = Escape-XmlAttr $Version
+        $safeVersion = Escape-XmlAttr $Version
+        $safeProductCode = Escape-XmlAttr $productCode
 
-    $srcLicense = Escape-XmlAttr (Join-Path $RootDir "LICENSE")
-    $srcReadme = Escape-XmlAttr (Join-Path $RootDir "README.md")
-    $srcUninstall = Escape-XmlAttr (Join-Path $RootDir "uninstall.ps1")
-    $srcJvmBat = Escape-XmlAttr (Join-Path $RootDir "jvm.bat")
-    $srcIconIco = Escape-XmlAttr (Join-Path $RootDir "assets\icon.ico")
-    $srcIconPng = Escape-XmlAttr (Join-Path $RootDir "assets\icon.png")
-    $srcMsiInstallHook = Escape-XmlAttr (Join-Path $ScriptDir "msi-install-hook.ps1")
-    $srcMsiUninstallHook = Escape-XmlAttr (Join-Path $ScriptDir "msi-uninstall-hook.ps1")
+        $srcLicense = Escape-XmlAttr (Join-Path $RootDir "LICENSE")
+        $srcReadme = Escape-XmlAttr (Join-Path $RootDir "README.md")
+        $srcUninstall = Escape-XmlAttr (Join-Path $RootDir "uninstall.ps1")
+        $srcJvmBat = Escape-XmlAttr (Join-Path $RootDir "jvm.bat")
+        $srcIconIco = Escape-XmlAttr (Join-Path $RootDir "assets\icon.ico")
+        $srcIconPng = Escape-XmlAttr (Join-Path $RootDir "assets\icon.png")
+        $srcMsiInstallHook = Escape-XmlAttr (Join-Path $ScriptDir "msi-install-hook.ps1")
+        $srcMsiUninstallHook = Escape-XmlAttr (Join-Path $ScriptDir "msi-uninstall-hook.ps1")
 
-    $wxsContent = @"
+        $wxsContent = @"
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="Java Version Manager" Manufacturer="DiamTek" Version="$safeVersion" ProductCode="$productCode" UpgradeCode="db30058e-1738-46cb-84ec-8c652dc99a22" Scope="perUser">
+  <Package Name="Java Version Manager" Manufacturer="DiamTek" Version="$safeVersion" ProductCode="$safeProductCode" UpgradeCode="db30058e-1738-46cb-84ec-8c652dc99a22" Scope="perUser">
     <SummaryInformation Description="Java Version Manager (JVM) for Windows" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." AllowSameVersionUpgrades="yes" />
+    <Launch Condition="NOT (ALLUSERS=1)" Message="Java Version Manager is architected as a per-user application. Per-machine deployment (ALLUSERS=1) under NT AUTHORITY\SYSTEM is not supported. Please deploy in user context with ALLUSERS=2 MSIINSTALLPERUSER=1 or via Scoop." />
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="AppIcon" SourceFile="$srcIconIco" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
@@ -805,43 +930,49 @@ exit 0
   </Package>
 </Wix>
 "@
-    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-    [System.IO.File]::WriteAllText("$ScriptDir\jvm.wxs", $wxsContent, $utf8NoBom)
-    $wxsReaderSettings = New-Object System.Xml.XmlReaderSettings
-    $wxsReaderSettings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
-    $wxsReaderSettings.XmlResolver = $null
-    $wxsSr = New-Object System.IO.StringReader($wxsContent)
-    $wxsXr = [System.Xml.XmlReader]::Create($wxsSr, $wxsReaderSettings)
-    try {
-        $wxsDoc = New-Object System.Xml.XmlDocument
-        $wxsDoc.XmlResolver = $null
-        $wxsDoc.Load($wxsXr)
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText("$ScriptDir\jvm.wxs", $wxsContent, $utf8NoBom)
+        $wxsReaderSettings = New-Object System.Xml.XmlReaderSettings
+        $wxsReaderSettings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+        $wxsReaderSettings.XmlResolver = $null
+        $wxsSr = New-Object System.IO.StringReader($wxsContent)
+        $wxsXr = [System.Xml.XmlReader]::Create($wxsSr, $wxsReaderSettings)
+        try {
+            $wxsDoc = New-Object System.Xml.XmlDocument
+            $wxsDoc.XmlResolver = $null
+            $wxsDoc.Load($wxsXr)
+        } finally {
+            $wxsXr.Close()
+            $wxsSr.Close()
+        }
+        $swWxs.Stop()
+        Write-Host "  ${cGreen}[PASS]${cReset} Generated WiX v4 manifest (jvm.wxs) ${cGray}($($swWxs.ElapsedMilliseconds) ms)${cReset}"
+
+        # Compile the MSI using WiX v4
+        $swCompile.Start()
+        Remove-Item $outputMsi -Force -ErrorAction SilentlyContinue
+        $wixExitCode = Invoke-Wix build jvm.wxs -arch $TargetArch -ext WixToolset.Util.wixext -o $outputMsi
+        $swCompile.Stop()
+        if ($wixExitCode -ne 0) {
+            throw "WiX v4 compilation failed with exit code $wixExitCode"
+        }
     } finally {
-        $wxsXr.Close()
-        $wxsSr.Close()
+        # Clean up temporary build artifacts unconditionally (CWE-459)
+        Remove-BuildArtifactSafely "$ScriptDir\jvm.wxs"
+        Remove-BuildArtifactSafely "$ScriptDir\jvm.wixobj"
+        Get-ChildItem -LiteralPath $ScriptDir -Filter "*.wixpdb" -File -Force -ErrorAction SilentlyContinue | ForEach-Object { Remove-BuildArtifactSafely $_.FullName }
+        Get-ChildItem -LiteralPath $ScriptDir -Filter "*.cab" -File -Force -ErrorAction SilentlyContinue | ForEach-Object { Remove-BuildArtifactSafely $_.FullName }
+        Remove-BuildArtifactSafely "$ScriptDir\msi-install-hook.ps1"
+        Remove-BuildArtifactSafely "$ScriptDir\msi-uninstall-hook.ps1"
+        Remove-BuildArtifactSafely "$ScriptDir\msi-profile-hook.ps1"
+        Remove-BuildArtifactSafely "$ScriptDir\.wix"
     }
-    $swWxs.Stop()
-    Write-Host "  ${cGreen}[PASS]${cReset} Generated WiX v4 manifest (jvm.wxs) ${cGray}($($swWxs.ElapsedMilliseconds) ms)${cReset}"
-
-    # Compile the MSI using WiX v4
-    $swCompile = [System.Diagnostics.Stopwatch]::StartNew()
-    $outputMsi = "$ScriptDir\jvm-windows-$Version-$TargetArch.msi"
-    Remove-Item $outputMsi -Force -ErrorAction SilentlyContinue
-    $null = Invoke-Wix build jvm.wxs -arch $TargetArch -ext WixToolset.Util.wixext -o $outputMsi
-    $swCompile.Stop()
-
-    # Clean up temporary build artifacts
-    Remove-Item "$ScriptDir\jvm.wxs" -Force -ErrorAction SilentlyContinue
-    Remove-Item "$ScriptDir\jvm.wixobj" -Force -ErrorAction SilentlyContinue
-    Remove-Item "$ScriptDir\*.wixpdb" -Force -ErrorAction SilentlyContinue
-    Remove-Item "$ScriptDir\*.cab" -Force -ErrorAction SilentlyContinue
-    Remove-Item "$ScriptDir\msi-install-hook.ps1" -Force -ErrorAction SilentlyContinue
-    Remove-Item "$ScriptDir\msi-uninstall-hook.ps1" -Force -ErrorAction SilentlyContinue
-    Remove-Item "$ScriptDir\msi-profile-hook.ps1" -Force -ErrorAction SilentlyContinue
 
     if (Test-Path $outputMsi) {
         $sizeKB = [math]::Round((Get-Item $outputMsi).Length / 1KB, 1)
         $sha256 = ""
+        $shaObj = $null
+        $fileStream = $null
         try {
             if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
                 $sha256 = (Get-FileHash $outputMsi -Algorithm SHA256).Hash
@@ -849,12 +980,17 @@ exit 0
                 $shaObj = [System.Security.Cryptography.SHA256]::Create()
                 $fileStream = [System.IO.File]::OpenRead($outputMsi)
                 $hashBytes = $shaObj.ComputeHash($fileStream)
-                $fileStream.Close()
                 $sha256 = [System.BitConverter]::ToString($hashBytes).Replace('-', '')
             }
-        } catch { }
+        } catch {
+            Write-Verbose "MSI SHA-256 calculation warning: $($_.Exception.Message)"
+        } finally {
+            if ($null -ne $fileStream) { $fileStream.Dispose() }
+            if ($null -ne $shaObj) { $shaObj.Dispose() }
+        }
 
         $prodCode = $productCode
+        $wi = $null; $db = $null; $view = $null; $rec = $null
         try {
             $wi = New-Object -ComObject WindowsInstaller.Installer
             $db = $wi.OpenDatabase((Resolve-Path $outputMsi).Path, 0)
@@ -863,14 +999,17 @@ exit 0
             $rec = $view.Fetch()
             if ($rec) {
                 $prodCode = $rec.StringData(1)
-                [System.Runtime.InteropServices.Marshal]::ReleaseComObject($rec) | Out-Null
             }
-            if ($view) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($view) | Out-Null }
-            if ($db) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($db) | Out-Null }
-            if ($wi) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($wi) | Out-Null }
+        } catch {
+            Write-Verbose "MSI ProductCode COM inspection warning: $($_.Exception.Message)"
+        } finally {
+            if ($null -ne $rec)  { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($rec)  | Out-Null }
+            if ($null -ne $view) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($view) | Out-Null }
+            if ($null -ne $db)   { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($db)   | Out-Null }
+            if ($null -ne $wi)   { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($wi)   | Out-Null }
             [System.GC]::Collect()
             [System.GC]::WaitForPendingFinalizers()
-        } catch { }
+        }
 
         Write-Host "  ${cGreen}[PASS]${cReset} Compiled standalone MSI ($TargetArch) ($sizeKB KB) ${cGray}($($swCompile.ElapsedMilliseconds) ms)${cReset}"
         Write-Host "         ${cGray}Artifact   :${cReset} $outputMsi"
@@ -879,12 +1018,10 @@ exit 0
         Write-Host "         ${cGray}UpgradeCode:${cReset} {DB30058E-1738-46CB-84EC-8C652DC99A22}"
     } else {
         Write-Host "  ${cRed}[FAIL]${cReset} MSI build output not found: $outputMsi ${cGray}($($swCompile.ElapsedMilliseconds) ms)${cReset}"
-        Pop-Location
         exit 1
     }
 }
 
-try {
     if ($All -or $Arch -eq "all") {
         Build-MsiPackage -TargetArch "x64"
         Build-MsiPackage -TargetArch "arm64"
@@ -900,6 +1037,10 @@ try {
     Write-Host "${cCyan}${cBold}========================================================================${cReset}"
     Write-Host ""
 } finally {
+    Remove-BuildArtifactSafely "$ScriptDir\.wix"
+    if ($dotnetInstall -and (Test-Path -LiteralPath $dotnetInstall)) {
+        Remove-Item -LiteralPath $dotnetInstall -Force -ErrorAction SilentlyContinue
+    }
     if ($script:cleanupRemoteSource -and $RootDir -and (Test-Path $RootDir)) {
         Remove-Item (Split-Path $RootDir) -Recurse -Force -ErrorAction SilentlyContinue
     }

@@ -83,7 +83,8 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm <tool> <version>` | User | Switches active ecosystem tool version (e.g., `jvm kotlin 2.0.20`, `jvm maven 3.9.6`). |
 | `jvm update <version>` | Machine | Checks for and applies vendor patches to a specific installed JDK (e.g., `jvm update 21`). |
 | `jvm update --all [--vendor <name>]` | Machine | Silently checks and patches all installed JDKs and tools to latest releases. |
-| `jvm uninstall <version>` | Machine | Uninstalls a specific installed JDK (aliases: `jvm rm <version>`, `jvm remove <version>`). |
+| `jvm uninstall` | Interactive | Opens interactive JDK uninstaller selection list (marks `[ACTIVE]` runtime, includes Cancel option; supports `--vendor` filter; aliases: `jvm rm`, `jvm remove`). |
+| `jvm uninstall <version> [--vendor <name>]` | Machine | Uninstalls a specific installed JDK (aliases: `jvm rm <version>`, `jvm remove <version>`). |
 | `jvm uninstall <tool> [version]` | User | Uninstalls an ecosystem tool (auto-detects single installed version, or prompts with interactive menu if multiple). |
 | `jvm list` | Inspection | Lists all installed JDKs, vendors, paths, and ecosystem build tools (alias: `jvm ls`). |
 | `jvm current` | Inspection | Displays comprehensive status card: active JDK, mode, junction target, and tools (aliases: `jvm status`, `jvm info`, `jvm whoami`, `jvm env`). |
@@ -436,13 +437,21 @@ jvm uninstall 21
 ```cmd
 jvm uninstall 21 --vendor oracle
 ```
+Interactive uninstallation: Omitting the version argument displays a numbered list of all currently installed JDKs, their filesystem paths, active status indicators (`[ACTIVE]`), and a Cancel option:
+```cmd
+jvm uninstall
+```
+Filter the interactive uninstallation list by vendor:
+```cmd
+jvm uninstall --vendor semeru
+```
 Uninstall a specific ecosystem build tool:
 ```cmd
 jvm uninstall maven 3.9.6
 ```
 
 > [!NOTE]
-> **Interactive Uninstaller Menus & Version Requirements:** When uninstalling JDKs via CLI (`jvm uninstall <version>`), an explicit version is required. For ecosystem tools (`jvm uninstall <tool>`), omitting the version triggers smart auto-detection (auto-uninstalling if only one version is installed, or rendering an interactive selection menu if multiple versions exist). To open the full visual JDK uninstaller menu, launch `jvm` without arguments and navigate to **JDK Menu** (`1`) -> **Uninstall JDKs** (`4`).
+> **Interactive Uninstaller Menus & Version Selection:** When uninstalling JDKs via CLI (`jvm uninstall`), you can specify an explicit version (`jvm uninstall 21`) or omit it entirely to trigger the interactive selection prompt. The prompt displays each installed JDK, marks the active runtime, and includes a safe `Cancel` option (as well as Ctrl+C alignment guards). For ecosystem tools (`jvm uninstall <tool>`), omitting the version triggers smart auto-detection (auto-uninstalling if only one version is installed, or rendering an interactive selection menu if multiple versions exist). To open the full visual JDK uninstaller dashboard, launch `jvm` without arguments and navigate to **JDK Menu** (`1`) -> **Uninstall JDKs** (`4`).
 
 ---
 
@@ -701,6 +710,10 @@ jvm open downloads
 jvm open backups
 jvm open links
 
+# Open active JDK junction directory
+jvm open current
+# Aliases: jvm open java
+
 # Jump to the JVM root AppData directory (%LOCALAPPDATA%\DiamTek\JVM)
 jvm open root
 # Aliases: jvm open appdata, jvm open home, jvm home
@@ -719,13 +732,17 @@ jvm clean
   * Transient script artifacts: `%TEMP%\jvm_dl_*.ps1`, `%TEMP%\jvm_install_*.ps1`, `%TEMP%\jvm_updater_*.bat`, `%TEMP%\jvm_uninstall_*.bat`, and `%TEMP%\jvm_uninstall_*.ps1`.
   * Staged candidate temporary directories: `%LOCALAPPDATA%\DiamTek\JVM\candidates\*\temp_*`.
   * Temporary download staging files: `%LOCALAPPDATA%\DiamTek\JVM\downloads\*`.
-  * Ephemeral session cache targets: `%TEMP%\.jvm_session_target`.
+  * Ephemeral session cache targets: `%LOCALAPPDATA%\DiamTek\JVM\temp\.jvm_session_target_*`.
 * **Safety Guarantee:** `jvm clean` is completely non-destructive. It never modifies your active JDKs, candidate tools, directory junctions, or Windows Registry settings.
 
 #### Environment Slate Wipe (`jvm clear`)
 Instantly wipes `JAVA_HOME` and cleanly removes JVM directory junctions and legacy Oracle `javapath` entries from your PATH:
 ```powershell
+# Interactive wipe (prompts for confirmation)
 jvm clear
+
+# Headless / CI/CD wipe (bypasses prompt)
+jvm clear -y
 ```
 * **Automated Safety Backup:** Before executing destructive registry scrubs, `jvm clear` automatically exports a timestamped `.reg` backup of both User (`HKCU`) and Machine (`HKLM`) environment registries to `%LOCALAPPDATA%\DiamTek\JVM\backups\`.
 * **Restoring from Registry Backup:** If you ever need to roll back a clear operation, open `%LOCALAPPDATA%\DiamTek\JVM\backups` in File Explorer (or run `explorer.exe "$env:LOCALAPPDATA\DiamTek\JVM\backups"`), locate `sys_env_<date>_<time>.reg` and `usr_env_<date>_<time>.reg`, and double-click to re-import your previous registry state.
@@ -946,13 +963,36 @@ Write-Output "Resolved JAVA_HOME to: $JavaHome"
 ```
 
 ### Checking Process Exit Codes in Automation Scripts
+All DiamTek JVM subcommands (`clean`, `which`, `doctor`, `open`, `exec`, `hook`, `clear`, `channel`, `pin`, `install`, `uninstall`, `use`) strictly propagate deterministic exit codes across batch scope boundaries (`CWE-252` / `CWE-754`):
+- `0`: Operation succeeded cleanly.
+- `1`: Operation aborted, target not found, syntax error, or validation failure.
+- `1602`: Operation canceled by user.
+- `1603`: Fatal system error.
+
+**PowerShell Automation:**
 ```powershell
+# jvm which returns 0 on success, 1 if binary not installed
+$javaBin = jvm which java
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "java binary not found under active JVM environment!"
+    exit 1
+}
+
 # jvm doctor returns 0 for clean health, 1 if warnings/conflicts detected
 jvm doctor
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Pre-flight JVM environment audit failed with warnings!"
     exit 1
 }
+```
+
+**Command Prompt / Batch Automation:**
+```cmd
+jvm which mvn >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Apache Maven is not installed or active!
+    exit /b 1
+)
 ```
 
 ### ANSI Color Suppression in CI Logs & File Redirection (`NO_COLOR`)

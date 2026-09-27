@@ -18,9 +18,11 @@ Because `jvm.bat` operates strictly natively on Windows, please review the follo
 - [ ] I have verified that this does not break the default UAC-free **Symlink Mode**.
 - [ ] (If modifying core variables) I have verified it does not break Delayed Expansion (`!PATH!`).
 - [ ] (If parsing directories) I have verified it handles spaces in file paths correctly.
-- [ ] (If inline PowerShell is used) I have verified it does not conflict with strict Execution Policies and sanitizes single quotes (`:'=''`).
-- [ ] (If modifying repository parsers) I have preserved metacharacter filtering (`| findstr /v "[&|<>]"`).
+- [ ] (If inline PowerShell is used) I have verified it does not conflict with strict Execution Policies, sanitizes single quotes, and contains **0 empty `catch {}` blocks**.
+- [ ] (If modifying repository parsers) I have preserved fail-closed validation (`JV_PARSE_ERR=1` / `SDK_PARSE_ERR=1` / `SDK_ECO_ERR=1`) against metacharacters.
+- [ ] (If managing handles/resources) I have wrapped Win32 Registry keys, network streams, and COM apartments in deterministic `try / finally` disposal routines.
 - [ ] I have verified that `jvm.bat --version` executes cleanly with exit code `0`.
+- [ ] I have run the automated security suite (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1`) and verified **181 / 181 tests PASS**.
 - [ ] I have updated the relevant documentation (`README.md`, `docs/USAGE.md`, `docs/CHANGELOG.md`, etc.) if CLI syntax or behaviors changed.
 
 ## Additional Context

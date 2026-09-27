@@ -25,6 +25,13 @@ param(
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
 
+if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') {
+    Write-Host "[ ERROR  ] PowerShell is operating in $($ExecutionContext.SessionState.LanguageMode) mode." -ForegroundColor Red
+    Write-Host "           FullLanguage mode is required by DiamTek Java Version Manager uninstaller" -ForegroundColor Yellow
+    Write-Host "           to safely clean system environment variables, remove NTFS DACLs, and unbind junctions." -ForegroundColor Yellow
+    exit 1
+}
+
 Write-Host ""
 Write-Host "============================================================"
 Write-Host "         Java Version Manager - Uninstaller"
@@ -67,7 +74,8 @@ function Test-HasReparsePointInLineage([string]$TargetPath) {
 function Invoke-DeferredDirectoryCleanup([string]$TargetDir) {
     if ([string]::IsNullOrWhiteSpace($TargetDir) -or (Test-HasReparsePointInLineage $TargetDir)) { return }
     $b64Target = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($TargetDir))
-    $cleanScript = "Start-Sleep -Seconds 2; `$t = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('$b64Target')); if (Test-Path -LiteralPath `$t) { Remove-Item -LiteralPath `$t -Recurse -Force -ErrorAction SilentlyContinue }"
+    $parentPid = $PID
+    $cleanScript = "try { `$p = Get-Process -Id $parentPid -ErrorAction SilentlyContinue; if (`$p) { `$p.WaitForExit(15000) | Out-Null } } catch { Start-Sleep -Seconds 2 }; `$t = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('$b64Target')); if ((Test-Path -LiteralPath `$t) -and (-not [bool]((Get-Item -LiteralPath `$t -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint))) { Remove-Item -LiteralPath `$t -Recurse -Force -ErrorAction SilentlyContinue }"
     $encoded = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($cleanScript))
     Start-Process -FilePath $systemPowerShell -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encoded) -WindowStyle Hidden
 }
@@ -114,11 +122,17 @@ function Test-TrustedJvmInstallDirectory([string]$CandidateDir) {
             return $resolvedSrc
         }
         Write-Host "[ ERROR  ] Security violation (CWE-73): Refusing unverified directory without JVM installation markers: $resolvedSrc" -ForegroundColor Red
-    } catch {}
+    } catch {
+        Write-Verbose "Directory validation check skipped for '$CandidateDir': $($_.Exception.Message)"
+    }
     return $null
 }
 
 $validatedSourceDir = if (-not [string]::IsNullOrWhiteSpace($SourceDir)) { Test-TrustedJvmInstallDirectory $SourceDir } else { $null }
+if (-not [string]::IsNullOrWhiteSpace($SourceDir) -and -not $validatedSourceDir) {
+    Write-Host "[ ERROR  ] Security violation (CWE-73): Specified -SourceDir '$SourceDir' failed security validation. Aborting." -ForegroundColor Red
+    exit 1
+}
 
 $jvmLocations = @(
     "$localAppData\DiamTek\JVM\bin",
@@ -134,7 +148,9 @@ try {
         $regBin = Join-Path $validatedRegLoc "bin"
         if ($jvmLocations -notcontains $regBin) { $jvmLocations += $regBin }
     }
-} catch {}
+} catch {
+    Write-Verbose "Registry InstallLocation lookup skipped: $($_.Exception.Message)"
+}
 
 # Also remove validated SourceDir and its bin folder if provided
 if ($validatedSourceDir) {
@@ -163,27 +179,25 @@ function Test-IsJvmPath([string]$p) {
     return $false
 }
 
+$userKey = $null
 try {
     $userKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
-    if ($userKey) {
-        try {
-            $rawUserPath = $userKey.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-            if ($null -ne $rawUserPath -and $rawUserPath -ne '') {
-                $userKind = try { $userKey.GetValueKind('Path') } catch { [Microsoft.Win32.RegistryValueKind]::ExpandString }
-                $cleanUser = ($rawUserPath -split ';' | Where-Object { $_ -and -not (Test-IsJvmPath $_) }) -join ';'
-                $targetKind = if ($userKind -eq [Microsoft.Win32.RegistryValueKind]::String -and $cleanUser -notmatch '%') {
-                    [Microsoft.Win32.RegistryValueKind]::String
-                } else {
-                    [Microsoft.Win32.RegistryValueKind]::ExpandString
-                }
-                $userKey.SetValue('Path', $cleanUser, $targetKind)
-                Write-Host "[   OK   ] User PATH cleaned." -ForegroundColor Green
+    if ($null -ne $userKey) {
+        $rawUserPath = $userKey.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        if ($null -ne $rawUserPath -and $rawUserPath -ne '') {
+            $userKind = try { $userKey.GetValueKind('Path') } catch { Write-Verbose "Defaulting User Path kind to ExpandString: $($_.Exception.Message)"; [Microsoft.Win32.RegistryValueKind]::ExpandString }
+            $cleanUser = ($rawUserPath -split ';' | Where-Object { $_ -and -not (Test-IsJvmPath $_) }) -join ';'
+            $targetKind = if ($userKind -eq [Microsoft.Win32.RegistryValueKind]::String -and $cleanUser -notmatch '%') {
+                [Microsoft.Win32.RegistryValueKind]::String
+            } else {
+                [Microsoft.Win32.RegistryValueKind]::ExpandString
             }
-        } finally {
-            $userKey.Close()
+            $userKey.SetValue('Path', $cleanUser, $targetKind)
+            Write-Host "[   OK   ] User PATH cleaned." -ForegroundColor Green
         }
     }
 } catch {
+    Write-Verbose "Primary User PATH registry cleanup failed, attempting fallback: $($_.Exception.Message)"
     try {
         $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
         if ($userPath) {
@@ -192,31 +206,36 @@ try {
             [Microsoft.Win32.Registry]::SetValue("HKEY_CURRENT_USER\Environment", "Path", $cleanUser, $targetKind)
             Write-Host "[   OK   ] User PATH cleaned." -ForegroundColor Green
         }
-    } catch { }
+    } catch {
+        Write-Verbose "Fallback User PATH cleanup failed: $($_.Exception.Message)"
+    }
+} finally {
+    if ($null -ne $userKey) { $userKey.Close() }
 }
 
-# Attempt Machine PATH cleanup (silently skipped if no elevation)
+# Attempt Machine PATH cleanup (skipped with verbose diagnostic if no elevation)
+$machineKey = $null
 try {
     $machineKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SYSTEM\CurrentControlSet\Control\Session Manager\Environment', $true)
-    if ($machineKey) {
-        try {
-            $rawMachinePath = $machineKey.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-            if ($null -ne $rawMachinePath -and $rawMachinePath -ne '') {
-                # System PATH on Windows NT must always default to ExpandString
-                $machineKind = try { $machineKey.GetValueKind('Path') } catch { [Microsoft.Win32.RegistryValueKind]::ExpandString }
-                $cleanMachine = ($rawMachinePath -split ';' | Where-Object { $_ -and -not (Test-IsJvmPath $_) }) -join ';'
-                $targetKind = if ($machineKind -eq [Microsoft.Win32.RegistryValueKind]::String -and $cleanMachine -notmatch '%') {
-                    [Microsoft.Win32.RegistryValueKind]::String
-                } else {
-                    [Microsoft.Win32.RegistryValueKind]::ExpandString
-                }
-                $machineKey.SetValue('Path', $cleanMachine, $targetKind)
+    if ($null -ne $machineKey) {
+        $rawMachinePath = $machineKey.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        if ($null -ne $rawMachinePath -and $rawMachinePath -ne '') {
+            # System PATH on Windows NT must always default to ExpandString
+            $machineKind = try { $machineKey.GetValueKind('Path') } catch { Write-Verbose "Defaulting Machine Path kind to ExpandString: $($_.Exception.Message)"; [Microsoft.Win32.RegistryValueKind]::ExpandString }
+            $cleanMachine = ($rawMachinePath -split ';' | Where-Object { $_ -and -not (Test-IsJvmPath $_) }) -join ';'
+            $targetKind = if ($machineKind -eq [Microsoft.Win32.RegistryValueKind]::String -and $cleanMachine -notmatch '%') {
+                [Microsoft.Win32.RegistryValueKind]::String
+            } else {
+                [Microsoft.Win32.RegistryValueKind]::ExpandString
             }
-        } finally {
-            $machineKey.Close()
+            $machineKey.SetValue('Path', $cleanMachine, $targetKind)
         }
     }
-} catch { <# No elevation - skip silently #> }
+} catch {
+    Write-Verbose "Machine PATH cleanup skipped (requires elevation): $($_.Exception.Message)"
+} finally {
+    if ($null -ne $machineKey) { $machineKey.Close() }
+}
 
 # Broadcast WM_SETTINGCHANGE so running terminals pick up the new PATH
 try {
@@ -229,8 +248,10 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
     $HWND_BROADCAST = [IntPtr]0xFFFF
     $WM_SETTINGCHANGE = 0x001A
     $result = [UIntPtr]::Zero
-    [Win32.NativeMethods]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result) | Out-Null
-} catch { <# Non-critical - ignore #> }
+    [Win32.NativeMethods]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, 'Environment', 2, 1000, [ref]$result) | Out-Null
+} catch {
+    Write-Verbose "WM_SETTINGCHANGE broadcast skipped: $($_.Exception.Message)"
+}
 
 # ----------------------------------------------------------------
 # PowerShell profile hook removal - all PS versions
@@ -246,43 +267,34 @@ $profiles = @(
     $PROFILE
 ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
 
-function Test-HasReparsePointInLineage([string]$TargetPath) {
-    if ([string]::IsNullOrWhiteSpace($TargetPath)) { return $false }
-    try {
-        $curr = [System.IO.Path]::GetFullPath($TargetPath)
-        $root = [System.IO.Path]::GetPathRoot($curr)
-        while ($curr -and ($curr.TrimEnd('\') -ne $root.TrimEnd('\'))) {
-            if (Test-Path -LiteralPath $curr) {
-                $item = Get-Item -LiteralPath $curr -Force -ErrorAction Stop
-                if ([bool]($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { return $true }
-            }
-            $curr = Split-Path -Path $curr -Parent
-        }
-    } catch { return $true }
-    return $false
-}
-
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $blockPattern = '(?s)# >>> jvm >>>.*?# <<< jvm <<<'
 foreach ($p in $profiles) {
     if (Test-Path -LiteralPath $p) {
         if (Test-HasReparsePointInLineage $p) { continue }
-        $profContent = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)
-        $m = [Regex]::Match($profContent, $blockPattern)
-        if ($m.Success) {
-            $profContent = $profContent.Remove($m.Index, $m.Length).Trim()
-            if ([string]::IsNullOrWhiteSpace($profContent)) {
-                Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
-            } else {
-                $stageProf = "$p.stage.$([Guid]::NewGuid().ToString('N')).tmp"
-                [System.IO.File]::WriteAllText($stageProf, $profContent, $utf8NoBom)
-                if (-not (Test-HasReparsePointInLineage $p)) {
-                    Move-Item -LiteralPath $stageProf -Destination $p -Force
+        $stageProf = $null
+        try {
+            $profContent = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)
+            $m = [Regex]::Match($profContent, $blockPattern)
+            if ($m.Success) {
+                $profContent = $profContent.Remove($m.Index, $m.Length).Trim()
+                if ([string]::IsNullOrWhiteSpace($profContent)) {
+                    Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
                 } else {
-                    Remove-Item -LiteralPath $stageProf -Force -ErrorAction SilentlyContinue
+                    $stageProf = "$p.stage.$([Guid]::NewGuid().ToString('N')).tmp"
+                    [System.IO.File]::WriteAllText($stageProf, $profContent, $utf8NoBom)
+                    if (-not (Test-HasReparsePointInLineage $p)) {
+                        Move-Item -LiteralPath $stageProf -Destination $p -Force
+                    }
                 }
+                Write-Host "[   OK   ] Profile hook removed from: $p" -ForegroundColor Green
             }
-            Write-Host "[   OK   ] Profile hook removed from: $p" -ForegroundColor Green
+        } catch {
+            Write-Verbose "Profile hook removal warning for '$p': $($_.Exception.Message)"
+        } finally {
+            if ($stageProf -and (Test-Path -LiteralPath $stageProf)) {
+                Remove-Item -LiteralPath $stageProf -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 }
@@ -301,7 +313,9 @@ foreach ($v in $vars) {
                 [Environment]::SetEnvironmentVariable($v, $null, $scope)
                 $removedVars++
             }
-        } catch { <# Machine scope may need elevation - skip silently #> }
+        } catch {
+            Write-Verbose "Environment variable '$v' ($scope) removal skipped: $($_.Exception.Message)"
+        }
     }
 }
 Write-Host "[   OK   ] Removed $removedVars environment variables." -ForegroundColor Green
@@ -311,9 +325,9 @@ Write-Host "[   OK   ] Removed $removedVars environment variables." -ForegroundC
 # ----------------------------------------------------------------
 Write-Host "`n[ ACTION ] Removing Windows Uninstall Registry & Shortcuts..." -ForegroundColor Cyan
 Remove-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue
-try { Remove-Item -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+try { Remove-Item -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue } catch { Write-Verbose "HKLM Uninstall key removal skipped: $($_.Exception.Message)" }
 Remove-Item -Path "HKCU:\Software\DiamTek\JVM" -Recurse -Force -ErrorAction SilentlyContinue
-try { Remove-Item -Path "HKLM:\Software\DiamTek\JVM" -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+try { Remove-Item -Path "HKLM:\Software\DiamTek\JVM" -Recurse -Force -ErrorAction SilentlyContinue } catch { Write-Verbose "HKLM DiamTek\JVM key removal skipped: $($_.Exception.Message)" }
 
 # Only prune parent DiamTek registry key if it has no remaining subkeys or values
 try {
@@ -321,74 +335,14 @@ try {
     if ($cuDiamTek -and ($cuDiamTek.SubKeyCount -eq 0) -and ($cuDiamTek.ValueCount -eq 0)) {
         Remove-Item -Path "HKCU:\Software\DiamTek" -Force -ErrorAction SilentlyContinue
     }
-} catch {}
+} catch { Write-Verbose "HKCU DiamTek parent key check skipped: $($_.Exception.Message)" }
 try {
     $lmDiamTek = Get-Item -Path "HKLM:\Software\DiamTek" -ErrorAction SilentlyContinue
     if ($lmDiamTek -and ($lmDiamTek.SubKeyCount -eq 0) -and ($lmDiamTek.ValueCount -eq 0)) {
         Remove-Item -Path "HKLM:\Software\DiamTek" -Force -ErrorAction SilentlyContinue
     }
-} catch {}
+} catch { Write-Verbose "HKLM DiamTek parent key check skipped: $($_.Exception.Message)" }
 
-$startMenuDirs = @(
-    (Join-Path ([Environment]::GetFolderPath('Programs')) "DiamTek"),
-    (Join-Path ([Environment]::GetFolderPath('CommonPrograms')) "DiamTek")
-)
-foreach ($sm in $startMenuDirs) {
-    if ((Test-Path -LiteralPath $sm) -and (-not (Test-HasReparsePointInLineage $sm))) {
-        Get-ChildItem -LiteralPath $sm -Filter "*Java Version Manager*" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-        Get-ChildItem -LiteralPath $sm -Filter "*JVM*" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-        $remaining = Get-ChildItem -LiteralPath $sm -Force -ErrorAction SilentlyContinue
-        if (-not $remaining) {
-            Remove-Item -LiteralPath $sm -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Host "[   OK   ] Removed Start Menu folder: $sm" -ForegroundColor Green
-        }
-    }
-}
-
-$taskbarLnk = Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Java Version Manager.lnk"
-if ((Test-Path -LiteralPath $taskbarLnk) -and (-not (Test-HasReparsePointInLineage $taskbarLnk))) {
-    Remove-Item -LiteralPath $taskbarLnk -Force -ErrorAction SilentlyContinue
-    Write-Host "[   OK   ] Removed pinned Taskbar shortcut." -ForegroundColor Green
-}
-
-# Windows Terminal Profile cleanup
-$wtSettingsCandidates = @(
-    "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json",
-    "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json",
-    "$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json"
-)
-foreach ($wtSettings in $wtSettingsCandidates) {
-    if ((Test-Path -LiteralPath $wtSettings) -and (-not (Test-HasReparsePointInLineage $wtSettings))) {
-        try {
-            $wtContent = Get-Content -LiteralPath $wtSettings -Raw -ErrorAction Stop
-            # Strip JSONC comments (block comments /* ... */ and line comments // ...) and trailing commas
-            $cleanJson = $wtContent -replace '(?s)/\*.*?\*/', '' -replace '(?m)(?<!:)\/\/.*$', '' -replace ',\s*([\}\]])', '$1'
-            $wtJson = $cleanJson | ConvertFrom-Json
-            if ($wtJson.profiles -and $wtJson.profiles.list) {
-                $filtered = @($wtJson.profiles.list | Where-Object { $_.guid -ne '{b20650a4-4212-4d64-9edf-744e9285e2be}' -and $_.name -ne 'Java Version Manager' })
-                if ($filtered.Count -ne $wtJson.profiles.list.Count) {
-                    $wtJson.profiles.list = $filtered
-                    if ($wtJson.defaultProfile -eq '{b20650a4-4212-4d64-9edf-744e9285e2be}' -and $filtered.Count -gt 0) {
-                        $wtJson.defaultProfile = $filtered[0].guid
-                    }
-                    $newWtContent = $wtJson | ConvertTo-Json -Depth 32
-                    $stageWt = "$wtSettings.stage.$([Guid]::NewGuid().ToString('N')).tmp"
-                    [System.IO.File]::WriteAllText($stageWt, $newWtContent, $utf8NoBom)
-                    if (-not (Test-HasReparsePointInLineage $wtSettings)) {
-                        Move-Item -LiteralPath $stageWt -Destination $wtSettings -Force
-                    } else {
-                        Remove-Item -LiteralPath $stageWt -Force -ErrorAction SilentlyContinue
-                    }
-                    Write-Host "[   OK   ] Removed Windows Terminal profile." -ForegroundColor Green
-                }
-            }
-        } catch { }
-    }
-}
-
-# ----------------------------------------------------------------
-# AppData & Ecosystem Candidate folders - always removed on a complete uninstall
-# ----------------------------------------------------------------
 function Remove-DirectorySafely([string]$Path) {
     if (-not $Path) { return }
     $parentPath = Split-Path -Path $Path -Parent
@@ -405,29 +359,55 @@ function Remove-DirectorySafely([string]$Path) {
     $rootItem = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
     if ($rootItem -and ($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
         if ($rootItem.PSIsContainer) {
-            try { [System.IO.Directory]::Delete($rootItem.FullName, $false) } catch { & $sysCmd /c "rmdir /q `"$($rootItem.FullName)`"" 2>$null }
+            try { [System.IO.Directory]::Delete($rootItem.FullName, $false) } catch { Write-Verbose "Falling back to cmd rmdir for root junction: $($_.Exception.Message)"; & $sysCmd /c "rmdir /q `"$($rootItem.FullName)`"" 2>$null }
         } else {
             Remove-Item -LiteralPath $rootItem.FullName -Force -ErrorAction SilentlyContinue
         }
         return
     }
 
-    # 2. Unbind all child reparse points (bottom-up)
+    # 2. Unbind all child reparse points (bottom-up) without recursing into reparse points (CWE-674 / CWE-59)
     try {
-        Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
-            $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint
-        } | Sort-Object -Property { $_.FullName.Length } -Descending | ForEach-Object {
+        $reparseList = New-Object System.Collections.Generic.List[System.IO.FileSystemInfo]
+        $queue = New-Object System.Collections.Generic.Queue[string]
+        $visited = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $normRoot = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path
+        $queue.Enqueue($normRoot)
+        $maxDepth = 32
+        $depthMap = @{ $normRoot = 0 }
+
+        while ($queue.Count -gt 0) {
+            $currDir = $queue.Dequeue()
+            $currDepth = $depthMap[$currDir]
+            if ($currDepth -ge $maxDepth -or -not $visited.Add($currDir)) { continue }
+
+            $children = Get-ChildItem -LiteralPath $currDir -Force -ErrorAction SilentlyContinue
+            foreach ($child in $children) {
+                if ($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                    $reparseList.Add($child)
+                    # Never traverse into child reparse points: prevents cyclic loops & external traversal (CWE-674 / CWE-59)
+                } elseif ($child.PSIsContainer) {
+                    $depthMap[$child.FullName] = $currDepth + 1
+                    $queue.Enqueue($child.FullName)
+                }
+            }
+        }
+
+        $reparseList | Sort-Object -Property { $_.FullName.Length } -Descending | ForEach-Object {
             if ($_.PSIsContainer) {
                 try {
                     [System.IO.Directory]::Delete($_.FullName, $false)
                 } catch {
+                    Write-Verbose "Falling back to cmd rmdir for child junction: $($_.Exception.Message)"
                     & $sysCmd /c "rmdir /q `"$($_.FullName)`"" 2>$null
                 }
             } else {
                 Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
             }
         }
-    } catch { }
+    } catch {
+        Write-Verbose "Child reparse point enumeration warning for '$Path': $($_.Exception.Message)"
+    }
 
     # 3. Prefer cmd.exe rmdir /s /q for tree deletion to guarantee junction safety in PS 5.1
     & $sysCmd /c "rmdir /s /q `"$Path`"" 2>$null
@@ -435,6 +415,116 @@ function Remove-DirectorySafely([string]$Path) {
         Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
+
+function Remove-ShortcutSafely([string]$Path) {
+    if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return }
+    if (Test-HasReparsePointInLineage $Path) {
+        Write-Verbose "Skipping shortcut with reparse point in lineage: $Path"
+        return
+    }
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    if (-not $item -or $item.PSIsContainer) { return }
+    $targetOk = $false
+    $wshell = $null
+    $sc = $null
+    try {
+        $wshell = New-Object -ComObject WScript.Shell
+        $sc = $wshell.CreateShortcut($Path)
+        if ($sc -and ($sc.TargetPath -match 'DiamTek[\\/]JVM' -or $sc.TargetPath -match 'jvm\.bat' -or $sc.TargetPath -match 'uninstall\.ps1' -or $sc.Description -match 'DiamTek|Java Version Manager')) {
+            $targetOk = $true
+        }
+    } catch {
+        Write-Verbose "Could not inspect shortcut target for '$Path': $($_.Exception.Message)"
+        if ($item.Name -match 'Java Version Manager|DiamTek|JVM') { $targetOk = $true }
+    } finally {
+        if ($sc) { [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($sc) | Out-Null }
+        if ($wshell) { [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($wshell) | Out-Null }
+        [System.GC]::Collect()
+    }
+    if ($targetOk) {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        Write-Host "[   OK   ] Removed shortcut: $($item.Name)" -ForegroundColor Green
+    }
+}
+
+$startMenuDirs = @(
+    (Join-Path ([Environment]::GetFolderPath('Programs')) "DiamTek"),
+    (Join-Path ([Environment]::GetFolderPath('CommonPrograms')) "DiamTek")
+)
+foreach ($sm in $startMenuDirs) {
+    if ((Test-Path -LiteralPath $sm) -and (-not (Test-HasReparsePointInLineage $sm))) {
+        Get-ChildItem -LiteralPath $sm -Filter "*.lnk" -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+            Remove-ShortcutSafely -Path $_.FullName
+        }
+        $remaining = Get-ChildItem -LiteralPath $sm -Force -ErrorAction SilentlyContinue
+        if (-not $remaining) {
+            Remove-DirectorySafely -Path $sm
+            Write-Host "[   OK   ] Removed Start Menu folder: $sm" -ForegroundColor Green
+        }
+    }
+}
+
+$desktopLocations = @(
+    [Environment]::GetFolderPath('Desktop'),
+    [Environment]::GetFolderPath('CommonDesktopDirectory'),
+    [Environment]::GetFolderPath('Programs'),
+    [Environment]::GetFolderPath('CommonPrograms'),
+    (Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar")
+) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+
+foreach ($dl in $desktopLocations) {
+    Remove-ShortcutSafely -Path (Join-Path $dl "Java Version Manager.lnk")
+    Remove-ShortcutSafely -Path (Join-Path $dl "Uninstall Java Version Manager.lnk")
+}
+
+# Windows Terminal Profile cleanup
+$wtSettingsCandidates = @(
+    "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json",
+    "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json",
+    "$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json"
+)
+foreach ($wtSettings in $wtSettingsCandidates) {
+    if ((Test-Path -LiteralPath $wtSettings) -and (-not (Test-HasReparsePointInLineage $wtSettings))) {
+        $stageWt = $null
+        try {
+            $wtContent = [System.IO.File]::ReadAllText($wtSettings, [System.Text.Encoding]::UTF8)
+            # Strip JSONC comments (block comments /* ... */ and line comments // ...) while preserving strings, and strip trailing commas
+            $jsoncPattern = '(?s)("(?:\\.|[^"\\])*")|/\*.*?\*/|(?m)//.*$'
+            $cleanJson = [System.Text.RegularExpressions.Regex]::Replace($wtContent, $jsoncPattern, { param($m) if ($m.Groups[1].Success) { $m.Groups[1].Value } else { '' } }) -replace ',\s*([\}\]])', '$1'
+            $wtJson = $cleanJson | ConvertFrom-Json
+            if ($wtJson.profiles -and $wtJson.profiles.list) {
+                $filtered = @($wtJson.profiles.list | Where-Object {
+                    $isJvm = ($_.guid -eq '{b20650a4-4212-4d64-9edf-744e9285e2be}') -or
+                             ($_.name -eq 'Java Version Manager' -and $_.commandline -match '(?i)DiamTek.*jvm\.bat')
+                    -not $isJvm
+                })
+                if ($filtered.Count -ne $wtJson.profiles.list.Count) {
+                    $wtJson.profiles.list = $filtered
+                    if ($wtJson.defaultProfile -eq '{b20650a4-4212-4d64-9edf-744e9285e2be}' -and $filtered.Count -gt 0) {
+                        $wtJson.defaultProfile = $filtered[0].guid
+                    }
+                    $newWtContent = $wtJson | ConvertTo-Json -Depth 32
+                    $stageWt = "$wtSettings.stage.$([Guid]::NewGuid().ToString('N')).tmp"
+                    [System.IO.File]::WriteAllText($stageWt, $newWtContent, $utf8NoBom)
+                    if (-not (Test-HasReparsePointInLineage $wtSettings)) {
+                        Move-Item -LiteralPath $stageWt -Destination $wtSettings -Force
+                    }
+                    Write-Host "[   OK   ] Removed Windows Terminal profile." -ForegroundColor Green
+                }
+            }
+        } catch {
+            Write-Verbose "Windows Terminal profile cleanup warning for '$wtSettings': $($_.Exception.Message)"
+        } finally {
+            if ($stageWt -and (Test-Path -LiteralPath $stageWt)) {
+                Remove-Item -LiteralPath $stageWt -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}
+
+# ----------------------------------------------------------------
+# AppData & Ecosystem Candidate folders - always removed on a complete uninstall
+# ----------------------------------------------------------------
 
 # Cleanup temporary session & extraction files safely (preventing CWE-59 reparse traversal in shared %TEMP%)
 if (Test-Path -LiteralPath "$env:TEMP\.jvm_session_target") {
@@ -460,9 +550,14 @@ if (Test-Path -LiteralPath $jvmAppData) {
         Get-Process | Where-Object {
             try {
                 $_.Path -and $_.Path.StartsWith($jvmAppData, [System.StringComparison]::OrdinalIgnoreCase)
-            } catch { $false }
+            } catch {
+                Write-Verbose "Process path inspection skipped: $($_.Exception.Message)"
+                $false
+            }
         } | Stop-Process -Force -ErrorAction SilentlyContinue
-    } catch { }
+    } catch {
+        Write-Verbose "Process termination sweep warning: $($_.Exception.Message)"
+    }
 
     Remove-DirectorySafely $jvmAppData
     if (-not (Test-Path -LiteralPath $jvmAppData)) {
@@ -503,7 +598,7 @@ if (Test-Path $userJvmCandidates) {
 $javaDir = if (Test-Path "C:\Program Files\Java") { "C:\Program Files\Java" } elseif ($env:ProgramFiles -and (Test-Path (Join-Path $env:ProgramFiles "Java"))) { Join-Path $env:ProgramFiles "Java" } else { $null }
 if ($javaDir) {
     $shouldDeleteJava = $DeleteJava -or $false
-    if (-not $shouldDeleteJava -and -not $Quiet) {
+    if (-not $shouldDeleteJava -and -not $Quiet -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
         $confirm = Read-Host "`nDo you also want to delete the Java installations directory? ($javaDir) (y/N)"
         if ($confirm -match '^y') {
             $shouldDeleteJava = $true
@@ -518,6 +613,7 @@ if ($javaDir) {
             $deleted = $true
         } catch {
             Write-Host "[ ACTION ] Requesting Administrator privileges to delete '$javaDir'..." -ForegroundColor Cyan
+            $proc = $null
             try {
                 $delB64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($javaDir))
                 $delScript = @"
@@ -529,11 +625,17 @@ if (Test-Path -LiteralPath `$target) {
                 $encDel = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($delScript))
                 $sysDir = [Environment]::GetFolderPath([Environment+SpecialFolder]::System)
                 $proc = Start-Process -FilePath $systemPowerShell -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", $encDel) -Verb RunAs -WorkingDirectory $sysDir -Wait -PassThru
+                if ($null -ne $proc -and $proc.ExitCode -ne 0) {
+                    Write-Host "[  WARN  ] Elevated deletion process exited with non-zero code $($proc.ExitCode)." -ForegroundColor Yellow
+                }
                 if (-not (Test-Path $javaDir)) {
                     $deleted = $true
                 }
             } catch {
+                Write-Verbose "Elevated deletion handoff exception: $($_.Exception.Message)"
                 Write-Host "[ ERROR  ] Administrator elevation was declined or failed." -ForegroundColor Red
+            } finally {
+                if ($null -ne $proc) { $proc.Dispose() }
             }
         }
 
@@ -549,10 +651,13 @@ if (Test-Path -LiteralPath `$target) {
 # Standalone / workspace cleanup (if running from a portable copy outside AppData)
 # ----------------------------------------------------------------
 $targetFolder = $null
-if ($SourceDir -and (Test-Path $SourceDir)) {
-    $targetFolder = (Resolve-Path $SourceDir).Path
-} elseif ($scriptDir -and (Test-Path $scriptDir)) {
-    $targetFolder = (Resolve-Path $scriptDir).Path
+if (-not [string]::IsNullOrWhiteSpace($SourceDir)) {
+    $targetFolder = $validatedSourceDir
+    if (-not $targetFolder) {
+        Write-Host "[ ERROR  ] Security violation (CWE-73): Specified -SourceDir '$SourceDir' failed security validation. Skipping directory cleanup." -ForegroundColor Red
+    }
+} elseif ($scriptDir -and (Test-Path -LiteralPath $scriptDir)) {
+    $targetFolder = Test-TrustedJvmInstallDirectory $scriptDir
 }
 
 if ($targetFolder) {
@@ -595,7 +700,7 @@ if ($targetFolder) {
             Write-Host "           Source repository will NOT be deleted." -ForegroundColor Yellow
         } else {
             $deleteTarget = $DeleteTarget -or $false
-            if (-not $deleteTarget -and -not $Quiet) {
+            if (-not $deleteTarget -and -not $Quiet -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
                 $confirmTarget = Read-Host "`nDo you also want to delete this JVM directory and all its files? ($targetFolder) (y/N)"
                 if ($confirmTarget -match '^y') {
                     $deleteTarget = $true
@@ -645,6 +750,6 @@ if (-not $Quiet) {
             $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
         }
     } catch {
-        # Fallback if console is non-interactive
+        Write-Verbose "Console ReadKey skipped in non-interactive session: $($_.Exception.Message)"
     }
 }

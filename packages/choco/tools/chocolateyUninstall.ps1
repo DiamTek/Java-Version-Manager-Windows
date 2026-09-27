@@ -18,7 +18,12 @@ $ErrorActionPreference = 'Stop'
 
 function Test-HasReparsePointInLineage([string]$Path) {
     if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
-    $curr = $Path
+    try {
+        $curr = [System.IO.Path]::GetFullPath($Path)
+    } catch {
+        Write-Verbose "Path resolution failed in Test-HasReparsePointInLineage: $($_.Exception.Message)"
+        return $true
+    }
     while (-not [string]::IsNullOrWhiteSpace($curr)) {
         try {
             if (Test-Path -LiteralPath $curr) {
@@ -27,7 +32,10 @@ function Test-HasReparsePointInLineage([string]$Path) {
                     return $true
                 }
             }
-        } catch { }
+        } catch {
+            Write-Verbose "Attribute inspection failed for '$curr' in Test-HasReparsePointInLineage: $($_.Exception.Message)"
+            return $true
+        }
         $parent = Split-Path -Path $curr -Parent
         if ([string]::IsNullOrWhiteSpace($parent) -or $parent -eq $curr) { break }
         $curr = $parent
@@ -50,29 +58,48 @@ $packageName = 'jvm-windows'
 Write-Host "Uninstalling JVM via Chocolatey package manager..."
 
 # Validate registered MSI ProductCode GUIDs if present before invoking Chocolatey MSI uninstall
-if (Get-Command Get-AppInstallLocation -ErrorAction SilentlyContinue) {
+$productCode = $null
+if (Get-Command Get-UninstallRegistryKey -ErrorAction SilentlyContinue) {
     try {
         [array]$keys = Get-UninstallRegistryKey -SoftwareName "Java Version Manager*" -ErrorAction SilentlyContinue
         foreach ($key in $keys) {
             if ($key.PSChildName -and $key.PSChildName -match '^\{[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}\}$') {
-                $packageArgs = @{
-                    packageName    = $packageName
-                    fileType       = 'MSI'
-                    silentArgs     = "$($key.PSChildName) /qn /norestart"
-                    validExitCodes = @(0, 3010)
-                }
-                Uninstall-ChocolateyPackage @packageArgs
-                return
+                $productCode = $key.PSChildName
+                break
             }
         }
-    } catch { }
+    } catch {
+        Write-Verbose "Chocolatey MSI registry ProductCode lookup skipped: $($_.Exception.Message)"
+    }
 }
 
-$packageArgs = @{
-    packageName    = $packageName
-    fileType       = 'MSI'
-    silentArgs     = "/qn /norestart"
-    validExitCodes = @(0, 3010)
+if (-not $productCode) {
+    try {
+        $wi = New-Object -ComObject WindowsInstaller.Installer
+        $prods = $wi.RelatedProducts('{DB30058E-1738-46CB-84EC-8C652DC99A22}')
+        if ($prods -and $prods.Count -gt 0) {
+            $productCode = $prods.Item(0)
+        }
+    } catch {
+        Write-Verbose "Chocolatey UpgradeCode COM lookup skipped: $($_.Exception.Message)"
+    }
 }
 
-Uninstall-ChocolateyPackage @packageArgs
+if ($productCode) {
+    $packageArgs = @{
+        packageName    = $packageName
+        fileType       = 'MSI'
+        silentArgs     = "$productCode /qn /norestart"
+        validExitCodes = @(0, 3010)
+    }
+    Uninstall-ChocolateyPackage @packageArgs
+    return
+}
+
+# If MSI is not registered but local uninstall.ps1 exists, invoke it safely
+if (Test-Path -LiteralPath $uninstallerPath) {
+    & $psExe -NoProfile -ExecutionPolicy Bypass -File $uninstallerPath -Quiet
+    return
+}
+
+throw "Uninstallation failed (CWE-252): Could not locate installed ProductCode GUID for 'Java Version Manager'."

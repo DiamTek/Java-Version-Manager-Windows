@@ -40,18 +40,24 @@ if ($Branch) {
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-$isFullLanguage = ($ExecutionContext.SessionState.LanguageMode -eq 'FullLanguage')
+if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') {
+    Write-Host "[ ERROR  ] PowerShell is operating in $($ExecutionContext.SessionState.LanguageMode) mode." -ForegroundColor Red
+    Write-Host "           FullLanguage mode is required by DiamTek Java Version Manager installer" -ForegroundColor Yellow
+    Write-Host "           to safely manage system environment variables, configure NTFS DACLs, and verify cryptography." -ForegroundColor Yellow
+    exit 1
+}
 
+$isFullLanguage = $true
 if ($isFullLanguage) {
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072 -bor 12288
-    } catch { }
+    } catch { Write-Verbose "TLS protocol configuration skipped: $($_.Exception.Message)" }
 
     try {
         if ([System.Net.WebRequest]::DefaultWebProxy) {
             [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
         }
-    } catch { }
+    } catch { Write-Verbose "DefaultWebProxy configuration skipped: $($_.Exception.Message)" }
 }
 
 if ($PSVersionTable.PSVersion.Major -ge 6) {
@@ -81,17 +87,19 @@ function Get-FileSha256 {
     param([string]$Path)
     if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
         try {
-            return (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToLower()
-        } catch {}
+            return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLower()
+        } catch { Write-Verbose "Get-FileHash fallback triggered: $($_.Exception.Message)" }
     }
-    $sha256 = [System.Security.Cryptography.SHA256]::Create()
-    $stream = [System.IO.File]::OpenRead((Resolve-Path $Path))
+    $sha256 = $null
+    $stream = $null
     try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        $stream = [System.IO.File]::OpenRead((Resolve-Path -LiteralPath $Path))
         $hashBytes = $sha256.ComputeHash($stream)
         return ([System.BitConverter]::ToString($hashBytes) -replace '-','').ToLower()
     } finally {
-        $stream.Close()
-        $sha256.Dispose()
+        if ($null -ne $stream) { $stream.Close(); $stream.Dispose() }
+        if ($null -ne $sha256) { $sha256.Dispose() }
     }
 }
 
@@ -130,6 +138,9 @@ function Initialize-SecureDirectory([string]$DirPath, [switch]$RestrictDacl) {
         $icaclsBin = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "icacls.exe"
         if (Test-Path -LiteralPath $icaclsBin) {
             & $icaclsBin $DirPath /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "$($env:USERNAME):(OI)(CI)F" *> $null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Verbose "icacls.exe DACL restriction returned exit code $LASTEXITCODE for '$DirPath'."
+            }
         }
     }
 }
@@ -160,6 +171,7 @@ Update-Progress -Percent 15 -Activity "Resolving latest release from GitHub..."
 $rawBranch = if ($Branch) { $Branch } else { "" }
 if (-not $rawBranch) {
     if ($Channel -ne "Nightly") {
+        $apiRes = $null; $sr = $null
         try {
             $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/latest")
             $apiReq.UserAgent = "DiamTek-JVM"
@@ -167,12 +179,17 @@ if (-not $rawBranch) {
             $apiRes = $apiReq.GetResponse()
             $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
             $json = $sr.ReadToEnd()
-            $sr.Close(); $apiRes.Close()
             if ($json -match '"tag_name":\s*"([^"]+)"') {
                 $rawBranch = $matches[1]
             }
-        } catch {}
+        } catch {
+            Write-Verbose "GitHub API release lookup failed: $($_.Exception.Message)"
+        } finally {
+            if ($null -ne $sr) { $sr.Close(); $sr.Dispose() }
+            if ($null -ne $apiRes) { $apiRes.Close() }
+        }
         if (-not $rawBranch) {
+            $redirRes = $null
             try {
                 $redirReq = [Net.HttpWebRequest]::Create("https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest")
                 $redirReq.AllowAutoRedirect = $false
@@ -180,14 +197,18 @@ if (-not $rawBranch) {
                 $redirReq.Timeout = 4000
                 $redirRes = $redirReq.GetResponse()
                 $loc = $redirRes.GetResponseHeader("Location")
-                $redirRes.Close()
                 if ($loc -and $loc -match '/releases/tag/([^/]+)$') {
                     $rawBranch = $matches[1]
                 }
-            } catch {}
+            } catch {
+                Write-Verbose "GitHub redirect tag lookup failed: $($_.Exception.Message)"
+            } finally {
+                if ($null -ne $redirRes) { $redirRes.Close() }
+            }
         }
     }
     if (-not $rawBranch) {
+        $apiRes = $null; $sr = $null
         try {
             $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main")
             $apiReq.UserAgent = "DiamTek-JVM"
@@ -195,12 +216,15 @@ if (-not $rawBranch) {
             $apiRes = $apiReq.GetResponse()
             $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
             $json = $sr.ReadToEnd()
-            $sr.Close(); $apiRes.Close()
             if ($json -match '"sha":\s*"([0-9a-f]{40})"') {
                 $rawBranch = $matches[1]
             }
         } catch {
             $rawBranch = "HEAD"
+            Write-Verbose "Falling back to HEAD branch ref: $($_.Exception.Message)"
+        } finally {
+            if ($null -ne $sr) { $sr.Close(); $sr.Dispose() }
+            if ($null -ne $apiRes) { $apiRes.Close() }
         }
     }
 }
@@ -216,17 +240,23 @@ if (-not $Update -and $PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "jv
     $content = $null
     # If on a tagged release on Stable channel, attempt direct release asset download to preserve exact binary layout
     if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
+        $tempBatPath = "$batPath.tmp.$([System.IO.Path]::GetRandomFileName())"
         try {
             $relUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/$rawBranch/jvm.bat"
-            $tempBatPath = "$batPath.tmp.$([System.IO.Path]::GetRandomFileName())"
             Invoke-WebRequest -Uri $relUrl -Headers $noCacheHeaders -OutFile $tempBatPath -UseBasicParsing -TimeoutSec 10
-            if ((Test-Path $tempBatPath) -and (Get-Item $tempBatPath).Length -gt 0) {
+            if ((Test-Path -LiteralPath $tempBatPath) -and (Get-Item -LiteralPath $tempBatPath).Length -gt 0) {
                 $content = [System.IO.File]::ReadAllText($tempBatPath)
             }
-            Remove-Item $tempBatPath -Force -ErrorAction SilentlyContinue
-        } catch {}
+        } catch {
+            Write-Verbose "Release asset download fallback triggered: $($_.Exception.Message)"
+        } finally {
+            if ($tempBatPath -and (Test-Path -LiteralPath $tempBatPath)) {
+                Remove-Item -LiteralPath $tempBatPath -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
     if (-not $content) {
+        $apiRes = $null; $sr = $null
         try {
             $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=$rawBranch")
             $apiReq.Method = "GET"
@@ -238,12 +268,16 @@ if (-not $Update -and $PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "jv
             $apiRes = $apiReq.GetResponse()
             $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
             $content = $sr.ReadToEnd()
-            $sr.Close(); $apiRes.Close()
         } catch {
             try {
                 $rawWget = Invoke-WebRequest -Uri $url -Headers $noCacheHeaders -UseBasicParsing -TimeoutSec 5
                 $content = if ($rawWget.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($rawWget.Content) } else { [string]$rawWget.Content }
-            } catch {}
+            } catch {
+                Write-Verbose "Raw GitHub download failed: $($_.Exception.Message)"
+            }
+        } finally {
+            if ($null -ne $sr) { $sr.Close(); $sr.Dispose() }
+            if ($null -ne $apiRes) { $apiRes.Close() }
         }
     }
 }
@@ -274,7 +308,7 @@ if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
                         $rawAsset = Invoke-WebRequest -Uri $asset.browser_download_url -UserAgent "DiamTek-JVM" -UseBasicParsing -TimeoutSec 5
                         $shaText = if ($rawAsset.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($rawAsset.Content) } else { [string]$rawAsset.Content }
                     }
-                } catch {}
+                } catch { Write-Verbose "Release asset SHA256SUMS lookup failed: $($_.Exception.Message)" }
             }
         }
         if ($shaText) {
@@ -284,64 +318,7 @@ if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
                 }
             }
         }
-    } catch {}
-}
-
-Update-Progress -Percent 50 -Activity "Sanitizing code format and encoding..."
-$sanitizedContent = ($content -replace "`r?`n", "`r`n").Replace([char]160, ' ')
-
-# Stage to an isolated temporary file first to prevent TOCTOU and avoid clobbering existing installation on failure
-$stageBat = "$batPath.stage.$([Guid]::NewGuid().ToString('N')).tmp"
-[System.IO.File]::WriteAllText($stageBat, $sanitizedContent, (New-Object System.Text.UTF8Encoding($false)))
-
-# Verify jvm.bat SHA256 integrity on the staged file
-$actualJvmHash = Get-FileSha256 -Path $stageBat
-if ($shaHashMap.ContainsKey("jvm.bat")) {
-    $expectedJvmHash = $shaHashMap["jvm.bat"]
-    if ($actualJvmHash -ne $expectedJvmHash) {
-        Write-Host ""
-        Write-Host "[ ERROR  ] Cryptographic integrity check failed for jvm.bat!" -ForegroundColor Red
-        Write-Host "           Expected: $expectedJvmHash" -ForegroundColor Red
-        Write-Host "           Computed: $actualJvmHash" -ForegroundColor Red
-        Write-Host "           Installation aborted to prevent untrusted execution." -ForegroundColor Red
-        Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
-        exit 1
-    }
-} elseif ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
-    Write-Host ""
-    Write-Host "[ ERROR  ] Cryptographic integrity manifest (SHA256SUMS.txt) required for official release $rawBranch on Stable channel." -ForegroundColor Red
-    Write-Host "           Could not verify jvm.bat hash against release manifest. Aborting installation." -ForegroundColor Red
-    Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
-    exit 1
-} else {
-    try {
-        $meta = Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=$rawBranch" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -TimeoutSec 5
-        if ($meta -and $meta.sha) {
-            $expectedGitSha = ([string]$meta.sha).ToLower()
-            $sha1 = [System.Security.Cryptography.SHA1]::Create()
-            $rawBytes = [System.IO.File]::ReadAllBytes($stageBat)
-            $lfBytes = [System.Text.Encoding]::UTF8.GetBytes(($sanitizedContent -replace "`r`n", "`n"))
-            $matchedGit = $false
-            $computedGit = ""
-            foreach ($b in @($rawBytes, $lfBytes)) {
-                $hdr = [System.Text.Encoding]::ASCII.GetBytes("blob $($b.Length)`0")
-                $blob = New-Object byte[] ($hdr.Length + $b.Length)
-                [Array]::Copy($hdr, 0, $blob, 0, $hdr.Length)
-                [Array]::Copy($b, 0, $blob, $hdr.Length, $b.Length)
-                $g = ([System.BitConverter]::ToString($sha1.ComputeHash($blob)) -replace '-', '').ToLower()
-                if (-not $computedGit) { $computedGit = $g }
-                if ($g -eq $expectedGitSha) { $matchedGit = $true; break }
-            }
-            if (-not $matchedGit) {
-                Write-Host ""
-                Write-Host "[ ERROR  ] Cryptographic Git blob SHA-1 check failed for Nightly jvm.bat!" -ForegroundColor Red
-                Write-Host "           Expected Git Blob SHA: $expectedGitSha" -ForegroundColor Red
-                Write-Host "           Computed Git Blob SHA: $computedGit" -ForegroundColor Red
-                Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
-                exit 1
-            }
-        }
-    } catch {}
+    } catch { Write-Verbose "SHA256SUMS parsing skipped: $($_.Exception.Message)" }
 }
 
 function Remove-ReparsePointOrFail([string]$FilePath) {
@@ -353,7 +330,7 @@ function Remove-ReparsePointOrFail([string]$FilePath) {
                 if ([bool]($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
                     Remove-Item -LiteralPath $FilePath -Force -ErrorAction Stop
                 }
-            } catch {}
+            } catch { Write-Verbose "Could not remove existing reparse point at ${FilePath}: $($_.Exception.Message)" }
         }
         if (Test-HasReparsePointInLineage $FilePath) {
             Write-Host ""
@@ -372,8 +349,9 @@ function Invoke-TrustedGitHubDownload([string]$Uri, [string]$OutFile, [int]$MaxB
     $req.UserAgent = "DiamTek-JVM"
     $req.Headers.Add("Cache-Control", "no-cache")
     $req.Headers.Add("Pragma", "no-cache")
-    $res = $req.GetResponse()
+    $res = $null
     try {
+        $res = $req.GetResponse()
         $finalUri = $res.ResponseUri
         if (-not $finalUri -or $finalUri.Scheme -ne 'https' -or ($allowedHosts -notcontains $finalUri.Host.ToLowerInvariant())) {
             throw "Security violation (CWE-601): Untrusted redirect host or scheme '$finalUri'"
@@ -381,9 +359,12 @@ function Invoke-TrustedGitHubDownload([string]$Uri, [string]$OutFile, [int]$MaxB
         if ($res.ContentLength -gt $MaxBytes) {
             throw "Security violation (CWE-400): Payload ContentLength ($($res.ContentLength)) exceeds ceiling ($MaxBytes bytes)"
         }
-        $stream = $res.GetResponseStream()
-        $fs = [System.IO.File]::Open($OutFile, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+        $stream = $null
+        $fs = $null
+        $downloadOk = $false
         try {
+            $stream = $res.GetResponseStream()
+            $fs = [System.IO.File]::Open($OutFile, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
             $buf = New-Object byte[] 16384
             $total = 0
             while (($read = $stream.Read($buf, 0, $buf.Length)) -gt 0) {
@@ -393,24 +374,22 @@ function Invoke-TrustedGitHubDownload([string]$Uri, [string]$OutFile, [int]$MaxB
                 }
                 $fs.Write($buf, 0, $read)
             }
+            $downloadOk = $true
         } finally {
-            $fs.Close()
-            $stream.Close()
+            if ($null -ne $fs) { $fs.Close(); $fs.Dispose() }
+            if ($null -ne $stream) { $stream.Close(); $stream.Dispose() }
+            if (-not $downloadOk -and $OutFile -and (Test-Path -LiteralPath $OutFile)) {
+                Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+            }
         }
     } finally {
-        $res.Close()
+        if ($null -ne $res) { $res.Close() }
     }
     return ((Test-Path -LiteralPath $OutFile) -and (Get-Item -LiteralPath $OutFile).Length -gt 0)
 }
 
-# Move verified staged engine into place atomically after verifying target is not a symlink/reparse point
-Remove-ReparsePointOrFail -FilePath $batPath
-Move-Item -LiteralPath $stageBat -Destination $batPath -Force
-
-Update-Progress -Percent 65 -Activity "Fetching documentation, license, & uninstaller..."
-Initialize-SecureDirectory -DirPath $repoRoot -RestrictDacl:$isDefaultAppDataRoot
-
 function Test-GitBlobSha1([string]$FilePath, [string]$RemoteRelPath, [string]$RefName) {
+    $sha1 = $null
     try {
         $meta = Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/$RemoteRelPath`?ref=$RefName" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -TimeoutSec 5
         if ($meta -and $meta.sha) {
@@ -429,95 +408,191 @@ function Test-GitBlobSha1([string]$FilePath, [string]$RemoteRelPath, [string]$Re
             }
             return $false
         }
-    } catch {}
+    } catch {
+        Write-Verbose "Git blob SHA-1 lookup failed for ${RemoteRelPath}: $($_.Exception.Message)"
+    } finally {
+        if ($null -ne $sha1) { $sha1.Dispose() }
+    }
     return $false
 }
 
-$companionFiles = @("LICENSE", "README.md", "uninstall.ps1", "assets/icon.ico", "assets/icon.png")
-foreach ($cf in $companionFiles) {
-    $destFile = Join-Path $repoRoot ($cf -replace '/', '\')
-    $destDir = Split-Path $destFile -Parent
-    Initialize-SecureDirectory -DirPath $destDir -RestrictDacl:$isDefaultAppDataRoot
-    Remove-ReparsePointOrFail -FilePath $destFile
-    $localSource = if ($PSScriptRoot) { Join-Path $PSScriptRoot ($cf -replace '/', '\') } else { $null }
-    if (-not $Update -and $localSource -and (Test-Path -LiteralPath $localSource)) {
-        Copy-Item -LiteralPath $localSource -Destination $destFile -Force
-        if ((Split-Path $destFile -Leaf) -eq "uninstall.ps1") {
-            $uninstShaFile = "$destFile.sha256"
-            Remove-ReparsePointOrFail -FilePath $uninstShaFile
-            [System.IO.File]::WriteAllText($uninstShaFile, (Get-FileSha256 -Path $destFile), (New-Object System.Text.UTF8Encoding($false)))
+Update-Progress -Percent 50 -Activity "Sanitizing code format and encoding..."
+$sanitizedContent = ($content -replace "`r?`n", "`r`n").Replace([char]160, ' ')
+
+# Stage to an isolated temporary file first to prevent TOCTOU and avoid clobbering existing installation on failure (CWE-459 / CWE-460)
+$stageBat = "$batPath.stage.$([Guid]::NewGuid().ToString('N')).tmp"
+$batBackup = "$batPath.bak.$([Guid]::NewGuid().ToString('N')).tmp"
+$installCommitted = $false
+try {
+    [System.IO.File]::WriteAllText($stageBat, $sanitizedContent, (New-Object System.Text.UTF8Encoding($false)))
+
+    # Verify jvm.bat SHA256 integrity on the staged file
+    $actualJvmHash = Get-FileSha256 -Path $stageBat
+    if ($shaHashMap.ContainsKey("jvm.bat")) {
+        $expectedJvmHash = $shaHashMap["jvm.bat"]
+        if ($actualJvmHash -ne $expectedJvmHash) {
+            Write-Host ""
+            Write-Host "[ ERROR  ] Cryptographic integrity check failed for jvm.bat!" -ForegroundColor Red
+            Write-Host "           Expected: $expectedJvmHash" -ForegroundColor Red
+            Write-Host "           Computed: $actualJvmHash" -ForegroundColor Red
+            Write-Host "           Installation aborted to prevent untrusted execution." -ForegroundColor Red
+            Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
+            exit 1
         }
+    } elseif ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
+        Write-Host ""
+        Write-Host "[ ERROR  ] Cryptographic integrity manifest (SHA256SUMS.txt) required for official release $rawBranch on Stable channel." -ForegroundColor Red
+        Write-Host "           Could not verify jvm.bat hash against release manifest. Aborting installation." -ForegroundColor Red
+        Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
+        exit 1
     } else {
-        $downloadSuccess = $false
-        $baseName = Split-Path $destFile -Leaf
-        $stageCf = "$destFile.stage.$([Guid]::NewGuid().ToString('N')).tmp"
-        if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]' -and @("LICENSE", "README.md", "uninstall.ps1") -contains $baseName) {
-            try {
-                $relAssetUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/$rawBranch/$baseName"
-                $downloadSuccess = Invoke-TrustedGitHubDownload -Uri $relAssetUrl -OutFile $stageCf
-            } catch {}
-        }
-        if (-not $downloadSuccess) {
-            try {
-                $downloadSuccess = Invoke-TrustedGitHubDownload -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/$cf`?t=$cacheBuster" -OutFile $stageCf
-            } catch {
-                if ($baseName -ne "uninstall.ps1") {
-                    try {
-                        $downloadSuccess = Invoke-TrustedGitHubDownload -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/$cf`?t=$cacheBuster" -OutFile $stageCf
-                    } catch {
-                        if (-not (Test-Path -LiteralPath $destFile)) {
-                            Write-Host ""
-                            Write-Host "           [WARN] Could not fetch $cf. Proceeding anyway." -ForegroundColor Yellow
-                        }
-                    }
+        $sha1 = $null
+        try {
+            $meta = Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=$rawBranch" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -TimeoutSec 5
+            if ($meta -and $meta.sha) {
+                $expectedGitSha = ([string]$meta.sha).ToLower()
+                $sha1 = [System.Security.Cryptography.SHA1]::Create()
+                $rawBytes = [System.IO.File]::ReadAllBytes($stageBat)
+                $lfBytes = [System.Text.Encoding]::UTF8.GetBytes(($sanitizedContent -replace "`r`n", "`n"))
+                $matchedGit = $false
+                $computedGit = ""
+                foreach ($b in @($rawBytes, $lfBytes)) {
+                    $hdr = [System.Text.Encoding]::ASCII.GetBytes("blob $($b.Length)`0")
+                    $blob = New-Object byte[] ($hdr.Length + $b.Length)
+                    [Array]::Copy($hdr, 0, $blob, 0, $hdr.Length)
+                    [Array]::Copy($b, 0, $blob, $hdr.Length, $b.Length)
+                    $g = ([System.BitConverter]::ToString($sha1.ComputeHash($blob)) -replace '-', '').ToLower()
+                    if (-not $computedGit) { $computedGit = $g }
+                    if ($g -eq $expectedGitSha) { $matchedGit = $true; break }
                 }
-            }
-        }
-        if ($downloadSuccess -and (Test-Path -LiteralPath $stageCf)) {
-            $verifiedCf = $true
-            if ($shaHashMap.ContainsKey($baseName)) {
-                $actualCfHash = Get-FileSha256 -Path $stageCf
-                $expectedCfHash = $shaHashMap[$baseName]
-                if ($actualCfHash -ne $expectedCfHash) {
-                    $verifiedCf = $false
+                if (-not $matchedGit) {
                     Write-Host ""
-                    Write-Host "           [ ERROR  ] Integrity check failed for $baseName (SHA256 mismatch)!" -ForegroundColor Red
-                    Write-Host "                      Expected: $expectedCfHash" -ForegroundColor Red
-                    Write-Host "                      Computed: $actualCfHash" -ForegroundColor Red
-                    Remove-Item -LiteralPath $stageCf -Force -ErrorAction SilentlyContinue
-                    if ($baseName -eq "uninstall.ps1") {
-                        Write-Host "           [ FATAL  ] Security-critical uninstaller failed integrity verification. Aborting." -ForegroundColor Red
-                        exit 1
-                    }
-                }
-            } elseif ($baseName -eq "uninstall.ps1" -and $Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
-                $verifiedCf = $false
-                Remove-Item -LiteralPath $stageCf -Force -ErrorAction SilentlyContinue
-                Write-Host ""
-                Write-Host "           [ FATAL  ] Missing SHA-256 entry for security-critical uninstall.ps1 in release manifest. Aborting." -ForegroundColor Red
-                exit 1
-            } elseif ($baseName -eq "uninstall.ps1") {
-                if (-not (Test-GitBlobSha1 -FilePath $stageCf -RemoteRelPath $cf -RefName $rawBranch)) {
-                    $verifiedCf = $false
-                    Remove-Item -LiteralPath $stageCf -Force -ErrorAction SilentlyContinue
-                    Write-Host ""
-                    Write-Host "           [ FATAL  ] Cryptographic Git blob SHA-1 check failed for Nightly uninstall.ps1. Aborting." -ForegroundColor Red
+                    Write-Host "[ ERROR  ] Cryptographic Git blob SHA-1 check failed for Nightly jvm.bat!" -ForegroundColor Red
+                    Write-Host "           Expected Git Blob SHA: $expectedGitSha" -ForegroundColor Red
+                    Write-Host "           Computed Git Blob SHA: $computedGit" -ForegroundColor Red
+                    Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
                     exit 1
                 }
             }
-            if ($verifiedCf -and (Test-Path -LiteralPath $stageCf)) {
-                Remove-ReparsePointOrFail -FilePath $destFile
-                Move-Item -LiteralPath $stageCf -Destination $destFile -Force
-                if ($baseName -eq "uninstall.ps1") {
-                    $uninstShaFile = "$destFile.sha256"
-                    Remove-ReparsePointOrFail -FilePath $uninstShaFile
-                    [System.IO.File]::WriteAllText($uninstShaFile, (Get-FileSha256 -Path $destFile), (New-Object System.Text.UTF8Encoding($false)))
-                }
-            }
-        } else {
-            Remove-Item -LiteralPath $stageCf -Force -ErrorAction SilentlyContinue
+        } catch {
+            Write-Verbose "Nightly Git blob SHA-1 verification skipped: $($_.Exception.Message)"
+        } finally {
+            if ($null -ne $sha1) { $sha1.Dispose() }
         }
     }
+
+    # Move verified staged engine into place atomically after verifying target is not a symlink/reparse point
+    Remove-ReparsePointOrFail -FilePath $batPath
+    if (Test-Path -LiteralPath $batPath) {
+        Copy-Item -LiteralPath $batPath -Destination $batBackup -Force -ErrorAction SilentlyContinue
+    }
+    Move-Item -LiteralPath $stageBat -Destination $batPath -Force
+
+    Update-Progress -Percent 65 -Activity "Fetching documentation, license, & uninstaller..."
+    Initialize-SecureDirectory -DirPath $repoRoot -RestrictDacl:$isDefaultAppDataRoot
+
+    $companionFiles = @("LICENSE", "README.md", "uninstall.ps1", "assets/icon.ico", "assets/icon.png")
+    foreach ($cf in $companionFiles) {
+        $destFile = Join-Path $repoRoot ($cf -replace '/', '\')
+        $destDir = Split-Path $destFile -Parent
+        Initialize-SecureDirectory -DirPath $destDir -RestrictDacl:$isDefaultAppDataRoot
+        Remove-ReparsePointOrFail -FilePath $destFile
+        $localSource = if ($PSScriptRoot) { Join-Path $PSScriptRoot ($cf -replace '/', '\') } else { $null }
+        if (-not $Update -and $localSource -and (Test-Path -LiteralPath $localSource)) {
+            Copy-Item -LiteralPath $localSource -Destination $destFile -Force
+            if ((Split-Path $destFile -Leaf) -eq "uninstall.ps1") {
+                $uninstShaFile = "$destFile.sha256"
+                Remove-ReparsePointOrFail -FilePath $uninstShaFile
+                [System.IO.File]::WriteAllText($uninstShaFile, (Get-FileSha256 -Path $destFile), (New-Object System.Text.UTF8Encoding($false)))
+            }
+        } else {
+            $downloadSuccess = $false
+            $baseName = Split-Path $destFile -Leaf
+            $stageCf = "$destFile.stage.$([Guid]::NewGuid().ToString('N')).tmp"
+            try {
+                if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]' -and @("LICENSE", "README.md", "uninstall.ps1") -contains $baseName) {
+                    try {
+                        $relAssetUrl = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/$rawBranch/$baseName"
+                        $downloadSuccess = Invoke-TrustedGitHubDownload -Uri $relAssetUrl -OutFile $stageCf
+                    } catch { Write-Verbose "Release companion download failed for ${baseName}: $($_.Exception.Message)" }
+                }
+                if (-not $downloadSuccess) {
+                    try {
+                        $downloadSuccess = Invoke-TrustedGitHubDownload -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/$cf`?t=$cacheBuster" -OutFile $stageCf
+                    } catch {
+                        if ($baseName -ne "uninstall.ps1") {
+                            try {
+                                $downloadSuccess = Invoke-TrustedGitHubDownload -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/HEAD/$cf`?t=$cacheBuster" -OutFile $stageCf
+                            } catch {
+                                if (-not (Test-Path -LiteralPath $destFile)) {
+                                    Write-Host ""
+                                    Write-Host "           [WARN] Could not fetch $cf. Proceeding anyway." -ForegroundColor Yellow
+                                }
+                            }
+                        }
+                    }
+                }
+                if ($downloadSuccess -and (Test-Path -LiteralPath $stageCf)) {
+                    $verifiedCf = $true
+                    if ($shaHashMap.ContainsKey($baseName)) {
+                        $actualCfHash = Get-FileSha256 -Path $stageCf
+                        $expectedCfHash = $shaHashMap[$baseName]
+                        if ($actualCfHash -ne $expectedCfHash) {
+                            $verifiedCf = $false
+                            Write-Host ""
+                            Write-Host "           [ ERROR  ] Integrity check failed for $baseName (SHA256 mismatch)!" -ForegroundColor Red
+                            Write-Host "                      Expected: $expectedCfHash" -ForegroundColor Red
+                            Write-Host "                      Computed: $actualCfHash" -ForegroundColor Red
+                            Remove-Item -LiteralPath $stageCf -Force -ErrorAction SilentlyContinue
+                            if ($baseName -eq "uninstall.ps1") {
+                                Write-Host "           [ FATAL  ] Security-critical uninstaller failed integrity verification. Aborting." -ForegroundColor Red
+                                exit 1
+                            }
+                        }
+                    } elseif ($baseName -eq "uninstall.ps1" -and $Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
+                        $verifiedCf = $false
+                        Remove-Item -LiteralPath $stageCf -Force -ErrorAction SilentlyContinue
+                        Write-Host ""
+                        Write-Host "           [ FATAL  ] Missing SHA-256 entry for security-critical uninstall.ps1 in release manifest. Aborting." -ForegroundColor Red
+                        exit 1
+                    } elseif ($baseName -eq "uninstall.ps1") {
+                        if (-not (Test-GitBlobSha1 -FilePath $stageCf -RemoteRelPath $cf -RefName $rawBranch)) {
+                            $verifiedCf = $false
+                            Remove-Item -LiteralPath $stageCf -Force -ErrorAction SilentlyContinue
+                            Write-Host ""
+                            Write-Host "           [ FATAL  ] Cryptographic Git blob SHA-1 check failed for Nightly uninstall.ps1. Aborting." -ForegroundColor Red
+                            exit 1
+                        }
+                    }
+                    if ($verifiedCf -and (Test-Path -LiteralPath $stageCf)) {
+                        Remove-ReparsePointOrFail -FilePath $destFile
+                        Move-Item -LiteralPath $stageCf -Destination $destFile -Force
+                        if ($baseName -eq "uninstall.ps1") {
+                            $uninstShaFile = "$destFile.sha256"
+                            Remove-ReparsePointOrFail -FilePath $uninstShaFile
+                            [System.IO.File]::WriteAllText($uninstShaFile, (Get-FileSha256 -Path $destFile), (New-Object System.Text.UTF8Encoding($false)))
+                        }
+                    }
+                }
+            } finally {
+                if ($stageCf -and (Test-Path -LiteralPath $stageCf)) {
+                    Remove-Item -LiteralPath $stageCf -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+    $installCommitted = $true
+} finally {
+    if ($stageBat -and (Test-Path -LiteralPath $stageBat)) {
+        Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
+    }
+    if (-not $installCommitted -and $batBackup -and (Test-Path -LiteralPath $batBackup)) {
+        Move-Item -LiteralPath $batBackup -Destination $batPath -Force -ErrorAction SilentlyContinue
+    }
+    if ($batBackup -and (Test-Path -LiteralPath $batBackup)) {
+        Remove-Item -LiteralPath $batBackup -Force -ErrorAction SilentlyContinue
+    }
+    Get-ChildItem -LiteralPath $repoRoot -Filter "*.stage.*.tmp" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 }
 if ($installDir -ne $repoRoot) {
     $legacyUninstall = Join-Path $installDir "uninstall.ps1"
@@ -546,21 +621,20 @@ function Normalize-PathEntry([string]$p) {
 
 $userPath = ""
 $existingKind = [Microsoft.Win32.RegistryValueKind]::ExpandString
+$envKey = $null
 try {
     $envKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Environment")
     if ($null -ne $envKey) {
-        try {
-            $raw = $envKey.GetValue("Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-            if ($null -ne $raw) { $userPath = [string]$raw }
-            $existingKind = try { $envKey.GetValueKind("Path") } catch { [Microsoft.Win32.RegistryValueKind]::ExpandString }
-        } finally {
-            $envKey.Close()
-        }
+        $raw = $envKey.GetValue("Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        if ($null -ne $raw) { $userPath = [string]$raw }
+        $existingKind = try { $envKey.GetValueKind("Path") } catch { [Microsoft.Win32.RegistryValueKind]::ExpandString }
     }
 } catch {
     try {
         $userPath = (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -ErrorAction SilentlyContinue).Path
-    } catch { }
+    } catch { Write-Verbose "Fallback HKCU Path read skipped: $($_.Exception.Message)" }
+} finally {
+    if ($null -ne $envKey) { $envKey.Close() }
 }
 
 $pathArray = @($userPath -split ';' | Where-Object { $_ -ne '' } | ForEach-Object { Normalize-PathEntry $_ })
@@ -614,8 +688,8 @@ public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wP
             $HWND_BROADCAST = [IntPtr]0xFFFF
             $WM_SETTINGCHANGE = 0x001A
             $result = [UIntPtr]::Zero
-            [Win32.NativeMethods]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result) | Out-Null
-        } catch { }
+            [Win32.NativeMethods]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, 'Environment', 2, 1000, [ref]$result) | Out-Null
+        } catch { Write-Verbose "WM_SETTINGCHANGE broadcast skipped: $($_.Exception.Message)" }
     }
 }
 
@@ -819,6 +893,7 @@ function Test-HasReparsePointInLineage([string]$TargetPath) {
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 foreach ($p in $profiles) {
     if ([string]::IsNullOrWhiteSpace($p)) { continue }
+    $stageProf = $null
     try {
         if (Test-HasReparsePointInLineage $p) { continue }
         $profileDir = Split-Path -Path $p -Parent
@@ -841,10 +916,14 @@ foreach ($p in $profiles) {
         [System.IO.File]::WriteAllText($stageProf, $profContent, $utf8NoBom)
         if (-not (Test-HasReparsePointInLineage $p)) {
             Move-Item -LiteralPath $stageProf -Destination $p -Force
-        } else {
+        }
+    } catch {
+        Write-Verbose "Profile hook update skipped for ${p}: $($_.Exception.Message)"
+    } finally {
+        if ($stageProf -and (Test-Path -LiteralPath $stageProf)) {
             Remove-Item -LiteralPath $stageProf -Force -ErrorAction SilentlyContinue
         }
-    } catch { }
+    }
 }
 
 # 5. Register Windows Uninstaller & Start Menu Shortcuts
@@ -904,11 +983,28 @@ try {
     )
     foreach ($wtSettings in $wtSettingsCandidates) {
         if (Test-Path -LiteralPath $wtSettings) {
+            $stageWt = $null
             try {
                 if (Test-HasReparsePointInLineage $wtSettings) { continue }
-                $wtContent = Get-Content -LiteralPath $wtSettings -Raw -ErrorAction Stop
-                # Strip JSONC comments (block comments /* ... */ and line comments // ...) and trailing commas
-                $cleanJson = $wtContent -replace '(?s)/\*.*?\*/', '' -replace '(?m)(?<!:)\/\/.*$', '' -replace ',\s*([\}\]])', '$1'
+                $maxRetries = 5
+                $retryDelayMs = 150
+                $wtContent = $null
+                for ($attempt = 1; $attempt -le $maxRetries; $attempt++) {
+                    try {
+                        $fs = [System.IO.File]::Open($wtSettings, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+                        try {
+                            $sr = New-Object System.IO.StreamReader($fs, [System.Text.Encoding]::UTF8)
+                            try { $wtContent = $sr.ReadToEnd() } finally { $sr.Close(); $sr.Dispose() }
+                        } finally { $fs.Close(); $fs.Dispose() }
+                        break
+                    } catch [System.IO.IOException] {
+                        if ($attempt -lt $maxRetries) { Start-Sleep -Milliseconds $retryDelayMs } else { throw }
+                    }
+                }
+                if (-not $wtContent) { continue }
+                # Strip JSONC comments (block comments /* ... */ and line comments // ...) while preserving strings, and strip trailing commas
+                $jsoncPattern = '(?s)("(?:\\.|[^"\\])*")|/\*.*?\*/|(?m)//.*$'
+                $cleanJson = [System.Text.RegularExpressions.Regex]::Replace($wtContent, $jsoncPattern, { param($m) if ($m.Groups[1].Success) { $m.Groups[1].Value } else { '' } }) -replace ',\s*([\}\]])', '$1'
                 $wtJson = $cleanJson | ConvertFrom-Json
                 if ($wtJson.profiles -and $wtJson.profiles.list) {
                     $existing = $wtJson.profiles.list | Where-Object { $_.guid -eq '{b20650a4-4212-4d64-9edf-744e9285e2be}' -or $_.name -eq 'Java Version Manager' }
@@ -928,10 +1024,18 @@ try {
                         $newWtContent = $wtJson | ConvertTo-Json -Depth 32
                         $stageWt = "$wtSettings.stage.$([Guid]::NewGuid().ToString('N')).tmp"
                         [System.IO.File]::WriteAllText($stageWt, $newWtContent, $utf8NoBom)
-                        if (-not (Test-HasReparsePointInLineage $wtSettings)) {
-                            Move-Item -LiteralPath $stageWt -Destination $wtSettings -Force
-                        } else {
-                            Remove-Item -LiteralPath $stageWt -Force -ErrorAction SilentlyContinue
+                        $wtBak = "$wtSettings.bak"
+                        Copy-Item -LiteralPath $wtSettings -Destination $wtBak -Force -ErrorAction SilentlyContinue
+                        for ($mAttempt = 1; $mAttempt -le $maxRetries; $mAttempt++) {
+                            try {
+                                if (-not (Test-HasReparsePointInLineage $wtSettings)) {
+                                    Move-Item -LiteralPath $stageWt -Destination $wtSettings -Force
+                                    $wtProfileAdded = $true
+                                }
+                                break
+                            } catch [System.IO.IOException] {
+                                if ($mAttempt -lt $maxRetries) { Start-Sleep -Milliseconds $retryDelayMs } else { throw }
+                            }
                         }
                     } else {
                         $existing.commandline = 'cmd.exe /c "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat"'
@@ -939,16 +1043,27 @@ try {
                         $newWtContent = $wtJson | ConvertTo-Json -Depth 32
                         $stageWt = "$wtSettings.stage.$([Guid]::NewGuid().ToString('N')).tmp"
                         [System.IO.File]::WriteAllText($stageWt, $newWtContent, $utf8NoBom)
-                        if (-not (Test-HasReparsePointInLineage $wtSettings)) {
-                            Move-Item -LiteralPath $stageWt -Destination $wtSettings -Force
-                        } else {
-                            Remove-Item -LiteralPath $stageWt -Force -ErrorAction SilentlyContinue
+                        $wtBak = "$wtSettings.bak"
+                        Copy-Item -LiteralPath $wtSettings -Destination $wtBak -Force -ErrorAction SilentlyContinue
+                        for ($mAttempt = 1; $mAttempt -le $maxRetries; $mAttempt++) {
+                            try {
+                                if (-not (Test-HasReparsePointInLineage $wtSettings)) {
+                                    Move-Item -LiteralPath $stageWt -Destination $wtSettings -Force
+                                    $wtProfileAdded = $true
+                                }
+                                break
+                            } catch [System.IO.IOException] {
+                                if ($mAttempt -lt $maxRetries) { Start-Sleep -Milliseconds $retryDelayMs } else { throw }
+                            }
                         }
                     }
-                    $wtProfileAdded = $true
                 }
             } catch {
-                # Silently ignore if settings.json has non-standard formatting or comments
+                Write-Verbose "Windows Terminal settings.json update skipped: $($_.Exception.Message)"
+            } finally {
+                if ($stageWt -and (Test-Path -LiteralPath $stageWt)) {
+                    Remove-Item -LiteralPath $stageWt -Force -ErrorAction SilentlyContinue
+                }
             }
         }
     }
@@ -964,43 +1079,64 @@ try {
 
     # Start Menu Shortcuts
     $startMenuPrograms = [Environment]::GetFolderPath('Programs')
+    if (Test-HasReparsePointInLineage $startMenuPrograms) {
+        throw "Refusing to create Start Menu shortcuts because parent directory is a reparse point: $startMenuPrograms"
+    }
     $startMenuDir = Join-Path $startMenuPrograms "DiamTek"
     if (-not (Test-Path -LiteralPath $startMenuDir)) { New-Item -ItemType Directory -Path $startMenuDir -Force | Out-Null }
     if (Test-HasReparsePointInLineage $startMenuDir) {
         throw "Refusing to create Start Menu shortcuts in reparse-point directory: $startMenuDir"
     }
     
-    $wshell = New-Object -ComObject WScript.Shell
-    $appShortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Java Version Manager.lnk"))
-    $appShortcut.TargetPath = $targetPath
-    $appShortcut.Arguments = $targetArgs
-    $appShortcut.IconLocation = $iconPath
-    $appShortcut.Description = "DiamTek Java Version Manager"
-    $appShortcut.WorkingDirectory = $repoRoot
-    $appShortcut.Save()
+    $wshell = $null
+    $appShortcut = $null
+    $tbShortcut = $null
+    $shortcut = $null
+    try {
+        $wshell = New-Object -ComObject WScript.Shell
+        $appShortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Java Version Manager.lnk"))
+        $appShortcut.TargetPath = $targetPath
+        $appShortcut.Arguments = $targetArgs
+        $appShortcut.IconLocation = $iconPath
+        $appShortcut.Description = "DiamTek Java Version Manager"
+        $appShortcut.WorkingDirectory = $repoRoot
+        $appShortcut.Save()
 
-    # Update pinned Taskbar shortcut if it exists
-    $taskbarLnk = Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Java Version Manager.lnk"
-    if ((Test-Path -LiteralPath $taskbarLnk) -and (-not (Test-HasReparsePointInLineage $taskbarLnk))) {
-        $tbShortcut = $wshell.CreateShortcut($taskbarLnk)
-        $tbShortcut.TargetPath = $targetPath
-        $tbShortcut.Arguments = $targetArgs
-        $tbShortcut.IconLocation = $iconPath
-        $tbShortcut.WorkingDirectory = $repoRoot
-        $tbShortcut.Save()
-        (Get-Item -LiteralPath $taskbarLnk).LastWriteTime = Get-Date
+        # Update pinned Taskbar shortcut if it exists
+        $taskbarLnk = Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Java Version Manager.lnk"
+        if ((Test-Path -LiteralPath $taskbarLnk) -and (-not (Test-HasReparsePointInLineage $taskbarLnk))) {
+            $tbShortcut = $wshell.CreateShortcut($taskbarLnk)
+            $tbShortcut.TargetPath = $targetPath
+            $tbShortcut.Arguments = $targetArgs
+            $tbShortcut.IconLocation = $iconPath
+            $tbShortcut.WorkingDirectory = $repoRoot
+            $tbShortcut.Save()
+            (Get-Item -LiteralPath $taskbarLnk).LastWriteTime = Get-Date
+        }
+
+        $shortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Uninstall Java Version Manager.lnk"))
+        $shortcut.TargetPath = $systemPowerShell
+        $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
+        $shortcut.IconLocation = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "shell32.dll,31"
+        $shortcut.Description = "Uninstall DiamTek Java Version Manager"
+        $shortcut.WorkingDirectory = $sys32Dir
+        $shortcut.Save()
+    } finally {
+        if ($null -ne $shortcut) { [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) | Out-Null }
+        if ($null -ne $tbShortcut) { [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($tbShortcut) | Out-Null }
+        if ($null -ne $appShortcut) { [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($appShortcut) | Out-Null }
+        if ($null -ne $wshell) {
+            [System.Runtime.InteropServices.Marshal]::ReleaseComObject($wshell) | Out-Null
+            [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($wshell) | Out-Null
+        }
+        [System.GC]::Collect()
     }
-
-    $shortcut = $wshell.CreateShortcut((Join-Path $startMenuDir "Uninstall Java Version Manager.lnk"))
-    $shortcut.TargetPath = $systemPowerShell
-    $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
-    $shortcut.IconLocation = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "shell32.dll,31"
-    $shortcut.Description = "Uninstall DiamTek Java Version Manager"
-    $shortcut.WorkingDirectory = $sys32Dir
-    $shortcut.Save()
 } catch {
+    $safeErr = ($_.Exception.Message -replace '[\r\n]+', ' ')
+    if ($env:LOCALAPPDATA) { $safeErr = $safeErr.Replace($env:LOCALAPPDATA, '%LOCALAPPDATA%') }
+    if ($env:USERPROFILE)  { $safeErr = $safeErr.Replace($env:USERPROFILE, '%USERPROFILE%') }
     Write-Host ""
-    Write-Host "           [WARN] Could not register uninstaller shortcut: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "           [WARN] Could not register uninstaller shortcut: $safeErr" -ForegroundColor Yellow
 }
 
 Update-Progress -Percent 100 -Activity "Finalizing setup..."

@@ -95,6 +95,66 @@ function Assert-ValidMsiProductCode([string]$GuidString, [string]$Context) {
     }
 }
 
+function Assert-CleanWorkingTree([string]$Directory) {
+    if ($Force.IsPresent -or $DryRun.IsPresent) { return }
+    $uncommitted = (Invoke-Git -Directory $Directory -GitArgs @("status", "--porcelain") -CaptureOutput).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($uncommitted)) {
+        if (-not [Environment]::UserInteractive) {
+            throw "Security policy violation (CWE-20): Git working directory has uncommitted modifications. Commit or stash them, or use -Force to bypass."
+        }
+    }
+}
+
+function Assert-ValidXml([string]$FilePath) {
+    if (-not (Test-Path -LiteralPath $FilePath)) { return }
+    try {
+        $xmlDoc = New-Object System.Xml.XmlDocument
+        $xmlDoc.XmlResolver = $null
+        $xmlDoc.Load($FilePath)
+    } catch {
+        throw "Security validation failed (CWE-20 / CWE-611): XML manifest '$FilePath' is malformed: $($_.Exception.Message)"
+    }
+}
+
+function Assert-ValidJson([string]$FilePath) {
+    if (-not (Test-Path -LiteralPath $FilePath)) { return }
+    try {
+        $raw = [System.IO.File]::ReadAllText($FilePath, [System.Text.Encoding]::UTF8)
+        $null = $raw | ConvertFrom-Json
+    } catch {
+        throw "Security validation failed (CWE-20): JSON manifest '$FilePath' is malformed: $($_.Exception.Message)"
+    }
+}
+
+function Assert-ValidWixProductVersion([string]$VersionString) {
+    if ($VersionString -notmatch '^\d{1,5}\.\d{1,5}\.\d{1,5}(\.\d{1,5})?$') {
+        throw "Security validation failed (CWE-20): WiX MSI ProductVersion '$VersionString' must be major.minor.build with fields <= 65535."
+    }
+}
+
+function Assert-ValidWingetManifest([string]$FilePath) {
+    if (-not (Test-Path -LiteralPath $FilePath)) { return }
+    $rawBytes = [System.IO.File]::ReadAllBytes($FilePath)
+    if ($rawBytes.Length -ge 3 -and $rawBytes[0] -eq 0xEF -and $rawBytes[1] -eq 0xBB -and $rawBytes[2] -eq 0xBF) {
+        throw "Security validation failed (CWE-20): Winget manifest '$FilePath' must not contain UTF-8 BOM."
+    }
+    $content = [System.Text.Encoding]::UTF8.GetString($rawBytes)
+    if ($content.Contains("`t")) {
+        throw "Security validation failed (CWE-20): Winget manifest '$FilePath' contains forbidden tab characters."
+    }
+    foreach ($reqKey in @('PackageIdentifier:', 'PackageVersion:', 'ManifestType:', 'ManifestVersion:')) {
+        if ($content -notmatch "(?m)^$reqKey") {
+            throw "Security validation failed (CWE-20): Winget manifest '$FilePath' is missing mandatory key '$reqKey'."
+        }
+    }
+    if ($content -match '(?m)^ManifestVersion:\s*(\S+)') {
+        $mv = $matches[1].Trim()
+        if ($mv -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Security validation failed (CWE-20): Winget manifest '$FilePath' has invalid ManifestVersion '$mv'."
+        }
+    }
+}
+
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $RepoRoot = Split-Path -Parent $ScriptDir
 
@@ -105,7 +165,9 @@ $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 try {
     [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     [Console]::InputEncoding = [System.Text.Encoding]::UTF8
-} catch { }
+} catch {
+    Write-Verbose "Console UTF-8 encoding initialization skipped: $($_.Exception.Message)"
+}
 
 # Parameter dependency resolution (-Push implies -Commit)
 if ($Push.IsPresent -and -not $Commit.IsPresent) {
@@ -193,19 +255,24 @@ function Invoke-Git {
     $pinfo.Arguments = [string]::Join(' ', $argList)
 
     $proc = [System.Diagnostics.Process]::Start($pinfo)
-    $stdout = if ($CaptureOutput.IsPresent) { $proc.StandardOutput.ReadToEnd() } else { "" }
-    $stderr = if ($CaptureOutput.IsPresent) { $proc.StandardError.ReadToEnd() } else { "" }
-    $proc.WaitForExit()
+    try {
+        $stdout = if ($CaptureOutput.IsPresent) { $proc.StandardOutput.ReadToEnd() } else { "" }
+        $stderr = if ($CaptureOutput.IsPresent) { $proc.StandardError.ReadToEnd() } else { "" }
+        $proc.WaitForExit()
+        $exitCode = $proc.ExitCode
+    } finally {
+        if ($null -ne $proc) { $proc.Dispose() }
+    }
 
-    if ($proc.ExitCode -ne 0 -and -not $IgnoreError) {
-        $errDetail = if ($CaptureOutput.IsPresent -and -not [string]::IsNullOrWhiteSpace($stderr)) { $stderr.Trim() } else { "Exit code $($proc.ExitCode)" }
+    if ($exitCode -ne 0 -and -not $IgnoreError) {
+        $errDetail = if ($CaptureOutput.IsPresent -and -not [string]::IsNullOrWhiteSpace($stderr)) { $stderr.Trim() } else { "Exit code $exitCode" }
         throw "Git command failed in '$Directory': git $($pinfo.Arguments)`n$errDetail"
     }
 
     if ($CaptureOutput.IsPresent) {
         return $stdout
     }
-    return $proc.ExitCode
+    return $exitCode
 }
 
 # Local MSI & Security verification test runner
@@ -220,7 +287,7 @@ function Invoke-TestRunner {
                 Write-Host "${cRed}[TEST FAILED] Security test suite reported failures!${cReset}" -ForegroundColor Red
             }
         } catch {
-            Write-Host "${cRed}[TEST ERROR]$cReset $_" -ForegroundColor Red
+            Write-Host "${cRed}[TEST ERROR]$cReset $($_.Exception.Message)" -ForegroundColor Red
         }
     }
 
@@ -231,7 +298,7 @@ function Invoke-TestRunner {
         try {
             & pwsh -NoProfile -ExecutionPolicy Bypass -File $testMsiScript
         } catch {
-            Write-Host "${cRed}[TEST ERROR]$cReset $_" -ForegroundColor Red
+            Write-Host "${cRed}[TEST ERROR]$cReset $($_.Exception.Message)" -ForegroundColor Red
         }
         Write-Host ""
     } else {
@@ -241,6 +308,7 @@ function Invoke-TestRunner {
 
 function Get-MsiProductCode {
     param ([string]$MsiFilePath)
+    $wi = $null; $db = $null; $view = $null; $rec = $null
     try {
         $wi = New-Object -ComObject WindowsInstaller.Installer
         $db = $wi.GetType().InvokeMember("OpenDatabase", "InvokeMethod", $null, $wi, @($MsiFilePath, 0))
@@ -250,7 +318,14 @@ function Get-MsiProductCode {
         if ($rec) {
             return $rec.GetType().InvokeMember("StringData", "GetProperty", $null, $rec, @(1))
         }
-    } catch { }
+    } catch {
+        Write-Verbose "Get-MsiProductCode COM inspection failed for '$MsiFilePath': $($_.Exception.Message)"
+    } finally {
+        if ($null -ne $rec)  { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($rec)  | Out-Null }
+        if ($null -ne $view) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($view) | Out-Null }
+        if ($null -ne $db)   { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($db)   | Out-Null }
+        if ($null -ne $wi)   { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($wi)   | Out-Null }
+    }
     return $null
 }
 
@@ -272,6 +347,7 @@ function Invoke-WingetCoordinator {
     $manifestValid = $false
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-Host "  $cCyan→$cReset Running manifest validation (winget validate)..." -ForegroundColor Gray
+        $proc = $null
         try {
             $pinfo = New-Object System.Diagnostics.ProcessStartInfo
             $pinfo.FileName = "winget"
@@ -290,7 +366,9 @@ function Invoke-WingetCoordinator {
                 Write-Host "  ${cRed}[FAIL]$cReset Winget manifest validation failed (exit code $($proc.ExitCode))." -ForegroundColor Red
             }
         } catch {
-            Write-Host "  ${cYellow}[WARN]$cReset Could not execute 'winget validate': $_"
+            Write-Host "  ${cYellow}[WARN]$cReset Could not execute 'winget validate': $($_.Exception.Message)"
+        } finally {
+            if ($null -ne $proc) { $proc.Dispose() }
         }
     } else {
         Write-Host "  ${cYellow}[INFO]$cReset 'winget' CLI not found; skipping local manifest validation."
@@ -308,7 +386,9 @@ function Invoke-WingetCoordinator {
                 $tokenDisplay = "Detected via gh ($masked)"
                 Write-Host "  ${cGreen}[PASS]$cReset GitHub token detected via 'gh auth token' ($masked)."
             }
-        } catch { }
+        } catch {
+            Write-Verbose "gh auth token lookup skipped: $($_.Exception.Message)"
+        }
     }
     if (-not $token) {
         Write-Host "  ${cYellow}[INFO]$cReset No token detected from 'gh auth token'. wingetcreate will use cached token or prompt for OAuth."
@@ -318,6 +398,7 @@ function Invoke-WingetCoordinator {
     $isMergedUpstream = $false
     if (Get-Command wingetcreate -ErrorAction SilentlyContinue) {
         Write-Host "  $cCyan→$cReset Checking package status in microsoft/winget-pkgs..." -ForegroundColor Gray
+        $proc = $null
         try {
             $pinfo = New-Object System.Diagnostics.ProcessStartInfo
             $pinfo.FileName = "wingetcreate"
@@ -336,7 +417,9 @@ function Invoke-WingetCoordinator {
                 Write-Host "  ${cYellow}[INFO]$cReset DiamTek.JVM is not yet merged upstream in microsoft/winget-pkgs."
             }
         } catch {
-            Write-Host "  ${cYellow}[WARN]$cReset Could not probe microsoft/winget-pkgs: $_"
+            Write-Host "  ${cYellow}[WARN]$cReset Could not probe microsoft/winget-pkgs: $($_.Exception.Message)"
+        } finally {
+            if ($null -ne $proc) { $proc.Dispose() }
         }
     } else {
         Write-Host "  ${cYellow}[WARN]$cReset 'wingetcreate' CLI not found on PATH."
@@ -353,7 +436,9 @@ function Invoke-WingetCoordinator {
                     $openPrInfo = $openPrs[0]
                 }
             }
-        } catch { }
+        } catch {
+            Write-Verbose "microsoft/winget-pkgs PR lookup skipped: $($_.Exception.Message)"
+        }
     }
 
     # 4. Resolve installer URLs and command
@@ -472,6 +557,7 @@ function Invoke-WingetCoordinator {
 
                 while ($attempt -lt $maxAttempts -and -not $assetReady) {
                     $attempt++
+                    $res = $null
                     try {
                         $req = [System.Net.WebRequest]::Create($msiUrlX64)
                         $req.Method = "HEAD"
@@ -479,11 +565,13 @@ function Invoke-WingetCoordinator {
                         $res = $req.GetResponse()
                         if ($res.StatusCode -eq [System.Net.HttpStatusCode]::OK) {
                             $assetReady = $true
-                            $res.Close()
                             break
                         }
-                        $res.Close()
-                    } catch { }
+                    } catch {
+                        Write-Verbose "CDN probe attempt $attempt for '$msiUrlX64' pending: $($_.Exception.Message)"
+                    } finally {
+                        if ($null -ne $res) { $res.Close() }
+                    }
 
                     Write-Host "  [Attempt $attempt/$maxAttempts] Waiting for CDN release assets... (10s)" -ForegroundColor DarkGray
                     Start-Sleep -Seconds 10
@@ -537,7 +625,7 @@ function Invoke-WingetCoordinator {
                                 }
                             }
                         } catch {
-                            Write-Host "${cYellow}[WARN]$cReset Could not auto-download MSIs to update hashes: $_"
+                            Write-Host "${cYellow}[WARN]$cReset Could not auto-download MSIs to update hashes: $($_.Exception.Message)"
                         } finally {
                             Remove-Item $tempX64, $tempArm64 -Force -ErrorAction SilentlyContinue
                         }
@@ -648,6 +736,8 @@ function Invoke-ScoopCoordinator {
 
             while ($attempt -lt $maxAttempts -and -not $shaText) {
                 $attempt++
+                $res = $null
+                $sr = $null
                 try {
                     $req = [System.Net.WebRequest]::Create($shaUrl)
                     $req.Timeout = 5000
@@ -655,10 +745,13 @@ function Invoke-ScoopCoordinator {
                     if ($res.ResponseUri) { Assert-TrustedGitHubUri $res.ResponseUri.AbsoluteUri }
                     $sr = New-Object System.IO.StreamReader($res.GetResponseStream())
                     $shaText = $sr.ReadToEnd()
-                    $sr.Close()
-                    $res.Close()
                     break
-                } catch { }
+                } catch {
+                    Write-Verbose "SHA256SUMS.txt probe attempt $attempt pending: $($_.Exception.Message)"
+                } finally {
+                    if ($null -ne $sr) { $sr.Dispose() }
+                    if ($null -ne $res) { $res.Close() }
+                }
                 Write-Host "  [Attempt $attempt/$maxAttempts] Waiting for SHA256SUMS.txt... (10s)" -ForegroundColor DarkGray
                 Start-Sleep -Seconds 10
             }
@@ -755,7 +848,9 @@ function Invoke-ChocoCoordinator {
                 $apiKeyConfigured = $true
                 $apiKeySource = "choco apikey"
             }
-        } catch { }
+        } catch {
+            Write-Verbose "choco apikey query skipped: $($_.Exception.Message)"
+        }
     }
 
     $chocoTable = [ordered]@{
@@ -1034,7 +1129,9 @@ if ($cleanVersion -eq $currentVersion -and -not $Force) {
                 exit 1
             }
         }
-    } catch { }
+    } catch {
+        Write-Verbose "Semantic version downgrade comparison note: $($_.Exception.Message)"
+    }
 }
 
 # Helper to extract GitHub compare URL
@@ -1044,7 +1141,9 @@ try {
     if ($remoteOut -match 'github\.com[:/]([^/]+)/([^/.]+?)(\.git)?$') {
         $gitRemoteUrl = "https://github.com/$($matches[1])/$($matches[2])"
     }
-} catch { }
+} catch {
+    Write-Verbose "Git remote origin URL lookup skipped: $($_.Exception.Message)"
+}
 
 # Compare link markdown
 $compareLink = $null
@@ -1157,7 +1256,9 @@ if ([string]::IsNullOrWhiteSpace($detectedChangelogBody)) {
             $detectedChangelogBody = $sb.ToString().Trim()
             $changelogSource = "Auto-generated from Git history ($logRange)"
         }
-    } catch { }
+    } catch {
+        Write-Verbose "Auto-changelog generation from git history skipped: $($_.Exception.Message)"
+    }
 }
 
 # Helper to render changelog preview in a clean 68-char Unicode box with word-wrapping
@@ -1322,6 +1423,7 @@ if ($remotes -match '(?m)^origin$') {
 }
 
 # 8. Dirty Working Tree Protection
+Assert-CleanWorkingTree $RepoRoot
 $uncommitted = (Invoke-Git -Directory $RepoRoot -GitArgs @("status", "--porcelain") -CaptureOutput).Trim()
 if (-not [string]::IsNullOrWhiteSpace($uncommitted) -and -not $DryRun -and -not $Force) {
     Write-Host ""
@@ -1366,6 +1468,7 @@ if (-not $NoSign) {
 
 # Scoop bucket presence check
 $externalBucketManifest = Join-Path (Split-Path -Parent $RepoRoot) "scoop-bucket\bucket\jvm.json"
+$bucketRepoRoot = Split-Path -Parent (Split-Path -Parent $externalBucketManifest)
 $bucketPresent = Test-Path $externalBucketManifest
 $bucketDisplay = if ($NoBucketSync) { "$cGray Disabled (-NoBucketSync) $cReset" } elseif ($bucketPresent) { "$cGreen Ready (..\scoop-bucket) $cReset" } else { "$cGray Not Found (Skipped) $cReset" }
 
@@ -1454,6 +1557,7 @@ Update-FileContent "packages\choco\jvm.nuspec" {
     param($content)
     [regex]::Replace($content, '(<version>)[^<]*(</version>)', "`${1}$cleanVersion`${2}")
 } -StepName "Chocolatey Spec"
+Assert-ValidXml (Join-Path $RepoRoot "packages\choco\jvm.nuspec")
 
 Update-FileContent "packages\choco\build-choco.ps1" {
     param($content)
@@ -1490,6 +1594,7 @@ Update-FileContent "packages\msi\test-msi.ps1" {
 
 # WiX product version strictly permits numeric major.minor.build[.revision]
 $msiVersion = if ($cleanVersion -match '^(\d+\.\d+\.\d+)') { $matches[1] } else { $cleanVersion }
+Assert-ValidWixProductVersion $msiVersion
 
 $wixTransform = {
     param($content)
@@ -1499,9 +1604,11 @@ $wixTransform = {
 
 if (Test-Path (Join-Path $RepoRoot "packages\msi\Product.wxs")) {
     Update-FileContent "packages\msi\Product.wxs" $wixTransform -StepName "WiX Product XML"
+    Assert-ValidXml (Join-Path $RepoRoot "packages\msi\Product.wxs")
 }
 if (Test-Path (Join-Path $RepoRoot "packages\msi\jvm.wxs")) {
     Update-FileContent "packages\msi\jvm.wxs" $wixTransform -StepName "WiX Manifest XML"
+    Assert-ValidXml (Join-Path $RepoRoot "packages\msi\jvm.wxs")
 }
 
 # --- 4. Scoop Package Manifest ---
@@ -1514,6 +1621,7 @@ Update-FileContent "packages\scoop\jvm.json" {
     if ($c -match '"hash":\s*"([^"]+)"') { Assert-ValidSha256Hex $matches[1] "Scoop jvm.json hash" }
     $c
 } -StepName "Scoop Internal"
+Assert-ValidJson (Join-Path $RepoRoot "packages\scoop\jvm.json")
 
 # --- 5. Winget Package Manifests ---
 Update-FileContent "packages\winget\DiamTek.JVM.yaml" {
@@ -1538,6 +1646,10 @@ Update-FileContent "packages\winget\DiamTek.JVM.installer.yaml" {
     foreach ($m in [regex]::Matches($c, '(?m)^\s*ProductCode:\s*[''"]?(\{[^''"\s]+\})[''"]?')) { Assert-ValidMsiProductCode $m.Groups[1].Value "Winget ProductCode" }
     $c
 } -StepName "Winget Installer"
+
+Assert-ValidWingetManifest (Join-Path $RepoRoot "packages\winget\DiamTek.JVM.yaml")
+Assert-ValidWingetManifest (Join-Path $RepoRoot "packages\winget\DiamTek.JVM.locale.en-US.yaml")
+Assert-ValidWingetManifest (Join-Path $RepoRoot "packages\winget\DiamTek.JVM.installer.yaml")
 
 # --- 6. GitHub Release Workflow ---
 Update-FileContent ".github\workflows\release.yml" {

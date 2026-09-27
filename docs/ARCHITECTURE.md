@@ -21,6 +21,8 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [PowerShell Native Dynamic Environment Injection](#powershell-native-dynamic-environment-injection)
 - [Windows Terminal Settings JSONC Parser Engine](#windows-terminal-settings-jsonc-parser-engine)
 - [Packaging Architecture & Asset Distribution](#packaging-architecture--asset-distribution)
+- [Failure Recovery, Atomic State Rollback & Resource Hygiene](#failure-recovery-atomic-state-rollback--resource-hygiene)
+- [Automated Adversarial Test Architecture (194 Tests, 40 CWEs)](#automated-adversarial-test-architecture-194-tests-40-cwes)
 
 ---
 
@@ -123,13 +125,13 @@ The engine provides two distinct switching engines that users can toggle via the
 
 1. **Symlink Mode (Default, UAC-Free):**
    - **Mechanism:** Updates the NTFS Directory Junction pointer (`%LOCALAPPDATA%\DiamTek\JVM\current`) in user-space.
-   - **Privileges:** Standard user space (100% UAC-free, zero admin popups).
-   - **Compatibility:** Native for 99% of modern tools (Maven, Gradle, IntelliJ IDEA, VS Code, Eclipse).
+   - **Privileges:** Standard user space (UAC-free, zero admin popups).
+   - **Compatibility:** Native for modern tools and standard classloaders (Maven, Gradle, IntelliJ IDEA, VS Code, Eclipse).
 
 2. **Registry Mode (Legacy, UAC Required):**
    - **Mechanism:** Directly writes the absolute JDK path to the Machine-level Windows Registry (`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`) and updates the system-wide Machine `PATH`. Invoked on the CLI via `--legacy` or `--registry`.
    - **Privileges:** **Requires Administrator (UAC) Elevation** on every switch, spawning an elevated background PowerShell worker via `Start-Process -Verb RunAs`.
-   - **Compatibility:** 100% unbreakable fallback for legacy enterprise applications, obscure Windows service runners, or ancient classloaders that perform strict canonical path checks and cannot resolve NTFS Directory Junctions.
+   - **Compatibility:** Dependable fallback for legacy enterprise applications, obscure Windows service runners, or custom classloaders that perform strict canonical path checks and cannot resolve NTFS Directory Junctions.
 
 > [!NOTE]
 > **Internal Mode Sentinel:** The user's active mode preference is persisted in `%LOCALAPPDATA%\DiamTek\JVM\mode.txt`. Internally, `mode.txt` stores either `SYMLINK` (Symlink Mode) or `DIRECT` (Registry Mode, activated via `--legacy` or `--registry`).
@@ -479,6 +481,65 @@ graph LR
     - **Start Menu Uninstaller Shortcut**: Packages an explicit MSI shortcut targeting `[SystemFolder]msiexec.exe /x [ProductCode]` under `Start Menu\Programs\DiamTek`, allowing instant uninstallation discovery via Windows Search ("Uninstall Java Version Manager" and "Uninstall JVM").
     - **Race Condition Elimination**: The MSI uninstaller relies purely on standard Windows Installer actions (`RemoveFile`, `RemoveFolderEx`) for directory teardown, omitting background asynchronous CMD deletions to avoid file-lock race conditions (Windows Installer Error 2318).
   - **Automated Verification Suite (`packages\msi\test-msi.ps1`)**: Implements an automated 21-point synthetic integration suite (13 installation & registration checks + 8 uninstallation & residual hygiene checks) designed for CI/CD pipelines and GitHub Actions build provenance attestations (`actions/attest-build-provenance`). The suite actively tests live operating system integration (Windows Installer service `msiexec`, binary layout, CLI `bin/` directory hygiene, Start Menu application and uninstaller shortcuts indexed by Windows Search, registry metadata, PATH propagation, PowerShell profile & tab-completer channel integration, update channel persistence, Windows Terminal profile injection, CLI sanity subshell execution, clean uninstallation, and zero filesystem residuals). Features an autonomous 4-tier fallback engine (local MSI -> local WiX compiler -> GitHub Release binary -> remote source bootstrap + user-space .NET SDK / WiX CLI toolchain) and supports `-ShowUI` (native progress dialog `/qb`) and `-KeepInstalled` (retaining JVM post-test for direct terminal usage).
+
+---
+
+<a id="failure-recovery-atomic-state-rollback--resource-hygiene"></a>
+## Failure Recovery, Atomic State Rollback & Resource Hygiene
+
+In enterprise developer environments, operations may abort unexpectedly due to canceled UAC prompts, network timeouts, power interruptions, or malformed archives. DiamTek JVM enforces a comprehensive, zero-dangling-state architecture across all execution paths.
+
+```mermaid
+flowchart TD
+    Operation["Initiate Mutation<br/>(Switch, Install, Update, Elevation)"] --> Snapshot["Capture State Snapshot<br/>PREV_JUNCTION_TARGET • .bak • Manifests"]
+    Snapshot --> TryStage["Execute Staged Mutation<br/>(Temporary .tmp files, in-memory wrappers)"]
+    TryStage --> VerifyOutcome{"Operation Successful?<br/>ExitCode == 0 & Hash/Integrity OK"}
+    VerifyOutcome -->|"Yes (Success)"| CommitState["Atomic Commit<br/>Swap pointers, purge backups, release handles"]
+    VerifyOutcome -->|"No (Failure / Abort)"| RollbackState["Atomic Rollback<br/>Restore PREV_JUNCTION_TARGET / .bak / registry"]
+    RollbackState --> CleanupStaging["Deterministic Finally Cleanup<br/>Purge *.stage.*.tmp, Close Win32/COM/Stream handles"]
+    CleanupStaging --> PropagateCode["Propagate Exit Code (exit /b 1)<br/>Sanitized diagnostic warning (CWE-209)"]
+```
+
+### 1. Atomic State Rollback Operations (`CWE-460`)
+- **Active Junction Switch Rollback (`CURRENT_SYMLINK` & `:SwitchCandidate`):**
+  - Prior to deleting an active junction (`rmdir "!CURRENT_SYMLINK!"`), `jvm.bat` reads and stores the active junction target in `PREV_JUNCTION_TARGET`.
+  - If `mklink /J` fails (e.g. permission restriction or disk anomaly), the engine immediately rolls back to `PREV_JUNCTION_TARGET` via `%MKLINK_BIN% /J "!CURRENT_SYMLINK!" "!PREV_JUNCTION_TARGET!" >nul 2>&1`, outputs `[ ERROR ] Failed to repoint active symlink. Reverted to previous target.`, and halts with `exit /b 1`.
+- **Installer Staging Rollback (`install.ps1`):**
+  - Snapshots existing `jvm.bat` to `$batBackup = "$batPath.bak.<guid>.tmp"`.
+  - If companion downloads or hash verification fail, `$installCommitted` remains `$false`, and the overarching `finally` block atomically restores `$batBackup` back to `$batPath`, cleaning up all staging artifacts.
+- **MSI Test Emergency Rollback (`packages/msi/test-msi.ps1`):**
+  - Outer `finally` block inspects `$script:msiInstalled` and `$script:msiUninstalled`. If interrupted mid-test, it launches a synchronous `msiexec.exe /x $MsiPath /qn /norestart` rollback to leave the host system completely clean.
+- **Chocolatey Manifest Rollback (`packages/choco/build-choco.ps1`):**
+  - Snapshots original `.nuspec`, `chocolateyInstall.ps1`, and `chocolateyUninstall.ps1` manifests prior to version stamping. If XML parsing or packaging fails, all three files are restored in `catch` blocks.
+
+### 2. Deterministic Resource & Handle Lifecycle (`CWE-459`)
+- **Win32 Registry Handles:** Every `OpenSubKey` operation in `install.ps1`, `uninstall.ps1`, and `build-msi.ps1` is wrapped in `try / finally { if ($key) { $key.Close() } }`, preventing Win32 registry handle leaks on exceptions.
+- **Network & Cryptography Handles:** All `HttpWebResponse`, `StreamReader`, `FileStream`, and cryptography providers (`SHA1`, `SHA256`) in `jvm.bat`, `install.ps1`, and build scripts enforce strict `try / finally` disposal.
+- **COM Apartments:** `WScript.Shell`, `IWshShortcut`, and `WindowsInstaller.Installer` COM handles are deterministically unmarshaled via `[System.Runtime.InteropServices.Marshal]::ReleaseComObject($obj)` inside `finally` blocks, preventing RCW leaks in long-running PowerShell host processes.
+
+### 3. Zero Silent Catches & Sanitized Diagnostics (`CWE-209` / `CWE-390`)
+- **PowerShell AST Zero-Silent-Catch Enforcement:** An automated AST test (`Test 157`) parses all 9 `.ps1` scripts across the repository and verifies **0 empty `catch {}` blocks**. Every exception handler either performs compensation logic or emits structured diagnostics (`Write-Verbose` / `[ WARN ]`).
+- **Path & Stack-Trace Redaction (`CWE-209`):** Error output is normalized to single-line diagnostics with stripped newlines, and sensitive filesystem paths (`%LOCALAPPDATA%`, `%USERPROFILE%`) are redacted from user-visible warnings.
+- **CLI Exit Code Propagation (`CWE-252` / `CWE-754` / `CWE-755`):** Subcommands (`clean`, `which`, `doctor`, `open`, `exec`, `hook`, `clear`, `channel`, `pin`) pass non-zero exit codes through `:CLI_DONE` across `setlocal` boundaries, ensuring scripts and CI/CD pipelines reliably detect failures.
+
+---
+
+<a id="automated-adversarial-test-architecture-194-tests-40-cwes"></a>
+## Automated Adversarial Test Architecture (194 Tests, 40 CWEs)
+
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **194 automated test cases across 8 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
+
+| Suite | Category Focus | Test Count | Status |
+| :--- | :--- | :---: | :---: |
+| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF) | 78 / 78 | **PASS** |
+| **Suite 2** | Registry & Environment Boundaries (ValueKind preservation, UAC elevation) | 6 / 6 | **PASS** |
+| **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery) | 17 / 17 | **PASS** |
+| **Suite 4** | Package Manifest Integrity (WiX v4, Chocolatey, Winget, Scoop, UUID v5) | 46 / 46 | **PASS** |
+| **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification) | 12 / 12 | **PASS** |
+| **Suite 6** | Corrupt Registry Recovery & PATH Resilience (De-bloat, length limits) | 14 / 14 | **PASS** |
+| **Suite 7** | Uninstallation Safety & Markers (Root markers, deferred cleanup) | 16 / 16 | **PASS** |
+| **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 5 / 5 | **PASS** |
+| **Total** | **Comprehensive Full-System Security Suite** | **194 / 194** | **`10.0 / 10.0`** |
 
 ---
 

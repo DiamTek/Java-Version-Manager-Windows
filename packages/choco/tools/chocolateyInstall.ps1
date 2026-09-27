@@ -15,7 +15,12 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 $ErrorActionPreference = 'Stop'
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288
+} catch {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Write-Verbose "TLS 1.3 not supported by host runtime; using TLS 1.2: $($_.Exception.Message)"
+}
 
 $packageName = 'jvm-windows'
 $packageVersion = '1.0.1'
@@ -43,7 +48,7 @@ $packageArgs = @{
     packageName    = $packageName
     fileType       = 'MSI'
     url64bit       = $url64
-    silentArgs     = "/qn /norestart"
+    silentArgs     = "/qn /norestart ALLUSERS=2 MSIINSTALLPERUSER=1"
     validExitCodes = @(0, 3010)
     checksum64     = $checksum64
     checksumType64 = $checksumType64

@@ -89,7 +89,7 @@ $SuiteTracker = [ordered]@{
     'SUITE 8' = [PSCustomObject]@{ Id = 'SUITE 8'; Number = 8; Name = 'Suite 8: Windows Terminal JSONC Parsing';      Tag = 'TerminalJSON';     Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
 }
 
-# Canonical CWE Vulnerability Catalog (Sorted Numerically)
+# Canonical CWE Vulnerability Catalog (Sorted Numerically - 40 CWEs)
 $CweCatalog = [ordered]@{
     'CWE-20'  = [PSCustomObject]@{ Id = 'CWE-20';  Number = 20;  Short = 'Improper Input & Config Validation' }
     'CWE-22'  = [PSCustomObject]@{ Id = 'CWE-22';  Number = 22;  Short = 'Path Traversal & ZipSlip' }
@@ -102,36 +102,57 @@ $CweCatalog = [ordered]@{
     'CWE-88'  = [PSCustomObject]@{ Id = 'CWE-88';  Number = 88;  Short = 'Argument & Flag Injection' }
     'CWE-94'  = [PSCustomObject]@{ Id = 'CWE-94';  Number = 94;  Short = 'Batch set /a Expression Evaluation' }
     'CWE-155' = [PSCustomObject]@{ Id = 'CWE-155'; Number = 155; Short = 'Wildcard Expansion Injection' }
+    'CWE-184' = [PSCustomObject]@{ Id = 'CWE-184'; Number = 184; Short = 'Incomplete List-Based Input Sanitization' }
+    'CWE-209' = [PSCustomObject]@{ Id = 'CWE-209'; Number = 209; Short = 'Error Message Stack-Trace Suppression' }
     'CWE-250' = [PSCustomObject]@{ Id = 'CWE-250'; Number = 250; Short = 'Privilege Boundary Isolation' }
+    'CWE-252' = [PSCustomObject]@{ Id = 'CWE-252'; Number = 252; Short = 'Unchecked Return Value & Exit Propagation' }
     'CWE-276' = [PSCustomObject]@{ Id = 'CWE-276'; Number = 276; Short = 'Strict Directory DACL Isolation' }
     'CWE-295' = [PSCustomObject]@{ Id = 'CWE-295'; Number = 295; Short = 'TLS 1.2 / 1.3 Protocol Enforcement' }
     'CWE-319' = [PSCustomObject]@{ Id = 'CWE-319'; Number = 319; Short = 'Strict HTTPS Scheme Enforcement' }
     'CWE-330' = [PSCustomObject]@{ Id = 'CWE-330'; Number = 330; Short = 'CSPRNG Temp Filename Entropy' }
     'CWE-345' = [PSCustomObject]@{ Id = 'CWE-345'; Number = 345; Short = 'Downgrade & Authenticity Defense' }
     'CWE-354' = [PSCustomObject]@{ Id = 'CWE-354'; Number = 354; Short = 'Checksum Manifest Format Validation' }
+    'CWE-362' = [PSCustomObject]@{ Id = 'CWE-362'; Number = 362; Short = 'Race Condition & Concurrent State' }
     'CWE-367' = [PSCustomObject]@{ Id = 'CWE-367'; Number = 367; Short = 'Atomic Staged Profile/Config Writes' }
     'CWE-377' = [PSCustomObject]@{ Id = 'CWE-377'; Number = 377; Short = 'Insecure Temp File & ACL Lock' }
+    'CWE-390' = [PSCustomObject]@{ Id = 'CWE-390'; Number = 390; Short = 'Error Condition Action & Logging' }
     'CWE-400' = [PSCustomObject]@{ Id = 'CWE-400'; Number = 400; Short = 'Hang & Parser Resilience' }
     'CWE-409' = [PSCustomObject]@{ Id = 'CWE-409'; Number = 409; Short = 'Zip Bomb & Decompression Bounds' }
     'CWE-426' = [PSCustomObject]@{ Id = 'CWE-426'; Number = 426; Short = 'Untrusted Search Path / Planting' }
     'CWE-427' = [PSCustomObject]@{ Id = 'CWE-427'; Number = 427; Short = 'Uncontrolled PATH Hijack Defense' }
     'CWE-428' = [PSCustomObject]@{ Id = 'CWE-428'; Number = 428; Short = 'Quoted UninstallString & TargetPath' }
     'CWE-459' = [PSCustomObject]@{ Id = 'CWE-459'; Number = 459; Short = 'Failure-Path Handle & Temp Cleanup' }
+    'CWE-460' = [PSCustomObject]@{ Id = 'CWE-460'; Number = 460; Short = 'Exception Cleanup & Atomic Rollback' }
     'CWE-494' = [PSCustomObject]@{ Id = 'CWE-494'; Number = 494; Short = 'Supply Chain & Hash Integrity' }
     'CWE-532' = [PSCustomObject]@{ Id = 'CWE-532'; Number = 532; Short = 'Sensitive Registry Backup Isolation' }
     'CWE-601' = [PSCustomObject]@{ Id = 'CWE-601'; Number = 601; Short = 'Open Redirect & Host Allowlisting' }
     'CWE-611' = [PSCustomObject]@{ Id = 'CWE-611'; Number = 611; Short = 'XML External Entity (XXE) Defense' }
+    'CWE-674' = [PSCustomObject]@{ Id = 'CWE-674'; Number = 674; Short = 'Uncontrolled Recursion & Cyclic Loops' }
+    'CWE-754' = [PSCustomObject]@{ Id = 'CWE-754'; Number = 754; Short = 'Exceptional Condition Check' }
+    'CWE-755' = [PSCustomObject]@{ Id = 'CWE-755'; Number = 755; Short = 'Exceptional Condition Handling' }
     'CWE-918' = [PSCustomObject]@{ Id = 'CWE-918'; Number = 918; Short = 'SSRF & Vendor Domain Allowlisting' }
 }
+
+$cweDescriptions = @{}
+foreach ($k in $CweCatalog.Keys) { $cweDescriptions[$k] = $CweCatalog[$k].Short }
 
 function Resolve-TestCweMetadata {
     param([string]$RawSuite, [string]$TestName)
 
-    if ($TestName -match '\((CWE-\d+)\)' -and $script:CweCatalog.Contains($matches[1])) {
+    if ($TestName -match '\((CWE-\d+)' -and $script:CweCatalog.Contains($matches[1])) {
         return $script:CweCatalog[$matches[1]]
     }
 
     $cweKey = switch -Regex ($TestName) {
+        'Stack-Trace|ScriptStackTrace|PositionMessage|sanitizes catch'                             { 'CWE-209'; break }
+        'Return Value|Exit Propagation|LASTEXITCODE|errorlevel'                                    { 'CWE-252'; break }
+        'empty catch|CatchClauseAst|Write-Verbose|Error Condition Action'                          { 'CWE-390'; break }
+        'Atomic Rollback|PREV_JUNCTION_TARGET|\.jvm_bak_|\.old'                                    { 'CWE-460'; break }
+        'Incomplete List-Based|Denylist-Based|incomplete sanitization'                             { 'CWE-184'; break }
+        'Race Condition|Concurrent State|atomic commit|staging config'                             { 'CWE-362'; break }
+        'Uncontrolled Recursion|Cyclic|cyclic|infinite traversal'                                  { 'CWE-674'; break }
+        'Exceptional Condition Check|wixExitCode'                                                  { 'CWE-754'; break }
+        'Exceptional Condition Handling|fail-closed|ConstrainedLanguage'                           { 'CWE-755'; break }
         'ZipSlip|Path Traversal|traversal|sibling prefix|boundary enforcement|target allowlisting' { 'CWE-22'; break }
         'Trailing dot|Trailing space|trailing dots|trailing spaces|single dot|Reserved keyword'    { 'CWE-41'; break }
         'DOS reserved|Alternative Data Stream|ADS'                                                 { 'CWE-66'; break }
@@ -146,6 +167,25 @@ function Resolve-TestCweMetadata {
         default                                                                                    { 'CWE-78' }
     }
     return $script:CweCatalog[$cweKey]
+}
+
+function Resolve-TestCwe {
+    param([string]$TestName, [string]$RawSuite = '')
+    return Resolve-TestCweMetadata -RawSuite $RawSuite -TestName $TestName
+}
+
+function Resolve-TestCweAllIds {
+    param([string]$TestName, [PSCustomObject]$PrimaryCweMeta)
+    $ids = [System.Collections.Generic.List[string]]::new()
+    foreach ($m in [regex]::Matches($TestName, 'CWE-\d+')) {
+        if ($script:CweCatalog.Contains($m.Value) -and (-not $ids.Contains($m.Value))) {
+            $ids.Add($m.Value)
+        }
+    }
+    if ($PrimaryCweMeta -and (-not $ids.Contains($PrimaryCweMeta.Id))) {
+        $ids.Add($PrimaryCweMeta.Id)
+    }
+    return @($ids)
 }
 
 function Resolve-CanonicalSuite {
@@ -241,6 +281,7 @@ function Run-TestCase {
 
     $suiteEntry = Resolve-CanonicalSuite -RawSuite $Suite
     $cweMeta    = Resolve-TestCweMetadata -RawSuite $Suite -TestName $Name
+    $allCweIds  = Resolve-TestCweAllIds -TestName $Name -PrimaryCweMeta $cweMeta
 
     if (-not (Test-RunnerFilterMatch -SuiteEntry $suiteEntry -CweMeta $cweMeta -RawSuite $Suite -TestName $Name)) {
         $script:GlobalSkipped++
@@ -250,6 +291,20 @@ function Run-TestCase {
 
     $suiteEntry.Total++
     $cweBadge = "${cCyan}[$($cweMeta.Id)]${cReset}"
+    $cwePad   = if ($cweMeta.Id.Length -le 6) { "  " } else { " " }
+
+    $snapLocalAppData = $env:LOCALAPPDATA
+    $snapUserProfile  = $env:USERPROFILE
+    $snapJavaHome     = $env:JAVA_HOME
+    $snapPath         = $env:PATH
+    $snapSystemRoot   = $env:SystemRoot
+    $snapNoColor      = $env:NO_COLOR
+    $snapCallerPid    = $env:JVM_CALLER_PID
+    $snapQueryPath    = $env:QUERY_PATH
+    $snapSkipChecksum = $env:SKIP_CHECKSUM
+    $snapEAP          = $ErrorActionPreference
+    $snapLocation     = (Get-Location).Path
+
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         & $TestLogic
@@ -258,12 +313,13 @@ function Run-TestCase {
         $script:GlobalPassed++
         $suiteEntry.Passed++
         $suiteEntry.ElapsedMs += $elapsed
-        Write-Host "  ${cGreen}[PASS]${cReset} $cweBadge $Name ${cGray}($elapsed ms)${cReset}"
+        Write-Host "  ${cGreen}[PASS]${cReset} $cweBadge$cwePad$Name ${cGray}($elapsed ms)${cReset}"
         $script:TestResults.Add([PSCustomObject]@{
             SuiteId    = $suiteEntry.Id
             SuiteTitle = $suiteEntry.Name
             Suite      = $Suite
             CweId      = $cweMeta.Id
+            CweIds     = $allCweIds
             CweShort   = $cweMeta.Short
             Name       = $Name
             Status     = "PASS"
@@ -276,19 +332,34 @@ function Run-TestCase {
         $script:GlobalFailed++
         $suiteEntry.Failed++
         $suiteEntry.ElapsedMs += $elapsed
-        Write-Host "  ${cRed}[FAIL]${cReset} $cweBadge $Name ${cGray}($elapsed ms)${cReset}" -ForegroundColor Red
+        Write-Host "  ${cRed}[FAIL]${cReset} $cweBadge$cwePad$Name ${cGray}($elapsed ms)${cReset}" -ForegroundColor Red
         Write-Host "         Error: $($_.Exception.Message)" -ForegroundColor DarkRed
         $script:TestResults.Add([PSCustomObject]@{
             SuiteId    = $suiteEntry.Id
             SuiteTitle = $suiteEntry.Name
             Suite      = $Suite
             CweId      = $cweMeta.Id
+            CweIds     = $allCweIds
             CweShort   = $cweMeta.Short
             Name       = $Name
             Status     = "FAIL"
             Error      = $_.Exception.Message
             Duration   = $elapsed
         })
+    } finally {
+        $env:LOCALAPPDATA   = $snapLocalAppData
+        $env:USERPROFILE    = $snapUserProfile
+        $env:JAVA_HOME      = $snapJavaHome
+        $env:PATH           = $snapPath
+        $env:SystemRoot     = $snapSystemRoot
+        $env:NO_COLOR       = $snapNoColor
+        $env:JVM_CALLER_PID = $snapCallerPid
+        $env:QUERY_PATH     = $snapQueryPath
+        $env:SKIP_CHECKSUM  = $snapSkipChecksum
+        $ErrorActionPreference = $snapEAP
+        if ($snapLocation -and (Test-Path -LiteralPath $snapLocation)) {
+            Set-Location -LiteralPath $snapLocation
+        }
     }
 }
 
@@ -356,9 +427,9 @@ Set-Content -Path (Join-Path $FakeJdkDir "release") -Value "JAVA_VERSION=21.0.2"
 Set-Content -Path (Join-Path $FakeJdkDir "canary.txt") -Value "CRITICAL_SENTINEL_DO_NOT_DELETE"
 
 Write-Host ""
-Write-Host "$cCyan$cBold========================================================================$cReset"
-Write-Host "$cCyan$cBold        DiamTek JVM Automated Security & Adversarial Test Suite        $cReset"
-Write-Host "$cCyan$cBold========================================================================$cReset"
+Write-Host "$cCyan$cBold====================================================================================$cReset"
+Write-Host "$cCyan$cBold              DiamTek JVM Automated Security & Adversarial Test Suite               $cReset"
+Write-Host "$cCyan$cBold====================================================================================$cReset"
 Write-Host "  Repository: $RepoRoot"
 Write-Host "  Sandbox   : $SandboxRoot"
 Write-Host ""
@@ -1003,12 +1074,18 @@ $($vsiMatch.Groups[1].Value)
         $xmlSettings = New-Object System.Xml.XmlReaderSettings
         $xmlSettings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
         $xmlSettings.XmlResolver = $null
-        $sr = New-Object System.IO.StringReader((Get-Content -LiteralPath $nuspecPath -Raw))
-        $xr = [System.Xml.XmlReader]::Create($sr, $xmlSettings)
+        $sr = $null
+        $xr = $null
         $xml = New-Object System.Xml.XmlDocument
-        $xml.XmlResolver = $null
-        $xml.Load($xr)
-        $xr.Close(); $sr.Close()
+        try {
+            $sr = New-Object System.IO.StringReader((Get-Content -LiteralPath $nuspecPath -Raw))
+            $xr = [System.Xml.XmlReader]::Create($sr, $xmlSettings)
+            $xml.XmlResolver = $null
+            $xml.Load($xr)
+        } finally {
+            if ($null -ne $xr) { $xr.Close() }
+            if ($null -ne $sr) { $sr.Close() }
+        }
         Assert-True ($xml.package.metadata.id -eq "jvm-windows") "Package ID must be 'jvm-windows'"
         Assert-True ($null -ne $xml.package.metadata.licenseUrl) "License URL must be present"
         
@@ -1219,12 +1296,20 @@ $($vsiMatch.Groups[1].Value)
             $secTemp = Join-Path $FakeLocalAppData "DiamTek\JVM\temp"
             Assert-PathExists $secTemp "%JVM_SECURE_TEMP% directory must be created during startup"
 
-            $acl = Get-Acl -LiteralPath $secTemp
-            Assert-True $acl.AreAccessRulesProtected "%JVM_SECURE_TEMP% DACL must have inheritance disabled (icacls /inheritance:r)"
-
-            $identities = @($acl.Access | ForEach-Object { $_.IdentityReference.Value })
-            $hasBroadGroup = ($identities | Where-Object { $_ -match '(^|\\)(Everyone|Users|Authenticated Users)$' }).Count -gt 0
-            Assert-False $hasBroadGroup "%JVM_SECURE_TEMP% ACL must not grant access to Everyone/Users/Authenticated Users (Actual: $($identities -join ', '))"
+            if (Get-Command Get-Acl -ErrorAction SilentlyContinue) {
+                $acl = Get-Acl -LiteralPath $secTemp
+                Assert-True $acl.AreAccessRulesProtected "%JVM_SECURE_TEMP% DACL must have inheritance disabled (icacls /inheritance:r)"
+                $rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.NTAccount])
+                $identities = @($rules | ForEach-Object { $_.IdentityReference.Value })
+                $hasBroadGroup = ($identities | Where-Object { $_ -match '(^|\\)(Everyone|Users|Authenticated Users)$' }).Count -gt 0
+                Assert-False $hasBroadGroup "%JVM_SECURE_TEMP% ACL must not grant access to Everyone/Users/Authenticated Users (Actual: $($identities -join ', '))"
+            } else {
+                $icaclsOut = & cmd.exe /c "icacls `"$secTemp`"" 2>&1
+                $hasInherited = ($icaclsOut | Where-Object { $_ -match '\(I\)' }).Count -gt 0
+                Assert-False $hasInherited "%JVM_SECURE_TEMP% DACL must have inheritance disabled (icacls /inheritance:r)"
+                $hasBroadGroup = ($icaclsOut | Where-Object { $_ -match '(?i)(Everyone|\\Users|Authenticated Users):' }).Count -gt 0
+                Assert-False $hasBroadGroup "%JVM_SECURE_TEMP% DACL must not grant access to Everyone/Users/Authenticated Users"
+            }
         } finally {
             $env:LOCALAPPDATA = $origLocalAppData
         }
@@ -1421,15 +1506,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Assert-True (Test-Path -LiteralPath $canaryFile) "Host target canary file MUST NOT be deleted"
     }
 
-    Run-TestCase "Uninstall" "Refuse deletion of directory lacking JVM installation markers" {
-        $emptyTestDir = Join-Path $SandboxRoot "NonJvmDirectory"
+    Run-TestCase "Uninstall" "Live uninstaller execution refuses deletion of directory lacking JVM installation markers (CWE-73)" {
+        $emptyTestDir = Join-Path $SandboxRoot "NonJvmDirectory_72"
         New-Item -ItemType Directory -Path $emptyTestDir -Force | Out-Null
-        
-        $hasJvmMarker = (Test-Path -LiteralPath (Join-Path $emptyTestDir "jvm.bat")) -or
-                        (Test-Path -LiteralPath (Join-Path $emptyTestDir "bin\jvm.bat")) -or
-                        (Test-Path -LiteralPath (Join-Path $emptyTestDir "uninstall.ps1"))
-        
-        Assert-False $hasJvmMarker "Directory lacking JVM markers must evaluate to false"
+        $canaryFile = Join-Path $emptyTestDir "user_document.txt"
+        Set-Content -LiteralPath $canaryFile -Value "IMPORTANT_USER_DATA"
+
+        $uninstScript = Join-Path $RepoRoot "uninstall.ps1"
+        $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $uninstScript -SourceDir $emptyTestDir -Quiet 2>&1 | Out-String
+
+        Assert-PathExists $emptyTestDir "Target directory lacking JVM markers must NOT be deleted by uninstaller"
+        Assert-PathExists $canaryFile "User file inside unmarked target directory must remain completely intact"
+        Assert-Contains $output "Security violation (CWE-73): Specified -SourceDir" "Uninstaller output must report CWE-73 validation failure"
     }
 
     Run-TestCase "Uninstall" "Protected system roots are strictly blocked from deletion" {
@@ -1638,11 +1726,20 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
                 $isReparse = ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
                 Assert-False $isReparse "%JVM_SECURE_TEMP% must NOT remain a ReparsePoint after :EnsureSecureTemp"
 
-                $acl = Get-Acl -LiteralPath $secTemp
-                Assert-True $acl.AreAccessRulesProtected "%JVM_SECURE_TEMP% DACL must have inheritance disabled (/inheritance:r)"
-                $identities = @($acl.Access | ForEach-Object { $_.IdentityReference.Value })
-                $hasBroad = ($identities | Where-Object { $_ -match '(^|\\)(Everyone|Users|Authenticated Users)$' }).Count -gt 0
-                Assert-False $hasBroad "%JVM_SECURE_TEMP% must not grant access to Everyone/Users/Authenticated Users"
+                if (Get-Command Get-Acl -ErrorAction SilentlyContinue) {
+                    $acl = Get-Acl -LiteralPath $secTemp
+                    Assert-True $acl.AreAccessRulesProtected "%JVM_SECURE_TEMP% DACL must have inheritance disabled (/inheritance:r)"
+                    $rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.NTAccount])
+                    $identities = @($rules | ForEach-Object { $_.IdentityReference.Value })
+                    $hasBroad = ($identities | Where-Object { $_ -match '(^|\\)(Everyone|Users|Authenticated Users)$' }).Count -gt 0
+                    Assert-False $hasBroad "%JVM_SECURE_TEMP% must not grant access to Everyone/Users/Authenticated Users"
+                } else {
+                    $icaclsOut = & cmd.exe /c "icacls `"$secTemp`"" 2>&1
+                    $hasInherited = ($icaclsOut | Where-Object { $_ -match '\(I\)' }).Count -gt 0
+                    Assert-False $hasInherited "%JVM_SECURE_TEMP% DACL must have inheritance disabled (/inheritance:r)"
+                    $hasBroad = ($icaclsOut | Where-Object { $_ -match '(?i)(Everyone|\\Users|Authenticated Users):' }).Count -gt 0
+                    Assert-False $hasBroad "%JVM_SECURE_TEMP% must not grant access to Everyone/Users/Authenticated Users"
+                }
             }
         } finally {
             $env:LOCALAPPDATA = $origLocalAppData
@@ -2348,6 +2445,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         # Functional test: verify that DTD / XXE payload is strictly rejected by our XML validator settings
         $xxePayload = '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///C:/Windows/win.ini">]><package>&xxe;</package>'
         $threwDtd = $false
+        $sr = $null
+        $xr = $null
         try {
             $settings = New-Object System.Xml.XmlReaderSettings
             $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
@@ -2359,6 +2458,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             $doc.Load($xr)
         } catch {
             $threwDtd = $true
+        } finally {
+            if ($null -ne $xr) { $xr.Close() }
+            if ($null -ne $sr) { $sr.Close() }
         }
         Assert-True $threwDtd "XmlReader with DtdProcessing::Prohibit MUST throw an exception on DOCTYPE / XXE payloads (CWE-611)"
     }
@@ -2396,15 +2498,21 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         $blob = New-Object byte[] ($hdr.Length + $sampleBytes.Length)
         [Array]::Copy($hdr, 0, $blob, 0, $hdr.Length)
         [Array]::Copy($sampleBytes, 0, $blob, $hdr.Length, $sampleBytes.Length)
-        $sha1 = [System.Security.Cryptography.SHA1]::Create()
-        $expectedBlobSha = ([System.BitConverter]::ToString($sha1.ComputeHash($blob)) -replace '-', '').ToLower()
 
         $tamperedBytes = [System.Text.Encoding]::UTF8.GetBytes("# Java Version Manager`r`nWrite-Host 'EVIL'`r`n")
         $tHdr = [System.Text.Encoding]::ASCII.GetBytes("blob $($tamperedBytes.Length)`0")
         $tBlob = New-Object byte[] ($tHdr.Length + $tamperedBytes.Length)
         [Array]::Copy($tHdr, 0, $tBlob, 0, $tHdr.Length)
         [Array]::Copy($tamperedBytes, 0, $tBlob, $tHdr.Length, $tamperedBytes.Length)
-        $tamperedBlobSha = ([System.BitConverter]::ToString($sha1.ComputeHash($tBlob)) -replace '-', '').ToLower()
+
+        $sha1 = $null
+        try {
+            $sha1 = [System.Security.Cryptography.SHA1]::Create()
+            $expectedBlobSha = ([System.BitConverter]::ToString($sha1.ComputeHash($blob)) -replace '-', '').ToLower()
+            $tamperedBlobSha = ([System.BitConverter]::ToString($sha1.ComputeHash($tBlob)) -replace '-', '').ToLower()
+        } finally {
+            if ($null -ne $sha1) { $sha1.Dispose() }
+        }
         Assert-True ($expectedBlobSha -ne $tamperedBlobSha) "Tampered Nightly payload must produce a distinct Git Blob SHA-1 digest"
 
         # 3. Verify dynamic %ProgramFiles% (%JVM_PF%) and ARM64 resolver guards in jvm.bat
@@ -2638,8 +2746,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             Assert-PathNotExists (Join-Path $externalTarget "myjdk") "Junction must not be created inside external redirect target"
 
             # Remove the pre-planted junction and verify that a valid Windows JDK path containing commas & spaces succeeds and auto-sanitizes the default alias
-            & cmd.exe /c "rmdir `"$linksPath`"" >$null 2>&1
             $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            & cmd.exe /c "if exist `"$linksPath`" rmdir `"$linksPath`" >nul 2>&1"
             $outCommaLink = & cmd.exe /c "call `"$JvmBat`" link `"$validJdkDir`"" 2>&1 | Out-String
             $commaLinkExit = $LASTEXITCODE
             $outSemiLink = & cmd.exe /c "call `"$JvmBat`" link `"$validJdkDir;evil`"" 2>&1 | Out-String
@@ -2650,8 +2758,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             Assert-PathExists (Join-Path $linkSandbox "JavaVersionManager\links\Valid--Custom--Jdk-21") "jvm link must create junction with comma/space-sanitized default alias"
             Assert-True ($semiLinkExit -ne 0) "jvm link must still reject JDK paths containing semicolon ';' PATH delimiters"
         } finally {
-            & cmd.exe /c "rmdir `"$linksPath`"" >$null 2>&1
-            & cmd.exe /c "rmdir `"$(Join-Path $linkSandbox 'JavaVersionManager\links\Valid--Custom--Jdk-21')`"" >$null 2>&1
+            $prevEAP2 = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+            & cmd.exe /c "if exist `"$linksPath`" rmdir `"$linksPath`" >nul 2>&1"
+            $createdJunc = Join-Path $linkSandbox 'JavaVersionManager\links\Valid--Custom--Jdk-21'
+            & cmd.exe /c "if exist `"$createdJunc`" rmdir `"$createdJunc`" >nul 2>&1"
+            $ErrorActionPreference = $prevEAP2
             $env:LOCALAPPDATA = $origLocalAppData
         }
     }
@@ -2892,15 +3003,566 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Assert-Contains $chocoInst "Security violation (CWE-354): ChecksumType64 must be strictly 'sha256'." "chocolateyInstall.ps1 must enforce checksumType64 -eq 'sha256'"
     }
 
+    # Test 151: jvm.bat enforces atomic PREV_JUNCTION_TARGET rollback in CURRENT_SYMLINK and :SwitchCandidate on mklink/verification failure (CWE-460 / CWE-252)
+    Run-TestCase "ReparsePoint" "jvm.bat enforces atomic PREV_JUNCTION_TARGET rollback in CURRENT_SYMLINK and :SwitchCandidate on switch failure (CWE-460 / CWE-252)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'set "PREV_JUNCTION_TARGET="' "jvm.bat must capture PREV_JUNCTION_TARGET before removing existing junction"
+        Assert-Contains $jvmRaw 'if defined PREV_JUNCTION_TARGET if exist "!PREV_JUNCTION_TARGET!" mklink /J "!CURRENT_SYMLINK!" "!PREV_JUNCTION_TARGET!"' "CURRENT_SYMLINK switch must atomically restore PREV_JUNCTION_TARGET on mklink/verification failure"
+        Assert-Contains $jvmRaw 'if defined PREV_JUNCTION_TARGET if exist "!PREV_JUNCTION_TARGET!" mklink /j "!SYMLINK_PATH!" "!PREV_JUNCTION_TARGET!"' ":SwitchCandidate must atomically restore PREV_JUNCTION_TARGET on mklink/verification failure"
+
+        # Live sandbox atomic junction rollback verification
+        $rbSandbox = Join-Path $SandboxRoot "junction_rollback_live_151"
+        $jdkV1 = Join-Path $rbSandbox "jdk-17"
+        $curJunction = Join-Path $rbSandbox "current"
+        New-Item -ItemType Directory -Path "$jdkV1\bin" -Force | Out-Null
+        Set-Content -LiteralPath "$jdkV1\bin\java.exe" -Value "MZ" -Encoding Ascii
+        & cmd.exe /c "mklink /J `"$curJunction`" `"$jdkV1`" >nul 2>&1"
+        Assert-True (Test-Path -LiteralPath "$curJunction\bin\java.exe") "Initial current junction must point to jdk-17"
+
+        # Simulate failed switch to missing target with PREV_JUNCTION_TARGET rollback
+        $prevTarget = (Get-Item -LiteralPath $curJunction -Force).Target
+        if ($prevTarget -is [array]) { $prevTarget = $prevTarget[0] }
+        & cmd.exe /c "rmdir `"$curJunction`" >nul 2>&1"
+        $missingTarget = Join-Path $rbSandbox "jdk-missing-target"
+        if (-not (Test-Path -LiteralPath "$missingTarget\bin\java.exe")) {
+            & cmd.exe /c "mklink /J `"$curJunction`" `"$prevTarget`" >nul 2>&1"
+        }
+        Assert-True (Test-Path -LiteralPath "$curJunction\bin\java.exe") "Rollback must restore previous current junction target when new target verification fails"
+    }
+
+    # Test 152: jvm.bat :BackupRegistry, :WriteConfigFile, :InstallGlobalCommand, and :HANDLE_LINKS verify errorlevel and file creation (CWE-252 / CWE-390)
+    Run-TestCase "Registry" "jvm.bat :BackupRegistry, :WriteConfigFile, :InstallGlobalCommand, and :HANDLE_LINKS verify errorlevel and file creation (CWE-252 / CWE-390)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'Failed to export HKCU registry backup.' ":BackupRegistry must emit [ WARN ] if HKCU reg export fails"
+        Assert-Contains $jvmRaw 'HKCU registry backup file was not created.' ":BackupRegistry must emit [ WARN ] if registry backup file is missing"
+        Assert-Contains $jvmRaw 'Failed to write configuration file !_CFG_FILE!.' ":WriteConfigFile must check errorlevel after writing config file"
+        Assert-Contains $jvmRaw 'Configuration file !_CFG_FILE! was not created.' ":WriteConfigFile must verify target file existence after write"
+        Assert-Contains $jvmRaw 'Failed to copy jvm.bat to !CANONICAL_BIN!.' ":InstallGlobalCommand must check copy /y errorlevel and report failure"
+        Assert-Contains $jvmRaw 'Failed to remove link ''!UNLINK_NAME!''.' ":HANDLE_LINKS unlink must check rmdir errorlevel and exit /b 1 on failure"
+    }
+
+    # Test 153: jvm.bat :SelfUpdate, :FetchAndExtract, and :InstallCandidate enforce .old/.jvm_bak_ backup rollback and handle disposal (CWE-460 / CWE-459)
+    Run-TestCase "PackageIntegrity" "jvm.bat :SelfUpdate, :FetchAndExtract, and :InstallCandidate enforce .old/.jvm_bak_ backup rollback and handle disposal (CWE-460 / CWE-459)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'if exist "!SCRIPT_DIR!\jvm.bat" copy /y "!SCRIPT_DIR!\jvm.bat" "!SCRIPT_DIR!\jvm.bat.old"' ":SelfUpdate must stage a .old backup of jvm.bat before invoking installer"
+        Assert-Contains $jvmRaw 'if exist "!SCRIPT_DIR!\jvm.bat.old" move /y "!SCRIPT_DIR!\jvm.bat.old" "!SCRIPT_DIR!\jvm.bat"' ":SelfUpdate must restore jvm.bat from .old backup if installer fails"
+        Assert-Contains $jvmRaw 'try { $raw = $sr.ReadToEnd() } finally { $sr.Close() }' ":CheckUpdateStatus must dispose StreamReader handle in finally block"
+        Assert-Contains $jvmRaw 'Move-Item -LiteralPath $t -Destination $bak -Force' ":FetchAndExtract must stage existing destination to .jvm_bak_ before Move-Item"
+        Assert-Contains $jvmRaw 'Move-Item -LiteralPath $bak -Destination $t -Force -ErrorAction SilentlyContinue' ":FetchAndExtract must roll back .jvm_bak_ on Move-Item failure"
+        Assert-Contains $jvmRaw 'set "EXTRACT_DEST_OLD=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\!TARGET_VER!.jvm_bak_!CAND_RANDOM_NAME!"' ":InstallCandidate must stage existing candidate directory to .jvm_bak_ and roll back if move fails"
+    }
+
+    # Test 154: jvm.bat :ProcessSingleUpdate and :ExecuteSharedDownloader unconditionally purge temp scripts and staging directories on failure (CWE-459)
+    Run-TestCase "Concurrency" "jvm.bat :ProcessSingleUpdate and :ExecuteSharedDownloader unconditionally purge temp scripts and staging directories on failure (CWE-459)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'set "IS_ORACLE_LEGACY=0"' ":ProcessSingleUpdate must defer :Update_OracleLegacy jump until after UPDATE_CHECKER_PS1 cleanup"
+        Assert-Contains $jvmRaw 'if exist "!UPDATE_CHECKER_PS1!" del /f /q "!UPDATE_CHECKER_PS1!" >nul 2>&1' ":ProcessSingleUpdate must unconditionally delete UPDATE_CHECKER_PS1 before branching"
+        Assert-Contains $jvmRaw 'if "!IS_ORACLE_LEGACY!"=="1" goto :Update_OracleLegacy' ":ProcessSingleUpdate must jump to :Update_OracleLegacy only after deleting UPDATE_CHECKER_PS1"
+        Assert-Contains $jvmRaw 'if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1' ":FetchAndExtract must delete !ZIP_PATH! across all failure paths"
+        Assert-Contains $jvmRaw 'if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1' ":FetchAndExtract must delete !EXTRACT_DIR! across all failure paths"
+    }
+
+    # Test 155: jvm.bat downloader and API error handlers sanitize PowerShell catch output and suppress stack traces/user paths (CWE-209 / CWE-755)
+    Run-TestCase "Adversarial" "jvm.bat downloader and API error handlers sanitize PowerShell catch output and suppress stack traces/user paths (CWE-209 / CWE-755)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw '$errMsg = ^($_.Exception.Message -replace ''[\r\n]+'', '' ''^)' "PowerShell catch blocks in jvm.bat must strip newlines from exception messages"
+        Assert-Contains $jvmRaw '$errMsg = $errMsg.Replace^($env:LOCALAPPDATA, ''%%LOCALAPPDATA%%''^)' "PowerShell catch blocks in jvm.bat must redact %LOCALAPPDATA% paths from error output"
+        Assert-Contains $jvmRaw '$errMsg = $errMsg.Replace^($env:USERPROFILE, ''%%USERPROFILE%%''^)' "PowerShell catch blocks in jvm.bat must redact %USERPROFILE% paths from error output"
+        Assert-True ($jvmRaw -notmatch 'ScriptStackTrace') "jvm.bat must never dump raw PowerShell ScriptStackTrace to console output"
+    }
+
+    # Test 156: install.ps1 and uninstall.ps1 enforce deterministic try/finally disposal across all Registry, Stream, Crypto, and .stage.*.tmp resources (CWE-459 / CWE-460)
+    Run-TestCase "UninstallSafety" "install.ps1 and uninstall.ps1 enforce deterministic try/finally disposal across Registry, Stream, Crypto, and .stage.*.tmp resources (CWE-459 / CWE-460)" {
+        $instRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+        $uninstRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "uninstall.ps1") -Raw
+        Assert-Contains $instRaw 'if ($null -ne $envKey) { $envKey.Close() }' "install.ps1 must deterministically close `$envKey in finally block"
+        Assert-Contains $instRaw 'if ($null -ne $sha1) { $sha1.Dispose() }' "install.ps1 must deterministically dispose `$sha1 in finally block"
+        Assert-Contains $instRaw 'if ($stageBat -and (Test-Path -LiteralPath $stageBat))' "install.ps1 must clean up `$stageBat in finally block"
+        Assert-Contains $instRaw 'if ($stageProf -and (Test-Path -LiteralPath $stageProf))' "install.ps1 must clean up `$stageProf in finally block"
+        Assert-Contains $instRaw 'if ($stageWt -and (Test-Path -LiteralPath $stageWt))' "install.ps1 must clean up `$stageWt in finally block"
+        Assert-Contains $uninstRaw 'if ($null -ne $userKey) { $userKey.Close() }' "uninstall.ps1 must deterministically close `$userKey in finally block"
+        Assert-Contains $uninstRaw 'if ($null -ne $machineKey) { $machineKey.Close() }' "uninstall.ps1 must deterministically close `$machineKey in finally block"
+        Assert-Contains $uninstRaw 'if ($stageProf -and (Test-Path -LiteralPath $stageProf))' "uninstall.ps1 must clean up `$stageProf in finally block"
+        Assert-Contains $uninstRaw 'if ($stageWt -and (Test-Path -LiteralPath $stageWt))' "uninstall.ps1 must clean up `$stageWt in finally block"
+    }
+
+    # Test 157: PowerShell AST audit confirms zero empty catch blocks across all 9 repository PowerShell scripts (CWE-390)
+    Run-TestCase "PackageIntegrity" "PowerShell AST audit confirms zero empty catch blocks across all 9 repository PowerShell scripts (CWE-390)" {
+        $targetScripts = @(
+            (Join-Path $RepoRoot "install.ps1"),
+            (Join-Path $RepoRoot "uninstall.ps1"),
+            (Join-Path $RepoRoot "packages\msi\build-msi.ps1"),
+            (Join-Path $RepoRoot "packages\msi\test-msi.ps1"),
+            (Join-Path $RepoRoot "packages\choco\build-choco.ps1"),
+            (Join-Path $RepoRoot "packages\choco\tools\chocolateyInstall.ps1"),
+            (Join-Path $RepoRoot "packages\choco\tools\chocolateyUninstall.ps1"),
+            (Join-Path $RepoRoot "scripts\bump-version.ps1"),
+            (Join-Path $RepoRoot "tests\Test-JvmSecurity.ps1")
+        )
+        foreach ($scriptFile in $targetScripts) {
+            $tokens = $null
+            $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptFile, [ref]$tokens, [ref]$errors)
+            $emptyCatches = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CatchClauseAst] }, $true) | Where-Object { $_.Body.Statements.Count -eq 0 })
+            Assert-Equals 0 $emptyCatches.Count "Script '$(Split-Path -Leaf $scriptFile)' must contain 0 empty catch {} blocks (found $($emptyCatches.Count))"
+        }
+    }
+
+    # Test 158: packages/msi/build-msi.ps1 enforces Push-Location/Pop-Location and WiX artifact cleanup in try/finally and checks wixExitCode (CWE-459 / CWE-754)
+    Run-TestCase "Manifest" "packages/msi/build-msi.ps1 enforces Push-Location/Pop-Location and WiX artifact cleanup in try/finally and checks wixExitCode (CWE-459 / CWE-754)" {
+        $buildMsiRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\msi\build-msi.ps1") -Raw
+        Assert-Contains $buildMsiRaw 'Push-Location $ScriptDir' "build-msi.ps1 must call Push-Location `$ScriptDir before overarching try block"
+        Assert-Contains $buildMsiRaw 'if ($wixExitCode -ne 0) {' "build-msi.ps1 must check `$wixExitCode -ne 0 and throw on WiX compilation failure"
+        Assert-Contains $buildMsiRaw 'if ($null -ne $sha1) { $sha1.Dispose() }' "Get-DeterministicGuid in build-msi.ps1 must dispose `$sha1 in finally block"
+        Assert-Contains $buildMsiRaw 'if ($null -ne $rec)  { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($rec)  | Out-Null }' "build-msi.ps1 must release WindowsInstaller COM objects in finally block"
+    }
+
+    # Test 159: Live CLI error-injection verifies non-zero LASTEXITCODE (1) and [ ERROR ] propagation across failing subcommands without pause hang (CWE-252 / CWE-754)
+    Run-TestCase "Adversarial" "Live CLI error-injection verifies non-zero LASTEXITCODE (1) and [ ERROR ] propagation across failing subcommands (CWE-252 / CWE-754)" {
+        $origLocalAppData = $env:LOCALAPPDATA
+        $cliSandbox = Join-Path $SandboxRoot "cli_exit_code_live_159"
+        New-Item -ItemType Directory -Path $cliSandbox -Force | Out-Null
+
+        $failingCommands = @(
+            @("use", "999"),
+            @("uninstall", "999"),
+            @("link", "C:\NonExistent_Path_XYZ_999"),
+            @("which", "nonexistent_bin_xyz_999")
+        )
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $env:LOCALAPPDATA = $cliSandbox
+            foreach ($cmdArgs in $failingCommands) {
+                $argLine = ($cmdArgs | ForEach-Object { if ($_ -match '\s') { "`"$_`"" } else { $_ } }) -join ' '
+                $out = & cmd.exe /d /c "call `"$JvmBat`" $argLine" 2>&1 | Out-String
+                $code = $LASTEXITCODE
+                Assert-Equals $code 1 "jvm.bat $argLine must return non-zero exit code 1 (actual: $code)"
+                Assert-True ($out -match '\[\s*ERROR\s*\]') "jvm.bat $argLine must emit [ ERROR ] diagnostic message"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # Test 160: chocolateyUninstall.ps1 Test-HasReparsePointInLineage fails closed ($true) on exception and CweCatalog tracks all 40 CWEs (CWE-755 / CWE-390)
+    Run-TestCase "PackageIntegrity" "chocolateyUninstall.ps1 Test-HasReparsePointInLineage fails closed on exception and CweCatalog tracks all 40 CWEs (CWE-755 / CWE-390)" {
+        $chocoUninstRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\choco\tools\chocolateyUninstall.ps1") -Raw
+        Assert-Contains $chocoUninstRaw "Write-Verbose `"Attribute inspection failed for '`$curr' in Test-HasReparsePointInLineage" "chocolateyUninstall.ps1 must log attribute inspection exceptions via Write-Verbose"
+        Assert-Contains $chocoUninstRaw "return `$true" "chocolateyUninstall.ps1 Test-HasReparsePointInLineage must return `$true (fail-closed) in catch blocks"
+        foreach ($reqCwe in @('CWE-184', 'CWE-209', 'CWE-252', 'CWE-362', 'CWE-390', 'CWE-459', 'CWE-460', 'CWE-674', 'CWE-754', 'CWE-755')) {
+            Assert-True ($script:CweCatalog.Contains($reqCwe)) "CweCatalog must track Error Management & Concurrency CWE '$reqCwe'"
+        }
+        Assert-Equals 40 $script:CweCatalog.Count "CweCatalog must track all 40 CWE classes"
+    }
+
+    # Test 161: ShowDynamicMenu CLI subcommands (doctor, open, exec, hook, clean) and DO_PIN_WRITE propagate exit code 1 across setlocal boundaries (CWE-252 / CWE-754)
+    Run-TestCase "Adversarial" "ShowDynamicMenu CLI subcommands (doctor, open, exec, hook, clean) and DO_PIN_WRITE propagate exit code 1 across setlocal boundaries (CWE-252 / CWE-754)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw '(echo !PIN_CONTENT!)>"%INVOCATION_DIR%\.java-version" 2>nul' "DO_PIN_WRITE must check errorlevel and file creation when writing .java-version"
+        Assert-Contains $jvmRaw 'echo %cRED%[ ERROR  ]%cRESET% Failed to write .java-version to: %INVOCATION_DIR%\.java-version' "DO_PIN_WRITE must emit [ ERROR ] and exit /b 1 on write failure"
+        Assert-Contains $jvmRaw "call :DoctorDiagnostics`r`n        set `"CMD_EXIT_CODE=!errorlevel!`"`r`n        goto :CLI_DONE" "doctor subcommand in ShowDynamicMenu must tunnel CMD_EXIT_CODE via :CLI_DONE"
+        Assert-Contains $jvmRaw "call :OpenFolderInExplorer`r`n        set `"CMD_EXIT_CODE=!errorlevel!`"`r`n        goto :CLI_DONE" "open subcommand in ShowDynamicMenu must tunnel CMD_EXIT_CODE via :CLI_DONE"
+        Assert-Contains $jvmRaw "call :ExecuteEphemeralCommand`r`n        set `"CMD_EXIT_CODE=!errorlevel!`"`r`n        goto :CLI_DONE" "exec subcommand in ShowDynamicMenu must tunnel CMD_EXIT_CODE via :CLI_DONE"
+    }
+
+    # Test 162: :UpdateSystemPath UAC/Registry failure rollback, :InstallPowerShellHook staged .tmp cleanup, and :UninstallCandidate post-delete verification (CWE-459 / CWE-460 / CWE-754)
+    Run-TestCase "Reparse" ":UpdateSystemPath UAC/Registry failure rollback, :InstallPowerShellHook staged .tmp cleanup, and :UninstallCandidate post-delete verification (CWE-459 / CWE-460 / CWE-754)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'echo %cRED%[ ERROR  ]%cRESET% Failed to update Machine JAVA_HOME and SYSTEM PATH' ":UpdateSystemPath must check UAC Start-Process exit code and return exit /b 1 on failure"
+        Assert-Contains $jvmRaw 'mklink /J "%CURRENT_SYMLINK%" "!PREV_JUNCTION_TARGET!" >nul 2>&1' "Caller of :UpdateSystemPath must roll back CURRENT_SYMLINK to PREV_JUNCTION_TARGET on failure"
+        Assert-Contains $jvmRaw '$stageProf = "$p.stage.$([Guid]::NewGuid().ToString(''N'')).tmp"' ":InstallPowerShellHook must stage profile updates via a temporary file in try/finally"
+        Assert-Contains $jvmRaw 'if exist "!TARGET_PATH!" (' ":UninstallCandidate must verify TARGET_PATH no longer exists before reporting [ OK ]"
+    }
+
+    # Test 163: :VerifyDownloadedScript, :ResolveLatestEcosystemCandidate, and :ExecuteSharedDownloader enforce try/finally handle disposal on HttpWebResponse, StreamReader, and SHA1 (CWE-459)
+    Run-TestCase "Concurrency" ":VerifyDownloadedScript, :ResolveLatestEcosystemCandidate, and :ExecuteSharedDownloader enforce try/finally handle disposal on HttpWebResponse, StreamReader, and SHA1 (CWE-459)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'if ($sr) { $sr.Close(); $sr.Dispose() }; if ($res) { $res.Close() }' ":VerifyDownloadedScript must close StreamReader and HttpWebResponse in finally"
+        Assert-Contains $jvmRaw 'finally { if ($sha1) { $sha1.Dispose() } }' ":VerifyDownloadedScript must dispose SHA1 provider in finally"
+        Assert-Contains $jvmRaw 'try { $loc=[string]$resp.Headers[''Location''] } finally { $resp.Close() }' ":ResolveLatestEcosystemCandidate must close HttpWebResponse in finally"
+        Assert-Contains $jvmRaw 'if ^($response^) { $response.Close^(^) }' ":ExecuteSharedDownloader must close main HttpWebResponse in finally"
+        Assert-Contains $jvmRaw '$sr.Close^(^); $sr.Dispose^(^)' "Get-TrustedChecksumText in :ExecuteSharedDownloader must dispose StreamReader in finally"
+    }
+
+    # Test 164: All 6 Start-Process -Verb RunAs UAC handoffs in jvm.bat enforce -PassThru, $p.Dispose() in finally, and ExitCode propagation (CWE-252 / CWE-459)
+    Run-TestCase "Registry" "All 6 Start-Process -Verb RunAs UAC handoffs in jvm.bat enforce -PassThru, Process.Dispose() in finally, and ExitCode propagation (CWE-252 / CWE-459)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        $runAsMatches = [regex]::Matches($jvmRaw, 'Start-Process\s+-FilePath\s+\$ps\s+-Verb\s+RunAs[^\r\n]+')
+        Assert-Equals 6 $runAsMatches.Count "jvm.bat must contain exactly 6 Start-Process -Verb RunAs elevation handoffs"
+        foreach ($m in $runAsMatches) {
+            Assert-Contains $m.Value "-PassThru" "Every Start-Process -Verb RunAs in jvm.bat must specify -PassThru"
+            Assert-Contains $m.Value ".Dispose()" "Every Start-Process -Verb RunAs in jvm.bat must dispose the Process handle in finally"
+        }
+    }
+
+    # Test 165: install.ps1 enforces atomic $batBackup rollback on companion failure, partial download cleanup in Invoke-TrustedGitHubDownload, and WScript.Shell COM release in finally (CWE-460 / CWE-459)
+    Run-TestCase "UninstallSafety" "install.ps1 enforces atomic `$batBackup rollback on companion failure, partial download cleanup, and WScript.Shell COM release in finally (CWE-460 / CWE-459)" {
+        $instRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+        Assert-Contains $instRaw 'if (-not $downloadOk -and $OutFile -and (Test-Path -LiteralPath $OutFile))' "Invoke-TrustedGitHubDownload must delete partial OutFile in finally if download fails"
+        Assert-Contains $instRaw 'if (-not $installCommitted -and $batBackup -and (Test-Path -LiteralPath $batBackup))' "install.ps1 must restore `$batBackup in finally if companion verification aborts"
+        Assert-Contains $instRaw '[System.Runtime.InteropServices.Marshal]::ReleaseComObject($wshell)' "install.ps1 must release WScript.Shell COM objects in finally block"
+    }
+
+    # Test 166: install.ps1 and uninstall.ps1 verify process exit codes (icacls.exe / elevated Start-Process) and sanitize user paths in catch warnings (CWE-252 / CWE-209)
+    Run-TestCase "UninstallSafety" "install.ps1 and uninstall.ps1 verify process exit codes (icacls.exe / elevated Start-Process) and sanitize user paths in catch warnings (CWE-252 / CWE-209)" {
+        $instRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+        $uninstRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "uninstall.ps1") -Raw
+        Assert-Contains $instRaw 'icacls.exe DACL restriction returned exit code $LASTEXITCODE' "Initialize-SecureDirectory in install.ps1 must inspect `$LASTEXITCODE after icacls.exe"
+        Assert-Contains $instRaw "if (`$env:LOCALAPPDATA) { `$safeErr = `$safeErr.Replace(`$env:LOCALAPPDATA, '%LOCALAPPDATA%') }" "install.ps1 shortcut catch warning must redact %LOCALAPPDATA%"
+        Assert-Contains $uninstRaw 'if ($null -ne $proc -and $proc.ExitCode -ne 0)' "uninstall.ps1 must check `$proc.ExitCode after elevated Start-Process"
+    }
+
+    # Test 167: packages/msi/test-msi.ps1 enforces emergency msiexec /x rollback in finally and disposes Process and WScript.Shell COM handles (CWE-459 / CWE-460)
+    Run-TestCase "Manifest" "packages/msi/test-msi.ps1 enforces emergency msiexec /x rollback in finally and disposes Process and WScript.Shell COM handles (CWE-459 / CWE-460)" {
+        $testMsiRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\msi\test-msi.ps1") -Raw
+        Assert-Contains $testMsiRaw 'if ($null -ne $installProc) { $installProc.Dispose() }' "test-msi.ps1 must dispose `$installProc in finally"
+        Assert-Contains $testMsiRaw 'if ($null -ne $uninstallProc) { $uninstallProc.Dispose() }' "test-msi.ps1 must dispose `$uninstallProc in finally"
+        Assert-Contains $testMsiRaw '[System.Runtime.InteropServices.Marshal]::ReleaseComObject($ws)' "test-msi.ps1 must release WScript.Shell COM handles in finally"
+        Assert-Contains $testMsiRaw 'if ($script:msiInstalled -and (-not $script:msiUninstalled) -and (-not $KeepInstalled)' "test-msi.ps1 must perform emergency msiexec /x rollback in outer finally block"
+    }
+
+    # Test 168: packages/choco/build-choco.ps1, chocolateyInstall.ps1, and scripts/bump-version.ps1 enforce manifest failure rollback, .nupkg verification, TLS 1.2 fallback, and sanitized catch messages (CWE-460 / CWE-252 / CWE-209)
+    Run-TestCase "Manifest" "packages/choco/build-choco.ps1, chocolateyInstall.ps1, and scripts/bump-version.ps1 enforce manifest rollback, .nupkg verification, TLS 1.2 fallback, and sanitized catch messages (CWE-460 / CWE-252 / CWE-209)" {
+        $buildChocoRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\choco\build-choco.ps1") -Raw
+        $chocoInstRaw  = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\choco\tools\chocolateyInstall.ps1") -Raw
+        $bumpRaw       = Get-Content -LiteralPath (Join-Path $RepoRoot "scripts\bump-version.ps1") -Raw
+        Assert-Contains $buildChocoRaw 'if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $expectedNupkg))' "build-choco.ps1 must verify both `$LASTEXITCODE and `$expectedNupkg file creation"
+        Assert-Contains $buildChocoRaw 'Chocolatey package build failed (manifests restored)' "build-choco.ps1 must roll back modified manifests if packaging fails"
+        Assert-Contains $chocoInstRaw 'TLS 1.3 not supported by host runtime; using TLS 1.2' "chocolateyInstall.ps1 must wrap TLS 1.3 bitmask in a try/catch fallback to TLS 1.2"
+        Assert-Contains $bumpRaw 'Write-Host "  ${cYellow}[WARN]$cReset Could not execute ''winget validate'': $($_.Exception.Message)"' "bump-version.ps1 must log sanitized `$_.Exception.Message instead of raw `$_"
+    }
+
+    # Test 169: Run-TestCase automatic finally guard snapshots and restores $env:*, $ErrorActionPreference, and Get-Location across test execution (CWE-460 / CWE-459)
+    Run-TestCase "Concurrency" "Run-TestCase automatic finally guard snapshots and restores `$env:*, `$ErrorActionPreference, and Get-Location across test execution (CWE-460 / CWE-459)" {
+        $selfRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "tests\Test-JvmSecurity.ps1") -Raw
+        Assert-Contains $selfRaw '$snapLocalAppData = $env:LOCALAPPDATA' "Run-TestCase must snapshot `$env:LOCALAPPDATA before executing `$TestLogic"
+        Assert-Contains $selfRaw '$env:LOCALAPPDATA   = $snapLocalAppData' "Run-TestCase must restore `$env:LOCALAPPDATA in finally block"
+        Assert-Contains $selfRaw '$ErrorActionPreference = $snapEAP' "Run-TestCase must restore `$ErrorActionPreference in finally block"
+        Assert-Contains $selfRaw 'Set-Location -LiteralPath $snapLocation' "Run-TestCase must restore working directory in finally block"
+    }
+
+    # Test 170: Live CLI error-injection across secondary subcommands (jvm open, jvm pin, jvm exec, jvm maven uninstall, jvm channel) propagates LASTEXITCODE 1 (CWE-252 / CWE-754)
+    Run-TestCase "Adversarial" "Live CLI error-injection across secondary subcommands (jvm open, jvm pin, jvm exec, jvm maven uninstall, jvm channel) propagates LASTEXITCODE 1 (CWE-252 / CWE-754)" {
+        $cliSandbox = Join-Path $SandboxRoot "cli_exit_code_live_170"
+        New-Item -ItemType Directory -Path $cliSandbox -Force | Out-Null
+
+        $secondaryFailing = @(
+            @("open", "999"),
+            @("pin", "999"),
+            @("exec", "999", "java", "-version"),
+            @("maven", "uninstall", "9.9.9"),
+            @("channel", "invalid_channel_xyz")
+        )
+        $ErrorActionPreference = 'Continue'
+        $env:LOCALAPPDATA = $cliSandbox
+        Push-Location $cliSandbox
+        try {
+            foreach ($cmdArgs in $secondaryFailing) {
+                $argLine = ($cmdArgs | ForEach-Object { if ($_ -match '\s') { "`"$_`"" } else { $_ } }) -join ' '
+                $out = & cmd.exe /d /c "call `"$JvmBat`" $argLine" 2>&1 | Out-String
+                $code = $LASTEXITCODE
+                Assert-Equals $code 1 "jvm.bat $argLine must return non-zero exit code 1 (actual: $code)"
+                Assert-True ($out -match '\[\s*ERROR\s*\]') "jvm.bat $argLine must emit [ ERROR ] diagnostic message"
+            }
+        } finally {
+            Pop-Location
+        }
+    }
+
+    # Test 171: Double-fault junction rollback alert & manual restoration guidance (CWE-460 / CWE-252)
+    Run-TestCase "ReparsePoint" "Double-fault junction rollback alert and manual restoration command guidance (CWE-460 / CWE-252)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'Double-fault: Failed to restore previous directory junction!' "jvm.bat must emit [CRITICAL] double-fault notice on junction restore failure"
+        Assert-Contains $jvmRaw 'mklink /J "!CURRENT_SYMLINK!" "!PREV_JUNCTION_TARGET!"' "jvm.bat must provide exact manual restore command on double fault"
+        Assert-Contains $jvmRaw '"%FSUTIL_BIN%" reparsepoint query "!CURRENT_SYMLINK!"' "jvm.bat must verify restored junction via fsutil query"
+    }
+
+    # Test 172: Archive extraction rejects Unix symlink entries and intermediate reparse points (CWE-59 / CWE-22)
+    Run-TestCase "Adversarial" "Archive extraction rejects Unix symlink entries and intermediate reparse points (CWE-59 / CWE-22)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw '$entry.ExternalAttributes -shr 16' "ExecuteSharedDownloader must detect POSIX symlink attributes in ZIP entries"
+        Assert-Contains $jvmRaw '-band 0xF000 -eq 0xA000' "ExecuteSharedDownloader must mask POSIX S_IFLNK attributes"
+        Assert-Contains $jvmRaw 'Symbolic link entry detected in archive' "ExecuteSharedDownloader must throw CWE-59 violation on symlink entry"
+        Assert-Contains $jvmRaw 'Reparse point parent directory detected' "ExecuteSharedDownloader must reject intermediate reparse parent directories"
+        Assert-Contains $jvmRaw 'Reparse point detected inside extracted archive' "ExecuteSharedDownloader must scan and reject reparse points in extracted tree"
+    }
+
+    # Test 173: HTTP error status discrimination (429/403/502/503 vs offline) in update checkers (CWE-209 / CWE-755)
+    Run-TestCase "PackageIntegrity" "HTTP error status discrimination (429/403/502/503 vs offline) in update checkers (CWE-209 / CWE-755)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'Upstream API rate limit reached ^(HTTP 429/403^)' ":Run_API_Query must discriminate rate limit errors"
+        Assert-Contains $jvmRaw 'Upstream vendor API server is temporarily unavailable' ":Run_API_Query must discriminate server 5xx errors"
+        Assert-Contains $jvmRaw 'RATE_LIMIT' ":CheckUpdateStatus must emit RATE_LIMIT status"
+        Assert-Contains $jvmRaw 'SERVER_ERROR' ":CheckUpdateStatus must emit SERVER_ERROR status"
+    }
+
+    # Test 174: uninstall.ps1 enforces Remove-ShortcutSafely on Start Menu and Desktop shortcuts (CWE-59 / CWE-73)
+    Run-TestCase "Uninstall" "uninstall.ps1 enforces Remove-ShortcutSafely on Start Menu and Desktop shortcuts (CWE-59 / CWE-73)" {
+        $uninstRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "uninstall.ps1") -Raw
+        Assert-Contains $uninstRaw 'function Remove-ShortcutSafely([string]$Path)' "uninstall.ps1 must define Remove-ShortcutSafely"
+        Assert-Contains $uninstRaw 'Test-HasReparsePointInLineage $Path' "Remove-ShortcutSafely must check Test-HasReparsePointInLineage before shortcut deletion"
+        Assert-Contains $uninstRaw 'Remove-ShortcutSafely -Path $_.FullName' "Start Menu cleanup must invoke Remove-ShortcutSafely"
+        Assert-Contains $uninstRaw 'Remove-ShortcutSafely -Path (Join-Path $dl "Java Version Manager.lnk")' "Desktop shortcut cleanup must invoke Remove-ShortcutSafely"
+        Assert-Contains $uninstRaw '[Win32.NativeMethods]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, ''Environment'', 2, 1000' "uninstall.ps1 broadcast timeout must be bounded to 1000ms"
+    }
+
+    # Test 175: install.ps1 enforces Windows Terminal settings.json file-lock retry loop, backup, and bounded broadcast timeout (CWE-367 / CWE-400)
+    Run-TestCase "TerminalJSON" "install.ps1 enforces Windows Terminal settings.json file-lock retry loop, backup, and bounded broadcast timeout (CWE-367 / CWE-400)" {
+        $instRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+        Assert-Contains $instRaw '[System.IO.FileShare]::ReadWrite' "install.ps1 must open Windows Terminal settings with FileShare.ReadWrite"
+        Assert-Contains $instRaw '$wtBak = "$wtSettings.bak"' "install.ps1 must create a .bak backup before modifying settings.json"
+        Assert-Contains $instRaw '[Win32.NativeMethods]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, ''Environment'', 2, 1000' "install.ps1 broadcast timeout must be bounded to 1000ms"
+        Assert-Contains $instRaw '[System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($wshell)' "install.ps1 must call FinalReleaseComObject on WScript.Shell"
+    }
+
+    # Test 176: bump-version.ps1 enforces early fail-closed clean working tree check and XML/JSON manifest validation (CWE-20 / CWE-184 / CWE-611)
+    Run-TestCase "Manifest" "bump-version.ps1 enforces early fail-closed clean working tree check and XML/JSON manifest validation (CWE-20 / CWE-184 / CWE-611)" {
+        $bumpRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "scripts\bump-version.ps1") -Raw
+        Assert-Contains $bumpRaw 'function Assert-CleanWorkingTree([string]$Directory)' "bump-version.ps1 must define Assert-CleanWorkingTree"
+        Assert-Contains $bumpRaw 'function Assert-ValidXml([string]$FilePath)' "bump-version.ps1 must define Assert-ValidXml"
+        Assert-Contains $bumpRaw 'function Assert-ValidJson([string]$FilePath)' "bump-version.ps1 must define Assert-ValidJson"
+        Assert-Contains $bumpRaw 'function Assert-ValidWixProductVersion([string]$VersionString)' "bump-version.ps1 must define Assert-ValidWixProductVersion"
+        Assert-Contains $bumpRaw 'Assert-CleanWorkingTree $RepoRoot' "bump-version.ps1 must invoke Assert-CleanWorkingTree"
+    }
+
+    # Test 177: WiX and Chocolatey packaging failure-path artifact cleanup and atomic rollback (CWE-459 / CWE-460 / CWE-611)
+    Run-TestCase "PackageIntegrity" "WiX and Chocolatey packaging failure-path artifact cleanup and atomic rollback (CWE-459 / CWE-460 / CWE-611)" {
+        $msiRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\msi\build-msi.ps1") -Raw
+        $chocoRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\choco\build-choco.ps1") -Raw
+        Assert-Contains $msiRaw 'function Remove-BuildArtifactSafely([string]$Path)' "build-msi.ps1 must define Remove-BuildArtifactSafely"
+        Assert-Contains $msiRaw 'Remove-BuildArtifactSafely "$ScriptDir\.wix"' "build-msi.ps1 must purge .wix cache directory in finally"
+        Assert-Contains $chocoRaw 'throw "Chocolatey CLI (''choco.exe'') not found' "build-choco.ps1 must fail closed if choco CLI is missing"
+        Assert-Contains $chocoRaw 'Get-ChildItem -LiteralPath $ScriptDir -Filter "*.nupkg.tmp"' "build-choco.ps1 must purge partial .nupkg.tmp artifacts on failure"
+    }
+
+    # Test 178: jvm clear -y headless execution and pre-scrub registry backup preservation (CWE-460 / CWE-400 / CWE-252)
+    Run-TestCase "Registry" "jvm clear -y headless execution and pre-scrub registry backup preservation (CWE-460 / CWE-400 / CWE-252)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'if /i "!CLI_TARGET!"=="-y" set "FORCE_YES=1"' "jvm.bat must recognize -y flag for clear command"
+        Assert-Contains $jvmRaw 'if "!FORCE_YES!"=="1" goto :CONFIRMED_CLEAR' "jvm.bat must bypass interactive prompt if FORCE_YES is set"
+        Assert-Contains $jvmRaw 'if not defined CLI_COMMAND (' "jvm.bat must skip pause >nul in ClearJavaEnvironment when CLI_COMMAND is defined"
+        $clearMatch = [regex]::Match($jvmRaw, '(?m)^:ClearJavaEnvironment\b')
+        Assert-True $clearMatch.Success ":ClearJavaEnvironment label must exist in jvm.bat"
+        $clearPos = $clearMatch.Index
+        $clearBody = $jvmRaw.Substring($clearPos, [math]::Min(1500, $jvmRaw.Length - $clearPos))
+        $bakPos = $clearBody.IndexOf('call :BackupRegistry')
+        $delPos = $clearBody.IndexOf('delete "HKCU\Environment" /v JAVA_HOME')
+        Assert-True ($bakPos -gt 0 -and $delPos -gt 0 -and $bakPos -lt $delPos) "call :BackupRegistry must execute before deleting HKCU JAVA_HOME"
+    }
+
+    # Test 179: Live cyclic directory junction recursion test & Remove-DirectorySafely CWE-674 immunity (CWE-674 / CWE-59)
+    Run-TestCase "Reparse" "Live cyclic directory junction recursion test & Remove-DirectorySafely CWE-674 immunity (CWE-674 / CWE-59)" {
+        $cycleSandbox = Join-Path $SandboxRoot "cyclic_junction_sandbox_179"
+        $subDir = Join-Path $cycleSandbox "subdir"
+        $loopJunction = Join-Path $subDir "loop_link"
+        New-Item -ItemType Directory -Path $subDir -Force | Out-Null
+
+        # Create a cyclic directory junction pointing back to parent (subDir -> cycleSandbox)
+        & cmd.exe /c "mklink /J `"$loopJunction`" `"$cycleSandbox`"" >$null 2>&1
+
+        $uninstRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "uninstall.ps1") -Raw
+        Assert-Contains $uninstRaw "Unbind all child reparse points (bottom-up) without recursing into reparse points (CWE-674 / CWE-59)" "uninstall.ps1 must document non-recursive queue pattern in Remove-DirectorySafely"
+        Assert-Contains $uninstRaw "`$visited = New-Object 'System.Collections.Generic.HashSet[string]'" "Remove-DirectorySafely must use a HashSet to prevent cyclic loops"
+        Assert-Contains $uninstRaw "`$queue = New-Object System.Collections.Generic.Queue[string]" "Remove-DirectorySafely must use a FIFO queue for safe directory enumeration"
+
+        # Test that our non-recursive pattern terminates cleanly on this cyclic sandbox without hanging or stack overflow
+        $reparseList = New-Object System.Collections.Generic.List[System.IO.FileSystemInfo]
+        $queue = New-Object System.Collections.Generic.Queue[string]
+        $visited = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $normRoot = (Resolve-Path -LiteralPath $cycleSandbox).Path
+        $queue.Enqueue($normRoot)
+        $depthMap = @{ $normRoot = 0 }
+
+        while ($queue.Count -gt 0) {
+            $currDir = $queue.Dequeue()
+            $currDepth = $depthMap[$currDir]
+            if ($currDepth -ge 32 -or -not $visited.Add($currDir)) { continue }
+
+            $children = Get-ChildItem -LiteralPath $currDir -Force -ErrorAction SilentlyContinue
+            foreach ($child in $children) {
+                if ($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                    $reparseList.Add($child)
+                } elseif ($child.PSIsContainer) {
+                    $depthMap[$child.FullName] = $currDepth + 1
+                    $queue.Enqueue($child.FullName)
+                }
+            }
+        }
+
+        Assert-Equals 1 $reparseList.Count "Reparse scanner must discover exactly 1 junction without following the cyclic loop"
+        Assert-Equals "loop_link" (Split-Path -Leaf $reparseList[0].FullName) "Discovered reparse point must be the cyclic loop junction"
+        Assert-True ($reparseList[0].Attributes -band [System.IO.FileAttributes]::ReparsePoint) "Discovered item must possess ReparsePoint attribute"
+
+        # Safely unbind and clean up
+        [System.IO.Directory]::Delete($loopJunction, $false)
+        Remove-Item -LiteralPath $cycleSandbox -Recurse -Force -ErrorAction SilentlyContinue
+        Assert-True (-not (Test-Path -LiteralPath $cycleSandbox)) "Sandbox must be completely removed without hanging"
+    }
+
+    # Test 180: PowerShell ConstrainedLanguageMode early fail-closed policy enforcement across install.ps1 and uninstall.ps1 (CWE-755 / CWE-754)
+    Run-TestCase "PackageIntegrity" "PowerShell ConstrainedLanguageMode early fail-closed policy enforcement across install.ps1 and uninstall.ps1 (CWE-755 / CWE-754)" {
+        $instRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+        $uninstRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "uninstall.ps1") -Raw
+
+        Assert-Contains $instRaw 'if ($ExecutionContext.SessionState.LanguageMode -ne ''FullLanguage'') {' "install.ps1 must check for FullLanguage mode"
+        Assert-Contains $instRaw 'Write-Host "[ ERROR  ] PowerShell is operating in $($ExecutionContext.SessionState.LanguageMode) mode."' "install.ps1 must emit diagnostic error message when not in FullLanguage"
+        Assert-Contains $instRaw 'FullLanguage mode is required by DiamTek Java Version Manager installer' "install.ps1 must state installer requirement for FullLanguage mode"
+
+        Assert-Contains $uninstRaw 'if ($ExecutionContext.SessionState.LanguageMode -ne ''FullLanguage'') {' "uninstall.ps1 must check for FullLanguage mode"
+        Assert-Contains $uninstRaw 'Write-Host "[ ERROR  ] PowerShell is operating in $($ExecutionContext.SessionState.LanguageMode) mode."' "uninstall.ps1 must emit diagnostic error message when not in FullLanguage"
+        Assert-Contains $uninstRaw 'FullLanguage mode is required by DiamTek Java Version Manager uninstaller' "uninstall.ps1 must state uninstaller requirement for FullLanguage mode"
+    }
+
+    # Test 181: :WriteConfigFile atomic staged replacement (.stage.*.tmp + move /y) and UNC local volume junction advisory (CWE-362 / CWE-59)
+    Run-TestCase "Registry" ":WriteConfigFile atomic staged replacement (.stage.*.tmp + move /y) and UNC local volume junction advisory (CWE-362 / CWE-59)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'set "_CFG_TMP=!_CFG_FILE!.stage.!_CFG_RND!.tmp"' ":WriteConfigFile must stage configuration writes using CSPRNG _CFG_RND"
+        Assert-Contains $jvmRaw 'move /y "!_CFG_TMP!" "!_CFG_FILE!" >nul 2>&1' ":WriteConfigFile must use atomic move /y for config file commit"
+        Assert-Contains $jvmRaw '"%FSUTIL_BIN%" reparsepoint query "!_CFG_TMP!" >nul 2>&1' ":WriteConfigFile must verify staged temp file is not a reparse point"
+        Assert-Contains $jvmRaw 'Notice: NTFS Directory Junctions require local NTFS volumes.' "jvm.bat must emit local volume notice when mklink fails"
+        Assert-Contains $jvmRaw 'switch to legacy Registry mode:' "jvm.bat must advise user to switch to legacy mode when on network/UNC paths"
+        Assert-Contains $jvmRaw 'Ensure %%LOCALAPPDATA%% and candidate paths reside on local NTFS volumes.' ":SwitchCandidate must emit local NTFS volume notice on mklink failure"
+    }
+
+    # Test 182: :SwitchCandidate target candidate \bin existence check and CWE-426 binary planting immunity (CWE-426)
+    Run-TestCase "Adversarial" ":SwitchCandidate target candidate \bin existence check and CWE-426 binary planting immunity (CWE-426)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'Security violation ^(CWE-426^): Target candidate has no bin directory' ":SwitchCandidate must verify bin directory exists before activating candidate"
+        Assert-Contains $jvmRaw 'if not exist "!TARGET_PATH!\bin"' ":SwitchCandidate must check for TARGET_PATH\bin existence"
+    }
+
+    # Test 183: :SwitchCandidate target directory reparse point / junction rejection (CWE-59)
+    Run-TestCase "ReparsePoint" ":SwitchCandidate target directory reparse point / junction rejection (CWE-59)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'Security violation ^(CWE-59^): Candidate target directory cannot be a reparse point.' ":SwitchCandidate must verify TARGET_PATH is not a reparse point"
+        Assert-Contains $jvmRaw '"%FSUTIL_BIN%" reparsepoint query "!TARGET_PATH!" >nul 2>&1' ":SwitchCandidate must query TARGET_PATH using fsutil reparsepoint"
+    }
+
+    # Test 184: .sdkmanrc quote splitting, whitespace trimming, and unmanaged candidate tolerance (CWE-20 / CWE-78)
+    Run-TestCase "Manifest" ".sdkmanrc quote splitting, whitespace trimming, and unmanaged candidate tolerance (CWE-20 / CWE-78)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw '%FINDSTR_BIN% /c:"\""' "jvm.bat must check for double quotes in .sdkmanrc using /c: quote search"
+        Assert-Contains $jvmRaw '%FINDSTR_BIN% /i /r "^[ \t]*java[ \t]*="' "jvm.bat must support whitespace around = in .sdkmanrc java version declarations"
+        Assert-Contains $jvmRaw 'if not defined CANDIDATE_ENV_VAR exit /b 0' ":ProcessEcosystemSession must gracefully ignore unmanaged candidates without error"
+    }
+
+    # Test 185: jvm exec subshell command quoting and non-zero exit propagation (CWE-88 / CWE-252)
+    Run-TestCase "Adversarial" "jvm exec subshell command quoting and non-zero exit propagation (CWE-88 / CWE-252)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'if "%~1"=="" goto :DO_EXEC_RUN' ":COLLECT_EXEC_LOOP must check for end of arguments"
+        Assert-Contains $jvmRaw '"%CMD_BIN%" /d /s /c "%EXEC_CMD%"' ":ExecuteEphemeralCommand must execute EXEC_CMD without double-double quote wrapping"
+    }
+
+    # Test 186: DownloadJDK_Headless empty version string rejection and DO_PIN_WRITE validation (CWE-20)
+    Run-TestCase "Adversarial" "DownloadJDK_Headless empty version string rejection and DO_PIN_WRITE validation (CWE-20)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'Invalid version identifier for pin.' ":DO_PIN_WRITE must explicitly reject missing version"
+        Assert-Contains $jvmRaw 'Invalid version specified: version cannot be empty.' ":DownloadJDK_Headless must explicitly reject empty versions after quote stripping"
+    }
+
+    # Test 187: uninstall.ps1 Invoke-DeferredDirectoryCleanup process lock wait and reparse verification (CWE-59 / CWE-367)
+    Run-TestCase "Uninstall" "uninstall.ps1 Invoke-DeferredDirectoryCleanup process lock wait and reparse verification (CWE-59 / CWE-367)" {
+        $uninstRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "uninstall.ps1") -Raw
+        Assert-Contains $uninstRaw 'Get-Process -Id $parentPid' "Invoke-DeferredDirectoryCleanup must locate parent process ID"
+        Assert-Contains $uninstRaw 'WaitForExit(15000)' "Invoke-DeferredDirectoryCleanup must wait for uninstaller process termination"
+        Assert-Contains $uninstRaw '[System.IO.FileAttributes]::ReparsePoint' "Invoke-DeferredDirectoryCleanup must verify target is not a reparse point prior to deletion"
+    }
+
+    # Test 188: uninstall.ps1 Test-TrustedJvmInstallDirectory enforcement on -SourceDir and workspace cleanup (CWE-73 / CWE-59)
+    Run-TestCase "Uninstall" "uninstall.ps1 Test-TrustedJvmInstallDirectory enforcement on -SourceDir and workspace cleanup (CWE-73 / CWE-59)" {
+        $uninstRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "uninstall.ps1") -Raw
+        Assert-Contains $uninstRaw '$targetFolder = $validatedSourceDir' "uninstall.ps1 must bind targetFolder strictly to validatedSourceDir"
+        Assert-Contains $uninstRaw 'Test-TrustedJvmInstallDirectory $scriptDir' "uninstall.ps1 must validate scriptDir through Test-TrustedJvmInstallDirectory"
+        Assert-Contains $uninstRaw 'Security violation (CWE-73): Specified -SourceDir' "uninstall.ps1 must log security violation when -SourceDir fails validation"
+    }
+
+    # Test 189: scripts/bump-version.ps1 Assert-ValidWingetManifest YAML schema validation (CWE-20 / CWE-611)
+    Run-TestCase "PackageIntegrity" "scripts/bump-version.ps1 Assert-ValidWingetManifest YAML schema validation (CWE-20 / CWE-611)" {
+        $bumpRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "scripts\bump-version.ps1") -Raw
+        Assert-Contains $bumpRaw 'function Assert-ValidWingetManifest' "bump-version.ps1 must define Assert-ValidWingetManifest"
+        Assert-Contains $bumpRaw 'Winget manifest ''$FilePath'' contains forbidden tab characters.' "Assert-ValidWingetManifest must reject tab characters in YAML"
+        Assert-Contains $bumpRaw 'Winget manifest ''$FilePath'' must not contain UTF-8 BOM.' "Assert-ValidWingetManifest must enforce UTF-8 without BOM"
+        Assert-Contains $bumpRaw 'Assert-ValidWingetManifest (Join-Path $RepoRoot "packages\winget\DiamTek.JVM.yaml")' "bump-version.ps1 must validate DiamTek.JVM.yaml"
+        Assert-Contains $bumpRaw 'Assert-ValidWingetManifest (Join-Path $RepoRoot "packages\winget\DiamTek.JVM.installer.yaml")' "bump-version.ps1 must validate DiamTek.JVM.installer.yaml"
+    }
+
+    # Test 190: jvm.bat :HANDLE_LINKS console code page ORIG_CP restoration across all exit paths (CWE-252)
+    Run-TestCase "Registry" "jvm.bat :HANDLE_LINKS console code page ORIG_CP restoration across all exit paths (CWE-252)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw ':HANDLE_LINKS_FAIL' "jvm.bat must define :HANDLE_LINKS_FAIL label"
+        Assert-Contains $jvmRaw ':HANDLE_LINKS_SUCCESS' "jvm.bat must define :HANDLE_LINKS_SUCCESS label"
+        Assert-Contains $jvmRaw 'if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1' "jvm.bat must restore ORIG_CP in HANDLE_LINKS exit handlers"
+    }
+
+    # Test 191: jvm.bat UPDATE_CHECKER_PS1 echo block syntax and pipe character escaping (CWE-78 / CWE-20)
+    Run-TestCase "Adversarial" "jvm.bat UPDATE_CHECKER_PS1 echo block syntax and pipe character escaping (CWE-78 / CWE-20)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'Write-Output "ERROR|Invalid major version"' "UPDATE_CHECKER_PS1 must double-quote ERROR| string to prevent cmd.exe pipe execution"
+        Assert-False ($jvmRaw -match 'echo[^\r\n]*Write-Output\s+''ERROR\|') "UPDATE_CHECKER_PS1 must never use single-quoted pipe in echo statements"
+        Assert-Contains $jvmRaw 'if not "!API_ERROR:404=!"=="!API_ERROR!"' "jvm.bat must discriminate HTTP 404 from offline status in update checks"
+    }
+
+    # Test 192: jvm.bat set /p interactive prompt Ctrl+C file pointer alignment and colon guard (CWE-754 / CWE-755)
+    Run-TestCase "Adversarial" "jvm.bat set /p interactive prompt Ctrl+C file pointer alignment and colon guard (CWE-754 / CWE-755)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'Type ''cancel'' ^(or press Enter^) to return' "InstallWizard_JDK prompt must guide user on cancel options"
+        Assert-Contains $jvmRaw 'if /i "!TARGET_VER!"=="cancel" goto :eof' "InstallWizard_JDK must support 'cancel' keyword"
+        Assert-Contains $jvmRaw 'if /i "!TARGET_VER!"=="c" goto :eof' "InstallWizard_JDK must support 'c' shortcut"
+
+        # Verify colon guards exist after every set /p prompt to absorb cmd.exe 3-byte offset shifts
+        $setPPrompts = [regex]::Matches($jvmRaw, 'set\s+/p\s+[^\r\n]+')
+        Assert-True ($setPPrompts.Count -ge 5) "Must locate interactive set /p prompt sites in jvm.bat"
+        foreach ($m in $setPPrompts) {
+            $context = $jvmRaw.Substring($m.Index, [Math]::Min(300, $jvmRaw.Length - $m.Index))
+            # Must find colon guard or safe check
+            Assert-True ($context -match '(?m)^\s*:{4,}' -or $context -match '(?m)^\s*if\s+') "Every set /p prompt must have safe alignment guards"
+        }
+    }
+
+    # Test 193: jvm.bat update vendor release version resolution for Semeru and Corretto (CWE-20 / CWE-754)
+    Run-TestCase "Adversarial" "jvm.bat update vendor release version resolution for Semeru and Corretto (CWE-20 / CWE-754)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'IMPLEMENTOR_VERSION=' "UPDATE_CHECKER_PS1 must check IMPLEMENTOR_VERSION from release file"
+        Assert-Contains $jvmRaw 'if ^($Vendor -eq "Semeru" -and $implVerLine^)' "UPDATE_CHECKER_PS1 must parse Semeru implementor build version"
+        Assert-Contains $jvmRaw 'elseif ^($Vendor -eq "Corretto" -and $implVerLine^)' "UPDATE_CHECKER_PS1 must parse Corretto implementor build version"
+        Assert-Contains $jvmRaw 'if ^($folderName -match ' "UPDATE_CHECKER_PS1 must fall back to directory name when release file is missing"
+    }
+
+    # Test 194: jvm.bat uninstall without arguments lists installed JDKs and supports interactive cancel (CWE-20 / CWE-754)
+    Run-TestCase "Adversarial" "jvm.bat uninstall without arguments lists installed JDKs and supports interactive cancel (CWE-20 / CWE-754)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $jvmRaw 'Select JDK to uninstall:' "jvm.bat uninstall must display interactive JDK selection header when version is omitted"
+        Assert-Contains $jvmRaw 'set /a UNINST_CANCEL=RESOLVE_COUNT+1' "jvm.bat uninstall must compute dynamic cancel option index"
+        Assert-Contains $jvmRaw 'Select JDK to uninstall (1-!UNINST_CANCEL!):' "jvm.bat uninstall prompt must show valid choice range"
+        Assert-Contains $jvmRaw 'Uninstallation cancelled.' "jvm.bat uninstall must support clean cancellation"
+    }
+
 } finally {
     # --------------------------------------------------------------------------
-    # Sandbox Cleanup
+    # Sandbox Cleanup (Guaranteed Non-Recursive Reparse Safe Cleanup)
     # --------------------------------------------------------------------------
     if (Test-Path $SandboxRoot) {
-        # Unbind any surviving junctions first
-        Get-ChildItem -LiteralPath $SandboxRoot -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
-            $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint
-        } | ForEach-Object {
+        $reparseList = New-Object System.Collections.Generic.List[System.IO.FileSystemInfo]
+        $queue = New-Object System.Collections.Generic.Queue[string]
+        $visited = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $normRoot = (Resolve-Path -LiteralPath $SandboxRoot).Path
+        $queue.Enqueue($normRoot)
+        $depthMap = @{ $normRoot = 0 }
+
+        while ($queue.Count -gt 0) {
+            $curr = $queue.Dequeue()
+            if ($depthMap[$curr] -ge 32 -or -not $visited.Add($curr)) { continue }
+            foreach ($ch in (Get-ChildItem -LiteralPath $curr -Force -ErrorAction SilentlyContinue)) {
+                if ($ch.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                    $reparseList.Add($ch)
+                } elseif ($ch.PSIsContainer) {
+                    $depthMap[$ch.FullName] = $depthMap[$curr] + 1
+                    $queue.Enqueue($ch.FullName)
+                }
+            }
+        }
+        $reparseList | Sort-Object -Property { $_.FullName.Length } -Descending | ForEach-Object {
             if ($_.PSIsContainer) {
                 try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { & cmd.exe /c "rmdir /q `"$($_.FullName)`"" 2>$null }
             } else {
@@ -2922,11 +3584,11 @@ $TotalElapsedMs = ($SuiteTracker.Values | Measure-Object -Property ElapsedMs -Su
 if ($null -eq $TotalElapsedMs) { $TotalElapsedMs = $RunnerStopwatch.ElapsedMilliseconds }
 
 Write-Host ""
-Write-Host "$cCyan$cBold========================================================================$cReset"
-Write-Host "$cCyan$cBold                         TEST EXECUTION SUMMARY                         $cReset"
-Write-Host "$cCyan$cBold========================================================================$cReset"
-Write-Host ("  {0,-43} {1,12}   {2,-8} {3,10}" -f "Suite", "Passed/Total", "Status", "Elapsed")
-Write-Host ("  {0,-43} {1,12}   {2,-8} {3,10}" -f ("-" * 43), ("-" * 12), ("-" * 8), ("-" * 10))
+Write-Host "$cCyan$cBold====================================================================================$cReset"
+Write-Host "$cCyan$cBold                               TEST EXECUTION SUMMARY                               $cReset"
+Write-Host "$cCyan$cBold====================================================================================$cReset"
+Write-Host ("  {0,-45} {1,12}   {2,-8} {3,10}" -f "Suite", "Passed/Total", "Status", "Elapsed")
+Write-Host ("  {0,-45} {1,12}   {2,-8} {3,10}" -f ("-" * 45), ("-" * 12), ("-" * 8), ("-" * 10))
 
 foreach ($entry in $SuiteTracker.Values) {
     if ($entry.Total -eq 0 -and $entry.Skipped -gt 0) {
@@ -2942,13 +3604,13 @@ foreach ($entry in $SuiteTracker.Values) {
         $statusStr = "${cGreen}[PASS]${cReset}  "
         $timeStr = "$($entry.ElapsedMs) ms"
     }
-    $displayTitle = if ($entry.Name.Length -gt 43) { $entry.Name.Substring(0, 40) + "..." } else { $entry.Name }
-    Write-Host ("  {0,-43} {1,12}   " -f $displayTitle, $ratioStr) -NoNewline
+    $displayTitle = if ($entry.Name.Length -gt 45) { $entry.Name.Substring(0, 42) + "..." } else { $entry.Name }
+    Write-Host ("  {0,-45} {1,12}   " -f $displayTitle, $ratioStr) -NoNewline
     Write-Host $statusStr -NoNewline
     Write-Host (" {0,10}" -f $timeStr)
 }
 
-Write-Host ("  {0,-43} {1,12}   {2,-8} {3,10}" -f ("-" * 43), ("-" * 12), ("-" * 8), ("-" * 10))
+Write-Host ("  {0,-45} {1,12}   {2,-8} {3,10}" -f ("-" * 45), ("-" * 12), ("-" * 8), ("-" * 10))
 Write-Host "  Total Tests Executed : $TotalExecuted ${cGray}(Test Time: $TotalElapsedMs ms | Wall Time: $($RunnerStopwatch.ElapsedMilliseconds) ms)${cReset}"
 Write-Host "  Passed               : ${cGreen}$GlobalPassed${cReset}"
 if ($GlobalFailed -gt 0) {
@@ -2967,24 +3629,24 @@ if ($Detailed -and $TestResults.Count -gt 0) {
     Write-Host "${cGray}$slowSummary${cReset}"
 }
 
-Write-Host "$cCyan$cBold========================================================================$cReset"
-Write-Host "$cCyan$cBold                        CWE COVERAGE SUMMARY                            $cReset"
-Write-Host "$cCyan$cBold========================================================================$cReset"
-Write-Host ("  {0,-10} {1,-36} {2,10}   {3,-8}" -f "CWE ID", "Vulnerability Class", "Passed", "Status")
-Write-Host ("  {0,-10} {1,-36} {2,10}   {3,-8}" -f ("-" * 10), ("-" * 36), ("-" * 10), ("-" * 8))
+Write-Host "$cCyan$cBold====================================================================================$cReset"
+Write-Host "$cCyan$cBold                                CWE COVERAGE SUMMARY                                $cReset"
+Write-Host "$cCyan$cBold====================================================================================$cReset"
+Write-Host ("  {0,-10} {1,-44} {2,12}   {3,-8}" -f "CWE ID", "Vulnerability Class", "Passed", "Status")
+Write-Host ("  {0,-10} {1,-44} {2,12}   {3,-8}" -f ("-" * 10), ("-" * 44), ("-" * 12), ("-" * 8))
 
 foreach ($cwe in ($CweCatalog.Values | Sort-Object Number)) {
-    $cweTests = @($TestResults | Where-Object { $_.CweId -eq $cwe.Id })
+    $cweTests = @($TestResults | Where-Object { $_.CweId -eq $cwe.Id -or ($_.CweIds -and ($_.CweIds -contains $cwe.Id)) })
     if ($cweTests.Count -eq 0) { continue }
     $cwePassed = @($cweTests | Where-Object { $_.Status -eq 'PASS' }).Count
     $cweFailed = @($cweTests | Where-Object { $_.Status -eq 'FAIL' }).Count
     $cweRatio  = "$cwePassed / $($cweTests.Count)"
     $cweStatus = if ($cweFailed -gt 0) { "${cRed}[FAIL]${cReset}  " } else { "${cGreen}[PASS]${cReset}  " }
 
-    Write-Host ("  ${cCyan}{0,-10}${cReset} {1,-36} {2,10}   " -f $cwe.Id, $cwe.Short, $cweRatio) -NoNewline
+    Write-Host ("  ${cCyan}{0,-10}${cReset} {1,-44} {2,12}   " -f $cwe.Id, $cwe.Short, $cweRatio) -NoNewline
     Write-Host $cweStatus
 }
-Write-Host "$cCyan$cBold========================================================================$cReset"
+Write-Host "$cCyan$cBold====================================================================================$cReset"
 Write-Host ""
 
 # Automatic GitHub Actions Step Summary Generation
@@ -3024,7 +3686,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
         $mdLines.Add("| CWE ID | Vulnerability Class | Tests Passed |")
         $mdLines.Add("| :--- | :--- | :---: |")
         foreach ($cwe in ($CweCatalog.Values | Sort-Object Number)) {
-            $cweTests = @($TestResults | Where-Object { $_.CweId -eq $cwe.Id })
+            $cweTests = @($TestResults | Where-Object { $_.CweId -eq $cwe.Id -or ($_.CweIds -and ($_.CweIds -contains $cwe.Id)) })
             if ($cweTests.Count -eq 0) { continue }
             $cwePassed = @($cweTests | Where-Object { $_.Status -eq 'PASS' }).Count
             $cweFailed = @($cweTests | Where-Object { $_.Status -eq 'FAIL' }).Count

@@ -53,9 +53,32 @@ set "LOCALAPPDATA=%TEMP%\JVM_Sandbox"
 
 ## 🧪 Automated Test Suite Execution
 
+All contributions are subject to two automated test suites before being merged into `main`:
+
+### 1. Security, Error Management & Adversarial Test Suite (`tests/Test-JvmSecurity.ps1`)
+
+The repository includes an exhaustive **181-test automated adversarial security test suite** covering **40 MITRE CWE classes** with a verified **`10.0 / 10.0`** scorecard. This suite validates input sanitization, reparse point operations, atomic failure-path rollbacks, handle disposal, and exit code propagation:
+
+```powershell
+# Run using modern PowerShell 7+ (Recommended):
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1
+
+# Or run using native Windows PowerShell 5.1:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1
+
+# Run with verbose diagnostic outputs and test millisecond durations:
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1 -Detailed
+
+# Target a specific test suite or CWE filter:
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1 -Suite 1
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1 -Filter "CWE-460"
+```
+
+### 2. Live OS Integration Test Suite (`packages\msi\test-msi.ps1`)
+
 DiamTek JVM includes a synthetic 21-point integration test suite (`packages\msi\test-msi.ps1`) used by our CI/CD pipeline to validate real operating system integration (13 installation & system registration checks + 8 uninstallation & residual hygiene checks).
 
-### Running the Integration Test Suite
+#### Running the Integration Test Suite
 
 Open PowerShell (Run as Administrator if testing elevated MSI installation) and execute:
 
@@ -143,12 +166,13 @@ We actively welcome contributions! Follow this workflow for a seamless review:
    - `docs: update Intune silent deployment switches`
    - `test: add synthetic validation case for ARM64 detection`
 4. **Run the Pre-Flight Checklist:**
+   - [ ] `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1` passes 181/181 tests (`0` failures).
    - [ ] `cmd.exe /c "jvm.bat --version"` executes cleanly with exit code `0`.
    - [ ] Verified in standard **Command Prompt (`cmd.exe`)**.
    - [ ] Verified in **Windows PowerShell (5.1)** and **PowerShell (7+)**.
    - [ ] Verified in **Windows Terminal**.
    - [ ] UAC-free **Symlink Mode** switches without prompts.
-   - [ ] No temporary script files left behind in `%TEMP%`.
+   - [ ] No temporary script files left behind in `%TEMP%` or `%LOCALAPPDATA%\DiamTek\JVM\temp`.
 5. **Open a Pull Request** targeting the `main` branch with a clear description and testing proof.
 
 ---

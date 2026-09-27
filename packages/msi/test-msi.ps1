@@ -34,7 +34,9 @@ if (-not [string]::IsNullOrWhiteSpace($MsiPath)) {
 # Ensure process-level execution policy allows running hooks and commands
 try {
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction SilentlyContinue
-} catch { }
+} catch {
+    Write-Verbose "Set-ExecutionPolicy skipped: $($_.Exception.Message)"
+}
 
 # Resolve script directory robustly across PowerShell hosts and invocation modes
 $ScriptDir = if ($PSScriptRoot) {
@@ -58,9 +60,13 @@ try {
             Get-ChildItem -LiteralPath $ScriptDir -Filter "*.msi" -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
         }
     }
-} catch { }
+} catch {
+    Write-Verbose "Unblock-File skipped: $($_.Exception.Message)"
+}
 
 $originalLocation = (Get-Location).Path
+$script:msiInstalled = $false
+$script:msiUninstalled = $false
 
 try {
     # Auto-detect expected version and build from local source jvm.bat or target MSI
@@ -129,7 +135,9 @@ try {
                 if ($candidate) {
                     $MsiPath = $candidate.FullName
                 }
-            } catch { }
+            } catch {
+                Write-Verbose "Fallback MSI build failed: $($_.Exception.Message)"
+            }
         }
     }
 
@@ -253,8 +261,16 @@ try {
     $uiFlag = if ($ShowUI) { "/qb" } else { "/qn" }
     Write-Host "${cBold}[SUITE 1] Phase 1: Installation & System Registration${cReset}"
     $script:checkSw.Restart()
-    $installProc = Start-Process -FilePath $msiExecBin -ArgumentList "/i `"$MsiPath`" $uiFlag" -Wait -PassThru
-    Report-Check -Title "Windows Installer execution completed cleanly" -Passed ($installProc.ExitCode -eq 0) -Details "ExitCode: $($installProc.ExitCode)"
+    $installProc = $null
+    $installExit = -1
+    try {
+        $installProc = Start-Process -FilePath $msiExecBin -ArgumentList "/i `"$MsiPath`" $uiFlag" -Wait -PassThru
+        $installExit = $installProc.ExitCode
+        if ($installExit -eq 0) { $script:msiInstalled = $true }
+    } finally {
+        if ($null -ne $installProc) { $installProc.Dispose() }
+    }
+    Report-Check -Title "Windows Installer execution completed cleanly" -Passed ($installExit -eq 0) -Details "ExitCode: $installExit"
 
     $jvmBatPath = "$env:LOCALAPPDATA\DiamTek\JVM\bin\jvm.bat"
     Report-Check -Title "Core engine deployed to LocalAppData\DiamTek\JVM\bin" -Passed (Test-Path $jvmBatPath)
@@ -293,7 +309,9 @@ try {
                     $wtProfileConfigured = $true
                     break
                 }
-            } catch { }
+            } catch {
+                Write-Verbose "Windows Terminal settings inspection warning: $($_.Exception.Message)"
+            }
         }
     }
     if ($hasWtInstalled) {
@@ -304,26 +322,34 @@ try {
 
     $startMenuDir = Join-Path ([Environment]::GetFolderPath("Programs")) "DiamTek"
     $shortcutPath = Join-Path $startMenuDir "Java Version Manager.lnk"
-    $ws = New-Object -ComObject WScript.Shell
+    $uninstallLnkPath = Join-Path $startMenuDir "Uninstall Java Version Manager.lnk"
+    $ws = $null
+    $shortcutObj = $null
+    $uninstallObj = $null
     $shortcutOk = $false
     $shortcutTarget = ""
-    if (Test-Path $shortcutPath) {
-        $shortcutObj = $ws.CreateShortcut($shortcutPath)
-        $shortcutTarget = $shortcutObj.TargetPath
-        $shortcutOk = [bool]($shortcutTarget -and (Test-Path $shortcutTarget))
-    }
-    Report-Check -Title "Start Menu application shortcut verified" -Passed $shortcutOk -Details "$shortcutTarget"
-
-    $uninstallLnkPath = Join-Path $startMenuDir "Uninstall Java Version Manager.lnk"
     $uninstallShortcutOk = $false
     $uninstallDetails = ""
-    if (Test-Path $uninstallLnkPath) {
-        $uninstallObj = $ws.CreateShortcut($uninstallLnkPath)
-        $uninstallTarget = $uninstallObj.TargetPath
-        $uninstallArgs = $uninstallObj.Arguments
-        $uninstallShortcutOk = [bool]($uninstallTarget -and ($uninstallTarget -match "msiexec(\.exe)?$") -and ($uninstallArgs -match "/x\s*\{"))
-        $uninstallDetails = "$uninstallTarget $uninstallArgs".Trim()
+    try {
+        $ws = New-Object -ComObject WScript.Shell
+        if (Test-Path $shortcutPath) {
+            $shortcutObj = $ws.CreateShortcut($shortcutPath)
+            $shortcutTarget = $shortcutObj.TargetPath
+            $shortcutOk = [bool]($shortcutTarget -and (Test-Path $shortcutTarget))
+        }
+        if (Test-Path $uninstallLnkPath) {
+            $uninstallObj = $ws.CreateShortcut($uninstallLnkPath)
+            $uninstallTarget = $uninstallObj.TargetPath
+            $uninstallArgs = $uninstallObj.Arguments
+            $uninstallShortcutOk = [bool]($uninstallTarget -and ($uninstallTarget -match "msiexec(\.exe)?$") -and ($uninstallArgs -match "/x\s*\{"))
+            $uninstallDetails = "$uninstallTarget $uninstallArgs".Trim()
+        }
+    } finally {
+        if ($null -ne $uninstallObj) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($uninstallObj) | Out-Null }
+        if ($null -ne $shortcutObj)  { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($shortcutObj)  | Out-Null }
+        if ($null -ne $ws)           { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($ws)           | Out-Null }
     }
+    Report-Check -Title "Start Menu application shortcut verified" -Passed $shortcutOk -Details "$shortcutTarget"
     Report-Check -Title "Start Menu uninstaller shortcut verified (indexed in Windows Search)" -Passed $uninstallShortcutOk -Details $uninstallDetails
 
     # Check CLI bin directory hygiene (ensure hooks are isolated in JVM root, not polluting bin/ or PATH)
@@ -362,8 +388,16 @@ try {
         Write-Host ""
         Write-Host "${cBold}[SUITE 2] Phase 2: Uninstallation & Residual Hygiene${cReset}"
         $script:checkSw.Restart()
-        $uninstallProc = Start-Process -FilePath $msiExecBin -ArgumentList "/x `"$MsiPath`" $uiFlag" -Wait -PassThru
-        Report-Check -Title "Windows Installer uninstallation completed cleanly" -Passed ($uninstallProc.ExitCode -eq 0) -Details "ExitCode: $($uninstallProc.ExitCode)"
+        $uninstallProc = $null
+        $uninstallExit = -1
+        try {
+            $uninstallProc = Start-Process -FilePath $msiExecBin -ArgumentList "/x `"$MsiPath`" $uiFlag" -Wait -PassThru
+            $uninstallExit = $uninstallProc.ExitCode
+            if ($uninstallExit -eq 0) { $script:msiUninstalled = $true }
+        } finally {
+            if ($null -ne $uninstallProc) { $uninstallProc.Dispose() }
+        }
+        Report-Check -Title "Windows Installer uninstallation completed cleanly" -Passed ($uninstallExit -eq 0) -Details "ExitCode: $uninstallExit"
 
         Start-Sleep -Seconds 1
 
@@ -382,7 +416,9 @@ try {
                         $jvmProf = $wtJson.profiles.list | Where-Object { $_.name -eq "Java Version Manager" }
                         if ($jvmProf) { $wtProfileCleaned = $false; break }
                     }
-                } catch { }
+                } catch {
+                    Write-Verbose "Windows Terminal post-uninstall check warning: $($_.Exception.Message)"
+                }
             }
         }
         Report-Check -Title "Windows Terminal profile cleanly removed" -Passed $wtProfileCleaned
@@ -429,5 +465,15 @@ try {
         exit 1
     }
 } finally {
+    if ($script:msiInstalled -and (-not $script:msiUninstalled) -and (-not $KeepInstalled) -and $MsiPath -and (Test-Path -LiteralPath $MsiPath)) {
+        $rollbackProc = $null
+        try {
+            $rollbackProc = Start-Process -FilePath $msiExecBin -ArgumentList "/x `"$MsiPath`" /qn" -Wait -PassThru -ErrorAction SilentlyContinue
+        } catch {
+            Write-Verbose "Emergency MSI rollback uninstall failed: $($_.Exception.Message)"
+        } finally {
+            if ($null -ne $rollbackProc) { $rollbackProc.Dispose() }
+        }
+    }
     Set-Location $originalLocation
 }
