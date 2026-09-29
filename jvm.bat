@@ -70,12 +70,14 @@ set "JVM_SECURE_TEMP=%JVM_DIR%\temp"
 
 if not exist "%JVM_DIR%" (
     set "AUTO_INIT=0"
+    if not "%~1"=="" set "AUTO_INIT=1"
     for %%A in (%*) do (
         if /i "%%~A"=="--yes" set "AUTO_INIT=1"
         if /i "%%~A"=="-y" set "AUTO_INIT=1"
     )
     if defined CI set "AUTO_INIT=1"
-    if "!AUTO_INIT!"=="0" (
+    if defined GITHUB_ACTIONS set "AUTO_INIT=1"
+    if "%AUTO_INIT%"=="0" (
         echo.
         echo ============================================================
         echo            Java Version Manager - First Run Setup
@@ -128,7 +130,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260929.124"
+set "JVM_BUILD=20260929.125"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
