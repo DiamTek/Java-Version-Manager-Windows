@@ -58,6 +58,9 @@ set "ICACLS_BIN=%SYS32%\icacls.exe"
 set "ATTRIB_BIN=%SYS32%\attrib.exe"
 set "EXPLORER_BIN=%SystemRoot%\explorer.exe"
 
+if defined CI set "JVM_NONINTERACTIVE=1"
+if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
+
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" goto :EARLY_HELP
 if /i "%~1"=="--help" goto :EARLY_HELP
@@ -69,10 +72,17 @@ set "JVM_DIR=%LOCALAPPDATA%\DiamTek\JVM"
 set "JVM_SECURE_TEMP=%JVM_DIR%\temp"
 
 if not exist "%JVM_DIR%" (
-    if defined CI goto :AUTO_INIT_HOST
-    if defined GITHUB_ACTIONS goto :AUTO_INIT_HOST
+    if defined JVM_NONINTERACTIVE goto :AUTO_INIT_HOST
     if not "%~1"=="" goto :AUTO_INIT_HOST
     set "AUTO_INIT=0"
+    for %%A in (%*) do (
+        if /i "%%~A"=="--yes" set "AUTO_INIT=1"
+        if /i "%%~A"=="-y" set "AUTO_INIT=1"
+    )
+    if "!AUTO_INIT!"=="1" goto :AUTO_INIT_HOST
+
+    "%CHOICE_BIN%" /C yn /N /T 1 /D y >nul 2>&1
+    if errorlevel 1 goto :AUTO_INIT_HOST
     for %%A in (%*) do (
         if /i "%%~A"=="--yes" set "AUTO_INIT=1"
         if /i "%%~A"=="-y" set "AUTO_INIT=1"
@@ -141,7 +151,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260929.127"
+set "JVM_BUILD=20260929.128"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -1315,6 +1325,7 @@ rem ============================================================
 
 rem Function to dynamically scan and display menu
 :ShowDynamicMenu
+if defined JVM_NONINTERACTIVE exit /b 0
 setlocal enabledelayedexpansion
 
 :RESCAN_MENU
@@ -2036,6 +2047,7 @@ if "!SILENT_MODE!"=="1" (
 )
 
 rem Show main menu
+if defined JVM_NONINTERACTIVE exit /b 0
 echo Please choose an option:
 echo.
 echo 1. JDK Management (Java)
