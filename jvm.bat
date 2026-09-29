@@ -15,6 +15,30 @@ rem GNU Affero General Public License for more details.
 rem You should have received a copy of the GNU Affero General Public License
 rem along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+rem Auto-repair Unix LF line endings to Windows CRLF if executed standalone from raw download
+if "%~1"=="--internal-crlf-relaunch" shift & goto :BOOTSTRAP_START
+set "SYS32=%SystemRoot%\System32"
+if not defined SystemRoot set "SYS32=C:\Windows\System32"
+"%SYS32%\findstr.exe" /r "[^ ]" "%~f0" >nul 2>&1
+"%SYS32%\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command ^
+    "$p = $env:RAW_BAT_SELF; if (-not $p -or -not (Test-Path -LiteralPath $p)) { $p = $args[0] };" ^
+    "if (Test-Path -LiteralPath $p) {" ^
+    "    $fs = [System.IO.File]::OpenRead($p);" ^
+    "    $buf = New-Object byte[] 4096; $read = $fs.Read($buf, 0, 4096); $fs.Close();" ^
+    "    $hasCr = $false; for ($i=0; $i -lt $read; $i++) { if ($buf[$i] -eq 13) { $hasCr = $true; break } };" ^
+    "    if (-not $hasCr) {" ^
+    "        $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8);" ^
+    "        $crlf = ($txt -replace \"`r?`n\", \"`r`n\");" ^
+    "        try { [System.IO.File]::WriteAllText($p, $crlf, (New-Object System.Text.UTF8Encoding($false))) } catch {}" ^
+    "        exit 42" ^
+    "    }" ^
+    "}" "%~f0" >nul 2>&1
+if "%errorlevel%"=="42" (
+    cmd.exe /c ""%~f0" --internal-crlf-relaunch %*"
+    exit /b %errorlevel%
+)
+:BOOTSTRAP_START
+
 rem Enforce pinned system executable paths against CWE-426 (Binary Planting in CWD)
 if not defined SystemRoot set "SystemRoot=C:\Windows"
 if not exist "%SystemRoot%\System32\cmd.exe" set "SystemRoot=C:\Windows"
@@ -34,10 +58,61 @@ set "ICACLS_BIN=%SYS32%\icacls.exe"
 set "ATTRIB_BIN=%SYS32%\attrib.exe"
 set "EXPLORER_BIN=%SystemRoot%\explorer.exe"
 
-rem Establish a secure, user-isolated temp workspace to prevent CWE-377 / CWE-378
-set "JVM_SECURE_TEMP=%LOCALAPPDATA%\DiamTek\JVM\temp"
+rem Allow help queries to display without initializing host directories
+if /i "%~1"=="help" goto :EARLY_HELP
+if /i "%~1"=="--help" goto :EARLY_HELP
+if /i "%~1"=="-h" goto :EARLY_HELP
+if "%~1"=="/?" goto :EARLY_HELP
+
+rem Verify host environment directory existence before modifying host state
+set "JVM_DIR=%LOCALAPPDATA%\DiamTek\JVM"
+set "JVM_SECURE_TEMP=%JVM_DIR%\temp"
+
+if not exist "%JVM_DIR%" (
+    set "AUTO_INIT=0"
+    for %%A in (%*) do (
+        if /i "%%~A"=="--yes" set "AUTO_INIT=1"
+        if /i "%%~A"=="-y" set "AUTO_INIT=1"
+    )
+    if defined CI set "AUTO_INIT=1"
+    if "!AUTO_INIT!"=="0" (
+        echo.
+        echo ============================================================
+        echo            Java Version Manager - First Run Setup
+        echo ============================================================
+        echo.
+        echo %cYELLOW%[ WARNING ]%cRESET% No JVM installation found on this computer:
+        echo               %JVM_DIR%
+        echo.
+        echo               JVM needs to create this directory to store your
+        echo               settings, active junctions, and state locks.
+        echo.
+        echo               Notice: If you are running standalone ^(e.g. from a USB^),
+        echo               this directory will remain on this PC until you
+        echo               run 'jvm self-uninstall' or delete it manually.
+        echo               The program cannot remove it automatically if you cancel.
+        echo.
+        echo ============================================================
+        "%CHOICE_BIN%" /C yn /N /M "Do you want to initialize the host directory now? (y/N): "
+        if errorlevel 2 (
+            echo.
+            echo %cBLUE%[  INFO  ]%cRESET% Setup cancelled. No files or directories were created on this PC.
+            if defined ORIG_CP "%CHCP_BIN%" %ORIG_CP% >nul 2>&1
+            exit /b 0
+        )
+    )
+)
+
 call :EnsureSecureTemp
 if errorlevel 1 exit /b 1
+goto :AFTER_EARLY_HELP
+
+:EARLY_HELP
+call :ShowHelp
+if defined ORIG_CP "%CHCP_BIN%" %ORIG_CP% >nul 2>&1
+exit /b 0
+
+:AFTER_EARLY_HELP
 
 set "SKIP_CHECKSUM=0"
 if /i "%JVM_SKIP_CHECKSUM%"=="1" set "SKIP_CHECKSUM=1"
@@ -53,7 +128,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260927.123"
+set "JVM_BUILD=20260929.124"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -236,6 +311,29 @@ if /i "%~1"=="--registry" (
 )
 if /i "%~1"=="--global" (
     set "FORCE_GLOBAL=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--offline" (
+    set "JVM_OFFLINE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--json" (
+    set "OUTPUT_JSON=1"
+    set "cRED="
+    set "cGREEN="
+    set "cYELLOW="
+    set "cBLUE="
+    set "cPURPLE="
+    set "cMAGENTA="
+    set "cGRAY="
+    set "cRESET="
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--no-lock" (
+    set "JVM_NO_LOCK=1"
     shift
     goto :PARSE_CLI_ARGS
 )
@@ -532,19 +630,39 @@ shift
 goto :COLLECT_PIN_LOOP
 
 :DO_PIN_WRITE
+call :AcquireStateLock
+if errorlevel 1 (
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b 1
+)
 if not defined PIN_CONTENT (
+    call :ReleaseStateLock
     echo.
     echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier for pin.
     if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     exit /b 1
 )
 if /i "!PIN_CONTENT!"=="current" (
+    call :ReleaseStateLock
     echo.
     echo %cRED%[ ERROR  ]%cRESET% 'current' is a reserved keyword and cannot be pinned.
     if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     exit /b 1
 )
+set "PIN_FOUND=0"
+for /l %%k in (1,1,!JDK_COUNT!) do (
+    if "!JDK_MAJOR_%%k!"=="!PIN_CONTENT!" set "PIN_FOUND=1"
+    if /i "!JDK_NAME_%%k!"=="!PIN_CONTENT!" set "PIN_FOUND=1"
+)
+if "!PIN_FOUND!"=="0" (
+    call :ReleaseStateLock
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% JDK '!PIN_CONTENT!' not found among installed JDKs.
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b 1
+)
 if exist "%INVOCATION_DIR%\.java-version\" (
+    call :ReleaseStateLock
     echo.
     echo %cRED%[ ERROR  ]%cRESET% Security violation: .java-version is a directory or junction.
     if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
@@ -552,19 +670,23 @@ if exist "%INVOCATION_DIR%\.java-version\" (
 )
 "%FSUTIL_BIN%" reparsepoint query "%INVOCATION_DIR%\.java-version" >nul 2>&1
 if not errorlevel 1 (
+    call :ReleaseStateLock
     echo.
     echo %cRED%[ ERROR  ]%cRESET% Security violation: Refusing to overwrite symlink/reparse point .java-version.
     if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     exit /b 1
 )
+(call )
 (echo !PIN_CONTENT!)>"%INVOCATION_DIR%\.java-version" 2>nul
 if errorlevel 1 (
+    call :ReleaseStateLock
     echo.
     echo %cRED%[ ERROR  ]%cRESET% Failed to write .java-version to: %INVOCATION_DIR%\.java-version
     if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     exit /b 1
 )
 if not exist "%INVOCATION_DIR%\.java-version" (
+    call :ReleaseStateLock
     echo.
     echo %cRED%[ ERROR  ]%cRESET% Failed to create .java-version in: %INVOCATION_DIR%
     if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
@@ -573,6 +695,7 @@ if not exist "%INVOCATION_DIR%\.java-version" (
 echo.
 echo %cGREEN%[   OK   ]%cRESET% Successfully pinned Java version '!PIN_CONTENT!' to:
 echo            %INVOCATION_DIR%\.java-version
+call :ReleaseStateLock
 if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
 exit /b 0
 
@@ -896,6 +1019,17 @@ echo.
 set "JVM_DIR=%LOCALAPPDATA%\DiamTek\JVM"
 set "CURRENT_SYMLINK=%LOCALAPPDATA%\DiamTek\JVM\current"
 
+call :AcquireStateLock
+if errorlevel 1 (
+    if defined CLI_COMMAND (
+        set "JVM_EXIT_CODE=1"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
+        endlocal & exit /b 1
+    )
+    pause
+    goto MAIN_LOOP
+)
+
 if /i "!SWITCH_MODE!"=="DIRECT" (
     echo %cBLUE%[ ACTION ]%cRESET% Setting Java to !CURRENT_JDK_PATH!...
     echo %cBLUE%[  INFO  ]%cRESET% Setting JAVA_HOME to: !CURRENT_JDK_PATH!
@@ -916,6 +1050,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
         "%FSUTIL_BIN%" reparsepoint query "!CURRENT_SYMLINK!" >nul 2>&1
         if errorlevel 1 (
             echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !CURRENT_SYMLINK! is a regular directory, not a junction.
+            call :ReleaseStateLock
             if defined CLI_COMMAND (
                 set "JVM_EXIT_CODE=1"
                 if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
@@ -928,6 +1063,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
         rmdir "!CURRENT_SYMLINK!" >nul 2>&1
         if exist "!CURRENT_SYMLINK!" (
             echo %cRED%[ ERROR  ]%cRESET% Failed to remove existing Directory Junction.
+            call :ReleaseStateLock
             if defined CLI_COMMAND (
                 set "JVM_EXIT_CODE=1"
                 if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
@@ -958,6 +1094,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
                 echo.
             )
         )
+        call :ReleaseStateLock
         if defined CLI_COMMAND (
             set "JVM_EXIT_CODE=1"
             if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
@@ -984,6 +1121,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
                 echo.
             )
         )
+        call :ReleaseStateLock
         if defined CLI_COMMAND (
             set "JVM_EXIT_CODE=1"
             if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
@@ -1012,6 +1150,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
                 echo.
             )
         )
+        call :ReleaseStateLock
         if defined CLI_COMMAND (
             set "JVM_EXIT_CODE=1"
             if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
@@ -1048,6 +1187,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
                     echo.
                 )
             )
+            call :ReleaseStateLock
             if defined CLI_COMMAND (
                 set "JVM_EXIT_CODE=1"
                 if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
@@ -1085,11 +1225,14 @@ if errorlevel 1 (
             )
         )
     )
+    call :ReleaseStateLock
     if defined CLI_COMMAND (
         endlocal & set "CMD_EXIT_CODE=1" & exit /b 1
     )
+    pause
+    goto MAIN_LOOP
 )
-
+call :ReleaseStateLock
 
 rem Clean the current session PATH dynamically to prevent duplicates
 setlocal enabledelayedexpansion
@@ -1415,6 +1558,10 @@ if /i not "!TARGET_CANDIDATE!"=="java" (
 
 if defined CLI_COMMAND (
     if /i "!CLI_COMMAND!"=="list" (
+        if "!OUTPUT_JSON!"=="1" (
+            call :ListJdksJson
+            goto :eof
+        )
         echo. 
         echo %cBLUE%[  INFO  ]%cRESET% Installed JDKs:
         echo ============================================================
@@ -1735,6 +1882,11 @@ if defined CLI_COMMAND (
             )
 
             echo.
+            call :AcquireStateLock
+            if errorlevel 1 (
+                set "JVM_EXIT_CODE=1"
+                goto :CLI_DONE
+            )
             echo %cBLUE%[ ACTION ]%cRESET% Terminating any active Java processes...
             echo %cBLUE%[ ACTION ]%cRESET% Deleting directory !DEL_PATH!...
             echo %cBLUE%[ ACTION ]%cRESET% Scrubbing environment variables...
@@ -1742,6 +1894,7 @@ if defined CLI_COMMAND (
             "%PS_BIN%" -NoProfile -Command "$del = $env:DEL_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($del)); $script = '$del = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($del, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; if (Test-Path -LiteralPath $del) { $it = Get-Item -LiteralPath $del -Force -ErrorAction SilentlyContinue; if ($it -and (($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { [System.IO.Directory]::Delete($it.FullName, $false) } else { Get-ChildItem -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } }; Remove-Item -LiteralPath $del -Recurse -Force -ErrorAction SilentlyContinue } }; $delBin = Join-Path $del ''bin''; $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -ne $delBin.TrimEnd(''\'') }) -join '';''; Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $clean -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; try { $p = Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -PassThru -ArgumentList @('-NoProfile', '-EncodedCommand', $enc); try { if ($p.ExitCode -ne 0) { exit $p.ExitCode } } finally { if ($null -ne $p) { $p.Dispose() } } } catch { exit 1 }" 2>nul
             if errorlevel 1 (
                 echo %cRED%[ ERROR  ]%cRESET% Administrator elevation was declined or uninstallation failed.
+                call :ReleaseStateLock
                 set "JVM_EXIT_CODE=1"
                 goto :CLI_DONE
             )
@@ -1762,6 +1915,7 @@ if defined CLI_COMMAND (
                 echo.
                 echo %cGREEN%[   OK   ]%cRESET% !DEL_NAME! was successfully uninstalled!
             )
+            call :ReleaseStateLock
         )
         goto :CLI_DONE
     )
@@ -2496,6 +2650,12 @@ for %%C in (!LTS_CHOICE!) do set "CLI_TARGET=!LTS_VER_%%C!"
 goto :eof
 
 :DownloadJDK_Headless
+call :RequireNetwork
+if errorlevel 1 (
+    if "!CLI_COMMAND!"=="" pause
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
 if not defined DL_VERSION (
     echo %cRED%[ ERROR  ]%cRESET% No version specified.
     if "!CLI_COMMAND!"=="" pause
@@ -2712,6 +2872,11 @@ set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMe
 goto Run_API_Query
 
 :Run_API_Query
+call :RequireNetwork
+if errorlevel 1 (
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
 set "API_URL=" & set "API_SHA256=" & set "API_SHA256_URL=" & set "API_SHA1=" & set "API_ERROR="
 set "PS_CMD=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; !PS_CMD!"
 for /f "tokens=1,* delims==" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do (
@@ -2747,6 +2912,12 @@ goto :FetchAndExtract
 
 :FetchLatestVersions
 if defined ORACLE_LATEST_FEATURE goto :eof
+if "%JVM_OFFLINE%"=="1" (
+    set "ORACLE_LATEST_FEATURE=26"
+    set "ORACLE_LATEST_LTS=25"
+    set "REL_ADOPTIUM=26"
+    goto :eof
+)
 set "PS_CMD=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/info/available_releases' -UseBasicParsing -TimeoutSec 5; $f = [int]$res.most_recent_feature_release; $l = [int]$res.most_recent_lts; if ($f -ge 8 -and $l -ge 8) { Write-Output ('LATEST_FEATURE='+$f); Write-Output ('LATEST_LTS='+$l) } else { throw 'invalid' } } catch { Write-Output 'LATEST_FEATURE=26'; Write-Output 'LATEST_LTS=25' }"
 for /f "tokens=1,* delims==" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do (
     if "%%A"=="LATEST_FEATURE" set "ORACLE_LATEST_FEATURE=%%B"
@@ -2759,6 +2930,10 @@ goto :eof
 
 :FetchAndExtract
 setlocal enabledelayedexpansion
+call :AcquireStateLock
+if errorlevel 1 (
+    endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
+)
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "DL_RANDOM_NAME=%%A"
 set "ZIP_PATH=%JVM_SECURE_TEMP%\jdk_!DL_VENDOR!_!DL_VERSION!_!DL_RANDOM_NAME!_download.zip"
 set "EXTRACT_DIR=%JVM_SECURE_TEMP%\jdk_!DL_VENDOR!_!DL_VERSION!_!DL_RANDOM_NAME!_extract"
@@ -2786,6 +2961,7 @@ if !errorlevel! NEQ 0 (
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
     if "!CLI_COMMAND!"=="" pause
+    call :ReleaseStateLock
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
 )
 
@@ -2802,6 +2978,7 @@ if !ROOT_COUNT! EQU 0 (
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
     if "!CLI_COMMAND!"=="" pause
+    call :ReleaseStateLock
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
 )
 
@@ -2812,6 +2989,7 @@ if !ROOT_COUNT! GTR 1 (
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
     if "!CLI_COMMAND!"=="" pause
+    call :ReleaseStateLock
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
 )
 
@@ -2822,6 +3000,7 @@ if errorlevel 1 (
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
     if "!CLI_COMMAND!"=="" pause
+    call :ReleaseStateLock
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
 )
 
@@ -2831,6 +3010,7 @@ echo %cBLUE%[ ACTION ]%cRESET% Installing !NEW_FOLDER! to system directory...
 if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
 if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
 
+call :ReleaseStateLock
 if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
     echo.
     echo %cGREEN%[   OK   ]%cRESET% !DL_VENDOR! JDK !DL_VERSION! successfully installed!
@@ -2951,6 +3131,11 @@ if !errorlevel! NEQ 1 (
     goto :eof
 )
 :CONFIRMED_CLEAR
+call :AcquireStateLock
+if errorlevel 1 (
+    endlocal
+    goto :eof
+)
 
 rem Create Registry Backups Before Destructive Scrubbing
 echo %cBLUE%[ ACTION ]%cRESET% Creating redundant registry backups...
@@ -3023,6 +3208,7 @@ if defined GROOVY_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!GROOVY_HOME!\bin"
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$purges = $env:SESS_PURGE_LIST -split ';' | Where-Object { $_ } | ForEach-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') }; ($env:PATH -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') }) -join ';'"') do set "CLEAN_PATH=%%A"
 
 rem Export active session path
+call :ReleaseStateLock
 for /f "delims=" %%A in ("!CLEAN_PATH!") do (
     endlocal & set "PATH=%%~A" & set "JAVA_HOME=" & set "MAVEN_HOME=" & set "GRADLE_HOME=" & set "KOTLIN_HOME=" & set "SCALA_HOME=" & set "GROOVY_HOME="
 )
@@ -3479,6 +3665,9 @@ if not defined VENDOR_SUPPORTED (
     goto :eof
 )
 
+call :RequireNetwork
+if errorlevel 1 goto :eof
+
 echo %cBLUE%[  INFO  ]%cRESET% Checking vendor API for updates...
 
 set "UPDATE_RESULT=" & set "LOCAL_VER=" & set "REMOTE_VER="
@@ -3731,6 +3920,14 @@ if !errorlevel! NEQ 1 (
     goto :eof
 )
 
+call :AcquireStateLock
+if errorlevel 1 (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Failed to acquire state lock for uninstallation.
+    pause
+    goto :eof
+)
+
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Terminating Java processes running from this JDK...
 "%PS_BIN%" -NoProfile -Command "Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($env:DEL_PATH, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue" >nul 2>&1
@@ -3741,6 +3938,7 @@ echo %cBLUE%[  INFO  ]%cRESET% Requesting administrative privileges to apply cha
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Administrator elevation was declined or uninstallation failed.
     pause
+    call :ReleaseStateLock
     goto :eof
 )
 
@@ -3757,6 +3955,7 @@ if exist "!DEL_PATH!" (
     echo %cRED%[ ERROR  ]%cRESET% Failed to completely delete directory.
     echo             A file might be locked or in use by another program.
     pause
+    call :ReleaseStateLock
     goto :eof
 )
 
@@ -3768,6 +3967,7 @@ if not exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" (
     echo %cYELLOW%[  INFO  ]%cRESET% The uninstalled JDK was currently active. JAVA_HOME has been cleared.
     echo            Please switch to another installed JDK version.
 )
+call :ReleaseStateLock
 echo Press any key to return to the menu...
 pause >nul
 goto :eof
@@ -3850,17 +4050,18 @@ if !sub_choice!==5 (
 if !sub_choice!==4 (
     set "UPDATE_CHANNEL_OVERRIDE="
     if /i "!UPDATE_CHANNEL!"=="NIGHTLY" (
-        set "UPDATE_CHANNEL=STABLE"
+        set "TARGET_CH=STABLE"
         set "CH_NAME=%cGREEN%[Stable]%cRESET%"
     ) else (
-        set "UPDATE_CHANNEL=NIGHTLY"
+        set "TARGET_CH=NIGHTLY"
         set "CH_NAME=%cPURPLE%[Nightly]%cRESET%"
     )
-    call :WriteConfigFile "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" "!UPDATE_CHANNEL!"
+    call :WriteConfigFile "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" "!TARGET_CH!"
     echo.
     if errorlevel 1 (
         echo %cRED%[ ERROR  ]%cRESET% Failed to persist update channel configuration.
     ) else (
+        set "UPDATE_CHANNEL=!TARGET_CH!"
         echo %cGREEN%[   OK   ]%cRESET% Switched update channel to !CH_NAME!.
     )
     "%TIMEOUT_BIN%" /t 2 >nul
@@ -3868,7 +4069,7 @@ if !sub_choice!==4 (
 )
 if !sub_choice!==3 (
     if /i "!SWITCH_MODE!"=="DIRECT" (
-        set "SWITCH_MODE=SYMLINK"
+        set "TARGET_MODE=SYMLINK"
         echo.
         echo %cBLUE%[ ACTION ]%cRESET% Scrubbing Machine Registry to prevent Legacy override...
         set "SYS_PATH="
@@ -3886,13 +4087,14 @@ if !sub_choice!==3 (
             )
         )
     ) else (
-        set "SWITCH_MODE=DIRECT"
+        set "TARGET_MODE=DIRECT"
     )
-    call :WriteConfigFile "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" "!SWITCH_MODE!"
+    call :WriteConfigFile "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" "!TARGET_MODE!"
     echo.
     if errorlevel 1 (
         echo %cRED%[ ERROR  ]%cRESET% Failed to persist switch mode configuration.
     ) else (
+        set "SWITCH_MODE=!TARGET_MODE!"
         echo %cGREEN%[   OK   ]%cRESET% Switched mode to !SWITCH_MODE!.
     )
     "%TIMEOUT_BIN%" /t 2 >nul
@@ -4101,6 +4303,7 @@ set "JVM_TRME2=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRI
     echo(        $bat = Get-Command jvm.bat -CommandType Application -ErrorAction SilentlyContinue ^| Select-Object -ExpandProperty Source -First 1
     echo(    }
     echo(    if ^(-not $bat^) { $bat = 'jvm.bat' }
+    echo(    $env:JVM_CALLER_PID = $PID
     echo(    ^& $bat @args
     echo(
     echo(    function Set-JvmVar {
@@ -4438,6 +4641,8 @@ if defined UNINSTALL_SCRIPT (
 )
 
 if not defined UNINSTALL_SCRIPT (
+    call :RequireNetwork
+    if errorlevel 1 exit /b 1
     echo %cBLUE%[ ACTION ]%cRESET% Downloading verified uninstall.ps1 ^(!UPDATE_CHANNEL! / !UNINSTALL_REF!^)...
 
     set "UNINSTALL_SCRIPT=%JVM_SECURE_TEMP%\jvm_uninstall_!UNINS_RANDOM_NAME!.ps1"
@@ -4557,6 +4762,9 @@ if /i "%~1"=="link" (
         goto :HANDLE_LINKS_SUCCESS
     )
 
+    call :AcquireStateLock
+    if errorlevel 1 goto :HANDLE_LINKS_FAIL
+
     rem Reject Win32 device namespace paths (\\.\, \\?\, \??\), NTFS ADS colons, and PATH/batch delimiters (CWE-88/CWE-78)
     rem Note: Commas (',') are valid in Windows directory names and allowed here since linked JDKs are accessed via their sanitized junction name in %LINK_DIR%
     set "RAW_LINK_PATH=%~2"
@@ -4667,6 +4875,10 @@ if /i "%~1"=="unlink" (
         echo Usage: jvm unlink ^<name^>
         goto :HANDLE_LINKS_FAIL
     )
+
+    call :AcquireStateLock
+    if errorlevel 1 goto :HANDLE_LINKS_FAIL
+
     set "UNLINK_NAME=%~2"
     if "!UNLINK_NAME!"=="." (
         echo %cRED%[ ERROR  ]%cRESET% Invalid link name: '.' is forbidden.
@@ -4717,10 +4929,12 @@ if /i "%~1"=="unlink" (
 )
 
 :HANDLE_LINKS_FAIL
+if "!JVM_LOCK_ACQUIRED!"=="1" call :ReleaseStateLock
 if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
 exit /b 1
 
 :HANDLE_LINKS_SUCCESS
+if "!JVM_LOCK_ACQUIRED!"=="1" call :ReleaseStateLock
 if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
 exit /b 0
 
@@ -4780,6 +4994,7 @@ echo   --legacy, --registry           Force Legacy Mode ^(System HKLM Registry, 
 echo   --session                      Force True Session Isolation for the active terminal
 echo   --global                       Force global system-wide switch
 echo   --yes, -y                      Bypass interactive confirmation prompts
+echo   --no-lock                      Bypass mutual exclusion lock (UNSAFE for concurrent operations)
 echo   --skip-checksum, --no-verify   Bypass checksum verification if hash is unavailable
 echo   --no-color                     Disable ANSI colors ^(also respects NO_COLOR env^)
 goto :eof
@@ -4788,10 +5003,6 @@ rem ============================================================
 rem SHOW CURRENT STATUS / ENVIRONMENT
 rem ============================================================
 :ShowCurrentStatus
-echo.
-echo %cBLUE%[  INFO  ]%cRESET% Current JVM Environment Status:
-echo ============================================================
-
 set "CURR_JAVA_VER="
 set "CURR_JAVA_BIN="
 set "CURR_JAVA_VENDOR="
@@ -4823,6 +5034,32 @@ if not defined CURR_JAVA_VER (
     )
 )
 
+set "JUNCTION_TARGET="
+if exist "%LOCALAPPDATA%\DiamTek\JVM\current" (
+    for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath ($env:LOCALAPPDATA + '\DiamTek\JVM\current') -ErrorAction SilentlyContinue).Target" 2^>nul') do set "JUNCTION_TARGET=%%A"
+)
+
+if "%OUTPUT_JSON%"=="1" (
+    set "JSON_JH=!JAVA_HOME!"
+    if defined JSON_JH set "JSON_JH=!JSON_JH:\=\\!"
+    if defined JSON_JH set "JSON_JH=!JSON_JH:"=!"
+    set "JSON_BIN=!CURR_JAVA_BIN!"
+    if defined JSON_BIN set "JSON_BIN=!JSON_BIN:\=\\!"
+    if defined JSON_BIN set "JSON_BIN=!JSON_BIN:"=!"
+    set "JSON_JT=!JUNCTION_TARGET!"
+    if defined JSON_JT set "JSON_JT=!JSON_JT:\=\\!"
+    if defined JSON_JT set "JSON_JT=!JSON_JT:"=!"
+    set "JSON_ACTIVE=false"
+    if defined CURR_JAVA_BIN set "JSON_ACTIVE=true"
+
+    echo {"candidate":"java","active":!JSON_ACTIVE!,"version":"!CURR_JAVA_VER!","vendor":"!CURR_JAVA_VENDOR!","java_home":"!JSON_JH!","binary":"!JSON_BIN!","mode":"!SWITCH_MODE!","channel":"!UPDATE_CHANNEL!","junction_target":"!JSON_JT!"}
+    exit /b 0
+)
+
+echo.
+echo %cBLUE%[  INFO  ]%cRESET% Current JVM Environment Status:
+echo ============================================================
+
 echo  Java Configuration:
 if defined CURR_JAVA_VER (
     if defined CURR_JAVA_VENDOR (
@@ -4850,10 +5087,6 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     echo    - Mode:          %cRED%[Registry Mode]%cRESET% ^(Machine HKLM^)
 ) else (
     echo    - Mode:          %cGREEN%[Symlink Mode]%cRESET% ^(User Junction, UAC Free^)
-    set "JUNCTION_TARGET="
-    if exist "%LOCALAPPDATA%\DiamTek\JVM\current" (
-        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath ($env:LOCALAPPDATA + '\DiamTek\JVM\current') -ErrorAction SilentlyContinue).Target" 2^>nul') do set "JUNCTION_TARGET=%%A"
-    )
     if defined JUNCTION_TARGET (
         echo    - Junction:      %LOCALAPPDATA%\DiamTek\JVM\current -^> %cGREEN%!JUNCTION_TARGET!%cRESET%
     ) else (
@@ -4900,6 +5133,8 @@ rem ============================================================
 rem CLEAN CACHE AND TEMPORARY ARTIFACTS
 rem ============================================================
 :CleanCache
+call :AcquireStateLock
+if errorlevel 1 exit /b 1
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Scanning temporary files, installer archives, and cache...
 set "FREED_MB=0"
@@ -4920,6 +5155,7 @@ if defined FREED_COUNT (
     echo %cGREEN%[   OK   ]%cRESET% Cache is already clean.
 )
 call :EnsureSecureTemp
+call :ReleaseStateLock
 exit /b 0
 
 rem ============================================================
@@ -4935,21 +5171,40 @@ if defined CLI_TARGET (
 if not defined WHICH_TARGET set "WHICH_TARGET=java"
 call :ValidateStrictIdentifier "!WHICH_TARGET!" WHICH_TARGET
 if errorlevel 1 (
+    if "%OUTPUT_JSON%"=="1" (
+        echo {"candidate":"!WHICH_TARGET!","binary":null,"status":"invalid_identifier"}
+        exit /b 1
+    )
     echo %cRED%[ ERROR  ]%cRESET% Invalid candidate name: "!WHICH_TARGET!"
     exit /b 1
 )
 
 if /i "!WHICH_TARGET!"=="java" (
+    set "FOUND_WHICH_BIN="
     if defined JAVA_HOME (
         set "CLEAN_WHICH_JH=!JAVA_HOME:"=!"
         if exist "!CLEAN_WHICH_JH!\bin\java.exe" (
-            for %%I in ("!CLEAN_WHICH_JH!\bin\java.exe") do echo %%~fI
-            exit /b 0
+            for %%I in ("!CLEAN_WHICH_JH!\bin\java.exe") do set "FOUND_WHICH_BIN=%%~fI"
         )
     )
-    for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do (
-        echo %%A
+    if not defined FOUND_WHICH_BIN (
+        for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do (
+            if not defined FOUND_WHICH_BIN set "FOUND_WHICH_BIN=%%A"
+        )
+    )
+    if defined FOUND_WHICH_BIN (
+        if "%OUTPUT_JSON%"=="1" (
+            set "JSON_WB=!FOUND_WHICH_BIN:\=\\!"
+            set "JSON_WB=!JSON_WB:"=!"
+            echo {"candidate":"java","binary":"!JSON_WB!","status":"found"}
+            exit /b 0
+        )
+        echo !FOUND_WHICH_BIN!
         exit /b 0
+    )
+    if "%OUTPUT_JSON%"=="1" (
+        echo {"candidate":"java","binary":null,"status":"not_found"}
+        exit /b 1
     )
     >&2 echo %cRED%[ ERROR  ]%cRESET% No java executable found in JAVA_HOME or PATH.
     exit /b 1
@@ -4960,31 +5215,50 @@ set "CAND_ROOT=!CAND_JUNC!\bin"
 if exist "!CAND_JUNC!" (
     "%FSUTIL_BIN%" reparsepoint query "!CAND_JUNC!" >nul 2>&1
     if errorlevel 1 (
+        if "%OUTPUT_JSON%"=="1" (
+            echo {"candidate":"!WHICH_TARGET!","binary":null,"status":"security_violation"}
+            exit /b 1
+        )
         >&2 echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !CAND_JUNC! is a regular directory, not a junction.
         exit /b 1
     )
 )
+set "FOUND_CAND_BIN="
 if exist "!CAND_ROOT!" (
     if /i "!WHICH_TARGET!"=="maven" (
         for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\mvn.cmd" "!CAND_ROOT!\mvn.bat" 2^>nul') do (
-            echo %%A
-            exit /b 0
+            if not defined FOUND_CAND_BIN set "FOUND_CAND_BIN=%%A"
         )
     )
     if /i "!WHICH_TARGET!"=="kotlin" (
         for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\kotlinc.bat" 2^>nul') do (
-            echo %%A
-            exit /b 0
+            if not defined FOUND_CAND_BIN set "FOUND_CAND_BIN=%%A"
         )
     )
-    for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\!WHICH_TARGET!*.exe" "!CAND_ROOT!\!WHICH_TARGET!*.bat" "!CAND_ROOT!\!WHICH_TARGET!*.cmd" 2^>nul') do (
-        echo %%A
+    if not defined FOUND_CAND_BIN (
+        for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\!WHICH_TARGET!*.exe" "!CAND_ROOT!\!WHICH_TARGET!*.bat" "!CAND_ROOT!\!WHICH_TARGET!*.cmd" 2^>nul') do (
+            if not defined FOUND_CAND_BIN set "FOUND_CAND_BIN=%%A"
+        )
+    )
+    if not defined FOUND_CAND_BIN (
+        for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\*.cmd" "!CAND_ROOT!\*.bat" "!CAND_ROOT!\*.exe" 2^>nul') do (
+            if not defined FOUND_CAND_BIN set "FOUND_CAND_BIN=%%A"
+        )
+    )
+)
+if defined FOUND_CAND_BIN (
+    if "%OUTPUT_JSON%"=="1" (
+        set "JSON_CB=!FOUND_CAND_BIN:\=\\!"
+        set "JSON_CB=!JSON_CB:"=!"
+        echo {"candidate":"!WHICH_TARGET!","binary":"!JSON_CB!","status":"found"}
         exit /b 0
     )
-    for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\*.cmd" "!CAND_ROOT!\*.bat" "!CAND_ROOT!\*.exe" 2^>nul') do (
-        echo %%A
-        exit /b 0
-    )
+    echo !FOUND_CAND_BIN!
+    exit /b 0
+)
+if "%OUTPUT_JSON%"=="1" (
+    echo {"candidate":"!WHICH_TARGET!","binary":null,"status":"not_found"}
+    exit /b 1
 )
 >&2 echo %cRED%[ ERROR  ]%cRESET% Candidate '!WHICH_TARGET!' is not installed or active.
 exit /b 1
@@ -4993,6 +5267,21 @@ rem ============================================================
 rem DOCTOR - SYSTEM HEALTH AUDIT & DIAGNOSTICS
 rem ============================================================
 :DoctorDiagnostics
+if "%OUTPUT_JSON%"=="1" (
+    set "DOC_STORAGE_OK=false"
+    if exist "%LOCALAPPDATA%\DiamTek\JVM" set "DOC_STORAGE_OK=true"
+    set "DOC_JUNC_OK=false"
+    if exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" set "DOC_JUNC_OK=true"
+    set "DOC_JH_VAL=!JAVA_HOME!"
+    if defined DOC_JH_VAL set "DOC_JH_VAL=!DOC_JH_VAL:\=\\!"
+    if defined DOC_JH_VAL set "DOC_JH_VAL=!DOC_JH_VAL:"=!"
+    set "DOC_FIRST_BIN="
+    for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do if not defined DOC_FIRST_BIN set "DOC_FIRST_BIN=%%A"
+    if defined DOC_FIRST_BIN set "DOC_FIRST_BIN=!DOC_FIRST_BIN:\=\\!"
+    if defined DOC_FIRST_BIN set "DOC_FIRST_BIN=!DOC_FIRST_BIN:"=!"
+    echo {"status":"doctor","storage_root_ok":!DOC_STORAGE_OK!,"mode":"!SWITCH_MODE!","junction_ok":!DOC_JUNC_OK!,"java_home":"!DOC_JH_VAL!","active_binary":"!DOC_FIRST_BIN!","arch":"!SYS_ARCH!","installed_jdks":!JDK_COUNT!}
+    exit /b 0
+)
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Running DiamTek JVM System Health Audit...
 echo ============================================================
@@ -5473,6 +5762,11 @@ rem ============================================================
 rem Self-Updater
 rem ============================================================
 :SelfUpdate
+call :RequireNetwork
+if errorlevel 1 (
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
 if defined UPDATE_CHANNEL_OVERRIDE (
     if /i "!UPDATE_CHANNEL_OVERRIDE!"=="NIGHTLY" (
         set "UPDATE_CHANNEL=NIGHTLY"
@@ -5674,6 +5968,8 @@ if !errorlevel! EQU 0 (
     echo set "UPD_ERR=%%errorlevel%%"
     echo if exist "!INSTALL_SCRIPT!" del /f /q "!INSTALL_SCRIPT!" ^>nul 2^>^&1
     echo if not exist "!SCRIPT_DIR!\jvm.bat" set "UPD_ERR=1"
+    echo if exist "%LOCALAPPDATA%\DiamTek\JVM\state.lock\owner.pid" del /f /q "%LOCALAPPDATA%\DiamTek\JVM\state.lock\owner.pid" ^>nul 2^>^&1
+    echo if exist "%LOCALAPPDATA%\DiamTek\JVM\state.lock" rmdir "%LOCALAPPDATA%\DiamTek\JVM\state.lock" ^>nul 2^>^&1
     echo if %%UPD_ERR%% NEQ 0 ^(
     echo     if exist "!SCRIPT_DIR!\jvm.bat.old" move /y "!SCRIPT_DIR!\jvm.bat.old" "!SCRIPT_DIR!\jvm.bat" ^>nul 2^>^&1
     echo     if exist "!SCRIPT_DIR!\uninstall.ps1.old" move /y "!SCRIPT_DIR!\uninstall.ps1.old" "!SCRIPT_DIR!\uninstall.ps1" ^>nul 2^>^&1
@@ -5700,6 +5996,7 @@ if !errorlevel! EQU 0 (
 ) > "!UPDATER_BAT!"
 
 rem Chain execution to external updater in secure temp so jvm.bat is immediately closed by cmd.exe!
+call :AcquireStateLock
 "!UPDATER_BAT!"
 exit /b 0
 
@@ -5707,6 +6004,11 @@ rem ============================================================
 rem Query Remote Update Status Helper
 rem ============================================================
 :CheckUpdateStatus
+call :RequireNetwork
+if errorlevel 1 (
+    set "UPDATE_FLAG=ERROR"
+    exit /b 1
+)
 if defined UPDATE_CHANNEL_OVERRIDE (
     if /i "!UPDATE_CHANNEL_OVERRIDE!"=="NIGHTLY" (
         set "UPDATE_CHANNEL=NIGHTLY"
@@ -5948,6 +6250,7 @@ if !errorlevel! EQU 0 (
     echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Staging config file is a symlink.
     exit /b 1
 )
+(call )
 (echo !_CFG_VAL!)>"!_CFG_TMP!" 2>nul
 if errorlevel 1 (
     if exist "!_CFG_TMP!" del "!_CFG_TMP!" >nul 2>&1
@@ -6226,6 +6529,8 @@ if /i "!TARGET_CANDIDATE!"=="groovy" ( set "CANDIDATE_ENV_VAR=GROOVY_HOME" & set
 exit /b 0
 
 :SwitchCandidate
+call :AcquireStateLock
+if errorlevel 1 exit /b 1
 set "TARGET_VER=%~1"
 call :GetCandidateEnvVar
 set "CANDIDATE_DIR=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
@@ -6239,27 +6544,33 @@ if /i "!TARGET_VER!"=="latest" (
 )
 
 if not "!TARGET_VER!"=="!TARGET_VER:\=!" (
+    call :ReleaseStateLock
     echo %cRED%[ ERROR  ]%cRESET% Version identifier cannot contain path separators: !TARGET_VER!
     exit /b 1
 )
 if not "!TARGET_VER!"=="!TARGET_VER:/=!" (
+    call :ReleaseStateLock
     echo %cRED%[ ERROR  ]%cRESET% Version identifier cannot contain path separators: !TARGET_VER!
     exit /b 1
 )
 if not "!TARGET_VER!"=="!TARGET_VER:..=!" (
+    call :ReleaseStateLock
     echo %cRED%[ ERROR  ]%cRESET% Version identifier cannot contain '..': !TARGET_VER!
     exit /b 1
 )
 if "!TARGET_VER!"=="." (
+    call :ReleaseStateLock
     echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier: '.' is forbidden.
     exit /b 1
 )
 call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
 if errorlevel 1 (
+    call :ReleaseStateLock
     echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier: %~1
     exit /b 1
 )
 if /i "!TARGET_VER!"=="current" (
+    call :ReleaseStateLock
     echo %cRED%[ ERROR  ]%cRESET% 'current' is a reserved keyword and cannot be targeted.
     exit /b 1
 )
@@ -6267,16 +6578,19 @@ if /i "!TARGET_VER!"=="current" (
 set "TARGET_PATH=!CANDIDATE_DIR!\!TARGET_VER!"
 
 if not exist "!TARGET_PATH!" (
+    call :ReleaseStateLock
     echo.
     echo %cRED%[ ERROR  ]%cRESET% !CANDIDATE_PROPER_NAME! version !TARGET_VER! is not installed.
     exit /b 1
 )
 "%FSUTIL_BIN%" reparsepoint query "!TARGET_PATH!" >nul 2>&1
 if not errorlevel 1 (
+    call :ReleaseStateLock
     echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Candidate target directory cannot be a reparse point.
     exit /b 1
 )
 if not exist "!TARGET_PATH!\bin" (
+    call :ReleaseStateLock
     echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-426^): Target candidate has no bin directory: !TARGET_PATH!\bin
     exit /b 1
 )
@@ -6289,12 +6603,14 @@ set "PREV_JUNCTION_TARGET="
 if exist "!SYMLINK_PATH!" (
     "%FSUTIL_BIN%" reparsepoint query "!SYMLINK_PATH!" >nul 2>&1
     if errorlevel 1 (
+        call :ReleaseStateLock
         echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !SYMLINK_PATH! is a regular directory, not a junction.
         exit /b 1
     )
     for /f "delims=" %%T in ('%PS_BIN% -NoProfile -Command "$i = Get-Item -LiteralPath $env:SYMLINK_PATH -Force -ErrorAction SilentlyContinue; if ($i -and $i.Target) { $i.Target | Select-Object -First 1 }" 2^>nul') do set "PREV_JUNCTION_TARGET=%%T"
     rmdir "!SYMLINK_PATH!" >nul 2>&1
     if exist "!SYMLINK_PATH!" (
+        call :ReleaseStateLock
         echo %cRED%[ ERROR  ]%cRESET% Failed to remove existing directory junction for !CANDIDATE_PROPER_NAME!.
         exit /b 1
     )
@@ -6305,6 +6621,7 @@ if errorlevel 1 (
     echo            Notice: NTFS Directory Junctions require local NTFS volumes.
     echo            Ensure %%LOCALAPPDATA%% and candidate paths reside on local NTFS volumes.
     if defined PREV_JUNCTION_TARGET if exist "!PREV_JUNCTION_TARGET!" mklink /j "!SYMLINK_PATH!" "!PREV_JUNCTION_TARGET!" >nul 2>&1
+    call :ReleaseStateLock
     exit /b 1
 )
 "%FSUTIL_BIN%" reparsepoint query "!SYMLINK_PATH!" >nul 2>&1
@@ -6312,6 +6629,7 @@ if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Junction verification failed for !CANDIDATE_PROPER_NAME!.
     rmdir "!SYMLINK_PATH!" >nul 2>&1
     if defined PREV_JUNCTION_TARGET if exist "!PREV_JUNCTION_TARGET!" mklink /j "!SYMLINK_PATH!" "!PREV_JUNCTION_TARGET!" >nul 2>&1
+    call :ReleaseStateLock
     exit /b 1
 )
 echo            - Updating Directory Junction...
@@ -6321,6 +6639,7 @@ if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Failed to set !CANDIDATE_ENV_VAR! in registry.
     rmdir "!SYMLINK_PATH!" >nul 2>&1
     if defined PREV_JUNCTION_TARGET if exist "!PREV_JUNCTION_TARGET!" mklink /j "!SYMLINK_PATH!" "!PREV_JUNCTION_TARGET!" >nul 2>&1
+    call :ReleaseStateLock
     exit /b 1
 )
 
@@ -6345,9 +6664,12 @@ if "!CHECK_PATH:;!SYMLINK_PATH!\bin;=!"=="!CHECK_PATH!" (
 
 echo.
 echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! !TARGET_VER! is now active!
+call :ReleaseStateLock
 exit /b 0
 
 :InstallCandidate
+call :RequireNetwork
+if errorlevel 1 exit /b 1
 call :GetCandidateEnvVar
 echo %cBLUE%[ ACTION ]%cRESET% Installing !CANDIDATE_PROPER_NAME!...
 
@@ -6456,10 +6778,14 @@ set "DL_STRIP_ROOT=1"
 
 if not exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!" mkdir "%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
 
+call :AcquireStateLock
+if errorlevel 1 exit /b 1
+
 call :ExecuteSharedDownloader
 if !errorlevel! NEQ 0 (
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
+    call :ReleaseStateLock
     exit /b 1
 )
 
@@ -6475,6 +6801,7 @@ if errorlevel 1 (
     if exist "!EXTRACT_DEST_OLD!" move /Y "!EXTRACT_DEST_OLD!" "!EXTRACT_DEST!" >nul 2>&1
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
+    call :ReleaseStateLock
     exit /b 1
 )
 if not exist "!EXTRACT_DEST!" (
@@ -6482,6 +6809,7 @@ if not exist "!EXTRACT_DEST!" (
     if exist "!EXTRACT_DEST_OLD!" move /Y "!EXTRACT_DEST_OLD!" "!EXTRACT_DEST!" >nul 2>&1
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
+    call :ReleaseStateLock
     exit /b 1
 )
 if exist "!EXTRACT_DEST_OLD!" (
@@ -6497,9 +6825,13 @@ if not exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\current" 
     echo.
     echo %cBLUE%[  INFO  ]%cRESET% First installation detected. Auto-activating...
     call :SwitchCandidate "!TARGET_VER!"
-    if errorlevel 1 exit /b 1
+    if errorlevel 1 (
+        call :ReleaseStateLock
+        exit /b 1
+    )
 )
 
+call :ReleaseStateLock
 if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
 exit /b 0
 
@@ -6635,12 +6967,16 @@ if not exist "!TARGET_PATH!" (
     exit /b 1
 )
 
+call :AcquireStateLock
+if errorlevel 1 exit /b 1
+
 echo %cBLUE%[ ACTION ]%cRESET% Uninstalling !CANDIDATE_PROPER_NAME! version !TARGET_VER!...
 "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:TARGET_PATH; if (Test-Path -LiteralPath $d) { Get-ChildItem -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { [System.IO.File]::Delete($_.FullName) } }; $item = Get-Item -LiteralPath $d -Force -ErrorAction SilentlyContinue; if ($item -and ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { [System.IO.Directory]::Delete($d, $false) } else { Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue } }" >nul 2>&1
 
 if exist "!TARGET_PATH!" (
     echo %cRED%[ ERROR  ]%cRESET% Failed to completely remove !CANDIDATE_PROPER_NAME! directory: !TARGET_PATH!
     echo            A file may be locked or in use by another process.
+    call :ReleaseStateLock
     exit /b 1
 )
 
@@ -6664,10 +7000,12 @@ if defined ACTIVE_TARGET (
             rmdir "!SYMLINK_PATH!" >nul 2>&1
             if errorlevel 1 (
                 echo %cRED%[ ERROR  ]%cRESET% Failed to remove active junction: !SYMLINK_PATH!
+                call :ReleaseStateLock
                 exit /b 1
             )
             if exist "!SYMLINK_PATH!" (
                 echo %cRED%[ ERROR  ]%cRESET% Active junction still exists after removal attempt: !SYMLINK_PATH!
+                call :ReleaseStateLock
                 exit /b 1
             )
         )
@@ -6676,6 +7014,7 @@ if defined ACTIVE_TARGET (
 )
 
 echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! !TARGET_VER! successfully uninstalled.
+call :ReleaseStateLock
 exit /b 0
 
 :ListEcosystemCandidates
@@ -6711,6 +7050,28 @@ for /d %%C in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\*") do (
 )
 exit /b 0
 
+:ListJdksJson
+if !JDK_COUNT! LEQ 0 (
+    echo []
+    goto :eof
+)
+echo [
+for /l %%k in (1,1,!JDK_COUNT!) do (
+    set "IS_ACT=false"
+    if /i "!JDK_PATH_%%k!"=="!RESOLVED_JAVA_HOME!" set "IS_ACT=true"
+    set "ESCAPED_PATH=!JDK_PATH_%%k!"
+    set "ESCAPED_PATH=!ESCAPED_PATH:\=\\!"
+    set "ESCAPED_PATH=!ESCAPED_PATH:"=!"
+    set "ESCAPED_NAME=!JDK_NAME_%%k!"
+    set "ESCAPED_NAME=!ESCAPED_NAME:\=\\!"
+    set "ESCAPED_NAME=!ESCAPED_NAME:"=!"
+    set "COMMA=,"
+    if %%k==!JDK_COUNT! set "COMMA="
+    echo   {"index":%%k,"major":!JDK_MAJOR_%%k!,"name":"!ESCAPED_NAME!","vendor":"!JDK_VENDOR_%%k!","path":"!ESCAPED_PATH!","active":!IS_ACT!}!COMMA!
+)
+echo ]
+goto :eof
+
 :ProcessEcosystemSession
 set "TARGET_CANDIDATE=%~1"
 call :ValidateStrictIdentifier "!TARGET_CANDIDATE!" TARGET_CANDIDATE
@@ -6743,6 +7104,11 @@ rem ============================================================
 rem Shared API Resolver for Ecosystem Tools
 rem ============================================================
 :ResolveLatestEcosystemCandidate
+call :RequireNetwork
+if errorlevel 1 (
+    set "LATEST_VER=ERROR"
+    exit /b 1
+)
 set "PS_RESOLVE_LATEST="
 set "PS_TLS=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $ProgressPreference = 'SilentlyContinue';"
 set "PS_CATCH=catch { if ($_.Exception.Response -and $_.Exception.Response.StatusCode -eq 'Forbidden') { 'RATE_LIMITED' } else { 'ERROR' } }"
@@ -6789,6 +7155,8 @@ rem ============================================================
 rem Universal Downloader & Extractor (PowerShell)
 rem ============================================================
 :ExecuteSharedDownloader
+call :RequireNetwork
+if errorlevel 1 exit /b 1
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "PS_RANDOM_NAME=%%A"
 set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
 (
@@ -6803,7 +7171,8 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo         $h = $u.Host.ToLowerInvariant^(^)
     echo         $exact = @^('download.oracle.com','edelivery.oracle.com','api.adoptium.net','github.com','api.github.com','objects.githubusercontent.com','release-assets.githubusercontent.com','raw.githubusercontent.com','corretto.aws','api.azul.com','cdn.azul.com','static.azul.com','aka.ms','download.visualstudio.microsoft.com','api.bell-sw.com','download.bell-sw.com','repo.maven.apache.org','archive.apache.org','dlcdn.apache.org','downloads.apache.org','services.gradle.org','downloads.gradle.org','downloads.gradle-dn.com','api.sdkman.io'^)
     echo         if ^($exact -contains $h^) { return $true }
-    echo         foreach ^($sfx in @^('.oracle.com','.adoptium.net','.github.com','.githubusercontent.com','.amazonaws.com','.cloudfront.net','.azul.com','.microsoft.com','.azureedge.net','.bell-sw.com','.apache.org','.gradle.org','.gradle-dn.com'^)^) {
+    echo         if ($h -match '^corretto(-downloads)?\.[a-z0-9\-]+\.amazonaws\.com$' -or $h -match '^corretto\.aws\.s3(\.[a-z0-9\-]+)?\.amazonaws\.com$') { return $true }
+    echo         foreach ^($sfx in @^('.oracle.com','.adoptium.net','.github.com','.githubusercontent.com','.azul.com','.microsoft.com','.bell-sw.com','.apache.org','.gradle.org','.gradle-dn.com'^)^) {
     echo             if ^($h.EndsWith^($sfx^)^) { return $true }
     echo         }
     echo         return $false
@@ -7148,7 +7517,126 @@ if errorlevel 1 (
 
 exit /b 0
 
+:AcquireStateLock
+if "%JVM_NO_LOCK%"=="1" exit /b 0
+if "%SESSION_MODE%"=="1" exit /b 0
+if defined JVM_LOCK_DEPTH (
+    if !JVM_LOCK_DEPTH! GTR 0 (
+        set /a JVM_LOCK_DEPTH+=1
+        exit /b 0
+    )
+)
+set "JVM_LOCK_DIR=%LOCALAPPDATA%\DiamTek\JVM\state.lock"
+set "JVM_LOCK_ATTEMPTS=0"
+if not defined JVM_CALLER_PID (
+    for /f "delims=" %%P in ('powershell.exe -NoProfile -Command "[System.Diagnostics.Process]::GetCurrentProcess().Id" 2^>nul') do set "JVM_CALLER_PID=%%P"
+)
+if not defined JVM_CALLER_PID (
+    for /f "tokens=2 delims==" %%P in ('wmic process where "ProcessId=%PID%" get ParentProcessId /value 2^>nul ^| %FINDSTR_BIN% "="') do set "JVM_CALLER_PID=%%P"
+)
+if not defined JVM_CALLER_PID (
+    for /f "delims=" %%P in ('powershell.exe -NoProfile -Command "([int]('0x' + [System.IO.Path]::GetRandomFileName().Substring(0,4)))"') do set "JVM_CALLER_PID=%%P"
+)
+:LOCK_RETRY_LOOP
+mkdir "%JVM_LOCK_DIR%" >nul 2>&1
+if not errorlevel 1 (
+    (echo !JVM_CALLER_PID!^|%DATE%_%TIME%)>"%JVM_LOCK_DIR%\owner.pid" 2>nul
+    if errorlevel 1 (
+        rmdir "%JVM_LOCK_DIR%" >nul 2>&1
+        echo %cRED%[ ERROR  ]%cRESET% Failed to initialize JVM state lock.
+        exit /b 1
+    )
+    if not exist "%JVM_LOCK_DIR%\owner.pid" (
+        rmdir "%JVM_LOCK_DIR%" >nul 2>&1
+        echo %cRED%[ ERROR  ]%cRESET% Failed to initialize JVM state lock.
+        exit /b 1
+    )
+    set "JVM_LOCK_ACQUIRED=1"
+    set "JVM_LOCK_DEPTH=1"
+    exit /b 0
+)
+rem Stale lock auto-recovery without delete/re-mkdir race:
+rem Verify owner PID is dead, stage takeover PID, and atomically replace owner.pid
+if exist "%JVM_LOCK_DIR%\owner.pid" (
+    set "LOCK_OWNER_PID="
+    for /f "tokens=1 delims=|" %%P in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "LOCK_OWNER_PID=%%P"
+    if defined LOCK_OWNER_PID (
+        if "!LOCK_OWNER_PID!"=="!JVM_CALLER_PID!" (
+            set "JVM_LOCK_ACQUIRED=1"
+            set /a JVM_LOCK_DEPTH+=1
+            exit /b 0
+        )
+        set "LOCK_PID_NUM=1"
+        for /f "delims=0123456789" %%A in ("!LOCK_OWNER_PID!") do set "LOCK_PID_NUM=0"
+        if "!LOCK_PID_NUM!"=="1" (
+            set "OWNER_DEAD=0"
+            for /f "delims=" %%R in ('%PS_BIN% -NoProfile -Command "try { $p = [System.Diagnostics.Process]::GetProcessById(!LOCK_OWNER_PID!); if ($p.HasExited) { 'DEAD' } else { 'ALIVE' } } catch { 'DEAD' }" 2^>nul') do (
+                if "%%R"=="DEAD" set "OWNER_DEAD=1"
+            )
+            if "!OWNER_DEAD!"=="1" (
+                set "LOCK_TAKEOVER=%JVM_LOCK_DIR%\takeover_!JVM_CALLER_PID!.tmp"
+                (echo !JVM_CALLER_PID!^|%DATE%_%TIME%)>"!LOCK_TAKEOVER!" 2>nul
+                move /y "!LOCK_TAKEOVER!" "%JVM_LOCK_DIR%\owner.pid" >nul 2>&1
+                if not errorlevel 1 (
+                    set "VERIFY_CLAIM="
+                    for /f "tokens=1 delims=|" %%V in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "VERIFY_CLAIM=%%V"
+                    if "!VERIFY_CLAIM!"=="!JVM_CALLER_PID!" (
+                        set "JVM_LOCK_ACQUIRED=1"
+                        set "JVM_LOCK_DEPTH=1"
+                        exit /b 0
+                    )
+                )
+                if exist "!LOCK_TAKEOVER!" del /f /q "!LOCK_TAKEOVER!" >nul 2>&1
+            )
+        )
+    )
+)
+set /a JVM_LOCK_ATTEMPTS+=1
+if !JVM_LOCK_ATTEMPTS! GEQ 15 (
+    echo %cYELLOW%[  WARN  ]%cRESET% Another JVM operation is currently modifying state.
+    echo           Waiting for state lock release ^(Local\DiamTek-JVM-State^)...
+)
+if !JVM_LOCK_ATTEMPTS! GEQ 30 (
+    echo %cRED%[ ERROR  ]%cRESET% Concurrency timeout ^(CWE-362^): Could not acquire state lock after 30 seconds.
+    echo           Pass --no-lock to override ^(UNSAFE: disables mutual exclusion during concurrent operations^).
+    exit /b 1
+)
+"%TIMEOUT_BIN%" /t 1 /nobreak >nul 2>&1
+goto :LOCK_RETRY_LOOP
+
+:ReleaseStateLock
+if "%JVM_NO_LOCK%"=="1" exit /b 0
+if not "!JVM_LOCK_ACQUIRED!"=="1" exit /b 0
+if defined JVM_LOCK_DEPTH (
+    if !JVM_LOCK_DEPTH! GTR 1 (
+        set /a JVM_LOCK_DEPTH-=1
+        exit /b 0
+    )
+)
+set "JVM_LOCK_DEPTH=0"
+set "JVM_LOCK_DIR=%LOCALAPPDATA%\DiamTek\JVM\state.lock"
+if exist "%JVM_LOCK_DIR%\owner.pid" (
+    set "CURR_LOCK_PID="
+    for /f "tokens=1 delims=|" %%P in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "CURR_LOCK_PID=%%P"
+    if defined CURR_LOCK_PID if defined JVM_CALLER_PID (
+        if "!CURR_LOCK_PID!" NEQ "!JVM_CALLER_PID!" exit /b 0
+    )
+    del /f /q "%JVM_LOCK_DIR%\owner.pid" >nul 2>&1
+)
+if exist "%JVM_LOCK_DIR%" rmdir "%JVM_LOCK_DIR%" >nul 2>&1
+set "JVM_LOCK_ACQUIRED=0"
+exit /b 0
+
+:RequireNetwork
+if "%JVM_OFFLINE%"=="1" (
+    echo %cRED%[ ERROR  ]%cRESET% Operation requires network access, but --offline mode is active.
+    exit /b 1
+)
+exit /b 0
+
 :VerifyDownloadedScript
+call :RequireNetwork
+if errorlevel 1 exit /b 1
 set "VERIFY_FILE=%~1"
 set "VERIFY_REF=%~2"
 set "VERIFY_NAME=%~3"

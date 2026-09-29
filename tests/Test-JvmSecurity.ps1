@@ -418,6 +418,7 @@ $FakeLocalAppData = Join-Path $SandboxRoot "LocalAppData"
 $FakeUserProfile  = Join-Path $SandboxRoot "UserProfile"
 New-Item -ItemType Directory -Path $FakeLocalAppData -Force | Out-Null
 New-Item -ItemType Directory -Path $FakeUserProfile -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $FakeLocalAppData "DiamTek\JVM") -Force | Out-Null
 
 # Create simulated fake JDK
 $FakeJdkDir = Join-Path $SandboxRoot "TargetJDK_21"
@@ -3536,6 +3537,212 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Assert-Contains $jvmRaw 'set /a UNINST_CANCEL=RESOLVE_COUNT+1' "jvm.bat uninstall must compute dynamic cancel option index"
         Assert-Contains $jvmRaw 'Select JDK to uninstall (1-!UNINST_CANCEL!):' "jvm.bat uninstall prompt must show valid choice range"
         Assert-Contains $jvmRaw 'Uninstallation cancelled.' "jvm.bat uninstall must support clean cancellation"
+    }
+
+    # Test 195: install.ps1 Nightly Git blob SHA-1 verification strictly fails closed (CWE-494 / CWE-345)
+    Run-TestCase "Adversarial" "install.ps1 Nightly Git blob SHA-1 verification strictly fails closed (CWE-494 / CWE-345)" {
+        $instRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+        Assert-Contains $instRaw 'Fail-closed integrity check (CWE-494): Failed to verify Nightly Git blob SHA-1' "install.ps1 must abort if Nightly Git blob verification fails"
+        Assert-Contains $instRaw 'Pass -SkipIntegrity if explicitly overriding in an air-gapped test environment.' "install.ps1 must document -SkipIntegrity override"
+        Assert-False ($instRaw -match 'Write-Verbose "Nightly Git blob SHA-1 verification skipped') "install.ps1 must not silently skip Nightly verification"
+    }
+
+    # Test 196: install.ps1 Initialize-SecureDirectory DACL enforcement strictly fails closed (CWE-276 / CWE-754)
+    Run-TestCase "Adversarial" "install.ps1 Initialize-SecureDirectory DACL enforcement strictly fails closed (CWE-276 / CWE-754)" {
+        $instRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+        Assert-Contains $instRaw 'Security violation (CWE-276): Failed to apply restrictive DACL isolation on secure directory' "Initialize-SecureDirectory must abort if icacls fails"
+        Assert-Contains $instRaw 'Security policy violation (CWE-276): icacls.exe not found in System32' "Initialize-SecureDirectory must abort if icacls is missing"
+    }
+
+    # Test 197: Live process concurrency, mutual exclusion wait loop, and release verification (CWE-362)
+    Run-TestCase "Concurrency" "Live process concurrency, mutual exclusion wait loop, and release verification (CWE-362)" {
+        $origLocalAppData = $env:LOCALAPPDATA
+        $concSandbox = Join-Path $SandboxRoot "conc_sandbox_197"
+        $lockDir = Join-Path $concSandbox "DiamTek\JVM\state.lock"
+        New-Item -ItemType Directory -Path $lockDir -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $lockDir "owner.pid") -Value "$PID|$([DateTime]::UtcNow.Ticks)"
+
+        try {
+            $env:LOCALAPPDATA = $concSandbox
+            $proc = Start-Process -FilePath "cmd.exe" -ArgumentList @('/c', "`"$JvmBat`" clean") -NoNewWindow -PassThru -RedirectStandardOutput (Join-Path $concSandbox "out.txt") -RedirectStandardError (Join-Path $concSandbox "err.txt")
+            
+            Start-Sleep -Milliseconds 1500
+            Assert-False $proc.HasExited "Secondary mutating process must wait and not immediately execute while lock is held"
+            
+            # Release lock held by parent test runner
+            Remove-Item -LiteralPath (Join-Path $lockDir "owner.pid") -Force
+            Remove-Item -LiteralPath $lockDir -Force
+            $proc.WaitForExit(10000) | Out-Null
+            Assert-True $proc.HasExited "Secondary process must acquire state lock and finish after primary release"
+            Assert-Equals 0 $proc.ExitCode "Secondary process must exit cleanly with code 0"
+        } finally {
+            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # Test 198: Behavioral Test-TrustedJvmUri URL allowlist evaluation across adversarial matrix (CWE-918 / CWE-601)
+    Run-TestCase "PackageIntegrity" "Behavioral Test-TrustedJvmUri URL allowlist evaluation across adversarial matrix (CWE-918 / CWE-601)" {
+        $batLines = Get-Content -LiteralPath $JvmBat
+        $fnBody = [System.Text.StringBuilder]::new()
+        $capturing = $false
+        $braceDepth = 0
+        foreach ($bl in $batLines) {
+            $stripped = $bl -replace '^\s*echo\s+', '' -replace '^\s*echo$', ''
+            if (-not $capturing -and $bl -match 'function Test-TrustedJvmUri') {
+                $capturing = $true
+            }
+            if ($capturing) {
+                $clean = $stripped -replace '\^([()|\>\<\&])', '$1'
+                $fnBody.AppendLine($clean) | Out-Null
+                $braceDepth += ([regex]::Matches($clean, '\{')).Count
+                $braceDepth -= ([regex]::Matches($clean, '\}')).Count
+                if ($braceDepth -le 0) { break }
+            }
+        }
+        Assert-True ($fnBody.Length -gt 0) "Test-TrustedJvmUri must be extractable from jvm.bat"
+        . ([scriptblock]::Create($fnBody.ToString()))
+
+        $testMatrix = @{
+            'https://corretto.aws/downloads/latest/corretto.zip'                              = $true
+            'https://api.adoptium.net/v3/assets/feature_releases/21/ga'                       = $true
+            'https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven-bin.zip'      = $true
+            'https://corretto-downloads.us-east-1.amazonaws.com/corretto.zip'                 = $true
+            'https://evil-bucket.s3.amazonaws.com/payload.zip'                                = $false
+            'https://evil-bucket.s3.eu-west-1.amazonaws.com/payload.zip'                      = $false
+            'https://untrusted.cloudfront.net/payload.zip'                                    = $false
+            'https://corretto.aws.attacker.com/payload.zip'                                   = $false
+            'http://repo.maven.apache.org/maven2/maven.zip'                                   = $false
+            'https://127.0.0.1/payload.zip'                                                   = $false
+            'https://localhost/payload.zip'                                                    = $false
+            'https://169.254.169.254/latest/meta-data'                                        = $false
+        }
+
+        foreach ($url in $testMatrix.Keys) {
+            $uri = $null
+            [System.Uri]::TryCreate($url, [System.UriKind]::Absolute, [ref]$uri) | Out-Null
+            $actual = Test-TrustedJvmUri $uri
+            $expected = $testMatrix[$url]
+            Assert-Equals $expected $actual "URL '$url' evaluation mismatch in Test-TrustedJvmUri (Expected: $expected, Actual: $actual)"
+        }
+    }
+
+    # Test 199: Live CLI --offline network isolation across mutating vs read-only operations (CWE-918 / CWE-754)
+    Run-TestCase "Adversarial" "Live CLI --offline network isolation across mutating vs read-only operations (CWE-918 / CWE-754)" {
+        $origLocalAppData = $env:LOCALAPPDATA
+        $offSandbox = Join-Path $SandboxRoot "offline_sandbox_199"
+        $secTemp = Join-Path $offSandbox "DiamTek\JVM\temp"
+        New-Item -ItemType Directory -Path $offSandbox -Force | Out-Null
+
+        try {
+            $env:LOCALAPPDATA = $offSandbox
+
+            # Mutating operations must fail closed with exit code 1
+            $mutating = @(
+                "install 21 --offline",
+                "update 21 --offline",
+                "self-update --offline",
+                "maven install latest --offline"
+            )
+            foreach ($cmd in $mutating) {
+                $out = & cmd.exe /c "call `"$JvmBat`" $cmd" 2>&1 | Out-String
+                Assert-Equals 1 $LASTEXITCODE "jvm $cmd must return exit code 1 when offline"
+                Assert-Contains $out "Operation requires network access, but --offline mode is active." "jvm $cmd must output network rejection notice"
+
+                if (Test-Path -LiteralPath $secTemp) {
+                    $dlScripts = @(Get-ChildItem -LiteralPath $secTemp -Filter "jvm_dl_*.ps1" -ErrorAction SilentlyContinue)
+                    Assert-Equals 0 $dlScripts.Count "No download scripts must be staged under --offline for '$cmd'"
+
+                    $updScripts = @(Get-ChildItem -LiteralPath $secTemp -Filter "jvm_update_*.ps1" -ErrorAction SilentlyContinue)
+                    Assert-Equals 0 $updScripts.Count "No remote update checkers must be staged under --offline for '$cmd'"
+
+                    $dlArchives = @(Get-ChildItem -LiteralPath $secTemp -Filter "*_download.zip" -ErrorAction SilentlyContinue)
+                    Assert-Equals 0 $dlArchives.Count "No zip downloads must be initiated under --offline for '$cmd'"
+                }
+            }
+
+            # Read-only operations must not be blocked by --offline
+            $readOnly = @("current --offline", "which java --offline")
+            foreach ($cmd in $readOnly) {
+                $out = & cmd.exe /c "call `"$JvmBat`" $cmd" 2>&1 | Out-String
+                Assert-Equals 0 $LASTEXITCODE "jvm $cmd must return exit code 0 when offline"
+            }
+
+            # Doctor is read-only but may return exit 1 for health warnings in sandbox —
+            # verify it is NOT blocked by --offline (no network rejection message)
+            $doctorOut = & cmd.exe /c "call `"$JvmBat`" doctor --offline" 2>&1 | Out-String
+            Assert-False ($doctorOut -match 'Operation requires network access') "jvm doctor --offline must not be blocked by offline mode"
+        } finally {
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # Test 200: Live state lock stale recovery on dead owner PID and --no-lock override (CWE-362 / CWE-400)
+    Run-TestCase "Concurrency" "Live state lock stale recovery on dead owner PID and --no-lock override (CWE-362 / CWE-400)" {
+        $origLocalAppData = $env:LOCALAPPDATA
+        $staleSandbox = Join-Path $SandboxRoot "stale_sandbox_200"
+        $lockDir = Join-Path $staleSandbox "DiamTek\JVM\state.lock"
+        $staleTemp = Join-Path $staleSandbox "DiamTek\JVM\temp"
+        New-Item -ItemType Directory -Path $lockDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $staleTemp -Force | Out-Null
+
+        # Create dummy orphan file to verify actual cleaning after lock recovery
+        Set-Content -LiteralPath (Join-Path $staleTemp "jdk_dummy_download.zip") -Value "DUMMY_ORPHAN"
+
+        # Multi-process race & takeover setup: Process A script
+        $holderScript = Join-Path $staleSandbox "holder_proc_a.bat"
+        $holderCmd = "@echo off`r`nmkdir `"$lockDir`" 2>nul`r`n(echo %1^|%DATE%_%TIME%)>`"$lockDir\owner.pid`"`r`nping -n 5 127.0.0.1 >nul"
+        Set-Content -LiteralPath $holderScript -Value $holderCmd
+        $procA = $null
+
+        try {
+            $env:LOCALAPPDATA = $staleSandbox
+
+            # Process A starts with dead PID value
+            $procA = Start-Process -FilePath "cmd.exe" -ArgumentList @('/c', "`"$holderScript`" 999999") -PassThru -NoNewWindow
+            Start-Sleep -Milliseconds 600
+
+            Assert-PathExists (Join-Path $lockDir "owner.pid") "Process A must have created state lock"
+
+            # Process B detects dead PID, takes over owner.pid atomically, and finishes cleaning
+            $outStale = & cmd.exe /c "call `"$JvmBat`" clean" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm clean must auto-recover stale lock from dead PID and exit 0"
+            Assert-Contains $outStale "Successfully cleaned" "Process B must proceed to completion after stale lock takeover"
+
+            # --no-lock bypass with live blocking PID
+            New-Item -ItemType Directory -Path $lockDir -Force | Out-Null
+            Set-Content -LiteralPath (Join-Path $lockDir "owner.pid") -Value "$PID|$([DateTime]::UtcNow.Ticks)"
+
+            $outNoLock = & cmd.exe /c "call `"$JvmBat`" clean --no-lock" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm clean --no-lock must bypass active lock and exit 0"
+        } finally {
+            if ($procA -and -not $procA.HasExited) { Stop-Process -Id $procA.Id -Force -ErrorAction SilentlyContinue }
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # Test 201: Comprehensive CLI --json parsing and zero ANSI/formatting noise contract (CWE-20 / CWE-754)
+    Run-TestCase "TerminalJSON" "Comprehensive CLI --json parsing and zero ANSI/formatting noise contract (CWE-20 / CWE-754)" {
+        $jsonCommands = @("current --json", "which --json", "doctor --json", "list --json")
+
+        foreach ($sub in $jsonCommands) {
+            $raw = (& cmd.exe /c "call `"$JvmBat`" $sub" 2>&1 | Out-String).Trim()
+            Assert-Equals 0 $LASTEXITCODE "jvm $sub must exit with code 0"
+
+            # Verify complete absence of ANSI sequences and human UI elements
+            Assert-False ($raw -match '\x1b\[') "jvm $sub output must not contain ANSI escape sequences"
+            Assert-False ($raw -match '\[\s*(ACTION|INFO|OK|WARN|ERROR)\s*\]') "jvm $sub output must not contain UI status tags"
+            Assert-False ($raw.Contains("====================")) "jvm $sub output must not contain header rules"
+
+            # Ensure output is fully valid JSON
+            $parsed = $null
+            try {
+                $parsed = $raw | ConvertFrom-Json
+            } catch {
+                throw "Failed to parse JSON output from 'jvm $sub': $($_.Exception.Message)`nRaw output:`n$raw"
+            }
+            Assert-True ($null -ne $parsed) "Parsed JSON output from 'jvm $sub' must not be null"
+        }
     }
 
 } finally {

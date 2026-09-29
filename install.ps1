@@ -20,7 +20,8 @@ param(
     [switch]$Update,
     [string]$TargetDir,
     [string]$Branch,
-    [string]$Channel = "Stable"
+    [string]$Channel = "Stable",
+    [switch]$SkipIntegrity
 )
 
 if (-not $PSBoundParameters.ContainsKey('Channel') -and $env:JVM_CHANNEL) {
@@ -136,11 +137,17 @@ function Initialize-SecureDirectory([string]$DirPath, [switch]$RestrictDacl) {
     }
     if ($RestrictDacl) {
         $icaclsBin = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::System)) "icacls.exe"
-        if (Test-Path -LiteralPath $icaclsBin) {
-            & $icaclsBin $DirPath /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "$($env:USERNAME):(OI)(CI)F" *> $null
-            if ($LASTEXITCODE -ne 0) {
-                Write-Verbose "icacls.exe DACL restriction returned exit code $LASTEXITCODE for '$DirPath'."
-            }
+        if (-not (Test-Path -LiteralPath $icaclsBin)) {
+            Write-Host ""
+            Write-Host "[ ERROR  ] Security policy violation (CWE-276): icacls.exe not found in System32 to enforce directory DACL." -ForegroundColor Red
+            exit 1
+        }
+        & $icaclsBin $DirPath /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "$($env:USERNAME):(OI)(CI)F" *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host ""
+            Write-Host "[ ERROR  ] Security violation (CWE-276): Failed to apply restrictive DACL isolation on secure directory: $DirPath" -ForegroundColor Red
+            Write-Host "           icacls.exe DACL restriction returned exit code $LASTEXITCODE" -ForegroundColor Yellow
+            exit 1
         }
     }
 }
@@ -446,38 +453,61 @@ try {
         Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
         exit 1
     } else {
-        $sha1 = $null
-        try {
-            $meta = Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=$rawBranch" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -TimeoutSec 5
-            if ($meta -and $meta.sha) {
-                $expectedGitSha = ([string]$meta.sha).ToLower()
-                $sha1 = [System.Security.Cryptography.SHA1]::Create()
-                $rawBytes = [System.IO.File]::ReadAllBytes($stageBat)
-                $lfBytes = [System.Text.Encoding]::UTF8.GetBytes(($sanitizedContent -replace "`r`n", "`n"))
-                $matchedGit = $false
-                $computedGit = ""
-                foreach ($b in @($rawBytes, $lfBytes)) {
-                    $hdr = [System.Text.Encoding]::ASCII.GetBytes("blob $($b.Length)`0")
-                    $blob = New-Object byte[] ($hdr.Length + $b.Length)
-                    [Array]::Copy($hdr, 0, $blob, 0, $hdr.Length)
-                    [Array]::Copy($b, 0, $blob, $hdr.Length, $b.Length)
-                    $g = ([System.BitConverter]::ToString($sha1.ComputeHash($blob)) -replace '-', '').ToLower()
-                    if (-not $computedGit) { $computedGit = $g }
-                    if ($g -eq $expectedGitSha) { $matchedGit = $true; break }
+        # Nightly or non-tagged release Git-blob SHA-1 integrity verification (CWE-494 / CWE-345)
+        if ($SkipIntegrity) {
+            Write-Host "[  WARN  ] Security notice: Skipping integrity verification per -SkipIntegrity flag." -ForegroundColor Yellow
+        } else {
+            $sha1 = $null
+            $verifiedNightly = $false
+            $nightlyErr = ""
+            try {
+                $meta = Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=$rawBranch" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -TimeoutSec 5
+                if ($meta -and $meta.sha) {
+                    $expectedGitSha = ([string]$meta.sha).ToLower()
+                    $sha1 = [System.Security.Cryptography.SHA1]::Create()
+                    $rawBytes = [System.IO.File]::ReadAllBytes($stageBat)
+                    $lfBytes = [System.Text.Encoding]::UTF8.GetBytes(($sanitizedContent -replace "`r`n", "`n"))
+                    $matchedGit = $false
+                    $computedGit = ""
+                    foreach ($b in @($rawBytes, $lfBytes)) {
+                        $hdr = [System.Text.Encoding]::ASCII.GetBytes("blob $($b.Length)`0")
+                        $blob = New-Object byte[] ($hdr.Length + $b.Length)
+                        [Array]::Copy($hdr, 0, $blob, 0, $hdr.Length)
+                        [Array]::Copy($b, 0, $blob, $hdr.Length, $b.Length)
+                        $g = ([System.BitConverter]::ToString($sha1.ComputeHash($blob)) -replace '-', '').ToLower()
+                        if (-not $computedGit) { $computedGit = $g }
+                        if ($g -eq $expectedGitSha) { $matchedGit = $true; break }
+                    }
+                    if ($matchedGit) {
+                        $verifiedNightly = $true
+                    } else {
+                        Write-Host ""
+                        Write-Host "[ ERROR  ] Cryptographic Git blob SHA-1 check failed for Nightly jvm.bat!" -ForegroundColor Red
+                        Write-Host "           Expected Git Blob SHA: $expectedGitSha" -ForegroundColor Red
+                        Write-Host "           Computed Git Blob SHA: $computedGit" -ForegroundColor Red
+                        Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
+                        exit 1
+                    }
+                } else {
+                    $nightlyErr = "No Git blob SHA returned by GitHub API for ref '$rawBranch'."
                 }
-                if (-not $matchedGit) {
-                    Write-Host ""
-                    Write-Host "[ ERROR  ] Cryptographic Git blob SHA-1 check failed for Nightly jvm.bat!" -ForegroundColor Red
-                    Write-Host "           Expected Git Blob SHA: $expectedGitSha" -ForegroundColor Red
-                    Write-Host "           Computed Git Blob SHA: $computedGit" -ForegroundColor Red
-                    Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
-                    exit 1
-                }
+            } catch {
+                $nightlyErr = $_.Exception.Message
+            } finally {
+                if ($null -ne $sha1) { $sha1.Dispose() }
             }
-        } catch {
-            Write-Verbose "Nightly Git blob SHA-1 verification skipped: $($_.Exception.Message)"
-        } finally {
-            if ($null -ne $sha1) { $sha1.Dispose() }
+
+            if (-not $verifiedNightly) {
+                Write-Host ""
+                Write-Host "[ ERROR  ] Fail-closed integrity check (CWE-494): Failed to verify Nightly Git blob SHA-1 against GitHub tree." -ForegroundColor Red
+                if ($nightlyErr) {
+                    Write-Host "           Detail: $nightlyErr" -ForegroundColor Yellow
+                }
+                Write-Host "           Aborting installation to prevent unverified code execution." -ForegroundColor Red
+                Write-Host "           Pass -SkipIntegrity if explicitly overriding in an air-gapped test environment." -ForegroundColor Yellow
+                Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
+                exit 1
+            }
         }
     }
 

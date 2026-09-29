@@ -32,6 +32,7 @@ This document outlines every command, flag override, and semantic route availabl
 - [Diagnostic Health Audit (jvm doctor)](#diagnostic-health-audit)
 - [Explorer Directory Navigation (jvm open / jvm home)](#explorer-directory-navigation)
 - [PowerShell Profile Hook (jvm hook)](#powershell-profile-hook)
+- [Machine-Readable JSON & Offline Modes (--json / --offline)](#machine-readable-json--offline-modes)
 - [Common Workflow Recipes](#common-workflow-recipes)
 - [CI/CD Automation Recipes](#cicd-integration-recipes)
 
@@ -100,6 +101,9 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm channel [stable/nightly]` | Tool | Displays or switches the update channel between `Stable` (official releases) and `Nightly` (main branch). |
 | `jvm self-update` | Tool | Automatically downloads and atomic-swaps `jvm.bat` to the latest release. |
 | `jvm self-uninstall` | System | Triggers deep UAC-elevated system uninstaller (`uninstall.ps1`, `jvm uninstall-self`). |
+| `jvm <command> --offline` | Flag | Air-gapped / offline execution mode: strictly blocks network calls and executes local commands safely. |
+| `jvm <command> --json` | Flag | Outputs structured machine-readable JSON (`jvm current --json`, `jvm which --json`, `jvm list --json`). |
+| `jvm <command> --no-lock` | Flag | Bypasses atomic mutex state lock acquisition (`state.lock`) in emergency recovery (UNSAFE for concurrent operations). |
 | `jvm <command> --no-color` | Flag | Suppresses ANSI color codes for clean redirection and CI/CD logs (also honors `NO_COLOR` env). |
 | `jvm --help` | Help | Displays formatted in-terminal command manual and flag reference (`-h`, `/?`). |
 
@@ -126,7 +130,7 @@ When you install or activate the PowerShell profile hook (`jvm hook` or via `ins
 | `jvm use <Tab>` | Dynamically discovered installed versions | Scans `%LOCALAPPDATA%\JavaVersionManager\links` and `%USERPROFILE%\.jdks` in real-time |
 | `jvm pin <Tab>` | Dynamically discovered installed versions | Autocompletes installed JDK version tags for `.java-version` creation |
 | `jvm uninstall <Tab>` | Installed JDKs and candidates | Autocompletes installed version tags for targeted uninstallation |
-| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--channel`, `--nightly`, `--stable`, `--version`, `--help` |
+| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--offline`, `--json`, `--no-lock`, `--channel`, `--nightly`, `--stable`, `--version`, `--help` |
 
 ### Interactive Tab Session Examples
 
@@ -666,6 +670,22 @@ where.exe java
 ```
 *(If an old Oracle `javapath` appears above `%LOCALAPPDATA%\DiamTek\JVM\current\bin`, run `jvm clear` to purge rogue paths, then re-activate with `jvm <version>`).*
 
+#### Machine-Readable Structured Telemetry (`--json`)
+Emits pure, schema-compliant JSON directly to `stdout` with complete suppression of ANSI escape sequences, status badges, and ASCII rules:
+```powershell
+# Query environment state as JSON
+jvm current --json
+
+# Query binary path as JSON
+jvm which java --json
+
+# Run diagnostic health check as JSON
+jvm doctor --json
+
+# List installed runtimes as a JSON array
+jvm list --json
+```
+
 <a id="diagnostic-health-audit"></a>
 #### 🩺 Diagnostic Health Audit (`jvm doctor`)
 Runs a comprehensive, automated 7-point health check across your entire Windows operating system and JVM installation environment:
@@ -848,6 +868,36 @@ jvm --help
 ```
 
 ---
+
+<a id="machine-readable-json--offline-modes"></a>
+## ⚙️ Machine-Readable JSON & Offline Modes
+
+### 1. JSON Automation Contract (`--json`)
+Designed for IDE plugins, custom statusline generators, and orchestration tools. Emits pure JSON to `stdout` without decorative text:
+```powershell
+jvm current --json
+jvm which java --json
+jvm list --json
+jvm doctor --json
+```
+
+### 2. Offline & Air-Gapped Execution Mode (`--offline`)
+Enforces a fail-closed network policy. All mutating commands (`install`, `update`, `self-update`) abort with exit code `1` if network access is attempted:
+```powershell
+# Fails closed immediately without network timeouts:
+jvm install 21 --offline
+
+# Read-only commands continue to execute locally:
+jvm current --offline
+jvm which java --offline
+jvm doctor --offline
+```
+
+### 3. Emergency State Lock Override (`--no-lock`)
+Bypasses the concurrency mutex lock (`%LOCALAPPDATA%\DiamTek\JVM\state.lock`) during emergency recovery scenarios. **Notice:** This flag is unsafe for concurrent operations as it disables mutual exclusion:
+```powershell
+jvm clean --no-lock
+```
 
 <a id="common-workflow-recipes"></a>
 ## 💡 Common Developer Workflow Recipes

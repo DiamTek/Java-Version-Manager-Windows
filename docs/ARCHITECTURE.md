@@ -22,7 +22,7 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [Windows Terminal Settings JSONC Parser Engine](#windows-terminal-settings-jsonc-parser-engine)
 - [Packaging Architecture & Asset Distribution](#packaging-architecture--asset-distribution)
 - [Failure Recovery, Atomic State Rollback & Resource Hygiene](#failure-recovery-atomic-state-rollback--resource-hygiene)
-- [Automated Adversarial Test Architecture (194 Tests, 40 CWEs)](#automated-adversarial-test-architecture-194-tests-40-cwes)
+- [Automated Adversarial Test Architecture (201 Tests, 40 CWEs)](#automated-adversarial-test-architecture-201-tests-40-cwes)
 
 ---
 
@@ -524,22 +524,22 @@ flowchart TD
 
 ---
 
-<a id="automated-adversarial-test-architecture-194-tests-40-cwes"></a>
-## Automated Adversarial Test Architecture (194 Tests, 40 CWEs)
+<a id="automated-adversarial-test-architecture-201-tests-40-cwes"></a>
+## Automated Adversarial Test Architecture (201 Tests, 40 CWEs)
 
-The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **194 automated test cases across 8 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **201 automated test cases across 8 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
 
 | Suite | Category Focus | Test Count | Status |
 | :--- | :--- | :---: | :---: |
-| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF) | 78 / 78 | **PASS** |
+| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF) | 81 / 81 | **PASS** |
 | **Suite 2** | Registry & Environment Boundaries (ValueKind preservation, UAC elevation) | 6 / 6 | **PASS** |
 | **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery) | 17 / 17 | **PASS** |
-| **Suite 4** | Package Manifest Integrity (WiX v4, Chocolatey, Winget, Scoop, UUID v5) | 46 / 46 | **PASS** |
-| **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification) | 12 / 12 | **PASS** |
+| **Suite 4** | Package Manifest Integrity (WiX v4, Chocolatey, Winget, Scoop, UUID v5) | 47 / 47 | **PASS** |
+| **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification) | 14 / 14 | **PASS** |
 | **Suite 6** | Corrupt Registry Recovery & PATH Resilience (De-bloat, length limits) | 14 / 14 | **PASS** |
 | **Suite 7** | Uninstallation Safety & Markers (Root markers, deferred cleanup) | 16 / 16 | **PASS** |
-| **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 5 / 5 | **PASS** |
-| **Total** | **Comprehensive Full-System Security Suite** | **194 / 194** | **`10.0 / 10.0`** |
+| **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 6 / 6 | **PASS** |
+| **Total** | **Comprehensive Full-System Security Suite** | **201 / 201** | **`10.0 / 10.0`** |
 
 ---
 
