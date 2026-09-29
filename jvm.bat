@@ -68,42 +68,42 @@ rem Verify host environment directory existence before modifying host state
 set "JVM_DIR=%LOCALAPPDATA%\DiamTek\JVM"
 set "JVM_SECURE_TEMP=%JVM_DIR%\temp"
 
-if not exist "%JVM_DIR%" (
-    set "AUTO_INIT=0"
-    if not "%~1"=="" set "AUTO_INIT=1"
-    for %%A in (%*) do (
-        if /i "%%~A"=="--yes" set "AUTO_INIT=1"
-        if /i "%%~A"=="-y" set "AUTO_INIT=1"
-    )
-    if defined CI set "AUTO_INIT=1"
-    if defined GITHUB_ACTIONS set "AUTO_INIT=1"
-    if "%AUTO_INIT%"=="0" (
-        echo.
-        echo ============================================================
-        echo            Java Version Manager - First Run Setup
-        echo ============================================================
-        echo.
-        echo %cYELLOW%[ WARNING ]%cRESET% No JVM installation found on this computer:
-        echo               %JVM_DIR%
-        echo.
-        echo               JVM needs to create this directory to store your
-        echo               settings, active junctions, and state locks.
-        echo.
-        echo               Notice: If you are running standalone ^(e.g. from a USB^),
-        echo               this directory will remain on this PC until you
-        echo               run 'jvm self-uninstall' or delete it manually.
-        echo               The program cannot remove it automatically if you cancel.
-        echo.
-        echo ============================================================
-        "%CHOICE_BIN%" /C yn /N /M "Do you want to initialize the host directory now? (y/N): "
-        if errorlevel 2 (
-            echo.
-            echo %cBLUE%[  INFO  ]%cRESET% Setup cancelled. No files or directories were created on this PC.
-            if defined ORIG_CP "%CHCP_BIN%" %ORIG_CP% >nul 2>&1
-            exit /b 0
-        )
-    )
+if exist "%JVM_DIR%" goto :HOST_DIR_READY
+if defined CI goto :AUTO_INIT_HOST
+if defined GITHUB_ACTIONS goto :AUTO_INIT_HOST
+if not "%~1"=="" goto :AUTO_INIT_HOST
+for %%A in (%*) do (
+    if /i "%%~A"=="--yes" goto :AUTO_INIT_HOST
+    if /i "%%~A"=="-y" goto :AUTO_INIT_HOST
 )
+
+echo.
+echo ============================================================
+echo            Java Version Manager - First Run Setup
+echo ============================================================
+echo.
+echo %cYELLOW%[ WARNING ]%cRESET% No JVM installation found on this computer:
+echo               %JVM_DIR%
+echo.
+echo               JVM needs to create this directory to store your
+echo               settings, active junctions, and state locks.
+echo.
+echo               Notice: If you are running standalone ^(e.g. from a USB^),
+echo               this directory will remain on this PC until you
+echo               run 'jvm self-uninstall' or delete it manually.
+echo               The program cannot remove it automatically if you cancel.
+echo.
+echo ============================================================
+"%CHOICE_BIN%" /C yn /N /M "Do you want to initialize the host directory now? (y/N): "
+if errorlevel 2 (
+    echo.
+    echo %cBLUE%[  INFO  ]%cRESET% Setup cancelled. No files or directories were created on this PC.
+    if defined ORIG_CP "%CHCP_BIN%" %ORIG_CP% >nul 2>&1
+    exit /b 0
+)
+
+:AUTO_INIT_HOST
+:HOST_DIR_READY
 
 call :EnsureSecureTemp
 if errorlevel 1 exit /b 1
@@ -130,7 +130,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260929.125"
+set "JVM_BUILD=20260929.126"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
