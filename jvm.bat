@@ -83,21 +83,6 @@ if not exist "%JVM_DIR%" (
     )
     if "!AUTO_INIT!"=="1" goto :AUTO_INIT_HOST
 
-    "%CHOICE_BIN%" /C yn /N /T 1 /D y >nul 2>&1
-    if errorlevel 1 goto :AUTO_INIT_HOST
-    for %%A in (%*) do (
-        if /i "%%~A"=="--yes" set "AUTO_INIT=1"
-        if /i "%%~A"=="-y" set "AUTO_INIT=1"
-    )
-    if "!AUTO_INIT!"=="1" goto :AUTO_INIT_HOST
-
-    rem If running in a test sandbox or non-interactive context where CHOICE_BIN fails or stdin is redirected, auto-initialize
-    "%CHOICE_BIN%" /C yn /N /T 1 /D n >nul 2>&1
-    if errorlevel 2 (
-        rem Non-interactive or timeout hit: auto-initialize silently to prevent CI hangs
-        goto :AUTO_INIT_HOST
-    )
-
     echo.
     echo ============================================================
     echo            Java Version Manager - First Run Setup
@@ -153,7 +138,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260930.132"
+set "JVM_BUILD=20260930.133"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
