@@ -5,6 +5,7 @@ repository: DiamTek/Java-Version-Manager-Windows
 
 plugins:
   - jekyll-relative-links
+  - jekyll-sitemap
 
 relative_links:
   enabled: true
