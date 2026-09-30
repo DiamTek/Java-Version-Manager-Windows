@@ -138,7 +138,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260930.134"
+set "JVM_BUILD=20260930.135"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -2076,6 +2076,11 @@ if !choice!==4 (
 if !choice!==3 (
     call :SettingsMenu
     if errorlevel 100 (
+        set "CMD_EXIT_CODE=0"
+        goto :eof
+    )
+    if defined EXIT_JVM_ALL (
+        set "CMD_EXIT_CODE=0"
         goto :eof
     )
     goto RESCAN_MENU
@@ -4665,7 +4670,8 @@ if not defined UNINSTALL_SCRIPT (
     if errorlevel 1 exit /b 1
     echo %cBLUE%[ ACTION ]%cRESET% Downloading verified uninstall.ps1 ^(!UPDATE_CHANNEL! / !UNINSTALL_REF!^)...
 
-    set "UNINSTALL_SCRIPT=%JVM_SECURE_TEMP%\jvm_uninstall_!UNINS_RANDOM_NAME!.ps1"
+    set "UNINSTALL_SCRIPT=%TEMP%\jvm_uninstall_!UNINS_RANDOM_NAME!.ps1"
+    set "UNINSTALL_DOWNLOADED_TEMP=!UNINSTALL_SCRIPT!"
 
     "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
         "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288;" ^
@@ -4703,13 +4709,24 @@ if "!UNINSTALL_VERIFIED!"=="0" (
     echo %cGREEN%[   OK   ]%cRESET% uninstall.ps1 cryptographic digest verified ^(!UPDATE_CHANNEL!^).
 )
 
-set "RUNNER_PS1=%JVM_SECURE_TEMP%\diamtek_uninstall_runner_!UNINS_RANDOM_NAME!.ps1"
+set "RUNNER_PS1=%TEMP%\diamtek_uninstall_runner_!UNINS_RANDOM_NAME!.ps1"
 copy /y "!UNINSTALL_SCRIPT!" "!RUNNER_PS1!" >nul 2>&1
+if defined UNINSTALL_DOWNLOADED_TEMP if exist "!UNINSTALL_DOWNLOADED_TEMP!" del /f /q "!UNINSTALL_DOWNLOADED_TEMP!" >nul 2>&1
 
 set "TARGET_UNINSTALL_DIR=!SCRIPT_DIR!"
-cd /d "%JVM_SECURE_TEMP%"
+cd /d "%TEMP%"
 
-("%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!RUNNER_PS1!" -SourceDir "!TARGET_UNINSTALL_DIR!" & if exist "!RUNNER_PS1!" del "!RUNNER_PS1!" >nul 2>&1 & if "!ORIG_CP!" NEQ "" "%CHCP_BIN%" !ORIG_CP! >nul 2>&1 & exit)
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!RUNNER_PS1!" -SourceDir "!TARGET_UNINSTALL_DIR!"
+set "UNINST_ERR=!errorlevel!"
+if exist "!RUNNER_PS1!" del /f /q "!RUNNER_PS1!" >nul 2>&1
+if "!ORIG_CP!" NEQ "" "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
+set "CMD_EXIT_CODE=0"
+set "EXIT_JVM_ALL=1"
+if defined CLI_COMMAND (
+    exit /b !UNINST_ERR!
+) else (
+    exit /b 100
+)
 
 :HANDLE_LINKS
 setlocal enabledelayedexpansion

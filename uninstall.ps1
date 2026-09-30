@@ -32,6 +32,8 @@ if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') {
     exit 1
 }
 
+Set-Location -LiteralPath $env:TEMP
+
 Write-Host ""
 Write-Host "============================================================"
 Write-Host "         Java Version Manager - Uninstaller"
