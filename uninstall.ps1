@@ -161,9 +161,21 @@ if ($validatedSourceDir) {
     if ($jvmLocations -notcontains $sourceBin) { $jvmLocations += $sourceBin }
 }
 
-# Also remove the script's own directory only if it passes Test-TrustedJvmInstallDirectory
+# Also remove the script's own directory only if it passes Test-TrustedJvmInstallDirectory (and is not a temporary runner)
 $scriptDir = Split-Path -Parent $PSCommandPath
-$validatedScriptDir = if ($scriptDir) { Test-TrustedJvmInstallDirectory $scriptDir } else { $null }
+$normTemp = [System.IO.Path]::GetTempPath().TrimEnd('\', '/')
+$isTempScriptDir = $false
+try {
+    if ($scriptDir) {
+        $resolvedScriptDir = (Resolve-Path -LiteralPath $scriptDir -ErrorAction SilentlyContinue).Path.TrimEnd('\', '/')
+        if ($resolvedScriptDir -and ($resolvedScriptDir -eq $normTemp -or $resolvedScriptDir.StartsWith("$normTemp\", [System.StringComparison]::OrdinalIgnoreCase))) {
+            $isTempScriptDir = $true
+        }
+    }
+} catch {
+    Write-Verbose "Temp scriptDir check skipped: $($_.Exception.Message)"
+}
+$validatedScriptDir = if ($scriptDir -and -not $isTempScriptDir) { Test-TrustedJvmInstallDirectory $scriptDir } else { $null }
 if ($validatedScriptDir -and ($jvmLocations -notcontains $validatedScriptDir)) {
     $jvmLocations += $validatedScriptDir
 }
@@ -300,6 +312,10 @@ foreach ($p in $profiles) {
         }
     }
 }
+
+# Unload in-memory wrapper functions if executing in an interactive PowerShell session
+Remove-Item -Path "Function:\jvm" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "Function:\Set-JvmVar" -Force -ErrorAction SilentlyContinue
 
 # ----------------------------------------------------------------
 # Environment variables
@@ -658,7 +674,7 @@ if (-not [string]::IsNullOrWhiteSpace($SourceDir)) {
     if (-not $targetFolder) {
         Write-Host "[ ERROR  ] Security violation (CWE-73): Specified -SourceDir '$SourceDir' failed security validation. Skipping directory cleanup." -ForegroundColor Red
     }
-} elseif ($scriptDir -and (Test-Path -LiteralPath $scriptDir)) {
+} elseif ($scriptDir -and -not $isTempScriptDir -and (Test-Path -LiteralPath $scriptDir)) {
     $targetFolder = Test-TrustedJvmInstallDirectory $scriptDir
 }
 

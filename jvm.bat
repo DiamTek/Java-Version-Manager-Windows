@@ -138,7 +138,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260930.136"
+set "JVM_BUILD=20260930.137"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -4327,7 +4327,10 @@ set "JVM_TRME2=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRI
     echo(    if ^(-not ^(Test-Path -LiteralPath $bat^)^) {
     echo(        $bat = Get-Command jvm.bat -CommandType Application -ErrorAction SilentlyContinue ^| Select-Object -ExpandProperty Source -First 1
     echo(    }
-    echo(    if ^(-not $bat^) { $bat = 'jvm.bat' }
+    echo(    if ^(-not $bat -or -not ^(Test-Path -LiteralPath $bat^)^) {
+    echo(        Write-Error "jvm: Java Version Manager is not installed or not in PATH. Please reinstall JVM or restart your terminal."
+    echo(        return
+    echo(    }
     echo(    $env:JVM_CALLER_PID = $PID
     echo(    ^& $bat @args
     echo(
@@ -7208,7 +7211,7 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo         $h = $u.Host.ToLowerInvariant^(^)
     echo         $exact = @^('download.oracle.com','edelivery.oracle.com','api.adoptium.net','github.com','api.github.com','objects.githubusercontent.com','release-assets.githubusercontent.com','raw.githubusercontent.com','corretto.aws','api.azul.com','cdn.azul.com','static.azul.com','aka.ms','download.visualstudio.microsoft.com','api.bell-sw.com','download.bell-sw.com','repo.maven.apache.org','archive.apache.org','dlcdn.apache.org','downloads.apache.org','services.gradle.org','downloads.gradle.org','downloads.gradle-dn.com','api.sdkman.io'^)
     echo         if ^($exact -contains $h^) { return $true }
-    echo         if ($h -match '^corretto(-downloads)?\.[a-z0-9\-]+\.amazonaws\.com$' -or $h -match '^corretto\.aws\.s3(\.[a-z0-9\-]+)?\.amazonaws\.com$') { return $true }
+    echo         if ^($h -match '^^corretto^(-downloads^)?\.[a-z0-9\-]+\.amazonaws\.com$' -or $h -match '^^corretto\.aws\.s3^(\.[a-z0-9\-]+^)?\.amazonaws\.com$'^) { return $true }
     echo         foreach ^($sfx in @^('.oracle.com','.adoptium.net','.github.com','.githubusercontent.com','.azul.com','.microsoft.com','.bell-sw.com','.apache.org','.gradle.org','.gradle-dn.com'^)^) {
     echo             if ^($h.EndsWith^($sfx^)^) { return $true }
     echo         }

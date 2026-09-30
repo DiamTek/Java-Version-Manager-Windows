@@ -736,6 +736,11 @@ function jvm {
         $bat = Get-Command jvm.bat -CommandType Application -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
     }
 
+    if (-not $bat -or -not (Test-Path -LiteralPath $bat)) {
+        Write-Error "jvm: Java Version Manager is not installed or not in PATH. Please reinstall JVM or restart your terminal."
+        return
+    }
+
     # Handle UNC directory paths via pushd
     $isUnc = ($pwd.Provider.Name -eq 'FileSystem' -and $pwd.Path -like '\\*')
     if ($isUnc) {
