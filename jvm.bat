@@ -138,7 +138,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260930.135"
+set "JVM_BUILD=20260930.136"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"

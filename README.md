@@ -83,7 +83,7 @@ choco install jvm-windows
 Easily remove JVM and all associated configurations:
 - **Windows Settings:** Open **Installed apps** -> **DiamTek Java Version Manager** -> **Uninstall**.
 - **Start Menu:** Search **"Uninstall Java Version Manager"** and hit Enter.
-- **Terminal:** Run `jvm self-uninstall` or select Option 4 in the **Settings** menu.
+- **Terminal:** Run `jvm self-uninstall` or select Option 6 in the **Settings** menu.
 
 <a id="features"></a>
 <a id="-features"></a>

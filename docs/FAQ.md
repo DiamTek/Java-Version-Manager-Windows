@@ -58,9 +58,11 @@
 
 ---
 
+<a id="why-use-this-over-sdkman-on-windows"></a>
 ### Why use this over SDKMAN! on Windows?
 SDKMAN! is an incredible tool, but it is fundamentally built for Unix architectures (bash). Running it on Windows requires layers of virtualization like Windows Subsystem for Linux (WSL), Git Bash, or Cygwin. This Java Version Manager is built **100% natively** for Windows Command Prompt (`cmd.exe`) and PowerShell. It requires zero dependencies and directly manipulates the Windows Registry.
 
+<a id="why-isnt-java-recognized-immediately-after-i-switch-versions"></a>
 ### Why isn't `java` recognized immediately after I switch versions?
 In most cases, it is recognized immediately! 
 - **PowerShell (with Profile Hook):** The installer injects the `Set-JvmVar` hook into your PowerShell `$PROFILE`. When you switch versions with `jvm`, environment variables (`JAVA_HOME`, `Path`, toolchains) are dynamically injected into the active session memory on the fly without restarting.
@@ -91,6 +93,7 @@ If you see an entry like `C:\Program Files\Common Files\Oracle\Java\javapath\jav
 - **Purge Rogue Paths with `jvm clear`:** Run `jvm clear` (or in the interactive UI menu, select **Clear Java from Environment Variables**). This automatically scrubs legacy Oracle `javapath` entries (`C:\Program Files\Common Files\Oracle\Java\javapath`, `C:\ProgramData\Oracle\Java\javapath`) and broken symlinks from both your User and System `PATH`. Afterward, run `jvm <version>` (e.g., `jvm 21`) to re-activate your desired JDK cleanly with zero path conflicts.
 - **Manual Cleanup:** Open Windows System Properties (`sysdm.cpl` → **Advanced** → **Environment Variables**) and delete any lingering `javapath` entries from the Machine-level **Path** variable.
 
+<a id="how-do-i-verify-or-manually-configure-the-powershell-profile-hook"></a>
 ### How do I verify or manually configure the PowerShell Profile Hook?
 DiamTek JVM automatically configures both Windows PowerShell (5.1) and modern PowerShell Core (7+) profiles so that switching versions via `jvm` dynamically updates `JAVA_HOME`, toolpaths, and the active session `$env:Path` in-memory without restarting your shell.
 
@@ -163,6 +166,7 @@ function jvm {
 # <<< jvm <<<
 ```
 
+<a id="does-this-require-administrator-uac-privileges"></a>
 ### Does this require Administrator (UAC) privileges?
 It depends on which architecture mode you use:
 - **Symlink Mode (Default, Recommended):** **100% UAC-Free!** It leverages a Windows Directory Junction (`%LOCALAPPDATA%\DiamTek\JVM\current`). Switching versions updates the junction pointer in user-space, requiring zero administrator privileges or UAC popups.
@@ -170,12 +174,15 @@ It depends on which architecture mode you use:
 
 *Note: Administrator privileges are also requested when auto-downloading JDKs directly into `C:\Program Files\Java`, scrubbing rogue legacy paths from the Machine registry, or executing the deep system uninstaller (`uninstall.ps1` / `jvm self-uninstall`).*
 
+<a id="how-does-it-change-the-version-globally-without-messing-up-my-path"></a>
 ### How does it change the version globally without messing up my path?
 Instead of adding a new folder to your system `PATH` every time you install a JDK, this tool adds one single entry: `%LOCALAPPDATA%\DiamTek\JVM\current\bin`. This is a Directory Junction. When you switch Java versions, the tool just changes where that junction points. Your actual `PATH` variable stays completely clean and bloat-free.
 
+<a id="can-i-use-this-in-a-cicd-pipeline-like-github-actions"></a>
 ### Can I use this in a CI/CD pipeline (like GitHub Actions)?
 Yes! The tool supports headless execution. You can bypass the interactive menu entirely by passing arguments directly, for example: `jvm install 21 -y` or `jvm 21`.
 
+<a id="can-i-temporarily-run-a-build-with-a-specific-java-version-without-altering-my-global-environment"></a>
 ### Can I temporarily run a build with a specific Java version without altering my global environment?
 Yes! DiamTek JVM provides clean options depending on whether you want one-off ephemeral execution, directory pinning, or session isolation:
 
@@ -209,6 +216,7 @@ Yes! DiamTek JVM provides clean options depending on whether you want one-off ep
    ```
    *(Note: Because `&&` runs two commands in sequence, `jvm 17` first updates your active Directory Junction to JDK 17 globally, and then `gradlew build` runs using that newly activated version).*
 
+<a id="does-it-support-custom-jdks-or-private-binaries"></a>
 ### Does it support custom JDKs or private binaries?
 Yes! You can use `jvm link <path> [name]` to register any custom or private JDK into the manager. It will integrate seamlessly into the dynamic menus and CLI routing.
 
@@ -217,9 +225,11 @@ To view an inventory of all currently linked custom JDKs (including junction tar
 jvm link
 ```
 
+<a id="where-are-my-jdks-and-tools-actually-installed"></a>
 ### Where are my JDKs and tools actually installed?
 By default, auto-downloaded JDKs are installed to `C:\Program Files\Java\<vendor-jdk>`, and ecosystem tools (Maven, Gradle, Kotlin, Scala, Groovy) are securely stored and cached in `%LOCALAPPDATA%\DiamTek\JVM\candidates\<tool>`. Custom Bring Your Own JDKs (`jvm link`) are cataloged as directory junctions in `%LOCALAPPDATA%\JavaVersionManager\links`. Additionally, JVM automatically scans and discovers pre-existing JDKs in `C:\Java`, `%USERPROFILE%\.jdks` (IntelliJ IDEA), `%USERPROFILE%\.gradle\jdks` (Gradle toolchains), and `%USERPROFILE%\scoop\apps\*` (Scoop).
 
+<a id="how-do-i-use-jvm-behind-a-corporate-proxy-or-enterprise-firewall"></a>
 ### How do I use JVM behind a corporate proxy or enterprise firewall?
 DiamTek JVM's networking leverages native Windows `.NET` APIs, which automatically respect enterprise network configurations:
 
@@ -254,21 +264,24 @@ DiamTek JVM's networking leverages native Windows `.NET` APIs, which automatical
    set GITHUB_TOKEN=ghp_your_personal_access_token
    ```
 
+<a id="how-does-windows-terminal-and-taskbar-integration-work"></a>
 ### How does Windows Terminal and Taskbar integration work?
 The installer automatically integrates DiamTek JVM into Windows Terminal by registering a dedicated profile in `settings.json`:
 - **Custom Branding**: Displays the high-resolution DiamTek JVM icon on the terminal tab, header, and the `+` new tab dropdown menu.
 - **Auto-Close on Exit**: Configured to launch `cmd.exe /c "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat"` with `"closeOnExit": "always"`, meaning that exiting the JVM interactive menu automatically closes the terminal tab.
 - **Taskbar & Start Menu Shortcuts**: Start Menu and pinned Taskbar shortcuts target the registered Windows Terminal profile when available (with a graceful fallback to `cmd.exe /c`). In Windows 11, tabs opened inside Windows Terminal are hosted within `WindowsTerminal.exe` and group under the Windows Terminal taskbar button by operating system design.
 
+<a id="how-do-i-completely-uninstall-it"></a>
 ### How do I completely uninstall it?
 DiamTek JVM provides a complete, UAC-elevated uninstaller (`uninstall.ps1`) that scrubs all system PATH entries, PowerShell `$PROFILE` hooks, environment variables, ecosystem tool caches, Windows Terminal profiles, pinned taskbar shortcuts, and installed JDKs:
 - **Windows Settings:** Open **Settings** -> **Apps** -> **Installed apps** -> **DiamTek Java Version Manager** -> **Uninstall**.
 - **Start Menu:** Search for **"Uninstall Java Version Manager"** in Windows and run it.
-- **Terminal UI:** Launch `jvm`, navigate to **Settings** (`3`), and choose **Uninstall JVM Completely** (`4`).
+- **Terminal UI:** Launch `jvm`, navigate to **Settings** (`3`), and choose **Uninstall JVM Completely** (`6`).
 - **CLI:** Run `jvm self-uninstall`.
 - **PowerShell:** Execute `& "$env:LOCALAPPDATA\DiamTek\JVM\uninstall.ps1"`.
 - **Windows Installer (MSI):** Run `msiexec /x jvm-windows-1.0.1-x64.msi /qn`.
 
+<a id="why-does-windows-powershell-say-a-script-is-not-digitally-signed-or-blocked"></a>
 ### Why does Windows PowerShell say a script is not digitally signed or blocked?
 When you download `.ps1` scripts (such as `install.ps1`, `uninstall.ps1`, or test suites) or `.zip` archives through a web browser, Windows Attachment Manager tags them with an NTFS `Zone.Identifier` stream (`ZoneId=3` - Internet). Under the default `RemoteSigned` policy, PowerShell blocks any unverified script before running.
 
@@ -288,6 +301,7 @@ You can unblock the file(s) in three ways:
    powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
    ```
 
+<a id="what-should-i-do-if-windows-defender-smartscreen-warns-about-an-unknown-publisher"></a>
 ### What should I do if Windows Defender SmartScreen warns about an "Unknown Publisher"?
 When downloading newly released open-source installers (`.msi` or `.ps1`) from GitHub without an expensive commercial EV Code Signing certificate ($500+/year), Windows Defender SmartScreen may display a blue warning banner: *"Windows protected your PC — Microsoft Defender SmartScreen prevented an unrecognized app from starting."*
 
@@ -300,6 +314,7 @@ All official DiamTek release artifacts are cryptographically attested via GitHub
 gh attestation verify jvm-windows-1.0.1-x64.msi --repo DiamTek/Java-Version-Manager-Windows
 ```
 
+<a id="does-the-msi-test-suite-test-real-system-integration-or-just-file-creation"></a>
 ### Does the MSI test suite test real system integration or just file creation?
 It tests the **real, live system integration on your computer**:
 - Spawns the Windows Installer service (`msiexec.exe`) to perform a real installation.
@@ -311,6 +326,7 @@ It tests the **real, live system integration on your computer**:
 - Triggers `msiexec /x` to verify deep uninstallation and zero-residual cleanup.
 By default, the test suite runs silently (`/qn`) for CI automation. To display the Windows Installer progress dialog, pass `-ShowUI`. To keep JVM installed after testing, pass `-KeepInstalled`.
 
+<a id="how-do-i-cryptographically-verify-the-authenticity-and-provenance-of-release-binaries"></a>
 ### How do I cryptographically verify the authenticity and provenance of release binaries?
 All official release artifacts (`jvm-windows-*.msi`, `jvm-windows-*.zip`, `SHA256SUMS.txt`) are cryptographically attested via GitHub's Sigstore OIDC infrastructure using `actions/attest-build-provenance`. This generates an immutable, tamper-evident record linking the binaries directly to the GitHub Actions runner build and the specific Git commit SHA.
 
@@ -328,11 +344,13 @@ The following policy criteria will be enforced:
 ```
 This guarantees the binary you downloaded was built directly by GitHub Actions from the audited open-source codebase and has not been altered or tampered with.
 
+<a id="how-does-jvm-protect-against-local-privilege-escalation-and-corrupted-downloads"></a>
 ### How does JVM protect against local privilege escalation and corrupted downloads?
 - **Zero-File UAC Elevation:** All administrative operations (such as system-wide registry adjustments or moving JDK files into `C:\Program Files\Java`) execute commands directly in memory via parameterized process calls. JVM never stages temporary batch or PowerShell scripts in `%TEMP%`, completely eliminating Time-of-Check to Time-of-Use (TOCTOU) file race conditions and Local Privilege Escalation (LPE) vectors.
 - **Strict Checksum Decoupling:** Remote archive downloads validate SHA256/SHA512 checksums against vendor endpoints before unpacking. Passing `-y` / `--yes` suppresses interactive prompts but **never** bypasses integrity validation; skipping verification requires the explicit `--skip-checksum` (or `--no-verify`) flag.
 - **Metacharacter Repository Sanitization:** Configuration files read from workspaces (`.java-version` and `.sdkmanrc`) are strictly sanitized against shell metacharacters (`&`, `|`, `<`, `>`) before batch argument evaluation.
 
+<a id="what-process-exit-codes-does-the-cli-and-installer-return-for-cicd-scripting"></a>
 ### What process exit codes does the CLI and installer return for CI/CD scripting?
 All DiamTek JVM CLI commands, installer scripts, and MSI packages return standard Windows and POSIX process exit codes for deterministic automation in scripts, pipelines, and enterprise management agents:
 
@@ -352,6 +370,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 ```
 
+<a id="can-my-engineering-team-adopt-jvm-on-locked-down-corporate-laptops-without-it-admin-tickets"></a>
 ### Can my engineering team adopt JVM on locked-down corporate laptops without IT admin tickets?
 Yes! In locked-down corporate environments, developers rarely have local administrator (`UAC`) privileges. Traditional Java installations and updates write directly to protected system directories (`C:\Program Files\Java`) and machine-level registry hives (`HKLM`), requiring an IT helpdesk ticket and elevated technician credentials for every routine JDK change.
 

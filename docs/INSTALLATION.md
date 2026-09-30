@@ -26,6 +26,7 @@ Getting started with the Java Version Manager for Windows takes less than 10 sec
 
 ---
 
+<a id="standard-installation-powershell"></a>
 ## Standard Installation (PowerShell)
 
 Open Windows PowerShell (you do not need Administrator privileges) and run the one-liner for your preferred channel:
@@ -48,6 +49,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-M
 > [!TIP]
 > **Atomic Rollback & Resource Safety:** `install.ps1` snapshots existing installations to `$batBackup = "$batPath.bak.<guid>.tmp"`. If companion file verification fails or an exception occurs, the overarching `finally` block atomically restores `$batBackup` back to `$batPath`, deletes all `.stage.*.tmp` files, releases COM objects, and leaves your workstation clean (`CWE-460` / `CWE-459`).
 
+<a id="choosing-your-update-channel-stable-vs-nightly"></a>
 ### Choosing Your Update Channel (Stable vs Nightly)
 
 DiamTek JVM supports two distinct update channels to match your workflow:
@@ -75,6 +77,7 @@ DiamTek JVM supports two distinct update channels to match your workflow:
 6. It creates a Start Menu application shortcut and automatically updates any pinned Taskbar shortcuts.
 7. It registers into Windows Settings ("Installed apps") with an accurate dynamic `EstimatedSize` footprint calculation.
 
+<a id="manual-installation"></a>
 ## Manual Installation
 
 > [!WARNING]
@@ -123,6 +126,7 @@ If you download `install.ps1` or download the repository `.zip` to install local
    powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
    ```
 
+<a id="package-managers"></a>
 ## Package Managers
 
 ### Winget
@@ -214,6 +218,7 @@ For secure air-gapped workstations or offline development networks with no exter
 3. Pre-extract your organization's approved JDK distributions into `C:\Program Files\Java\` or a user folder.
 4. Register them using `jvm link <path> <name>`.
 
+<a id="building-the-msi-from-source"></a>
 ## Building the MSI from Source
 You can compile native, standalone MSIs locally using the WiX Toolset v4 build pipeline. For full architecture details, custom action hooks, and test suite specifications, see the [WiX MSI Package Documentation](../packages/msi/README.md).
 
@@ -335,6 +340,7 @@ During installation via `install.ps1` or the official WiX MSI installer, DiamTek
 
 ---
 
+<a id="uninstallation"></a>
 ## Uninstallation
  
 DiamTek Java Version Manager includes a dedicated, UAC-elevated deep uninstaller (`uninstall.ps1`) that completely scrubs the application, system PATH entries, PowerShell `$PROFILE` hooks, environment variables, ecosystem tool caches, Windows Terminal profiles, pinned taskbar shortcuts, and installed JDKs.
@@ -347,7 +353,7 @@ You can uninstall JVM through any of the following methods:
 2. **Start Menu Shortcut:**
    - Search **"Uninstall Java Version Manager"** in the Windows taskbar search box and press **Enter**.
 3. **Interactive Terminal Interface:**
-   - Run `jvm` -> Navigate to **Settings** (`3`) -> Select **Uninstall JVM Completely** (`4`).
+   - Run `jvm` -> Navigate to **Settings** (`3`) -> Select **Uninstall JVM Completely** (`6`).
 4. **Command Line (CLI):**
    ```cmd
    jvm self-uninstall

@@ -61,9 +61,12 @@ if ($isFullLanguage) {
     } catch { Write-Verbose "DefaultWebProxy configuration skipped: $($_.Exception.Message)" }
 }
 
-if ($PSVersionTable.PSVersion.Major -ge 6) {
-    $PSDefaultParameterValues['Invoke-WebRequest:ProxyUseDefaultCredentials'] = $true
-    $PSDefaultParameterValues['Invoke-RestMethod:ProxyUseDefaultCredentials'] = $true
+# Ensure legacy or leaked proxy parameter defaults do not break PowerShell Core (CWE-754 / CWE-755)
+if ($PSDefaultParameterValues.ContainsKey('Invoke-WebRequest:ProxyUseDefaultCredentials')) {
+    $null = $PSDefaultParameterValues.Remove('Invoke-WebRequest:ProxyUseDefaultCredentials')
+}
+if ($PSDefaultParameterValues.ContainsKey('Invoke-RestMethod:ProxyUseDefaultCredentials')) {
+    $null = $PSDefaultParameterValues.Remove('Invoke-RestMethod:ProxyUseDefaultCredentials')
 }
 
 $actionName = if ($Update) { "Updating" } else { "Installing" }

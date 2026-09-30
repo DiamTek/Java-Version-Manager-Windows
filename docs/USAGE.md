@@ -859,6 +859,7 @@ Launch the deep uninstallation process directly from the CLI to wipe JVM, enviro
 jvm self-uninstall
 # Alias: jvm uninstall-self
 ```
+*(Tip: You can also launch the deep uninstaller from the interactive TUI via Settings (`3`) -> Option 6 (`Uninstall JVM Completely`)).*
 
 ### Help & Command Reference
 Display the full command-line reference, arguments, and flag overrides directly in your terminal:

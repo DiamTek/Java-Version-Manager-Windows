@@ -26,6 +26,7 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 
 ---
 
+<a id="the-core-mechanism-directory-junctions"></a>
 ## The Core Mechanism: Directory Junctions
 Instead of constantly appending and pruning your Windows `PATH` variable to point to different JDK folders (which quickly leads to the 1024-character `PATH` limit and environment variable bloat), the manager maintains a single **Directory Junction** (`mklink /J`) at:
 
@@ -120,6 +121,7 @@ Windows `cmd.exe` contains a well-known architectural quirk: the `if exist <path
   ```
   Calling `rmdir` directly without an `if exist` guard silently unbinds the broken reparse point if present (and returns errorlevel 2 harmlessly if absent), guaranteeing that `mklink /J` always succeeds with zero deadlocks.
 
+<a id="dual-architecture-core-symlink-mode-vs-legacy-registry-mode"></a>
 ## Dual-Architecture Core (Symlink Mode vs. Legacy Registry Mode)
 The engine provides two distinct switching engines that users can toggle via the Settings menu or CLI flags:
 
