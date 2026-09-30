@@ -3737,7 +3737,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             # Ensure output is fully valid JSON
             $parsed =$null
             try {
-                $parsed = ConvertFrom-Json -InputObject$raw
+                $parsed = $raw | ConvertFrom-Json
             } catch {
                 throw "Failed to parse JSON output from 'jvm $sub': $($_.Exception.Message)`nRaw output:`n$raw"
             }
