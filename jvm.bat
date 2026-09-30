@@ -17,22 +17,24 @@ rem along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 rem Auto-repair Unix LF line endings to Windows CRLF if executed standalone from raw download
 if "%~1"=="--internal-crlf-relaunch" shift & goto :BOOTSTRAP_START
+if defined CI goto :BOOTSTRAP_START
+if defined GITHUB_ACTIONS goto :BOOTSTRAP_START
+set "RAW_BAT_SELF=%~f0"
 set "SYS32=%SystemRoot%\System32"
 if not defined SystemRoot set "SYS32=C:\Windows\System32"
-"%SYS32%\findstr.exe" /r "[^ ]" "%~f0" >nul 2>&1
 "%SYS32%\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command ^
-    "$p = $env:RAW_BAT_SELF; if (-not $p -or -not (Test-Path -LiteralPath $p)) { $p = $args[0] };" ^
-    "if (Test-Path -LiteralPath $p) {" ^
+    "$p =$env:RAW_BAT_SELF;" ^
+    "if ($p -and (Test-Path -LiteralPath$p)) {" ^
     "    $fs = [System.IO.File]::OpenRead($p);" ^
-    "    $buf = New-Object byte[] 4096; $read = $fs.Read($buf, 0, 4096); $fs.Close();" ^
-    "    $hasCr = $false; for ($i=0; $i -lt $read; $i++) { if ($buf[$i] -eq 13) { $hasCr = $true; break } };" ^
+    "    $buf = New-Object byte[] 4096; $read =$fs.Read($buf, 0, 4096);$fs.Close();" ^
+    "    $hasCr =$false; for ($i=0; $i -lt $read; $i++) { if ($buf[$i] -eq 13) { $hasCr =$true; break } };" ^
     "    if (-not $hasCr) {" ^
     "        $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8);" ^
     "        $crlf = ($txt -replace \"`r?`n\", \"`r`n\");" ^
     "        try { [System.IO.File]::WriteAllText($p, $crlf, (New-Object System.Text.UTF8Encoding($false))) } catch {}" ^
     "        exit 42" ^
     "    }" ^
-    "}" "%~f0" >nul 2>&1
+    "}" >nul 2>&1
 if "%errorlevel%"=="42" (
     cmd.exe /c ""%~f0" --internal-crlf-relaunch %*"
     exit /b %errorlevel%
@@ -151,7 +153,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260929.128"
+set "JVM_BUILD=20260930.129"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
