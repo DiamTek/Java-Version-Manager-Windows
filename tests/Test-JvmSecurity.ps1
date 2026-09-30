@@ -3646,7 +3646,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             )
             foreach ($cmd in $mutating) {
                 $out = & cmd.exe /c "call `"$JvmBat`" $cmd" 2>&1 | Out-String
-                Assert-Equals 1 $LASTEXITCODE "jvm $cmd must return exit code 1 when offline"
+                Assert-Equals $LASTEXITCODE 1 "jvm $cmd must return exit code 1 when offline"
                 Assert-Contains $out "Operation requires network access, but --offline mode is active." "jvm $cmd must output network rejection notice"
 
                 if (Test-Path -LiteralPath $secTemp) {

@@ -153,7 +153,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260930.129"
+set "JVM_BUILD=20260930.130"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -879,7 +879,9 @@ if defined CLI_TARGET (
     if exist "%INVOCATION_DIR%\.java-version" (
         set "PARSED_JV="
         set "JV_PARSE_ERR=0"
-        %FINDSTR_BIN% /r /v "^[ \t]*# ^ï»¿[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.java-version" 2>nul | %FINDSTR_BIN% "[&|<>`%%!;$()^{}\"]" >nul 2>&1
+        %FINDSTR_BIN% /r /v "^[ \t]*# ^ï»¿[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.java-version" 2>nul | %FINDSTR_BIN% "[&|<>`%%!;$()^{}]" >nul 2>&1
+        if not errorlevel 1 set "JV_PARSE_ERR=1"
+        %FINDSTR_BIN% /c:"\"" "%INVOCATION_DIR%\.java-version" >nul 2>&1
         if not errorlevel 1 set "JV_PARSE_ERR=1"
         if "!JV_PARSE_ERR!"=="0" (
             for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /r /v "^[ \t]*# ^ï»¿[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.java-version" 2^>nul ^| %FINDSTR_BIN% /r "[0-9]"') do (
@@ -1019,7 +1021,9 @@ if "!SESSION_MODE!"=="1" (
     
     if "!FOUND_SDKMANRC!"=="1" (
         set "SDK_ECO_ERR=0"
-        %FINDSTR_BIN% /r /v "^[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.sdkmanrc" 2>nul | %FINDSTR_BIN% "[&|<>`%%!;$()^{}\"]" >nul 2>&1
+        %FINDSTR_BIN% /r /v "^[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.sdkmanrc" 2>nul | %FINDSTR_BIN% "[&|<>`%%!;$()^{}]" >nul 2>&1
+        if not errorlevel 1 set "SDK_ECO_ERR=1"
+        %FINDSTR_BIN% /c:"\"" "%INVOCATION_DIR%\.sdkmanrc" >nul 2>&1
         if not errorlevel 1 set "SDK_ECO_ERR=1"
         if "!SDK_ECO_ERR!"=="0" (
             for /f "eol=# tokens=1,* delims==" %%A in ('%FINDSTR_BIN% /r /v "^[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.sdkmanrc" 2^>nul ^| %FINDSTR_BIN% /i /v "^java="') do (
@@ -1327,7 +1331,6 @@ rem ============================================================
 
 rem Function to dynamically scan and display menu
 :ShowDynamicMenu
-if defined JVM_NONINTERACTIVE exit /b 0
 setlocal enabledelayedexpansion
 
 :RESCAN_MENU
