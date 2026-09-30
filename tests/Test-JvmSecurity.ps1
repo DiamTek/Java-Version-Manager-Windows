@@ -3735,13 +3735,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             Assert-False ($raw.Contains("====================")) "jvm $sub output must not contain header rules"
 
             # Ensure output is fully valid JSON
-            $parsed =$null
+            $parsed = $null
             try {
                 $parsed = $raw | ConvertFrom-Json
             } catch {
                 throw "Failed to parse JSON output from 'jvm $sub': $($_.Exception.Message)`nRaw output:`n$raw"
             }
-            Assert-True ($raw -eq '[]' -or $null -ne$parsed) "Parsed JSON output from 'jvm $sub' must not be null"
+            Assert-True ($raw -eq '[]' -or $null -ne $parsed) "Parsed JSON output from 'jvm $sub' must not be null"
         }
     }
 

@@ -57,7 +57,7 @@ All contributions are subject to two automated test suites before being merged i
 
 ### 1. Security, Error Management & Adversarial Test Suite (`tests/Test-JvmSecurity.ps1`)
 
-The repository includes an exhaustive **181-test automated adversarial security test suite** covering **40 MITRE CWE classes** with a verified **`10.0 / 10.0`** scorecard. This suite validates input sanitization, reparse point operations, atomic failure-path rollbacks, handle disposal, and exit code propagation:
+The repository includes an exhaustive **201-test automated adversarial security test suite** covering **40 MITRE CWE classes** with a verified **`10.0 / 10.0`** scorecard. This suite validates input sanitization, reparse point operations, atomic failure-path rollbacks, handle disposal, and exit code propagation:
 
 ```powershell
 # Run using modern PowerShell 7+ (Recommended):
@@ -117,7 +117,7 @@ powershell -ExecutionPolicy Bypass -File packages\choco\build-choco.ps1
 
 ## 📐 Windows Scripting Rules & Pitfalls
 
-The core `jvm.bat` engine is nearly 100 KB of mathematically optimized Windows Batch script. When contributing code, you **must** adhere to these battle-tested rules:
+The core `jvm.bat` engine is over 350 KB of mathematically optimized Windows Batch script. When contributing code, you **must** adhere to these battle-tested rules:
 
 ### 1. Strict CRLF Line Ending Enforcement
 - **The Issue:** Windows `cmd.exe` parses batch scripts line-by-line using byte offsets. If a batch file is checked out with UNIX (`LF`) line endings, `cmd.exe` miscalculates byte offsets when parsing multi-line blocks, corrupting `echo` statements into `e` + `cho` (the infamous "`'cho' is not recognized`" bug).
@@ -166,7 +166,7 @@ We actively welcome contributions! Follow this workflow for a seamless review:
    - `docs: update Intune silent deployment switches`
    - `test: add synthetic validation case for ARM64 detection`
 4. **Run the Pre-Flight Checklist:**
-   - [ ] `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1` passes 181/181 tests (`0` failures).
+   - [ ] `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1` passes 201/201 tests (`0` failures).
    - [ ] `cmd.exe /c "jvm.bat --version"` executes cleanly with exit code `0`.
    - [ ] Verified in standard **Command Prompt (`cmd.exe`)**.
    - [ ] Verified in **Windows PowerShell (5.1)** and **PowerShell (7+)**.

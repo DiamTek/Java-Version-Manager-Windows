@@ -41,7 +41,7 @@
 - [What is the PowerShell Profile hook and how do I manage it? (`jvm hook`)](#what-is-the-powershell-profile-hook-and-how-do-i-manage-it-jvm-hook)
 - [How do I enable and use dynamic Tab-Completion in PowerShell?](#how-do-i-enable-and-use-dynamic-tab-completion-in-powershell)
 - [How do I use JVM in CI/CD pipelines without ANSI color code artifacts? (NO_COLOR)](#how-do-i-use-jvm-in-cicd-pipelines-without-ansi-color-code-artifacts-no_color)
-- [How do I use JVM in scripts with machine-readable JSON output or in air-gapped environments? (`--json`, `--offline`)](#how-do-i-use-jvm-in-scripts-with-machine-readable-json-output-or-in-air-gapped-environments--json---offline)
+- [How do I use JVM in scripts with machine-readable JSON output, in air-gapped environments, or concurrently? (`--json`, `--offline`, `--no-lock`)](#how-do-i-use-jvm-in-scripts-with-machine-readable-json-output-or-in-air-gapped-environments--json---offline)
 - [What shorthand CLI aliases does JVM support? (jvm ls, jvm rm, jvm info)](#what-shorthand-cli-aliases-does-jvm-support-jvm-ls-jvm-rm-jvm-info)
 - [How do I automatically switch Java versions when navigating into a project directory? (cd auto-switching)](#how-do-i-automatically-switch-java-versions-when-navigating-into-a-project-directory-cd-auto-switching)
 - [Which JDK vendors are supported, and how do BellSoft Liberica and IBM Semeru differ?](#which-jdk-vendors-are-supported-and-how-do-bellsoft-liberica-and-ibm-semeru-differ)
@@ -659,8 +659,8 @@ DiamTek JVM adheres 100% to the cross-industry [NO_COLOR specification](https://
    ```
 
 <a id="how-do-i-use-jvm-in-scripts-with-machine-readable-json-output-or-in-air-gapped-environments--json---offline"></a>
-### How do I use JVM in scripts with machine-readable JSON output or in air-gapped environments? (`--json`, `--offline`)
-DiamTek JVM provides native flags specifically designed for automated tooling, CI/CD pipelines, and air-gapped machines:
+### How do I use JVM in scripts with machine-readable JSON output, in air-gapped environments, or concurrently? (`--json`, `--offline`, `--no-lock`)
+DiamTek JVM provides native flags specifically designed for automated tooling, CI/CD pipelines, air-gapped machines, and concurrency control:
 
 #### 1. Machine-Readable JSON Output (`--json`)
 Passing `--json` to inspection and status subcommands outputs pure, schema-compliant JSON directly to `stdout` with **100% suppression of ANSI escape codes, status tags (`[ OK ]`), and ASCII banners**:
@@ -686,6 +686,13 @@ Passing `--offline` activates a fail-closed network barrier:
    [ ERROR  ] Operation requires network access, but --offline mode is active.
    ```
 - **Read-Only Inspection:** Local queries (`jvm current --offline`, `jvm which java --offline`, `jvm doctor --offline`) continue to execute instantly without attempting network requests or timing out on unreachable servers.
+
+#### 3. Concurrency Protection & Emergency State Lock Override (`--no-lock`)
+When multiple terminal windows or CI processes invoke mutating JVM operations simultaneously, JVM coordinates access via an atomic directory-based mutex lock (`%LOCALAPPDATA%\DiamTek\JVM\state.lock`) and `owner.pid` tracking to prevent filesystem or registry race conditions (`CWE-362`). If an existing process died unexpectedly without releasing the lock, JVM automatically verifies the dead PID and auto-recovers the lock. In emergency troubleshooting scenarios where you need to bypass lock acquisition entirely, pass the `--no-lock` flag:
+```powershell
+jvm clean --no-lock
+```
+*(Notice: `--no-lock` disables mutual exclusion and is UNSAFE for concurrent executions).*
 
 <a id="what-shorthand-cli-aliases-does-jvm-support-jvm-ls-jvm-rm-jvm-info"></a>
 ### What shorthand CLI aliases does JVM support? (jvm ls, jvm rm, jvm info)

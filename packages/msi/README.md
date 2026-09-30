@@ -78,3 +78,7 @@ powershell.exe -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1 -MsiPat
 | **CWE-459** | Incomplete Cleanup | Both inner and outer `finally` blocks guarantee cleanup of temporary hooks, `.wix/` cache, `.wixobj`, and `.wixpdb` artifacts. |
 | **CWE-460** | Exception Cleanup & Rollback | Registry handles are deterministically closed via `try / finally`, and install/uninstall hooks rollback state upon exception. |
 | **CWE-611** | XML External Entity (XXE) | Disallows external DTD processing and schema entity expansion. |
+
+---
+
+[← Back to Main Repository Documentation](../../README.md) &nbsp;•&nbsp; [📦 Installation Guide](../../docs/INSTALLATION.md)

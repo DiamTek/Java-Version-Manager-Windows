@@ -14,6 +14,8 @@ include:
   - LICENSE
   - docs/CONTRIBUTING.md
   - docs/CODE_OF_CONDUCT.md
+  - packages/choco/README.md
+  - packages/msi/README.md
 
 kramdown:
   input: GFM

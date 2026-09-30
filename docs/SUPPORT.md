@@ -70,6 +70,12 @@ Before opening a support ticket, check this rapid decision tree for the most com
     ```powershell
     jvm link "D:\OfflineStore\jdk-21.0.2" jdk-21-offline
     ```
+  - **Enforce Fail-Closed Offline Mode (`--offline`):** If operating on a disconnected machine or strict offline policy, pass `--offline` to execute local queries without network latency or timeout attempts:
+    ```powershell
+    jvm current --offline
+    jvm which java --offline
+    jvm doctor --offline
+    ```
 
 ### 4. "PowerShell session switching doesn't update my current terminal"
 - **Root Cause:** Standard batch files executed in PowerShell run inside an isolated child `cmd.exe` subshell, which cannot mutate parent process memory without the PowerShell Profile wrapper hook.
@@ -93,6 +99,15 @@ Before opening a support ticket, check this rapid decision tree for the most com
   - Alternatively, close and reopen your PowerShell terminal window.
   - Verify that the hook is registered: `jvm hook status`. Tab completion is natively registered across all three invocation forms: `jvm <Tab>`, `jvm.bat <Tab>`, and `.\jvm.bat <Tab>`.
 
+### 6. "Another JVM operation is currently modifying state / Concurrency timeout"
+- **Root Cause:** Multiple terminal tabs or automated scripts are running mutating JVM commands concurrently, or an earlier process was forcibly closed while holding `%LOCALAPPDATA%\DiamTek\JVM\state.lock`.
+- **Resolution:**
+  - JVM coordinates access via directory mutexes and auto-recovers stale locks when the owning PID has exited.
+  - To bypass mutual exclusion in emergency maintenance or single-threaded CI recovery, pass `--no-lock`:
+    ```powershell
+    jvm clean --no-lock
+    ```
+
 ---
 
 ## ⚡ Troubleshooting Quick-Reference Table
@@ -106,6 +121,8 @@ Before opening a support ticket, check this rapid decision tree for the most com
 | Corrupted download / hash mismatch / network drop | Stale extraction workspaces or cache in `%TEMP%` | `jvm doctor` | `jvm clean` |
 | `GitHub API Rate Limit reached` | GitHub unauthenticated 60 req/hr API quota exhausted | None | Automatically handled by HTTP 302 redirect fallback; set `$env:GITHUB_TOKEN = "<token>"` if fallback is blocked |
 | Air-gapped / proxy hash mirror blocked | Proxy allows binary download but blocks checksum | `jvm doctor` | `jvm install <version> --skip-checksum` |
+| Air-gapped workstation or strict offline policy | Network access blocked by corporate perimeter | `jvm doctor --offline` | Pass `--offline` to execute local commands without network timeouts |
+| Concurrency timeout / state lock error | Another process crashed while holding `state.lock` | `jvm doctor` | JVM auto-recovers dead PIDs; use `--no-lock` for emergency bypass |
 | Command `jvm` not recognized in new terminal | JVM directory missing from User PATH | `where.exe jvm` | Settings (`3`) → Option 1 (`Install to User PATH`) |
 | Directory junction broken or points to missing JDK | JDK was manually deleted from disk | `jvm doctor` | `jvm link` (to inspect) or `jvm <version>` (to re-point) |
 | Self-updater skips: "newer local build" | Local `JVM_BUILD` is newer than GitHub release or main branch | `jvm current` | Expected for local dev builds; use `jvm self-update --force` to override |

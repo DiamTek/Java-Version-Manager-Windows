@@ -141,7 +141,7 @@ scoop install jvm
 choco install jvm-windows
 ```
 > [!NOTE]
-> The Chocolatey package installs official release binaries pinned to the **Stable** channel directly from GitHub Releases, guaranteeing unreleased development commits are never pulled into production environments.
+> The Chocolatey package installs official release binaries pinned to the **Stable** channel directly from GitHub Releases, guaranteeing unreleased development commits are never pulled into production environments. For packaging automation, nuspec details, and local testing instructions, see the [Chocolatey Package Documentation](../packages/choco/README.md).
 
 
 <a id="standalone-msi-installers-wix-toolset-v4"></a>
@@ -215,7 +215,7 @@ For secure air-gapped workstations or offline development networks with no exter
 4. Register them using `jvm link <path> <name>`.
 
 ## Building the MSI from Source
-You can compile native, standalone MSIs locally using the WiX Toolset v4 build pipeline:
+You can compile native, standalone MSIs locally using the WiX Toolset v4 build pipeline. For full architecture details, custom action hooks, and test suite specifications, see the [WiX MSI Package Documentation](../packages/msi/README.md).
 
 **Prerequisites:**
 - [.NET SDK 6.0+](https://dotnet.microsoft.com/download)

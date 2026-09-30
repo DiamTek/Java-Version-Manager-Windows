@@ -74,7 +74,7 @@ scoop install jvm
 ```powershell
 choco install jvm-windows
 ```
-*Or grab the standalone MSI installers (`x64` / `arm64`), portable `.zip`, or raw `jvm.bat` directly from [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases).*
+*Or inspect the [Chocolatey Package Guide](packages/choco/README.md), [WiX MSI Package Guide](packages/msi/README.md), or grab standalone MSI installers (`x64` / `arm64`), portable `.zip`, or raw `jvm.bat` directly from [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases).*
 
 <a id="uninstallation"></a>
 <a id="-uninstallation"></a>
@@ -274,6 +274,8 @@ For deep technical details, CI/CD automation, and advanced usage, refer to the o
 | [**Contributing Guide**](docs/CONTRIBUTING.md) | Development workflow, pull requests, issue templates, and coding standards. |
 | [**Code of Conduct**](docs/CODE_OF_CONDUCT.md) | Standards, pledge, and reporting procedures for healthy community interaction. |
 | [**Security Policy**](docs/SECURITY.md) | Comprehensive threat model, zero-file elevation, adversarial input sanitization, and disclosure procedures. |
+| [**Chocolatey Packaging**](packages/choco/README.md) | Chocolatey nuspec specification, package automation (`build-choco.ps1`), testing workflow, and CWE security matrix. |
+| [**WiX MSI Packaging**](packages/msi/README.md) | Dual-strategy WiX v4/v3 compiler (`build-msi.ps1`), custom action hooks, 21-point automated verification suite, and architecture. |
 
 <a id="usage"></a>
 <a id="-usage"></a>

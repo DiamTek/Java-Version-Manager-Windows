@@ -98,3 +98,7 @@ choco uninstall jvm-windows -y
 | **CWE-459** | Incomplete Cleanup | Deterministic cleanup of `.nupkg.tmp` staging artifacts in `finally` blocks. |
 | **CWE-611** | XML External Entity (XXE) | Strict prohibition of DTD processing and external XML entity resolution during manifest validation. |
 | **CWE-918** | Server-Side Request Forgery | Strict host allowlist verification on download endpoints. |
+
+---
+
+[← Back to Main Repository Documentation](../../README.md) &nbsp;•&nbsp; [📦 Installation Guide](../../docs/INSTALLATION.md)

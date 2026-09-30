@@ -211,7 +211,7 @@ Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1
 | **`CWE-601`** | Open Redirect Host Verification (`ResponseUri` validation on payload, `Get-TrustedChecksumText`, `:ResolveLatestEcosystemCandidate`, & `:CheckUpdateStatus`) | **4 / 4** | **PASS** |
 | **`CWE-611`** | XML External Entity (XXE) & DTD Prohibition (`DtdProcessing::Prohibit` & `XmlResolver = $null`) | **4 / 4** | **PASS** |
 | **`CWE-674`** | Uncontrolled Recursion & Cyclic Loops (`Remove-DirectorySafely` iterative non-recursive queue pattern immune to self-referential junctions) | **1 / 1** | **PASS** |
-| **`CWE-754`** | Exceptional Condition Check, Local NTFS Volume Advisories, Colon Guards (`::::::::::::::::::::`) & Fail-Closed Parameter Validation | **10 / 10** | **PASS** |
+| **`CWE-754`** | Exceptional Condition Check, Local NTFS Volume Advisories, Colon Guards (`::::::::::::::::::::`) & Fail-Closed Parameter Validation | **12 / 12** | **PASS** |
 | **`CWE-755`** | Exceptional Condition Handling, Early `ConstrainedLanguageMode` Guard, Ctrl+C Offset Skip Absorption & Sanitized Exception Redaction | **6 / 6** | **PASS** |
 | **`CWE-918`** | SSRF & Vendor Domain Allowlist Enforcement (`Test-TrustedJvmUri` regex bounds, `chocolateyInstall.ps1` `$allowedHosts`, and live CLI `--offline` network barrier) | **4 / 4** | **PASS** |
 
