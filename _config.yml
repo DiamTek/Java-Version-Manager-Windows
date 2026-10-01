@@ -20,6 +20,7 @@ include:
   - LICENSE
   - robots.txt
   - llms.txt
+  - 19bbdf2adbbc4e49aead0bd20adfcb2b.txt
   - docs/CONTRIBUTING.md
   - docs/CODE_OF_CONDUCT.md
   - packages/choco/README.md
