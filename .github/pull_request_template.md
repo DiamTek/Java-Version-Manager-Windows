@@ -22,7 +22,7 @@ Because `jvm.bat` operates strictly natively on Windows, please review the follo
 - [ ] (If modifying repository parsers) I have preserved fail-closed validation (`JV_PARSE_ERR=1` / `SDK_PARSE_ERR=1` / `SDK_ECO_ERR=1`) against metacharacters.
 - [ ] (If managing handles/resources) I have wrapped Win32 Registry keys, network streams, and COM apartments in deterministic `try / finally` disposal routines.
 - [ ] I have verified that `jvm.bat --version` executes cleanly with exit code `0`.
-- [ ] I have run the automated security suite (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1`) and verified **210 / 210 tests PASS**.
+- [ ] I have run the automated security suite (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1`) and verified **211 / 211 tests PASS**.
 - [ ] I have updated the relevant documentation (`README.md`, `docs/USAGE.md`, `docs/CHANGELOG.md`, etc.) if CLI syntax or behaviors changed.
 
 ## Additional Context

@@ -25,6 +25,32 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Verify Documentation & Relative Link Health
+        shell: pwsh
+        run: |
+          $broken = 0
+          Get-ChildItem -Recurse -Filter *.md | Where-Object { $_.FullName -notmatch '\\.git\\' } | ForEach-Object {
+              $file = $_.FullName
+              $content = [System.IO.File]::ReadAllText($file)
+              $dir = Split-Path -Parent $file
+              $matches = [regex]::Matches($content, '\[.*?\]\((?!https?://|mailto:|#)([^\)]+)\)')
+              foreach ($m in $matches) {
+                  $rawTarget = $m.Groups[1].Value.Split('#')[0].Trim()
+                  if ($rawTarget) {
+                      $resolved = [System.IO.Path]::GetFullPath((Join-Path $dir $rawTarget))
+                      if (-not (Test-Path -LiteralPath $resolved)) {
+                          Write-Host "::error file=$($_.Name)::Broken relative link: $rawTarget"
+                          $broken++
+                      }
+                  }
+              }
+          }
+          if ($broken -gt 0) {
+              Write-Host "Found $broken broken relative links in markdown documentation."
+              exit 1
+          }
+          Write-Host "All markdown relative documentation links verified successfully."
+
       - name: Run Automated Security & Adversarial Test Suite
         shell: pwsh
         run: |

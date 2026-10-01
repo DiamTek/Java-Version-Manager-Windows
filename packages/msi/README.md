@@ -56,6 +56,12 @@ powershell.exe -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1 -Arch 
 
 # Build with explicit version override
 powershell.exe -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1 -Version 1.0.2 -Arch x64
+
+# Build and sign with Authenticode certificate thumbprint
+powershell.exe -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1 -Arch all -CertificateThumbprint "A1B2C3D4E5F6..."
+
+# Build and sign with PFX key file
+powershell.exe -ExecutionPolicy Bypass -File .\packages\msi\build-msi.ps1 -Arch all -SignKeyPath "C:\certs\release.pfx" -SignPassword $certPassword
 ```
 
 ### Running the MSI Test Suite

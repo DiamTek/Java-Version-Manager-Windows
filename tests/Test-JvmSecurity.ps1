@@ -4098,6 +4098,34 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Assert-Contains $postHeader 'PS_BIN=%SYS32%\WindowsPowerShell\v1.0\powershell.exe' "System32 bootstrap must pin PS_BIN"
     }
 
+    # Test 211: PowerShell dynamic tab completion coverage and MSI Authenticode signing hook verification (CWE-20 / CWE-345)
+    Run-TestCase "PackageIntegrity" "PowerShell dynamic tab completion coverage and MSI Authenticode signing hook verification (CWE-20 / CWE-345)" {
+        # 1. Verify install.ps1 embeds all new subcommands and flags in ArgumentCompleter
+        $installContent = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw -Encoding UTF8
+        Assert-Contains $installContent "'lock'" "install.ps1 tab completion must include 'lock' subcommand"
+        Assert-Contains $installContent "'--offline'" "install.ps1 tab completion must include '--offline' flag"
+        Assert-Contains $installContent "'--json'" "install.ps1 tab completion must include '--json' flag"
+        Assert-Contains $installContent "'--no-lock'" "install.ps1 tab completion must include '--no-lock' flag"
+        Assert-Contains $installContent "'--locked'" "install.ps1 tab completion must include '--locked' flag"
+        Assert-Contains $installContent "'-l'" "install.ps1 tab completion must include '-l' flag"
+
+        # 2. Verify jvm.bat hook generator embeds all new subcommands and flags
+        $jvmBatContent = Get-Content -LiteralPath $JvmBat -Raw -Encoding UTF8
+        Assert-Contains $jvmBatContent "'lock'" "jvm.bat hook generator must include 'lock' subcommand"
+        Assert-Contains $jvmBatContent "'--offline'" "jvm.bat hook generator must include '--offline' flag"
+        Assert-Contains $jvmBatContent "'--json'" "jvm.bat hook generator must include '--json' flag"
+        Assert-Contains $jvmBatContent "'--no-lock'" "jvm.bat hook generator must include '--no-lock' flag"
+        Assert-Contains $jvmBatContent "'--locked'" "jvm.bat hook generator must include '--locked' flag"
+        Assert-Contains $jvmBatContent "'-l'" "jvm.bat hook generator must include '-l' flag"
+
+        # 3. Verify packages/msi/build-msi.ps1 defines Authenticode signing parameters and signature invocation
+        $buildMsiContent = Get-Content -LiteralPath (Join-Path $RepoRoot "packages\msi\build-msi.ps1") -Raw -Encoding UTF8
+        Assert-Contains $buildMsiContent "[string]`$CertificateThumbprint" "build-msi.ps1 must declare CertificateThumbprint parameter"
+        Assert-Contains $buildMsiContent "[string]`$SignKeyPath" "build-msi.ps1 must declare SignKeyPath parameter"
+        Assert-Contains $buildMsiContent "Set-AuthenticodeSignature" "build-msi.ps1 must invoke Set-AuthenticodeSignature"
+        Assert-Contains $buildMsiContent "HashAlgorithm          = 'SHA256'" "build-msi.ps1 must enforce SHA256 signature hash"
+    }
+
 } finally {
     # --------------------------------------------------------------------------
     # Sandbox Cleanup (Guaranteed Non-Recursive Reparse Safe Cleanup)

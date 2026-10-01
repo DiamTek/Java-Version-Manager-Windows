@@ -25,7 +25,7 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [Packaging Architecture & Asset Distribution](#packaging-architecture--asset-distribution)
 - [Reproducible Lockfile Architecture (.jvm.lock & jvm install --locked)](#reproducible-lockfile-architecture-jvmlock--jvm-install---locked)
 - [Failure Recovery, Atomic State Rollback & Resource Hygiene](#failure-recovery-atomic-state-rollback--resource-hygiene)
-- [Automated Adversarial Test Architecture (210 Tests, 40 CWEs)](#automated-adversarial-test-architecture-210-tests-40-cwes)
+- [Automated Adversarial Test Architecture (211 Tests, 40 CWEs)](#automated-adversarial-test-architecture-211-tests-40-cwes)
 
 ---
 
@@ -654,22 +654,22 @@ flowchart TD
 
 ---
 
-<a id="automated-adversarial-test-architecture-210-tests-40-cwes"></a>
-## Automated Adversarial Test Architecture (210 Tests, 40 CWEs)
+<a id="automated-adversarial-test-architecture-211-tests-40-cwes"></a>
+## Automated Adversarial Test Architecture (211 Tests, 40 CWEs)
 
-The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **210 automated test cases across 8 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **211 automated test cases across 8 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
 
 | Suite | Category Focus | Test Count | Status |
 | :--- | :--- | :---: | :---: |
 | **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF) | 83 / 83 | **PASS** |
 | **Suite 2** | Registry & Environment Boundaries (ValueKind preservation, UAC elevation) | 6 / 6 | **PASS** |
 | **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery) | 17 / 17 | **PASS** |
-| **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, Scoop, UUID v5, .jvm.lock) | 54 / 54 | **PASS** |
+| **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, Scoop, UUID v5, .jvm.lock) | 55 / 55 | **PASS** |
 | **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification) | 14 / 14 | **PASS** |
 | **Suite 6** | Corrupt Registry Recovery & PATH Resilience (De-bloat, length limits) | 14 / 14 | **PASS** |
 | **Suite 7** | Uninstallation Safety & Markers (Root markers, deferred cleanup) | 16 / 16 | **PASS** |
 | **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 6 / 6 | **PASS** |
-| **Total** | **Comprehensive Full-System Security Suite** | **210 / 210** | **`10.0 / 10.0`** |
+| **Total** | **Comprehensive Full-System Security Suite** | **211 / 211** | **`10.0 / 10.0`** |
 
 ---
 

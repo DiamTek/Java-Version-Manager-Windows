@@ -33,6 +33,7 @@ set "CHOICE_BIN=%SYS32%\choice.exe"
 set "FSUTIL_BIN=%SYS32%\fsutil.exe"
 set "WHERE_BIN=%SYS32%\where.exe"
 set "TIMEOUT_BIN=%SYS32%\timeout.exe"
+set "TASKLIST_BIN=%SYS32%\tasklist.exe"
 set "CHCP_BIN=%SYS32%\chcp.com"
 set "ICACLS_BIN=%SYS32%\icacls.exe"
 set "ATTRIB_BIN=%SYS32%\attrib.exe"
@@ -128,7 +129,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261001.138"
+set "JVM_BUILD=20261001.139"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -4982,7 +4983,7 @@ set "JVM_TRME2=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRI
     echo(            'pin', 'local', 'current', 'status', 'info', 'whoami', 'which', 'path',
     echo(            'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
     echo(            'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
-    echo(            'link', 'unlink', 'version', 'help', 'channel'
+    echo(            'link', 'unlink', 'version', 'help', 'channel', 'lock'
     echo(        ^)
     echo(        $candidates = @^('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn'^)
     echo(        $vendors = @^('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9', 'sapmachine', 'sap', 'mandrel', 'redhat-mandrel', 'dragonwell', 'alibaba', 'kona', 'tencent'^)
@@ -4991,6 +4992,7 @@ set "JVM_TRME2=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRI
     echo(        $flags = @^(
     echo(            '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
     echo(            '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
+    echo(            '--offline', '--json', '--no-lock', '--locked', '-l',
     echo(            '--channel', '--nightly', '--stable',
     echo(            '--version', '-v', '--help', '-h'
     echo(        ^)
@@ -9075,13 +9077,13 @@ if defined JVM_LOCK_DEPTH (
 set "JVM_LOCK_DIR=%LOCALAPPDATA%\DiamTek\JVM\state.lock"
 set "JVM_LOCK_ATTEMPTS=0"
 if not defined JVM_CALLER_PID (
-    for /f "delims=" %%P in ('powershell.exe -NoProfile -Command "[System.Diagnostics.Process]::GetCurrentProcess().Id" 2^>nul') do set "JVM_CALLER_PID=%%P"
+    for /f "delims=" %%P in ('"%PS_BIN%" -NoProfile -Command "$PID" 2^>nul') do set "JVM_CALLER_PID=%%P"
 )
 if not defined JVM_CALLER_PID (
     for /f "tokens=2 delims==" %%P in ('wmic process where "ProcessId=%PID%" get ParentProcessId /value 2^>nul ^| %FINDSTR_BIN% "="') do set "JVM_CALLER_PID=%%P"
 )
 if not defined JVM_CALLER_PID (
-    for /f "delims=" %%P in ('powershell.exe -NoProfile -Command "([int]('0x' + [System.IO.Path]::GetRandomFileName().Substring(0,4)))"') do set "JVM_CALLER_PID=%%P"
+    set "JVM_CALLER_PID=%RANDOM%"
 )
 :LOCK_RETRY_LOOP
 mkdir "%JVM_LOCK_DIR%" >nul 2>&1
@@ -9102,11 +9104,14 @@ if not errorlevel 1 (
     exit /b 0
 )
 rem Stale lock auto-recovery without delete/re-mkdir race:
-rem Verify owner PID is dead, stage takeover PID, and atomically replace owner.pid
+rem Verify owner PID is dead or invalid, stage takeover PID, and atomically replace owner.pid
 if exist "%JVM_LOCK_DIR%\owner.pid" (
     set "LOCK_OWNER_PID="
     for /f "tokens=1 delims=|" %%P in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "LOCK_OWNER_PID=%%P"
-    if defined LOCK_OWNER_PID (
+    set "OWNER_DEAD=0"
+    if not defined LOCK_OWNER_PID (
+        set "OWNER_DEAD=1"
+    ) else (
         if "!LOCK_OWNER_PID!"=="!JVM_CALLER_PID!" (
             set "JVM_LOCK_ACQUIRED=1"
             set /a JVM_LOCK_DEPTH+=1
@@ -9115,32 +9120,36 @@ if exist "%JVM_LOCK_DIR%\owner.pid" (
         set "LOCK_PID_NUM=1"
         for /f "delims=0123456789" %%A in ("!LOCK_OWNER_PID!") do set "LOCK_PID_NUM=0"
         if "!LOCK_PID_NUM!"=="1" (
-            set "OWNER_DEAD=0"
-            for /f "delims=" %%R in ('%PS_BIN% -NoProfile -Command "try { $p = [System.Diagnostics.Process]::GetProcessById(!LOCK_OWNER_PID!); if ($p.HasExited) { 'DEAD' } else { 'ALIVE' } } catch { 'DEAD' }" 2^>nul') do (
-                if "%%R"=="DEAD" set "OWNER_DEAD=1"
+            set "PID_ALIVE=0"
+            for /f "tokens=2 delims=," %%Q in ('"%TASKLIST_BIN%" /FI "PID eq !LOCK_OWNER_PID!" /FO CSV /NH 2^>nul') do (
+                set "FOUND_PID=%%~Q"
+                if "!FOUND_PID!"=="!LOCK_OWNER_PID!" set "PID_ALIVE=1"
             )
-            if "!OWNER_DEAD!"=="1" (
-                set "LOCK_TAKEOVER=%JVM_LOCK_DIR%\takeover_!JVM_CALLER_PID!.tmp"
-                (echo !JVM_CALLER_PID!^|%DATE%_%TIME%)>"!LOCK_TAKEOVER!" 2>nul
-                move /y "!LOCK_TAKEOVER!" "%JVM_LOCK_DIR%\owner.pid" >nul 2>&1
-                if not errorlevel 1 (
-                    set "VERIFY_CLAIM="
-                    for /f "tokens=1 delims=|" %%V in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "VERIFY_CLAIM=%%V"
-                    if "!VERIFY_CLAIM!"=="!JVM_CALLER_PID!" (
-                        set "JVM_LOCK_ACQUIRED=1"
-                        set "JVM_LOCK_DEPTH=1"
-                        exit /b 0
-                    )
-                )
-                if exist "!LOCK_TAKEOVER!" del /f /q "!LOCK_TAKEOVER!" >nul 2>&1
+            if "!PID_ALIVE!"=="0" set "OWNER_DEAD=1"
+        ) else (
+            set "OWNER_DEAD=1"
+        )
+    )
+    if "!OWNER_DEAD!"=="1" (
+        set "LOCK_TAKEOVER=%JVM_LOCK_DIR%\takeover_!JVM_CALLER_PID!.tmp"
+        (echo !JVM_CALLER_PID!^|%DATE%_%TIME%)>"!LOCK_TAKEOVER!" 2>nul
+        move /y "!LOCK_TAKEOVER!" "%JVM_LOCK_DIR%\owner.pid" >nul 2>&1
+        if not errorlevel 1 (
+            set "VERIFY_CLAIM="
+            for /f "tokens=1 delims=|" %%V in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "VERIFY_CLAIM=%%V"
+            if "!VERIFY_CLAIM!"=="!JVM_CALLER_PID!" (
+                set "JVM_LOCK_ACQUIRED=1"
+                set "JVM_LOCK_DEPTH=1"
+                exit /b 0
             )
         )
+        if exist "!LOCK_TAKEOVER!" del /f /q "!LOCK_TAKEOVER!" >nul 2>&1
     )
 )
 set /a JVM_LOCK_ATTEMPTS+=1
 if !JVM_LOCK_ATTEMPTS! GEQ 15 (
     echo %cYELLOW%[  WARN  ]%cRESET% Another JVM operation is currently modifying state.
-    echo           Waiting for state lock release ^(Local\DiamTek-JVM-State^)...
+    echo            Waiting for state lock release ^(Local\DiamTek-JVM-State^)...
 )
 if !JVM_LOCK_ATTEMPTS! GEQ 30 (
     echo %cRED%[ ERROR  ]%cRESET% Concurrency timeout ^(CWE-362^): Could not acquire state lock after 30 seconds.

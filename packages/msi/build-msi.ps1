@@ -18,7 +18,11 @@ param(
     [string]$Version,
     [ValidateSet("all", "x64", "arm64")]
     [string]$Arch = "all",
-    [switch]$All
+    [switch]$All,
+    [string]$CertificateThumbprint,
+    [string]$SignKeyPath,
+    [SecureString]$SignPassword,
+    [string]$TimestampServer = "http://timestamp.digicert.com"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -969,6 +973,54 @@ exit 0
     }
 
     if (Test-Path $outputMsi) {
+        # Optional Authenticode Code-Signing for Enterprise Distribution
+        if ($CertificateThumbprint -or $SignKeyPath) {
+            $swSign = [System.Diagnostics.Stopwatch]::StartNew()
+            $cert = $null
+            try {
+                if ($CertificateThumbprint) {
+                    $cert = Get-Item "Cert:\CurrentUser\My\$CertificateThumbprint" -ErrorAction SilentlyContinue
+                    if (-not $cert) {
+                        $cert = Get-Item "Cert:\LocalMachine\My\$CertificateThumbprint" -ErrorAction SilentlyContinue
+                    }
+                    if (-not $cert) {
+                        throw "Authenticode certificate with thumbprint '$CertificateThumbprint' not found in Cert:\CurrentUser\My or Cert:\LocalMachine\My"
+                    }
+                } elseif ($SignKeyPath) {
+                    if (-not (Test-Path -LiteralPath $SignKeyPath)) {
+                        throw "Authenticode private key file not found: $SignKeyPath"
+                    }
+                    $cert = if ($SignPassword) {
+                        New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($SignKeyPath, $SignPassword)
+                    } else {
+                        New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($SignKeyPath)
+                    }
+                }
+
+                if ($cert) {
+                    $sigParams = @{
+                        FilePath               = $outputMsi
+                        Certificate            = $cert
+                        HashAlgorithm          = 'SHA256'
+                        ErrorAction            = 'Stop'
+                    }
+                    if ($TimestampServer) {
+                        $sigParams['TimestampServer'] = $TimestampServer
+                    }
+                    $sigResult = Set-AuthenticodeSignature @sigParams
+                    $swSign.Stop()
+                    if ($sigResult.Status -in @('Valid', 'UnknownError')) {
+                        Write-Host "  ${cGreen}[PASS]${cReset} Authenticode signature applied ($($sigResult.Status)) ${cGray}($($swSign.ElapsedMilliseconds) ms)${cReset}"
+                    } else {
+                        Write-Host "  ${cYellow}[WARN]${cReset} Authenticode signing returned status: $($sigResult.Status) ($($sigResult.StatusMessage))"
+                    }
+                }
+            } catch {
+                Write-Host "  ${cRed}[FAIL]${cReset} Authenticode signing failed: $($_.Exception.Message)"
+                exit 1
+            }
+        }
+
         $sizeKB = [math]::Round((Get-Item $outputMsi).Length / 1KB, 1)
         $sha256 = ""
         $shaObj = $null
