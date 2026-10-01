@@ -1,5 +1,6 @@
 ---
 layout: default
+permalink: /packages/choco/
 title: Chocolatey Package Guide
 description: Technical guide for building, testing, and distributing the DiamTek JVM Chocolatey package on Windows.
 ---

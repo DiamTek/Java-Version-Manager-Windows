@@ -1,5 +1,6 @@
 ---
 layout: default
+permalink: /packages/msi/
 title: WiX MSI Package Guide
 description: WiX Toolset v4 standalone MSI packaging architecture, custom action hooks, and test validation suite for DiamTek JVM.
 ---
