@@ -1,3 +1,8 @@
+---
+layout: default
+title: Support & Community
+description: Get help, report bugs, join discussions, and find community resources for Java Version Manager for Windows.
+---
 <h1 align="center">Getting Support for Java Version Manager for Windows</h1>
 
 <div align="center" markdown="1">

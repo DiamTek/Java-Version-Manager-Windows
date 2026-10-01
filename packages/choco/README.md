@@ -1,3 +1,8 @@
+---
+layout: default
+title: Chocolatey Package Guide
+description: Technical guide for building, testing, and distributing the DiamTek JVM Chocolatey package on Windows.
+---
 # Chocolatey Package for Java Version Manager (`jvm-windows`)
 
 This directory contains the Chocolatey packaging manifests, build scripts, and verification automation for **Java Version Manager for Windows (DiamTek JVM)**.

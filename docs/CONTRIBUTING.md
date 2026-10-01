@@ -1,3 +1,8 @@
+---
+layout: default
+title: Contributing Guide
+description: Guidelines for contributing code, reporting security vulnerabilities, and running the adversarial test suite for DiamTek JVM.
+---
 <h1 align="center">Contributing to Java Version Manager for Windows</h1>
 
 <div align="center" markdown="1">

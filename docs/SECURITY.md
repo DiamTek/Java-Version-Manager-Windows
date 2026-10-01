@@ -1,3 +1,8 @@
+---
+layout: default
+title: Security Policy & Audit
+description: Security model, adversarial test coverage across 40 MITRE CWE categories, supply-chain verification, and reporting guidelines.
+---
 <h1 align="center">Security Policy</h1>
 
 <div align="center" markdown="1">

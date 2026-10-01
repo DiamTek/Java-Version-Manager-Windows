@@ -1,3 +1,8 @@
+---
+layout: default
+title: Java Version Manager for Windows
+description: A lightweight, high-performance, color-coded Windows command-line utility designed to dynamically discover, download, and switch Java Development Kits (JDKs) and the entire JVM Ecosystem with native SDKMAN! parity.
+---
 <p align="center">
   <img src="assets/icon.png" alt="Java Version Manager Logo" width="128" height="128" />
 </p>

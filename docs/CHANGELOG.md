@@ -1,3 +1,8 @@
+---
+layout: default
+title: Changelog & Releases
+description: Chronological record of releases, new features, security hardening, and bug fixes in Java Version Manager for Windows.
+---
 <h1 align="center">Changelog</h1>
 
 <div align="center" markdown="1">

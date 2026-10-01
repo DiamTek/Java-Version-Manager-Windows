@@ -1,3 +1,8 @@
+---
+layout: default
+title: Usage Reference
+description: Complete CLI usage guide for Java Version Manager on Windows including quick-switching, ecosystem tools, and version pinning.
+---
 <h1 align="center">Usage Guide</h1>
 
 <div align="center" markdown="1">

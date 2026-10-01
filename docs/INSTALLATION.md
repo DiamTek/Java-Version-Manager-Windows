@@ -1,3 +1,8 @@
+---
+layout: default
+title: Installation Guide
+description: Quick install guide for DiamTek JVM via PowerShell one-liner, winget, scoop, chocolatey, or standalone WiX v4 MSI installers.
+---
 <h1 align="center">Installation</h1>
 
 <div align="center" markdown="1">

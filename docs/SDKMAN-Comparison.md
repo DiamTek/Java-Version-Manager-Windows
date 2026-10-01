@@ -1,3 +1,8 @@
+---
+layout: default
+title: SDKMAN! Comparison
+description: Feature-by-feature comparison between DiamTek JVM for Windows and Unix SDKMAN!, highlighting native performance and parity.
+---
 <h1 align="center">Comparison with SDKMAN!</h1>
 
 <div align="center" markdown="1">
