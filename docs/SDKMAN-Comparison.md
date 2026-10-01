@@ -38,7 +38,7 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **Pre-Change Safety** | None (overwrites shell files) | **Automated Registry Backups** (exports `.reg` to `%LOCALAPPDATA%\DiamTek\JVM\backups\`) |
 | **User Interface** | CLI Only (Manual typing) | **Interactive TUI** & Headless CLI |
 | **Archive Extraction** | Requires external `zip` / `tar` binaries | **Native `.NET System.IO.Compression`** |
-| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **201-Test Adversarial Suite (`40 MITRE CWEs`), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
+| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **210-Test Adversarial Suite (`40 MITRE CWEs`), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
 | **CPU Architecture** | Manual configuration | **Native x64 / ARM64 Auto-Detection** |
 | **Bulk Maintenance** | Manual, tool-by-tool | **1-Click Bulk Updater** (`jvm update --all`) |
 | **Self-Updater & Channels** | Single-channel script pull (`sdk selfupdate`) | **Dual Channels (🟢 Stable / 🟣 Nightly)** with SHA-256 integrity, ahead-of-remote block & rate-limit fallback |
@@ -60,16 +60,30 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 ---
 
 ## Ecosystem Parity
-You don't need SDKMAN! just to get Maven or Gradle on Windows. This tool features a built-in **Universal Candidate Engine** that provides 1:1 ecosystem parity with SDKMAN!. It natively downloads, extracts, and routes modern JVM build tools directly from Apache and GitHub APIs.
-* Supported natively: **Maven, Gradle, Kotlin, Scala, Groovy**.
+You don't need SDKMAN! just to get build tools and runtimes on Windows. DiamTek JVM features a built-in **Universal Candidate Engine** providing complete native ecosystem parity with SDKMAN!, downloading, verifying, and routing tools directly without Cygwin or WSL.
+
+| Candidate | Display Name | Upstream Provider | Executable | Environment Variable |
+|---|---|---|---|---|
+| `java` | Java Development Kit | Multi-Vendor (12 Distributions) | `java.exe` | `JAVA_HOME` |
+| `maven` | Apache Maven | Apache Software Foundation | `mvn.cmd` | `MAVEN_HOME` |
+| `gradle` | Gradle | Gradle Inc. | `gradle.bat` | `GRADLE_HOME` |
+| `kotlin` | Kotlin Compiler | JetBrains | `kotlinc.bat` | `KOTLIN_HOME` |
+| `scala` | Scala | Scala Lang / EPFL | `scala.bat` | `SCALA_HOME` |
+| `groovy` | Apache Groovy | Apache Software Foundation | `groovy.bat` | `GROOVY_HOME` |
+| `ant` | Apache Ant | Apache Software Foundation | `ant.bat` | `ANT_HOME` |
+| `sbt` | Scala Build Tool | sbt / Lightbend | `sbt.bat` | `SBT_HOME` |
+| `jbang` | JBang | JBang Dev | `jbang.cmd` | `JBANG_HOME` |
+| `quarkus` | Quarkus CLI | Red Hat / Quarkus | `quarkus.bat` | `QUARKUS_HOME` |
+| `spring` | Spring Boot CLI | VMware Tanzu / Broadcom | `spring.bat` | `SPRING_HOME` |
+| `micronaut` / `mn` | Micronaut CLI | Micronaut Foundation | `mn.bat` | `MICRONAUT_HOME` |
 
 ## Cross-Platform Harmony (`.sdkmanrc` Hijacking)
 The biggest hurdle for Windows developers is collaborating on repositories maintained by Mac/Linux developers who commit a `.sdkmanrc` file to the root of the project.
 
 This tool completely eliminates that friction. It features a native **`.sdkmanrc` parser** that dynamically "hijacks" SDKMAN! workflows:
 1. When you run `jvm` in a folder with a `.sdkmanrc` file, it reads the exact versions requested by the Linux team.
-2. It translates SDKMAN! vendor strings (e.g., `17-tem`, `21-amzn`, `21-librca`, or `21-sem`) into their native Windows equivalents (Adoptium, Corretto, Liberica, Semeru).
-3. It instantly isolates the exact requested JDK, Maven, and Gradle versions into your *current* terminal session.
+2. It translates SDKMAN! vendor strings (e.g., `17-tem`, `21-amzn`, `21-librca`, `21-sem`, `21-sapm`, `21-mandrel`, `21-dragonwell`, `21-kona`) into their native Windows equivalents (Adoptium, Corretto, Liberica, Semeru, SapMachine, Mandrel, Dragonwell, Kona).
+3. It instantly isolates the exact requested JDK, Maven, Gradle, Ant, sbt, JBang, Quarkus, Spring Boot, or Micronaut versions into your *current* terminal session.
 
 You get 100% perfect environment synchronization with your Linux teammates, without ever installing a Linux subsystem on your Windows machine.
 
@@ -196,7 +210,7 @@ jvm hook remove
 When configuring Windows IDEs (IntelliJ IDEA, Eclipse, VS Code), native scripts, or CI/CD pipelines, you need to know where the actual Windows executable is located. Under WSL or Git Bash, `which java` returns a virtualized Linux path (`/home/user/.sdkman/candidates/java/current/bin/java`) that Windows applications cannot resolve without conversion bridges like `wslpath -w`.
 
 DiamTek JVM provides native Windows inspection tools:
-* **`jvm current` (or `jvm status`):** Displays a comprehensive overview card detailing the active JDK version, vendor, `JAVA_HOME`, resolved executable, switching mode (`[Symlink Mode]` vs `[Registry Mode]`), junction link, and active ecosystem tools (Maven, Gradle, Kotlin).
+* **`jvm current` (or `jvm status`):** Displays a comprehensive overview card detailing the active JDK version, vendor, `JAVA_HOME`, resolved executable, switching mode (`[Symlink Mode]` vs `[Registry Mode]`), junction link, and active ecosystem tools (Maven, Gradle, Kotlin, Scala, Groovy, Ant, sbt, JBang, Quarkus, Spring Boot, Micronaut).
 * **`jvm which [candidate]` (or `jvm path`):** Prints the absolute Windows filesystem path to the active binary directly to `stdout`. Works seamlessly for Java (`jvm which`) and ecosystem build tools (`jvm which maven`, `jvm which gradle`). Ideal for automation scripts and IDE path configurations:
   ```powershell
   # PowerShell automation

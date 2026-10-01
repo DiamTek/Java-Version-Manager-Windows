@@ -321,7 +321,7 @@ Remove-Item -Path "Function:\Set-JvmVar" -Force -ErrorAction SilentlyContinue
 # Environment variables
 # ----------------------------------------------------------------
 Write-Host "`n[ ACTION ] Cleaning up Environment Variables..." -ForegroundColor Cyan
-$vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')
+$vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME', 'ANT_HOME', 'SBT_HOME', 'JBANG_HOME', 'QUARKUS_HOME', 'SPRING_HOME', 'MICRONAUT_HOME')
 $removedVars = 0
 foreach ($v in $vars) {
     foreach ($scope in @('User', 'Machine')) {

@@ -15,37 +15,15 @@ rem GNU Affero General Public License for more details.
 rem You should have received a copy of the GNU Affero General Public License
 rem along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-rem Auto-repair Unix LF line endings to Windows CRLF if executed standalone from raw download
-if "%~1"=="--internal-crlf-relaunch" shift & goto :BOOTSTRAP_START
-if defined CI goto :BOOTSTRAP_START
-if defined GITHUB_ACTIONS goto :BOOTSTRAP_START
-set "RAW_BAT_SELF=%~f0"
-set "SYS32=%SystemRoot%\System32"
-if not defined SystemRoot set "SYS32=C:\Windows\System32"
-"%SYS32%\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command ^
-    "$p =$env:RAW_BAT_SELF;" ^
-    "if ($p -and (Test-Path -LiteralPath$p)) {" ^
-    "    $fs = [System.IO.File]::OpenRead($p);" ^
-    "    $buf = New-Object byte[] 4096; $read =$fs.Read($buf, 0, 4096);$fs.Close();" ^
-    "    $hasCr =$false; for ($i=0; $i -lt $read; $i++) { if ($buf[$i] -eq 13) { $hasCr =$true; break } };" ^
-    "    if (-not $hasCr) {" ^
-    "        $txt = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8);" ^
-    "        $crlf = ($txt -replace \"`r?`n\", \"`r`n\");" ^
-    "        try { [System.IO.File]::WriteAllText($p, $crlf, (New-Object System.Text.UTF8Encoding($false))) } catch {}" ^
-    "        exit 42" ^
-    "    }" ^
-    "}" >nul 2>&1
-if "%errorlevel%"=="42" (
-    cmd.exe /c ""%~f0" --internal-crlf-relaunch %*"
-    exit /b %errorlevel%
-)
-:BOOTSTRAP_START
-
 rem Enforce pinned system executable paths against CWE-426 (Binary Planting in CWD)
-if not defined SystemRoot set "SystemRoot=C:\Windows"
-if not exist "%SystemRoot%\System32\cmd.exe" set "SystemRoot=C:\Windows"
 set "NoDefaultCurrentDirectoryInExePath=1"
-set "SYS32=%SystemRoot%\System32"
+set "SYS32=C:\Windows\System32"
+if defined SystemRoot if exist "%SystemRoot%\System32\cmd.exe" if /i "%SystemRoot:~1,2%"==":\" set "SYS32=%SystemRoot%\System32"
+if not exist "%SYS32%\cmd.exe" if defined windir if exist "%windir%\System32\cmd.exe" set "SYS32=%windir%\System32"
+if not exist "%SYS32%\cmd.exe" if defined SystemDrive if exist "%SystemDrive%\Windows\System32\cmd.exe" set "SYS32=%SystemDrive%\Windows\System32"
+if not exist "%SYS32%\cmd.exe" set "SYS32=C:\Windows\System32"
+if not exist "%SystemRoot%\System32\cmd.exe" for %%W in ("%SYS32%\..") do set "SystemRoot=%%~fW"
+
 set "CMD_BIN=%SYS32%\cmd.exe"
 set "PS_BIN=%SYS32%\WindowsPowerShell\v1.0\powershell.exe"
 set "FIND_BIN=%SYS32%\find.exe"
@@ -59,6 +37,18 @@ set "CHCP_BIN=%SYS32%\chcp.com"
 set "ICACLS_BIN=%SYS32%\icacls.exe"
 set "ATTRIB_BIN=%SYS32%\attrib.exe"
 set "EXPLORER_BIN=%SystemRoot%\explorer.exe"
+
+rem Auto-repair Unix LF line endings to Windows CRLF if executed standalone from raw download
+if "%~1"=="--internal-crlf-relaunch" shift & goto :BOOTSTRAP_START
+if defined CI goto :BOOTSTRAP_START
+if defined GITHUB_ACTIONS goto :BOOTSTRAP_START
+set "RAW_BAT_SELF=%~f0"
+"%PS_BIN%" -NoProfile -EncodedCommand JABwACAAPQAgACQAZQBuAHYAOgBSAEEAVwBfAEIAQQBUAF8AUwBFAEwARgAKAGkAZgAgACgAJABwACAALQBhAG4AZAAgACgAVABlAHMAdAAtAFAAYQB0AGgAIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACQAcAApACkAIAB7AAoAIAAgACAAIAAkAGIAeQB0AGUAcwAgAD0AIABbAFMAeQBzAHQAZQBtAC4ASQBPAC4ARgBpAGwAZQBdADoAOgBSAGUAYQBkAEEAbABsAEIAeQB0AGUAcwAoACQAcAApAAoAIAAgACAAIAAkAGgAYQBzAEMAcgAgAD0AIAAkAGYAYQBsAHMAZQAKACAAIAAgACAAJABjAGgAZQBjAGsATABlAG4AIAA9ACAAWwBtAGEAdABoAF0AOgA6AE0AaQBuACgAJABiAHkAdABlAHMALgBMAGUAbgBnAHQAaAAsACAANAAwADkANgApAAoAIAAgACAAIABmAG8AcgAgACgAJABpACAAPQAgADAAOwAgACQAaQAgAC0AbAB0ACAAJABjAGgAZQBjAGsATABlAG4AOwAgACQAaQArACsAKQAgAHsACgAgACAAIAAgACAAIAAgACAAaQBmACAAKAAkAGIAeQB0AGUAcwBbACQAaQBdACAALQBlAHEAIAAxADMAKQAgAHsAIAAkAGgAYQBzAEMAcgAgAD0AIAAkAHQAcgB1AGUAOwAgAGIAcgBlAGEAawAgAH0ACgAgACAAIAAgAH0ACgAgACAAIAAgAGkAZgAgACgALQBuAG8AdAAgACQAaABhAHMAQwByACkAIAB7AAoAIAAgACAAIAAgACAAIAAgACQAdAB4AHQAIAA9ACAAWwBTAHkAcwB0AGUAbQAuAFQAZQB4AHQALgBFAG4AYwBvAGQAaQBuAGcAXQA6ADoAVQBUAEYAOAAuAEcAZQB0AFMAdAByAGkAbgBnACgAJABiAHkAdABlAHMAKQAKACAAIAAgACAAIAAgACAAIAAkAGMAcgBsAGYAIAA9ACAAJAB0AHgAdAAuAFIAZQBwAGwAYQBjAGUAKABbAHMAdAByAGkAbgBnAF0AWwBjAGgAYQByAF0AMQAwACwAIABbAHMAdAByAGkAbgBnAF0AWwBjAGgAYQByAF0AMQAzACAAKwAgAFsAYwBoAGEAcgBdADEAMAApAC4AUgBlAHAAbABhAGMAZQAoAFsAcwB0AHIAaQBuAGcAXQBbAGMAaABhAHIAXQAxADMAIAArACAAWwBjAGgAYQByAF0AMQAzACAAKwAgAFsAYwBoAGEAcgBdADEAMAAsACAAWwBzAHQAcgBpAG4AZwBdAFsAYwBoAGEAcgBdADEAMwAgACsAIABbAGMAaABhAHIAXQAxADAAKQAKACAAIAAgACAAIAAgACAAIAB0AHIAeQAgAHsAIABbAFMAeQBzAHQAZQBtAC4ASQBPAC4ARgBpAGwAZQBdADoAOgBXAHIAaQB0AGUAQQBsAGwAQgB5AHQAZQBzACgAJABwACwAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABTAHkAcwB0AGUAbQAuAFQAZQB4AHQALgBVAFQARgA4AEUAbgBjAG8AZABpAG4AZwAoACQAZgBhAGwAcwBlACkAKQAuAEcAZQB0AEIAeQB0AGUAcwAoACQAYwByAGwAZgApACkAIAB9ACAAYwBhAHQAYwBoACAAewB9AAoAIAAgACAAIAAgACAAIAAgAGUAeABpAHQAIAA0ADIACgAgACAAIAAgAH0ACgB9AA== >nul 2>&1
+if "%errorlevel%"=="42" (
+    "%CMD_BIN%" /c ""%~f0" --internal-crlf-relaunch %*"
+    exit /b
+)
+:BOOTSTRAP_START
 
 if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
@@ -138,7 +128,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20260930.137"
+set "JVM_BUILD=20261001.138"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -262,6 +252,20 @@ if /i "%~1"=="scala" ( set "TARGET_CANDIDATE=scala" & shift & goto :PARSE_CLI_AR
 if /i "%~1"=="--scala" ( set "TARGET_CANDIDATE=scala" & shift & goto :PARSE_CLI_ARGS )
 if /i "%~1"=="groovy" ( set "TARGET_CANDIDATE=groovy" & shift & goto :PARSE_CLI_ARGS )
 if /i "%~1"=="--groovy" ( set "TARGET_CANDIDATE=groovy" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="ant" ( set "TARGET_CANDIDATE=ant" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="--ant" ( set "TARGET_CANDIDATE=ant" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="sbt" ( set "TARGET_CANDIDATE=sbt" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="--sbt" ( set "TARGET_CANDIDATE=sbt" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="jbang" ( set "TARGET_CANDIDATE=jbang" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="--jbang" ( set "TARGET_CANDIDATE=jbang" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="quarkus" ( set "TARGET_CANDIDATE=quarkus" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="--quarkus" ( set "TARGET_CANDIDATE=quarkus" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="spring" ( set "TARGET_CANDIDATE=spring" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="--spring" ( set "TARGET_CANDIDATE=spring" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="micronaut" ( set "TARGET_CANDIDATE=micronaut" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="--micronaut" ( set "TARGET_CANDIDATE=micronaut" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="mn" ( set "TARGET_CANDIDATE=micronaut" & shift & goto :PARSE_CLI_ARGS )
+if /i "%~1"=="--mn" ( set "TARGET_CANDIDATE=micronaut" & shift & goto :PARSE_CLI_ARGS )
 if /i "%~1"=="--vendor" (
     set "CLI_VENDOR=%~2"
     call :ValidateStrictIdentifier "!CLI_VENDOR!" CLI_VENDOR
@@ -347,6 +351,21 @@ if /i "%~1"=="--no-lock" (
     shift
     goto :PARSE_CLI_ARGS
 )
+if /i "%~1"=="--locked" (
+    set "FLAG_LOCKED=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="-l" (
+    set "FLAG_LOCKED=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--lock" (
+    set "FLAG_CREATE_LOCK=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
 if /i "%~1"=="--no-color" (
     set "cRED="
     set "cGREEN="
@@ -407,6 +426,11 @@ if /i "%~1"=="list" (
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="install" (
     set "CLI_COMMAND=install"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="lock" (
+    set "CLI_COMMAND=lock"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
@@ -801,6 +825,7 @@ if /i "%CLI_COMMAND%"=="doctor" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="open" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="hook" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="channel" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="lock" set "WANT_UTF8=1"
 if "%WANT_UTF8%"=="1" "%CHCP_BIN%" 65001 >nul
 if "%SILENT_MODE%"=="0" title Java Version Manager
 
@@ -843,6 +868,12 @@ if defined CLI_COMMAND (
         if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b 0
     )
+    if /i "%CLI_COMMAND%"=="lock" (
+        call :ExecuteLockCommand
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
+    )
 )
 if /i not "!TARGET_CANDIDATE!"=="java" (
     if defined CLI_COMMAND (
@@ -857,6 +888,12 @@ if /i not "!TARGET_CANDIDATE!"=="java" (
         if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b !FAST_EXIT!
     )
+)
+if "!FLAG_LOCKED!"=="1" if not defined CLI_COMMAND (
+    call :ExecuteLockedInstall
+    set "FAST_EXIT=!errorlevel!"
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b !FAST_EXIT!
 )
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
@@ -1453,6 +1490,16 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                                 if /i not "!VENDOR_RAW:Liberica=!"=="!VENDOR_RAW!" set "VENDOR_STR=Liberica"
                                 if /i not "!VENDOR_RAW:IBM=!"=="!VENDOR_RAW!" set "VENDOR_STR=Semeru"
                                 if /i not "!VENDOR_RAW:Semeru=!"=="!VENDOR_RAW!" set "VENDOR_STR=Semeru"
+                                if /i not "!VENDOR_RAW:SAP=!"=="!VENDOR_RAW!" set "VENDOR_STR=SapMachine"
+                                if /i not "!VENDOR_RAW:SapMachine=!"=="!VENDOR_RAW!" set "VENDOR_STR=SapMachine"
+                                if /i not "!VENDOR_RAW:Mandrel=!"=="!VENDOR_RAW!" set "VENDOR_STR=Mandrel"
+                                if /i not "!VENDOR_RAW:Red Hat=!"=="!VENDOR_RAW!" set "VENDOR_STR=Mandrel"
+                                if /i not "!VENDOR_RAW:Alibaba=!"=="!VENDOR_RAW!" set "VENDOR_STR=Dragonwell"
+                                if /i not "!VENDOR_RAW:Dragonwell=!"=="!VENDOR_RAW!" set "VENDOR_STR=Dragonwell"
+                                if /i not "!VENDOR_RAW:Tencent=!"=="!VENDOR_RAW!" set "VENDOR_STR=Kona"
+                                if /i not "!VENDOR_RAW:Kona=!"=="!VENDOR_RAW!" set "VENDOR_STR=Kona"
+                                set "CURR_DIR_NAME=%%j"
+                                if /i not "!CURR_DIR_NAME:mandrel=!"=="!CURR_DIR_NAME!" set "VENDOR_STR=Mandrel"
                             )
                         )
                         if not defined VER (
@@ -1643,6 +1690,11 @@ if defined CLI_COMMAND (
         goto :CLI_DONE
     )
     if /i "!CLI_COMMAND!"=="install" (
+        if "!FLAG_LOCKED!"=="1" (
+            call :ExecuteLockedInstall
+            set "CMD_EXIT_CODE=!errorlevel!"
+            goto :CLI_DONE
+        )
         if not defined CLI_TARGET (
             call :FetchLatestVersions
             call :InstallWizard
@@ -1699,6 +1751,35 @@ if defined CLI_COMMAND (
             set "JVM_EXIT_CODE=1"
             goto :CLI_DONE
         )
+        if /i not "!TARGET_CANDIDATE!"=="java" (
+            set "act_ver=none"
+            set "QUERY_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\current"
+            if exist "!QUERY_PATH!" (
+                for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do for %%X in ("%%A") do set "act_ver=%%~nxX"
+                call :ValidateStrictIdentifier "!act_ver!" act_ver
+                if errorlevel 1 set "act_ver=none"
+            )
+            call :EcoPerformCheck !TARGET_CANDIDATE! "!act_ver!"
+            goto :CLI_DONE
+        )
+        set "IS_ECO_CANDIDATE="
+        for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut mn) do (
+            if /i "!CLI_TARGET!"=="%%T" (
+                set "IS_ECO_CANDIDATE=%%T"
+                if /i "%%T"=="mn" set "IS_ECO_CANDIDATE=micronaut"
+            )
+        )
+        if defined IS_ECO_CANDIDATE (
+            set "act_ver=none"
+            set "QUERY_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!IS_ECO_CANDIDATE!\current"
+            if exist "!QUERY_PATH!" (
+                for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do for %%X in ("%%A") do set "act_ver=%%~nxX"
+                call :ValidateStrictIdentifier "!act_ver!" act_ver
+                if errorlevel 1 set "act_ver=none"
+            )
+            call :EcoPerformCheck !IS_ECO_CANDIDATE! "!act_ver!"
+            goto :CLI_DONE
+        )
         if not defined CLI_TARGET (
             if defined CLI_VENDOR (
                 echo %cBLUE%[ ACTION ]%cRESET% Automatically updating all !CLI_VENDOR! JDKs...
@@ -1726,7 +1807,7 @@ if defined CLI_COMMAND (
             ) else (
                 echo %cBLUE%[ ACTION ]%cRESET% Automatically updating ALL JDKs and Ecosystem Tools...
                 for /l %%k in (1,1,!JDK_COUNT!) do call :ProcessSingleUpdate %%k
-                for %%T in (maven gradle kotlin scala groovy) do (
+                for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut) do (
                     if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current" (
                         set "act_ver=none"
                         set "QUERY_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current"
@@ -2191,11 +2272,17 @@ echo.
 rem Scan which tools are installed and their current versions
 set /a EU_OPT=0
 set "EU_OPT_ALL="
-set "EU_OPT_MAVEN=" & set "EU_OPT_GRADLE=" & set "EU_OPT_KOTLIN=" & set "EU_OPT_SCALA=" & set "EU_OPT_GROOVY="
-set "EU_HAS_MAVEN=0" & set "EU_HAS_GRADLE=0" & set "EU_HAS_KOTLIN=0" & set "EU_HAS_SCALA=0" & set "EU_HAS_GROOVY=0"
-set "EU_ACTIVE_MAVEN=" & set "EU_ACTIVE_GRADLE=" & set "EU_ACTIVE_KOTLIN=" & set "EU_ACTIVE_SCALA=" & set "EU_ACTIVE_GROOVY="
+set /a ECO_UPDATE_SUCCESS=0
+set /a ECO_UPDATE_ERRORS=0
+set /a ECO_UPDATE_UPTODATE=0
+set /a ECO_UPDATE_SKIPPED=0
+for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut) do (
+    set "EU_OPT_%%T="
+    set "EU_HAS_%%T=0"
+    set "EU_ACTIVE_%%T="
+)
 
-for %%T in (maven gradle kotlin scala groovy) do (
+for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut) do (
     set "eu_cdir=%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T"
     if exist "!eu_cdir!" (
         set "eu_has_ver=0"
@@ -2222,7 +2309,7 @@ for %%T in (maven gradle kotlin scala groovy) do (
 
 rem Count installed tools and build menu
 set "eu_any=0"
-for %%T in (maven gradle kotlin scala groovy) do (
+for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut) do (
     if "!EU_HAS_%%T!"=="1" set "eu_any=1"
 )
 
@@ -2243,28 +2330,58 @@ echo.
 echo %cGRAY%--- Manage by Tool ---%cRESET%
 if "!EU_HAS_maven!"=="1" (
     set /a EU_OPT+=1
-    set "EU_OPT_MAVEN=!EU_OPT!"
+    set "EU_OPT_maven=!EU_OPT!"
     echo !EU_OPT!. Maven %cGRAY%[!EU_ACTIVE_maven!]%cRESET%
 )
 if "!EU_HAS_gradle!"=="1" (
     set /a EU_OPT+=1
-    set "EU_OPT_GRADLE=!EU_OPT!"
+    set "EU_OPT_gradle=!EU_OPT!"
     echo !EU_OPT!. Gradle %cGRAY%[!EU_ACTIVE_gradle!]%cRESET%
 )
 if "!EU_HAS_kotlin!"=="1" (
     set /a EU_OPT+=1
-    set "EU_OPT_KOTLIN=!EU_OPT!"
+    set "EU_OPT_kotlin=!EU_OPT!"
     echo !EU_OPT!. Kotlin %cGRAY%[!EU_ACTIVE_kotlin!]%cRESET%
 )
 if "!EU_HAS_scala!"=="1" (
     set /a EU_OPT+=1
-    set "EU_OPT_SCALA=!EU_OPT!"
+    set "EU_OPT_scala=!EU_OPT!"
     echo !EU_OPT!. Scala %cGRAY%[!EU_ACTIVE_scala!]%cRESET%
 )
 if "!EU_HAS_groovy!"=="1" (
     set /a EU_OPT+=1
-    set "EU_OPT_GROOVY=!EU_OPT!"
+    set "EU_OPT_groovy=!EU_OPT!"
     echo !EU_OPT!. Groovy %cGRAY%[!EU_ACTIVE_groovy!]%cRESET%
+)
+if "!EU_HAS_ant!"=="1" (
+    set /a EU_OPT+=1
+    set "EU_OPT_ant=!EU_OPT!"
+    echo !EU_OPT!. Ant %cGRAY%[!EU_ACTIVE_ant!]%cRESET%
+)
+if "!EU_HAS_sbt!"=="1" (
+    set /a EU_OPT+=1
+    set "EU_OPT_sbt=!EU_OPT!"
+    echo !EU_OPT!. SBT %cGRAY%[!EU_ACTIVE_sbt!]%cRESET%
+)
+if "!EU_HAS_jbang!"=="1" (
+    set /a EU_OPT+=1
+    set "EU_OPT_jbang=!EU_OPT!"
+    echo !EU_OPT!. JBang %cGRAY%[!EU_ACTIVE_jbang!]%cRESET%
+)
+if "!EU_HAS_quarkus!"=="1" (
+    set /a EU_OPT+=1
+    set "EU_OPT_quarkus=!EU_OPT!"
+    echo !EU_OPT!. Quarkus %cGRAY%[!EU_ACTIVE_quarkus!]%cRESET%
+)
+if "!EU_HAS_spring!"=="1" (
+    set /a EU_OPT+=1
+    set "EU_OPT_spring=!EU_OPT!"
+    echo !EU_OPT!. Spring Boot %cGRAY%[!EU_ACTIVE_spring!]%cRESET%
+)
+if "!EU_HAS_micronaut!"=="1" (
+    set /a EU_OPT+=1
+    set "EU_OPT_micronaut=!EU_OPT!"
+    echo !EU_OPT!. Micronaut %cGRAY%[!EU_ACTIVE_micronaut!]%cRESET%
 )
 
 echo.
@@ -2273,32 +2390,49 @@ set /a EU_CANCEL=EU_OPT+1
 echo !EU_CANCEL!. Go back
 echo.
 
+:GET_EU_CHOICE
+if !EU_CANCEL! GTR 9 goto GET_EU_CHOICE_MANUAL
 rem Build choice keys dynamically
 set "EU_KEYS="
 for /l %%i in (1,1,!EU_CANCEL!) do set "EU_KEYS=!EU_KEYS!%%i"
 "%CHOICE_BIN%" /C !EU_KEYS! /N /M "Select tool (1-!EU_CANCEL!): "
 set "eu_choice=!errorlevel!"
+goto PROCESS_EU_CHOICE
 
+:GET_EU_CHOICE_MANUAL
+set "eu_choice="
+set /p "eu_choice=Select tool (1-!EU_CANCEL!): "
+if not defined eu_choice goto EcoVersionMenu
+if "!eu_choice!"=="" goto EcoVersionMenu
+set "eu_choice=!eu_choice:"=!"
+set "eu_choice=!eu_choice: =!"
+if "!eu_choice!"=="" goto GET_EU_CHOICE_MANUAL
+set "NUM_TEST="
+if not "!eu_choice!"=="!eu_choice:;=!" set "NUM_TEST=;"
+for /f "eol= delims=0123456789" %%A in ("!eu_choice!") do set "NUM_TEST=%%A"
+if defined NUM_TEST goto GET_EU_CHOICE_MANUAL
+if !eu_choice! LSS 1 goto GET_EU_CHOICE_MANUAL
+if !eu_choice! GTR !EU_CANCEL! goto GET_EU_CHOICE_MANUAL
+
+:PROCESS_EU_CHOICE
 if !eu_choice!==!EU_CANCEL! goto :eof
 
 rem Determine which tools to check
-set "EU_CHECK_MAVEN=0" & set "EU_CHECK_GRADLE=0" & set "EU_CHECK_KOTLIN=0" & set "EU_CHECK_SCALA=0" & set "EU_CHECK_GROOVY=0"
+for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut) do (
+    set "EU_CHECK_%%T=0"
+)
 
 if !eu_choice!==!EU_OPT_ALL! (
-    if "!EU_HAS_maven!"=="1" set "EU_CHECK_MAVEN=1"
-    if "!EU_HAS_gradle!"=="1" set "EU_CHECK_GRADLE=1"
-    if "!EU_HAS_kotlin!"=="1" set "EU_CHECK_KOTLIN=1"
-    if "!EU_HAS_scala!"=="1" set "EU_CHECK_SCALA=1"
-    if "!EU_HAS_groovy!"=="1" set "EU_CHECK_GROOVY=1"
+    for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut) do (
+        if "!EU_HAS_%%T!"=="1" set "EU_CHECK_%%T=1"
+    )
 )
-if defined EU_OPT_MAVEN if !eu_choice!==!EU_OPT_MAVEN! set "EU_CHECK_MAVEN=1"
-if defined EU_OPT_GRADLE if !eu_choice!==!EU_OPT_GRADLE! set "EU_CHECK_GRADLE=1"
-if defined EU_OPT_KOTLIN if !eu_choice!==!EU_OPT_KOTLIN! set "EU_CHECK_KOTLIN=1"
-if defined EU_OPT_SCALA if !eu_choice!==!EU_OPT_SCALA! set "EU_CHECK_SCALA=1"
-if defined EU_OPT_GROOVY if !eu_choice!==!EU_OPT_GROOVY! set "EU_CHECK_GROOVY=1"
+for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut) do (
+    if defined EU_OPT_%%T if !eu_choice!==!EU_OPT_%%T! set "EU_CHECK_%%T=1"
+)
 
 rem Now run update checks for selected tools
-for %%T in (maven gradle kotlin scala groovy) do (
+for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut) do (
     if "!EU_CHECK_%%T!"=="1" call :EcoPerformCheck %%T "!EU_ACTIVE_%%T!"
 )
 goto :EcoPerformCheck_End
@@ -2330,9 +2464,32 @@ if not "!LATEST_VER!"=="ERROR" (
 
 if "!LATEST_VER!"=="ERROR" (
     echo %cRED%[ ERROR  ]%cRESET% Failed to resolve latest version for !CANDIDATE_PROPER_NAME!.
+    set /a ECO_UPDATE_ERRORS+=1
 ) else (
     if exist "!c_dir!\!LATEST_VER!" (
-        echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! is up to date ^(!LATEST_VER!^).
+        if /i "!CHK_ACT!"=="!LATEST_VER!" (
+            echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! is up to date ^(!LATEST_VER!^).
+        ) else (
+            echo %cBLUE%[  INFO  ]%cRESET% Latest version ^(!LATEST_VER!^) is installed, but active version is !CHK_ACT!.
+            if not defined CLI_COMMAND (
+                "%CHOICE_BIN%" /C YN /M "Do you want to switch active !CANDIDATE_PROPER_NAME! to !LATEST_VER!? "
+                if !errorlevel!==1 (
+                    echo.
+                    echo %cBLUE%[ ACTION ]%cRESET% Activating !CANDIDATE_PROPER_NAME! !LATEST_VER!...
+                    call :SwitchCandidate "!LATEST_VER!"
+                )
+            ) else (
+                echo.
+                echo %cBLUE%[ ACTION ]%cRESET% Activating latest installed !CANDIDATE_PROPER_NAME! !LATEST_VER!...
+                call :SwitchCandidate "!LATEST_VER!"
+                if not errorlevel 1 (
+                    echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! !LATEST_VER! is now active^^!
+                ) else (
+                    echo %cRED%[ ERROR  ]%cRESET% Failed to activate !CANDIDATE_PROPER_NAME! !LATEST_VER!.
+                )
+            )
+        )
+        set /a ECO_UPDATE_UPTODATE+=1
     ) else (
         echo %cYELLOW%[ UPDATE ]%cRESET% New version available: !LATEST_VER!
         if defined CLI_COMMAND (
@@ -2344,6 +2501,7 @@ if "!LATEST_VER!"=="ERROR" (
             if exist "!c_dir!\!LATEST_VER!" (
                 call :SwitchCandidate "!LATEST_VER!"
                 if not errorlevel 1 (
+                    set /a ECO_UPDATE_SUCCESS+=1
                     for /d %%V in ("!c_dir!\*") do (
                         set "V_NAME=%%~nxV"
                         call :ValidateStrictIdentifier "!V_NAME!" V_NAME
@@ -2354,7 +2512,12 @@ if "!LATEST_VER!"=="ERROR" (
                             )
                         )
                     )
+                ) else (
+                    set /a ECO_UPDATE_ERRORS+=1
                 )
+            ) else (
+                set /a ECO_UPDATE_ERRORS+=1
+                echo %cRED%[ ERROR  ]%cRESET% Failed to update !CANDIDATE_PROPER_NAME! to !LATEST_VER!.
             )
         ) else (
             "%CHOICE_BIN%" /C YN /M "Do you want to download and install !CANDIDATE_PROPER_NAME! !LATEST_VER! now? "
@@ -2364,6 +2527,25 @@ if "!LATEST_VER!"=="ERROR" (
                 set "IS_UPDATER=1"
                 call :InstallCandidate
                 set "IS_UPDATER="
+                if exist "!c_dir!\!LATEST_VER!" (
+                    echo.
+                    echo %cBLUE%[ ACTION ]%cRESET% Activating newly installed !CANDIDATE_PROPER_NAME! !LATEST_VER!...
+                    call :SwitchCandidate "!LATEST_VER!"
+                    if not errorlevel 1 (
+                        set /a ECO_UPDATE_SUCCESS+=1
+                        echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! !LATEST_VER! is now active^^!
+                    ) else (
+                        set /a ECO_UPDATE_ERRORS+=1
+                        echo %cRED%[ ERROR  ]%cRESET% Failed to activate !CANDIDATE_PROPER_NAME! !LATEST_VER!.
+                    )
+                ) else (
+                    set /a ECO_UPDATE_ERRORS+=1
+                    echo.
+                    echo %cRED%[ ERROR  ]%cRESET% Failed to update !CANDIDATE_PROPER_NAME!. Previous version ^(!CHK_ACT!^) remains intact.
+                )
+            ) else (
+                set /a ECO_UPDATE_SKIPPED+=1
+                echo %cBLUE%[  INFO  ]%cRESET% Update skipped for !CANDIDATE_PROPER_NAME!.
             )
         )
     )
@@ -2371,10 +2553,14 @@ if "!LATEST_VER!"=="ERROR" (
 exit /b 0
 
 :EcoPerformCheck_End
-
+echo ------------------------------------------------------------
 echo.
-echo %cGREEN%[   OK   ]%cRESET% Update check complete.
-pause
+if !ECO_UPDATE_ERRORS! GTR 0 (
+    echo %cYELLOW%[ WARNING]%cRESET% Update check completed with !ECO_UPDATE_ERRORS! error^(s^).
+) else (
+    echo %cGREEN%[   OK   ]%cRESET% All update checks complete.
+)
+if not defined CLI_COMMAND pause
 goto :eof
 
 :EcosystemSelectTool
@@ -2390,6 +2576,7 @@ if "!ECO_SUB_MODE!"=="SWITCH" (
 echo ============================================================
 
 set "OPT_M=" & set "OPT_G=" & set "OPT_K=" & set "OPT_S=" & set "OPT_GR="
+set "OPT_ANT=" & set "OPT_SBT=" & set "OPT_JBANG=" & set "OPT_QUARKUS=" & set "OPT_SPRING=" & set "OPT_MICRONAUT="
 set "HAS_ANY=0"
 set "HAS_M=0"
 if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\maven\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\maven\*") do if not "%%~nxD"=="current" ( set "HAS_M=1" & set "HAS_ANY=1" )
@@ -2401,6 +2588,18 @@ set "HAS_S=0"
 if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\scala\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\scala\*") do if not "%%~nxD"=="current" ( set "HAS_S=1" & set "HAS_ANY=1" )
 set "HAS_GR=0"
 if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\groovy\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\groovy\*") do if not "%%~nxD"=="current" ( set "HAS_GR=1" & set "HAS_ANY=1" )
+set "HAS_ANT=0"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\ant\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\ant\*") do if not "%%~nxD"=="current" ( set "HAS_ANT=1" & set "HAS_ANY=1" )
+set "HAS_SBT=0"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\sbt\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\sbt\*") do if not "%%~nxD"=="current" ( set "HAS_SBT=1" & set "HAS_ANY=1" )
+set "HAS_JBANG=0"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\jbang\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\jbang\*") do if not "%%~nxD"=="current" ( set "HAS_JBANG=1" & set "HAS_ANY=1" )
+set "HAS_QUARKUS=0"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\quarkus\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\quarkus\*") do if not "%%~nxD"=="current" ( set "HAS_QUARKUS=1" & set "HAS_ANY=1" )
+set "HAS_SPRING=0"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\spring\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\spring\*") do if not "%%~nxD"=="current" ( set "HAS_SPRING=1" & set "HAS_ANY=1" )
+set "HAS_MICRONAUT=0"
+if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\micronaut\*" for /d %%D in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\micronaut\*") do if not "%%~nxD"=="current" ( set "HAS_MICRONAUT=1" & set "HAS_ANY=1" )
 
 if "!ECO_SUB_MODE!"=="SWITCH" goto :ECO_TOOL_FILTERED
 if "!ECO_SUB_MODE!"=="UNINSTALL" goto :ECO_TOOL_FILTERED
@@ -2414,10 +2613,16 @@ set "OPT_G=2" & echo 2. Gradle
 set "OPT_K=3" & echo 3. Kotlin
 set "OPT_S=4" & echo 4. Scala
 set "OPT_GR=5" & echo 5. Groovy
-set "cancel_opt=6"
+set "OPT_ANT=6" & echo 6. Ant
+set "OPT_SBT=7" & echo 7. SBT
+set "OPT_JBANG=8" & echo 8. JBang
+set "OPT_QUARKUS=9" & echo 9. Quarkus
+set "OPT_SPRING=10" & echo 10. Spring Boot
+set "OPT_MICRONAUT=11" & echo 11. Micronaut
+set "cancel_opt=12"
 echo.
 echo %cGRAY%--- Actions ---%cRESET%
-echo 6. Go back
+echo 12. Go back
 goto :ECO_TOOL_PROMPT
 
 :ECO_TOOL_FILTERED
@@ -2444,6 +2649,12 @@ if "!HAS_G!"=="1" ( set /a TOOL_OPT+=1 & set "OPT_G=!TOOL_OPT!" & echo !TOOL_OPT
 if "!HAS_K!"=="1" ( set /a TOOL_OPT+=1 & set "OPT_K=!TOOL_OPT!" & echo !TOOL_OPT!. Kotlin )
 if "!HAS_S!"=="1" ( set /a TOOL_OPT+=1 & set "OPT_S=!TOOL_OPT!" & echo !TOOL_OPT!. Scala )
 if "!HAS_GR!"=="1" ( set /a TOOL_OPT+=1 & set "OPT_GR=!TOOL_OPT!" & echo !TOOL_OPT!. Groovy )
+if "!HAS_ANT!"=="1" ( set /a TOOL_OPT+=1 & set "OPT_ANT=!TOOL_OPT!" & echo !TOOL_OPT!. Ant )
+if "!HAS_SBT!"=="1" ( set /a TOOL_OPT+=1 & set "OPT_SBT=!TOOL_OPT!" & echo !TOOL_OPT!. SBT )
+if "!HAS_JBANG!"=="1" ( set /a TOOL_OPT+=1 & set "OPT_JBANG=!TOOL_OPT!" & echo !TOOL_OPT!. JBang )
+if "!HAS_QUARKUS!"=="1" ( set /a TOOL_OPT+=1 & set "OPT_QUARKUS=!TOOL_OPT!" & echo !TOOL_OPT!. Quarkus )
+if "!HAS_SPRING!"=="1" ( set /a TOOL_OPT+=1 & set "OPT_SPRING=!TOOL_OPT!" & echo !TOOL_OPT!. Spring Boot )
+if "!HAS_MICRONAUT!"=="1" ( set /a TOOL_OPT+=1 & set "OPT_MICRONAUT=!TOOL_OPT!" & echo !TOOL_OPT!. Micronaut )
 
 set /a cancel_opt=!TOOL_OPT! + 1
 echo.
@@ -2452,11 +2663,36 @@ echo !cancel_opt!. Go back
 
 :ECO_TOOL_PROMPT
 echo.
+if !cancel_opt! GTR 9 goto ECO_TOOL_PROMPT_MANUAL
 set "VALID_CHOICES="
 for /l %%k in (1,1,!cancel_opt!) do set "VALID_CHOICES=!VALID_CHOICES!%%k"
 
 "%CHOICE_BIN%" /C !VALID_CHOICES! /N /M "Enter your choice (1-!cancel_opt!): "
 set "tool_choice=!errorlevel!"
+goto PROCESS_TOOL_CHOICE
+
+:ECO_TOOL_PROMPT_MANUAL
+set "tool_choice="
+set /p "tool_choice=Enter your choice (1-!cancel_opt!): "
+if not defined tool_choice (
+    if "!ECO_SUB_MODE!"=="SWITCH" goto :EcosystemMenu
+    goto :EcoVersionMenu
+)
+if "!tool_choice!"=="" (
+    if "!ECO_SUB_MODE!"=="SWITCH" goto :EcosystemMenu
+    goto :EcoVersionMenu
+)
+set "tool_choice=!tool_choice:"=!"
+set "tool_choice=!tool_choice: =!"
+if "!tool_choice!"=="" goto ECO_TOOL_PROMPT_MANUAL
+set "NUM_TEST="
+if not "!tool_choice!"=="!tool_choice:;=!" set "NUM_TEST=;"
+for /f "eol= delims=0123456789" %%A in ("!tool_choice!") do set "NUM_TEST=%%A"
+if defined NUM_TEST goto ECO_TOOL_PROMPT_MANUAL
+if !tool_choice! LSS 1 goto ECO_TOOL_PROMPT_MANUAL
+if !tool_choice! GTR !cancel_opt! goto ECO_TOOL_PROMPT_MANUAL
+
+:PROCESS_TOOL_CHOICE
 if !tool_choice!==!cancel_opt! (
     if "!ECO_SUB_MODE!"=="SWITCH" goto :EcosystemMenu
     goto :EcoVersionMenu
@@ -2466,6 +2702,12 @@ if defined OPT_G if !tool_choice!==!OPT_G! set "TARGET_CANDIDATE=gradle"
 if defined OPT_K if !tool_choice!==!OPT_K! set "TARGET_CANDIDATE=kotlin"
 if defined OPT_S if !tool_choice!==!OPT_S! set "TARGET_CANDIDATE=scala"
 if defined OPT_GR if !tool_choice!==!OPT_GR! set "TARGET_CANDIDATE=groovy"
+if defined OPT_ANT if !tool_choice!==!OPT_ANT! set "TARGET_CANDIDATE=ant"
+if defined OPT_SBT if !tool_choice!==!OPT_SBT! set "TARGET_CANDIDATE=sbt"
+if defined OPT_JBANG if !tool_choice!==!OPT_JBANG! set "TARGET_CANDIDATE=jbang"
+if defined OPT_QUARKUS if !tool_choice!==!OPT_QUARKUS! set "TARGET_CANDIDATE=quarkus"
+if defined OPT_SPRING if !tool_choice!==!OPT_SPRING! set "TARGET_CANDIDATE=spring"
+if defined OPT_MICRONAUT if !tool_choice!==!OPT_MICRONAUT! set "TARGET_CANDIDATE=micronaut"
 
 call :GetCandidateEnvVar
 
@@ -2714,18 +2956,39 @@ if "!CLI_VENDOR!"=="" (
     echo 6. Microsoft Build of OpenJDK
     echo 7. BellSoft Liberica
     echo 8. IBM Semeru ^(OpenJ9^)
-    echo 9. Cancel
+    echo 9. SapMachine ^(SAP^)
+    echo 10. Mandrel ^(Red Hat GraalVM^)
+    echo 11. Alibaba Dragonwell
+    echo 12. Tencent Kona
+    echo 13. Cancel
     echo.
-    "%CHOICE_BIN%" /C 123456789 /N /M "Select vendor (1-9): "
-    if !errorlevel!==9 goto :eof
-    if !errorlevel!==1 set "CLI_VENDOR=Oracle"
-    if !errorlevel!==2 set "CLI_VENDOR=Adoptium"
-    if !errorlevel!==3 set "CLI_VENDOR=GraalVM"
-    if !errorlevel!==4 set "CLI_VENDOR=Corretto"
-    if !errorlevel!==5 set "CLI_VENDOR=Zulu"
-    if !errorlevel!==6 set "CLI_VENDOR=Microsoft"
-    if !errorlevel!==7 set "CLI_VENDOR=Liberica"
-    if !errorlevel!==8 set "CLI_VENDOR=Semeru"
+:GET_DL_VENDOR_CHOICE
+    set "V_CHOICE="
+    set /p "V_CHOICE=Select vendor (1-13): "
+    if not defined V_CHOICE goto :eof
+    if "!V_CHOICE!"=="" goto :eof
+    set "V_CHOICE=!V_CHOICE:"=!"
+    set "V_CHOICE=!V_CHOICE: =!"
+    if "!V_CHOICE!"=="" goto GET_DL_VENDOR_CHOICE
+    set "NUM_TEST="
+    if not "!V_CHOICE!"=="!V_CHOICE:;=!" set "NUM_TEST=;"
+    for /f "eol= delims=0123456789" %%A in ("!V_CHOICE!") do set "NUM_TEST=%%A"
+    if defined NUM_TEST goto GET_DL_VENDOR_CHOICE
+    if !V_CHOICE! LSS 1 goto GET_DL_VENDOR_CHOICE
+    if !V_CHOICE! GTR 13 goto GET_DL_VENDOR_CHOICE
+    if !V_CHOICE!==13 goto :eof
+    if !V_CHOICE!==1 set "CLI_VENDOR=Oracle"
+    if !V_CHOICE!==2 set "CLI_VENDOR=Adoptium"
+    if !V_CHOICE!==3 set "CLI_VENDOR=GraalVM"
+    if !V_CHOICE!==4 set "CLI_VENDOR=Corretto"
+    if !V_CHOICE!==5 set "CLI_VENDOR=Zulu"
+    if !V_CHOICE!==6 set "CLI_VENDOR=Microsoft"
+    if !V_CHOICE!==7 set "CLI_VENDOR=Liberica"
+    if !V_CHOICE!==8 set "CLI_VENDOR=Semeru"
+    if !V_CHOICE!==9 set "CLI_VENDOR=SapMachine"
+    if !V_CHOICE!==10 set "CLI_VENDOR=Mandrel"
+    if !V_CHOICE!==11 set "CLI_VENDOR=Dragonwell"
+    if !V_CHOICE!==12 set "CLI_VENDOR=Kona"
 )
 
 rem Normalize vendor aliases
@@ -2733,6 +2996,14 @@ if /i "!CLI_VENDOR!"=="bellsoft" set "CLI_VENDOR=Liberica"
 if /i "!CLI_VENDOR!"=="ibm" set "CLI_VENDOR=Semeru"
 if /i "!CLI_VENDOR!"=="openj9" set "CLI_VENDOR=Semeru"
 if /i "!CLI_VENDOR!"=="temurin" set "CLI_VENDOR=Adoptium"
+if /i "!CLI_VENDOR!"=="sap" set "CLI_VENDOR=SapMachine"
+if /i "!CLI_VENDOR!"=="sapmachine" set "CLI_VENDOR=SapMachine"
+if /i "!CLI_VENDOR!"=="redhat-mandrel" set "CLI_VENDOR=Mandrel"
+if /i "!CLI_VENDOR!"=="mandrel" set "CLI_VENDOR=Mandrel"
+if /i "!CLI_VENDOR!"=="alibaba" set "CLI_VENDOR=Dragonwell"
+if /i "!CLI_VENDOR!"=="dragonwell" set "CLI_VENDOR=Dragonwell"
+if /i "!CLI_VENDOR!"=="tencent" set "CLI_VENDOR=Kona"
+if /i "!CLI_VENDOR!"=="kona" set "CLI_VENDOR=Kona"
 
 rem Check if this vendor and major version combination is already installed
 if "!IS_UPDATER!" NEQ "1" (
@@ -2799,6 +3070,10 @@ if /i "!CLI_VENDOR!"=="zulu" goto :Resolve_Zulu
 if /i "!CLI_VENDOR!"=="microsoft" goto :Resolve_Microsoft
 if /i "!CLI_VENDOR!"=="liberica" goto :Resolve_Liberica
 if /i "!CLI_VENDOR!"=="semeru" goto :Resolve_Semeru
+if /i "!CLI_VENDOR!"=="sapmachine" goto :Resolve_SapMachine
+if /i "!CLI_VENDOR!"=="mandrel" goto :Resolve_Mandrel
+if /i "!CLI_VENDOR!"=="dragonwell" goto :Resolve_Dragonwell
+if /i "!CLI_VENDOR!"=="kona" goto :Resolve_Kona
 if "!API_URL!"=="" (
     echo %cRED%[ ERROR  ]%cRESET% Unknown or unsupported vendor: !CLI_VENDOR!
     if "!CLI_COMMAND!"=="" pause
@@ -2825,13 +3100,14 @@ if "!DL_VERSION!"=="23" set "API_URL=https://download.oracle.com/java/23/archive
 if "!DL_VERSION!"=="24" set "API_URL=https://download.oracle.com/java/24/archive/jdk-24.0.2_windows-x64_bin.zip"
 set "API_SHA256_URL=!API_URL!.sha256"
 set "API_SHA256="
+if "!IS_LOCKING_ONLY!"=="1" goto :FinishLockResolution
 goto :FetchAndExtract
 
 :Resolve_Adoptium
 set "DL_VENDOR=Adoptium"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying Adoptium API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/assets/feature_releases/!DL_VERSION!/ga?architecture=!SYS_ARCH!&image_type=jdk&jvm_impl=hotspot&os=windows&page=0&page_size=1' -UseBasicParsing -TimeoutSec 15; if ($res[0].binaries[0].package.link -and $res[0].binaries[0].package.checksum) { Write-Output ('API_URL='+$res[0].binaries[0].package.link); Write-Output ('API_SHA256='+$res[0].binaries[0].package.checksum) } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%LOCALAPPDATA%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%USERPROFILE%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/assets/feature_releases/!DL_VERSION!/ga?architecture=!SYS_ARCH!&image_type=jdk&jvm_impl=hotspot&os=windows&page=0&page_size=1' -UseBasicParsing -TimeoutSec 15; if ($res[0].binaries[0].package.link -and $res[0].binaries[0].package.checksum) { Write-Output ('API_URL='+$res[0].binaries[0].package.link); Write-Output ('API_SHA256='+$res[0].binaries[0].package.checksum) } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
 goto Run_API_Query
 
 :Resolve_GraalVM
@@ -2844,7 +3120,7 @@ if /i "!SYS_ARCH!" NEQ "x64" (
 )
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying GraalVM GitHub API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/graalvm/graalvm-ce-builds/releases' -UseBasicParsing -TimeoutSec 15; $t = $null; foreach ($r in $res) { if ($r.tag_name -like 'jdk-!DL_VERSION!*') { $t = $r; break } }; if (-not $t) { exit 1 }; $u = $null; $s = $null; foreach ($a in $t.assets) { if ($a.name -match 'windows-(x64|amd64)_bin\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'windows-(x64|amd64)_bin\.zip\.sha256$') { $s = $a.browser_download_url } }; if ($u -and $s) { Write-Output ('API_URL='+$u); Write-Output ('API_SHA256_URL='+$s) } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%LOCALAPPDATA%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%USERPROFILE%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = $null; try { $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/graalvm/graalvm-ce-builds/releases' -UseBasicParsing -TimeoutSec 15 } catch { }; $t = $null; $foundVer = !DL_VERSION!; if ($res) { foreach ($r in $res) { if ($r.tag_name -like 'jdk-!DL_VERSION!*') { $t = $r; break } }; if (-not $t) { foreach ($r in $res) { $a = $r.assets | Where-Object { $_.name -match 'windows-(x64|amd64)_bin\.zip$' } | Select-Object -First 1; if ($a -and ($r.tag_name -match 'jdk-(\d+)')) { $foundVer = [int]$matches[1]; $t = $r; break } } } }; if (-not $t) { try { $req = [Net.HttpWebRequest]::Create('https://github.com/graalvm/graalvm-ce-builds/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000; $resp = $req.GetResponse(); $tag = $null; if ($resp.Headers['Location'] -match '/releases/tag/([a-zA-Z0-9._+-]+)$') { $tag = $matches[1] }; $resp.Close(); if ($tag) { $tagEnc = [System.Uri]::EscapeDataString($tag); $html = (New-Object Net.WebClient).DownloadString('https://github.com/graalvm/graalvm-ce-builds/releases/expanded_assets/' + $tagEnc); $m = [regex]::Match($html, 'graalvm-community-jdk-(\d+)[A-Za-z0-9._+-]*windows-(x64|amd64)_bin\.zip'); if ($m.Success) { $foundVer = [int]$m.Groups[1].Value; $u = 'https://github.com/graalvm/graalvm-ce-builds/releases/download/' + $tagEnc + '/' + $m.Value; $s = $u + '.sha256'; Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=' + $u); Write-Output ('API_SHA256_URL=' + $s); exit 0 } } } catch { } }; if ($t) { $u = $null; $s = $null; foreach ($a in $t.assets) { if ($a.name -match 'windows-(x64|amd64)_bin\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'windows-(x64|amd64)_bin\.zip\.sha256$') { $s = $a.browser_download_url } }; if ($u -and $s) { Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=' + $u); Write-Output ('API_SHA256_URL=' + $s) } else { exit 1 } } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
 goto Run_API_Query
 
 :Resolve_Corretto
@@ -2854,13 +3130,14 @@ echo %cBLUE%[ ACTION ]%cRESET% Resolving Amazon Corretto JDK !DL_VERSION! URLs..
 set "API_URL=https://corretto.aws/downloads/latest/amazon-corretto-!DL_VERSION!-!SYS_ARCH!-windows-jdk.zip"
 set "API_SHA256_URL=https://corretto.aws/downloads/latest_sha256/amazon-corretto-!DL_VERSION!-!SYS_ARCH!-windows-jdk.zip"
 set "API_SHA256="
+if "!IS_LOCKING_ONLY!"=="1" goto :FinishLockResolution
 goto :FetchAndExtract
 
 :Resolve_Zulu
 set "DL_VENDOR=Zulu"
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Querying Azul Zulu API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $list = Invoke-RestMethod -Uri 'https://api.azul.com/metadata/v1/zulu/packages/?java_version=!DL_VERSION!&os=windows&arch=!ZULU_ARCH!&archive_type=zip&java_package_type=jdk&javafx_bundled=false&release_status=ga&availability_types=CA&latest=true&page=1&page_size=1' -UseBasicParsing -TimeoutSec 15; if (-not $list -or -not $list[0].download_url) { exit 1 }; Write-Output ('API_URL='+$list[0].download_url); $uuid = $list[0].package_uuid; if ($uuid) { try { $d = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/'+$uuid) -UseBasicParsing -TimeoutSec 15; if ($d.sha256_hash) { Write-Output ('API_SHA256='+$d.sha256_hash) } } catch { } } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%LOCALAPPDATA%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%USERPROFILE%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $list = Invoke-RestMethod -Uri 'https://api.azul.com/metadata/v1/zulu/packages/?java_version=!DL_VERSION!&os=windows&arch=!ZULU_ARCH!&archive_type=zip&java_package_type=jdk&javafx_bundled=false&release_status=ga&availability_types=CA&latest=true&page=1&page_size=1' -UseBasicParsing -TimeoutSec 15; if (-not $list -or -not $list[0].download_url) { exit 1 }; Write-Output ('API_URL='+$list[0].download_url); $uuid = $list[0].package_uuid; if ($uuid) { try { $d = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/'+$uuid) -UseBasicParsing -TimeoutSec 15; if ($d.sha256_hash) { Write-Output ('API_SHA256='+$d.sha256_hash) } } catch { } } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
 goto Run_API_Query
 
 :Resolve_Microsoft
@@ -2870,6 +3147,7 @@ echo %cBLUE%[ ACTION ]%cRESET% Resolving Microsoft Build of OpenJDK !DL_VERSION!
 set "API_URL=https://aka.ms/download-jdk/microsoft-jdk-!DL_VERSION!-windows-!SYS_ARCH!.zip"
 set "API_SHA256_URL=https://aka.ms/download-jdk/microsoft-jdk-!DL_VERSION!-windows-!SYS_ARCH!.zip.sha256sum.txt"
 set "API_SHA256="
+if "!IS_LOCKING_ONLY!"=="1" goto :FinishLockResolution
 goto :FetchAndExtract
 
 :Resolve_Liberica
@@ -2892,8 +3170,66 @@ if /i "!SYS_ARCH!" NEQ "x64" (
     exit /b 1
 )
 echo.
-echo %cBLUE%[ ACTION ]%cRESET% Querying IBM Semeru GitHub API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/ibmruntimes/semeru!DL_VERSION!-binaries/releases/latest' -UseBasicParsing -TimeoutSec 15; if (-not $res -or -not $res.assets) { exit 1 }; $u = $null; $s = $null; foreach ($a in $res.assets) { if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip\.sha256\.txt$') { $s = $a.browser_download_url } }; if ($u) { Write-Output ('API_URL='+$u); if ($s) { Write-Output ('API_SHA256_URL='+$s) } } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%LOCALAPPDATA%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%USERPROFILE%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+echo %cBLUE%[ ACTION ]%cRESET% Querying IBM Semeru release data for JDK !DL_VERSION!...
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = $null; $foundVer = !DL_VERSION!; $tag = $null; $searchVers = @($foundVer) + (27..8 | Where-Object { $_ -lt $foundVer }); foreach ($v in $searchVers) { try { $rel = Invoke-RestMethod -Uri ('https://api.github.com/repos/ibmruntimes/semeru' + $v + '-binaries/releases/latest') -UseBasicParsing -TimeoutSec 5; if ($rel.assets) { $res = $rel; $foundVer = $v; break } } catch { }; if (-not $res) { try { $req = [Net.HttpWebRequest]::Create('https://github.com/ibmruntimes/semeru' + $v + '-binaries/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000; $resp = $req.GetResponse(); try { if ($resp.Headers['Location'] -match '/releases/tag/([a-zA-Z0-9._+-]+)$') { $tag = $matches[1]; $foundVer = $v; break } } finally { $resp.Close() } } catch { } }; if ($res -or $tag) { break } }; if ($tag -and -not $res) { $tagEnc = [System.Uri]::EscapeDataString($tag); $html = (New-Object Net.WebClient).DownloadString('https://github.com/ibmruntimes/semeru' + $foundVer + '-binaries/releases/expanded_assets/' + $tagEnc); $m = [regex]::Match($html, 'ibm-semeru-open-jdk_x64_windows_[a-zA-Z0-9._+-]+\.zip'); if ($m.Success) { $u = 'https://github.com/ibmruntimes/semeru' + $foundVer + '-binaries/releases/download/' + $tagEnc + '/' + $m.Value; $s = $u + '.sha256.txt'; Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=' + $u); Write-Output ('API_SHA256_URL=' + $s); exit 0 } }; if (-not $res -or -not $res.assets) { exit 1 }; $u = $null; $s = $null; foreach ($a in $res.assets) { if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip\.sha256\.txt$') { $s = $a.browser_download_url } }; if ($u) { Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=' + $u); if ($s) { Write-Output ('API_SHA256_URL=' + $s) } } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+goto Run_API_Query
+
+:Resolve_SapMachine
+set "DL_VENDOR=SapMachine"
+if /i "!SYS_ARCH!" NEQ "x64" (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% SapMachine does not publish native Windows ARM64 builds.
+    echo            Please use Adoptium, Zulu, or Microsoft for Windows ARM64.
+    if "!CLI_COMMAND!"=="" pause
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Querying SapMachine release data for JDK !DL_VERSION!...
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://sap.github.io/SapMachine/assets/data/sapmachine_releases.json' -UseBasicParsing -TimeoutSec 15; $foundVer = '!DL_VERSION!'; $vObj = $res.assets.$foundVer; if (-not $vObj) { $avail = @($res.assets.psobject.properties.Name | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ } | Sort-Object -Descending); if ($avail.Count -gt 0) { $foundVer = '' + $avail[0]; $vObj = $res.assets.$foundVer } }; if ($vObj -and $vObj.releases[0].jdk.'windows-x64') { $u = $vObj.releases[0].jdk.'windows-x64'; Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=' + $u); if ($vObj.checksums[0].jdk.'windows-x64') { $c = ($vObj.checksums[0].jdk.'windows-x64' -split '\s+')[-1].Trim(); Write-Output ('API_SHA256=' + $c) } } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+goto Run_API_Query
+
+:Resolve_Mandrel
+set "DL_VENDOR=Mandrel"
+if /i "!SYS_ARCH!" NEQ "x64" (
+    echo.
+    echo %cYELLOW%[ WARNING]%cRESET% Mandrel does not publish native Windows ARM64 builds.
+    echo            Downloading x64 build ^(runs under Windows 11 Prism x64 emulation^).
+    echo            Tip: Use Adoptium, Zulu, or Microsoft for native Windows ARM64 builds.
+)
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Querying Mandrel release data for JDK !DL_VERSION!...
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; $res = $null; try { $res = Invoke-RestMethod -Uri 'https://api.github.com/repos/graalvm/mandrel/releases' -Headers $h -UseBasicParsing -TimeoutSec 10 } catch { }; $t = $null; $foundVer = !DL_VERSION!; if ($res) { foreach ($r in $res) { if (-not $r.prerelease -and ($r.assets | Where-Object { $_.name -like ('mandrel-java!DL_VERSION!-windows-amd64-*.zip') })) { $t = $r; break } }; if (-not $t) { foreach ($r in $res) { if (-not $r.prerelease) { $ma = $r.assets | Where-Object { $_.name -match 'mandrel-java(\d+)-windows-amd64-.*\.zip$' } | Select-Object -First 1; if ($ma -and ($ma.name -match 'mandrel-java(\d+)-windows-amd64')) { $foundVer = [int]$matches[1]; $t = $r; break } } } } }; if (-not $t) { try { $req = [Net.HttpWebRequest]::Create('https://github.com/graalvm/mandrel/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000; $resp = $req.GetResponse(); $tag = $null; if ($resp.Headers['Location'] -match '/releases/tag/([a-zA-Z0-9._+-]+)$') { $tag = $matches[1] }; $resp.Close(); if ($tag) { $tagEnc = [System.Uri]::EscapeDataString($tag); $html = (New-Object Net.WebClient).DownloadString('https://github.com/graalvm/mandrel/releases/expanded_assets/' + $tagEnc); $m = [regex]::Match($html, 'mandrel-java(\d+)-windows-amd64-([A-Za-z0-9._+-]+)\.zip'); if ($m.Success) { $foundVer = [int]$m.Groups[1].Value; $u = 'https://github.com/graalvm/mandrel/releases/download/' + $tagEnc + '/' + $m.Value; $s = $u + '.sha256'; Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=' + $u); Write-Output ('API_SHA256_URL=' + $s); exit 0 } } } catch { } }; if ($t) { $u = ($t.assets | Where-Object { $_.name -like ('mandrel-java' + $foundVer + '-windows-amd64-*.zip') } | Select-Object -First 1).browser_download_url; $s = ($t.assets | Where-Object { $_.name -like ('mandrel-java' + $foundVer + '-windows-amd64-*.zip.sha256') } | Select-Object -First 1).browser_download_url; if ($u) { Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=' + $u); if ($s) { Write-Output ('API_SHA256_URL=' + $s) } } else { exit 1 } } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+goto Run_API_Query
+
+:Resolve_Dragonwell
+set "DL_VENDOR=Dragonwell"
+if /i "!SYS_ARCH!" NEQ "x64" (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Alibaba Dragonwell does not publish Windows ARM64 builds.
+    echo            Please use Adoptium, Zulu, or Microsoft for Windows ARM64.
+    if "!CLI_COMMAND!"=="" pause
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Resolving Alibaba Dragonwell JDK !DL_VERSION! release...
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; $tag = $null; $foundVer = !DL_VERSION!; $searchVers = @($foundVer) + (26..8 | Where-Object { $_ -lt $foundVer }); foreach ($v in $searchVers) { try { $rel = Invoke-RestMethod -Uri ('https://api.github.com/repos/dragonwell-project/dragonwell' + $v + '/releases/latest') -Headers $h -UseBasicParsing -TimeoutSec 5; if ($rel.tag_name) { $tag = $rel.tag_name; $foundVer = $v; break } } catch { }; if (-not $tag) { try { $req = [Net.HttpWebRequest]::Create('https://github.com/dragonwell-project/dragonwell' + $v + '/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000; $resp = $req.GetResponse(); try { if ($resp.Headers['Location'] -match '/releases/tag/([a-zA-Z0-9._+-]+)$') { $tag = $matches[1]; $foundVer = $v; break } } finally { $resp.Close() } } catch { } }; if ($tag) { break } }; if (-not $tag) { exit 1 }; $tagEnc = [System.Uri]::EscapeDataString($tag); $html = (New-Object Net.WebClient).DownloadString('https://github.com/dragonwell-project/dragonwell' + $foundVer + '/releases/expanded_assets/' + $tagEnc); $zipMatch = [regex]::Match($html, 'Alibaba_Dragonwell_[A-Za-z0-9._+-]+_x64_windows\.zip'); if (-not $zipMatch.Success) { exit 1 }; $zipName = $zipMatch.Value; Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=https://github.com/dragonwell-project/dragonwell' + $foundVer + '/releases/download/' + $tagEnc + '/' + $zipName); Write-Output ('API_SHA256_URL=https://github.com/dragonwell-project/dragonwell' + $foundVer + '/releases/download/' + $tagEnc + '/' + $zipName + '.sha256.txt') } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+goto Run_API_Query
+
+:Resolve_Kona
+set "DL_VENDOR=Kona"
+if /i "!SYS_ARCH!" NEQ "x64" (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Tencent Kona does not publish Windows ARM64 builds.
+    echo            Please use Adoptium, Zulu, or Microsoft for Windows ARM64.
+    if "!CLI_COMMAND!"=="" pause
+    set "JVM_EXIT_CODE=1"
+    exit /b 1
+)
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Resolving Tencent Kona JDK !DL_VERSION! release...
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; $tag = $null; $foundVer = !DL_VERSION!; $searchVers = @($foundVer) + (26..8 | Where-Object { $_ -lt $foundVer }); foreach ($v in $searchVers) { try { $rel = Invoke-RestMethod -Uri ('https://api.github.com/repos/Tencent/TencentKona-' + $v + '/releases/latest') -Headers $h -UseBasicParsing -TimeoutSec 5; if ($rel.tag_name) { $tag = $rel.tag_name; $foundVer = $v; break } } catch { }; if (-not $tag) { try { $req = [Net.HttpWebRequest]::Create('https://github.com/Tencent/TencentKona-' + $v + '/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000; $resp = $req.GetResponse(); try { if ($resp.Headers['Location'] -match '/releases/tag/([a-zA-Z0-9._+-]+)$') { $tag = $matches[1]; $foundVer = $v; break } } finally { $resp.Close() } } catch { } }; if ($tag) { break } }; if (-not $tag) { exit 1 }; $tagEnc = [System.Uri]::EscapeDataString($tag); $html = (New-Object Net.WebClient).DownloadString('https://github.com/Tencent/TencentKona-' + $foundVer + '/releases/expanded_assets/' + $tagEnc); $zipMatch = [regex]::Match($html, 'TencentKona-[A-Za-z0-9._+-]+windows[A-Za-z0-9._+-]*\.zip'); if (-not $zipMatch.Success) { exit 1 }; $zipName = $zipMatch.Value; Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=https://github.com/Tencent/TencentKona-' + $foundVer + '/releases/download/' + $tagEnc + '/' + $zipName); Write-Output ('API_MD5_URL=https://github.com/Tencent/TencentKona-' + $foundVer + '/releases/download/' + $tagEnc + '/' + $zipName + '.md5') } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
 goto Run_API_Query
 
 :Run_API_Query
@@ -2902,13 +3238,16 @@ if errorlevel 1 (
     set "JVM_EXIT_CODE=1"
     exit /b 1
 )
-set "API_URL=" & set "API_SHA256=" & set "API_SHA256_URL=" & set "API_SHA1=" & set "API_ERROR="
+set "API_URL=" & set "API_RESOLVED_VER=" & set "API_SHA256=" & set "API_SHA256_URL=" & set "API_SHA1=" & set "API_MD5=" & set "API_MD5_URL=" & set "API_ERROR="
 set "PS_CMD=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; !PS_CMD!"
 for /f "tokens=1,* delims==" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do (
     if "%%A"=="API_URL" set "API_URL=%%B"
+    if "%%A"=="API_VERSION" set "API_RESOLVED_VER=%%B"
     if "%%A"=="API_SHA256" set "API_SHA256=%%B"
     if "%%A"=="API_SHA256_URL" set "API_SHA256_URL=%%B"
     if "%%A"=="API_SHA1" set "API_SHA1=%%B"
+    if "%%A"=="API_MD5" set "API_MD5=%%B"
+    if "%%A"=="API_MD5_URL" set "API_MD5_URL=%%B"
     if "%%A"=="API_ERROR" set "API_ERROR=%%B"
 )
 
@@ -2933,6 +3272,45 @@ if "!API_URL!"=="" (
     set "JVM_EXIT_CODE=1"
     exit /b 1
 )
+
+if defined API_RESOLVED_VER if "!API_RESOLVED_VER!" NEQ "!DL_VERSION!" (
+    call :ValidateStrictIdentifier "!API_RESOLVED_VER!" API_RESOLVED_VER
+    if not errorlevel 1 (
+        echo.
+        echo %cBLUE%[  INFO  ]%cRESET% !DL_VENDOR! does not publish JDK !DL_VERSION!.
+        echo            Auto-falling back to latest available release: JDK !API_RESOLVED_VER!...
+        set "DL_VERSION=!API_RESOLVED_VER!"
+        if "!IS_UPDATER!" NEQ "1" (
+            set "EXISTING_FALLBACK_PATH="
+            for /l %%k in (1,1,!JDK_COUNT!) do (
+                if "!JDK_MAJOR_%%k!"=="!DL_VERSION!" (
+                    if /i "!JDK_VENDOR_%%k!"=="!CLI_VENDOR!" (
+                        set "EXISTING_FALLBACK_PATH=!JDK_PATH_%%k!"
+                    )
+                )
+            )
+            if defined EXISTING_FALLBACK_PATH (
+                echo.
+                echo %cYELLOW%[ WARNING]%cRESET% !CLI_VENDOR! JDK !DL_VERSION! is already installed on your system:
+                echo            - !EXISTING_FALLBACK_PATH!
+                echo.
+                if "!FORCE_YES!"=="1" (
+                    echo %cBLUE%[  INFO  ]%cRESET% Reinstalling/overwriting due to --yes flag...
+                ) else (
+                    "%CHOICE_BIN%" /C yn /N /M "Would you like to reinstall and overwrite it? (y/N): "
+                    if !errorlevel! NEQ 1 (
+                        echo %cBLUE%[  INFO  ]%cRESET% Installation cancelled.
+                        if "!CLI_COMMAND!"=="" pause
+                        set "JVM_EXIT_CODE=0"
+                        exit /b 0
+                    )
+                )
+            )
+        )
+    )
+)
+
+if "!IS_LOCKING_ONLY!"=="1" goto :FinishLockResolution
 goto :FetchAndExtract
 
 :FetchLatestVersions
@@ -2977,6 +3355,14 @@ if defined API_SHA1 (
     set "DL_CHKSUM_VAL=!API_SHA1!"
     set "DL_CHKSUM_TYPE=SHA1"
 )
+if defined API_MD5_URL (
+    set "DL_CHKSUM_URL=!API_MD5_URL!"
+    set "DL_CHKSUM_TYPE=MD5"
+)
+if defined API_MD5 (
+    set "DL_CHKSUM_VAL=!API_MD5!"
+    set "DL_CHKSUM_TYPE=MD5"
+)
 set "DL_STRIP_ROOT=0"
 
 call :ExecuteSharedDownloader
@@ -2990,6 +3376,7 @@ if !errorlevel! NEQ 0 (
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
 )
 
+:DoElevatedJdkInstall
 set "NEW_FOLDER="
 set "ROOT_COUNT=0"
 for /d %%D in ("!EXTRACT_DIR!\*") do (
@@ -3039,6 +3426,16 @@ call :ReleaseStateLock
 if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
     echo.
     echo %cGREEN%[   OK   ]%cRESET% !DL_VENDOR! JDK !DL_VERSION! successfully installed!
+    if "!FLAG_CREATE_LOCK!"=="1" (
+        set "ENTRY_CANDIDATE=java"
+        set "ENTRY_VENDOR=!DL_VENDOR!"
+        set "ENTRY_VERSION=!DL_VERSION!"
+        set "ENTRY_ARCH=!SYS_ARCH!"
+        set "ENTRY_URL=!DL_URL!"
+        set "ENTRY_CHKSUM_TYPE=!DL_CHKSUM_TYPE!"
+        set "ENTRY_CHKSUM=!DL_CHKSUM_VAL!"
+        call :WriteLockFileEntry
+    )
     if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     endlocal & set "NEEDS_RESCAN=1" & exit /b 0
 ) else (
@@ -3174,6 +3571,12 @@ echo %cBLUE%[ ACTION ]%cRESET% Removing JAVA_HOME and Ecosystem variables from r
 "%REG_BIN%" delete "HKCU\Environment" /v KOTLIN_HOME /f >nul 2>&1
 "%REG_BIN%" delete "HKCU\Environment" /v SCALA_HOME /f >nul 2>&1
 "%REG_BIN%" delete "HKCU\Environment" /v GROOVY_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v ANT_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v SBT_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v JBANG_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v QUARKUS_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v SPRING_HOME /f >nul 2>&1
+"%REG_BIN%" delete "HKCU\Environment" /v MICRONAUT_HOME /f >nul 2>&1
 
 echo %cBLUE%[ ACTION ]%cRESET% Removing active directory junctions...
 rmdir "%LOCALAPPDATA%\DiamTek\JVM\current" >nul 2>&1
@@ -3212,7 +3615,7 @@ set "USR_PATH="
 for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v Path 2^>nul') do set "USR_PATH=%%B"
 if defined USR_PATH (
     set "CLEAN_USR_PATH="
-    set "ENV_USR_PURGE=!ENV_PURGE_LIST!;%%MAVEN_HOME%%\bin;%%GRADLE_HOME%%\bin;%%KOTLIN_HOME%%\bin;%%SCALA_HOME%%\bin;%%GROOVY_HOME%%\bin"
+    set "ENV_USR_PURGE=!ENV_PURGE_LIST!;%%MAVEN_HOME%%\bin;%%GRADLE_HOME%%\bin;%%KOTLIN_HOME%%\bin;%%SCALA_HOME%%\bin;%%GROOVY_HOME%%\bin;%%ANT_HOME%%\bin;%%SBT_HOME%%\bin;%%JBANG_HOME%%\bin;%%QUARKUS_HOME%%\bin;%%SPRING_HOME%%\bin;%%MICRONAUT_HOME%%\bin"
     for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$purges = $env:ENV_USR_PURGE -split ';' | Where-Object { $_ } | ForEach-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') }; $p = [Environment]::GetEnvironmentVariable('Path', 'User'); if ($p) { ($p -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') -and $_.TrimEnd('\') -ne '%%JAVA_HOME%%\bin' }) -join ';' }"') do set "CLEAN_USR_PATH=%%A"
 
     if defined CLEAN_USR_PATH (
@@ -3229,13 +3632,19 @@ if defined GRADLE_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!GRADLE_HOME!\bin"
 if defined KOTLIN_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!KOTLIN_HOME!\bin"
 if defined SCALA_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!SCALA_HOME!\bin"
 if defined GROOVY_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!GROOVY_HOME!\bin"
+if defined ANT_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!ANT_HOME!\bin"
+if defined SBT_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!SBT_HOME!\bin"
+if defined JBANG_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!JBANG_HOME!\bin"
+if defined QUARKUS_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!QUARKUS_HOME!\bin"
+if defined SPRING_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!SPRING_HOME!\bin"
+if defined MICRONAUT_HOME set "SESS_PURGE_LIST=!SESS_PURGE_LIST!;!MICRONAUT_HOME!\bin"
 
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$purges = $env:SESS_PURGE_LIST -split ';' | Where-Object { $_ } | ForEach-Object { [Environment]::ExpandEnvironmentVariables($_).TrimEnd('\') }; ($env:PATH -split ';' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd('\') }) -join ';'"') do set "CLEAN_PATH=%%A"
 
 rem Export active session path
 call :ReleaseStateLock
 for /f "delims=" %%A in ("!CLEAN_PATH!") do (
-    endlocal & set "PATH=%%~A" & set "JAVA_HOME=" & set "MAVEN_HOME=" & set "GRADLE_HOME=" & set "KOTLIN_HOME=" & set "SCALA_HOME=" & set "GROOVY_HOME="
+    endlocal & set "PATH=%%~A" & set "JAVA_HOME=" & set "MAVEN_HOME=" & set "GRADLE_HOME=" & set "KOTLIN_HOME=" & set "SCALA_HOME=" & set "GROOVY_HOME=" & set "ANT_HOME=" & set "SBT_HOME=" & set "JBANG_HOME=" & set "QUARKUS_HOME=" & set "SPRING_HOME=" & set "MICRONAUT_HOME="
 )
 echo %cGREEN%[   OK   ]%cRESET% Java environment variables cleared.
 echo            Your terminal will automatically sync when you exit the menu.
@@ -3297,6 +3706,10 @@ set "HAS_ZULU=0"
 set "HAS_MICROSOFT=0"
 set "HAS_LIBERICA=0"
 set "HAS_SEMERU=0"
+set "HAS_SAPMACHINE=0"
+set "HAS_MANDREL=0"
+set "HAS_DRAGONWELL=0"
+set "HAS_KONA=0"
 set "HAS_CUSTOM=0"
 
 for /l %%k in (1,1,!JDK_COUNT!) do (
@@ -3308,6 +3721,10 @@ for /l %%k in (1,1,!JDK_COUNT!) do (
     if /i "!JDK_VENDOR_%%k!"=="Microsoft" set "HAS_MICROSOFT=1"
     if /i "!JDK_VENDOR_%%k!"=="Liberica" set "HAS_LIBERICA=1"
     if /i "!JDK_VENDOR_%%k!"=="Semeru" set "HAS_SEMERU=1"
+    if /i "!JDK_VENDOR_%%k!"=="SapMachine" set "HAS_SAPMACHINE=1"
+    if /i "!JDK_VENDOR_%%k!"=="Mandrel" set "HAS_MANDREL=1"
+    if /i "!JDK_VENDOR_%%k!"=="Dragonwell" set "HAS_DRAGONWELL=1"
+    if /i "!JDK_VENDOR_%%k!"=="Kona" set "HAS_KONA=1"
     if /i "!JDK_VENDOR_%%k!"=="Custom" set "HAS_CUSTOM=1"
 )
 
@@ -3353,6 +3770,26 @@ if "!HAS_SEMERU!"=="1" (
     set /a P_OPT+=1
     set "OPT_P_SEMERU=!P_OPT!"
     echo !OPT_P_SEMERU!. Semeru
+)
+if "!HAS_SAPMACHINE!"=="1" (
+    set /a P_OPT+=1
+    set "OPT_P_SAPMACHINE=!P_OPT!"
+    echo !OPT_P_SAPMACHINE!. SapMachine
+)
+if "!HAS_MANDREL!"=="1" (
+    set /a P_OPT+=1
+    set "OPT_P_MANDREL=!P_OPT!"
+    echo !OPT_P_MANDREL!. Mandrel
+)
+if "!HAS_DRAGONWELL!"=="1" (
+    set /a P_OPT+=1
+    set "OPT_P_DRAGONWELL=!P_OPT!"
+    echo !OPT_P_DRAGONWELL!. Dragonwell
+)
+if "!HAS_KONA!"=="1" (
+    set /a P_OPT+=1
+    set "OPT_P_KONA=!P_OPT!"
+    echo !OPT_P_KONA!. Kona
 )
 if "!HAS_CUSTOM!"=="1" (
     set /a P_OPT+=1
@@ -3405,6 +3842,10 @@ if defined OPT_P_ZULU if !v_choice!==!OPT_P_ZULU! set "TARGET_VENDOR=Zulu"
 if defined OPT_P_MICROSOFT if !v_choice!==!OPT_P_MICROSOFT! set "TARGET_VENDOR=Microsoft"
 if defined OPT_P_LIBERICA if !v_choice!==!OPT_P_LIBERICA! set "TARGET_VENDOR=Liberica"
 if defined OPT_P_SEMERU if !v_choice!==!OPT_P_SEMERU! set "TARGET_VENDOR=Semeru"
+if defined OPT_P_SAPMACHINE if !v_choice!==!OPT_P_SAPMACHINE! set "TARGET_VENDOR=SapMachine"
+if defined OPT_P_MANDREL if !v_choice!==!OPT_P_MANDREL! set "TARGET_VENDOR=Mandrel"
+if defined OPT_P_DRAGONWELL if !v_choice!==!OPT_P_DRAGONWELL! set "TARGET_VENDOR=Dragonwell"
+if defined OPT_P_KONA if !v_choice!==!OPT_P_KONA! set "TARGET_VENDOR=Kona"
 if defined OPT_P_CUSTOM if !v_choice!==!OPT_P_CUSTOM! set "TARGET_VENDOR=Custom"
 
 :PathEnvironmentMenu_Vendor
@@ -3583,9 +4024,10 @@ set "BV_OPT_ALL=" & set "BV_OPT_CANCEL="
 set "BV_HAS_ORACLE=0" & set "BV_HAS_ADOPTIUM=0" & set "BV_HAS_GRAALVM=0"
 set "BV_HAS_CORRETTO=0" & set "BV_HAS_ZULU=0" & set "BV_HAS_MICROSOFT=0"
 set "BV_HAS_LIBERICA=0" & set "BV_HAS_SEMERU=0"
+set "BV_HAS_SAPMACHINE=0" & set "BV_HAS_MANDREL=0" & set "BV_HAS_DRAGONWELL=0" & set "BV_HAS_KONA=0"
 
 for /l %%k in (1,1,!JDK_COUNT!) do (
-    for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru) do (
+    for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru SapMachine Mandrel Dragonwell Kona) do (
         if /i "!JDK_VENDOR_%%k!"=="%%V" set "BV_HAS_%%V=1"
     )
 )
@@ -3598,7 +4040,7 @@ if "%~1"=="SHOW_ALL" (
 )
 echo.
 echo %cGRAY%--- Manage by Vendor ---%cRESET%
-for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru) do (
+for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru SapMachine Mandrel Dragonwell Kona) do (
     if "!BV_HAS_%%V!"=="1" (
         set /a BV_OPT+=1
         set "BV_MAP_!BV_OPT!=%%V"
@@ -3611,11 +4053,29 @@ set /a BV_OPT_CANCEL=BV_OPT+1
 echo !BV_OPT_CANCEL!. Go back
 echo.
 
+if !BV_OPT_CANCEL! GTR 9 goto GET_BV_CHOICE_MANUAL
+
 set "BV_KEYS="
 for /l %%k in (1,1,!BV_OPT_CANCEL!) do set "BV_KEYS=!BV_KEYS!%%k"
 "%CHOICE_BIN%" /C !BV_KEYS! /N /M "Select option (1-!BV_OPT_CANCEL!): "
 set "bv_choice=!errorlevel!"
+goto PROCESS_BV_CHOICE
 
+:GET_BV_CHOICE_MANUAL
+set bv_choice=
+set /p bv_choice="Select option (1-!BV_OPT_CANCEL!): "
+if not defined bv_choice goto GET_BV_CHOICE_MANUAL
+set "bv_choice=!bv_choice:"=!"
+set "bv_choice=!bv_choice: =!"
+if "!bv_choice!"=="" goto GET_BV_CHOICE_MANUAL
+set "NUM_TEST="
+if not "!bv_choice!"=="!bv_choice:;=!" set "NUM_TEST=;"
+for /f "eol= delims=0123456789" %%A in ("!bv_choice!") do set "NUM_TEST=%%A"
+if defined NUM_TEST goto GET_BV_CHOICE_MANUAL
+if !bv_choice! LSS 1 goto GET_BV_CHOICE_MANUAL
+if !bv_choice! GTR !BV_OPT_CANCEL! goto GET_BV_CHOICE_MANUAL
+
+:PROCESS_BV_CHOICE
 if !bv_choice!==!BV_OPT_CANCEL! (
     set "TARGET_VENDOR=CANCEL"
     goto :eof
@@ -3681,7 +4141,7 @@ echo ------------------------------------------------------------
 echo %cBLUE%[ ACTION ]%cRESET% Analyzing !UP_NAME! ^(!UP_VENDOR!^)...
 
 set "VENDOR_SUPPORTED="
-for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru) do (
+for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru SapMachine Mandrel Dragonwell Kona) do (
     if /i "!UP_VENDOR!"=="%%V" set "VENDOR_SUPPORTED=1"
 )
 if not defined VENDOR_SUPPORTED (
@@ -3713,23 +4173,54 @@ set "UPDATE_CHECKER_PS1=%JVM_SECURE_TEMP%\jvm_update_!UPD_RANDOM_NAME!.ps1"
     echo     $implVerLine = $content ^| Where-Object { $_ -match "^IMPLEMENTOR_VERSION=" } ^| Select-Object -First 1
     echo     $semVerLine = $content ^| Where-Object { $_ -match "^SEMANTIC_VERSION=" } ^| Select-Object -First 1
     echo     $javaVerLine = $content ^| Where-Object { $_ -match "^JAVA_VERSION=" } ^| Select-Object -First 1
+    echo     $runtimeVerLine = $content ^| Where-Object { $_ -match "^JAVA_RUNTIME_VERSION=" } ^| Select-Object -First 1
     echo     if ^($Vendor -eq "Semeru" -and $implVerLine^) {
-    echo         $localVersion = ^($implVerLine -split "=", 2^)[1].Trim^([char]34, ' '^).TrimStart^('jdk-'^)
+    echo         $raw = ^($implVerLine -split "=", 2^)[1].Trim^([char]34, [char]39, ' '^).TrimStart^('jdk-'^)
+    echo         if ^($raw -match "([0-9]+[0-9A-Za-z._+-]*)"^) { $localVersion = $matches[1] }
     echo     } elseif ^($Vendor -eq "Corretto" -and $implVerLine^) {
-    echo         $localVersion = ^($implVerLine -split "=", 2^)[1].Trim^([char]34, ' '^) -replace '^^[A-Za-z_-]+', ''
-    echo     } elseif ^($semVerLine^) {
-    echo         $localVersion = ^($semVerLine -split "=", 2^)[1].Trim^([char]34, ' '^)
+    echo         $raw = ^($implVerLine -split "=", 2^)[1].Trim^([char]34, [char]39, ' '^).TrimStart^('Corretto-'^)
+    echo         if ^($raw -match "([0-9]+[0-9A-Za-z._+-]*)"^) { $localVersion = $matches[1] }
+    echo     } elseif ^($Vendor -eq "SapMachine" -and $implVerLine^) {
+    echo         $raw = ^($implVerLine -split "=", 2^)[1].Trim^([char]34, [char]39, ' '^).TrimStart^('SapMachine-'^)
+    echo         if ^($raw -match "([0-9]+[0-9A-Za-z._+-]*)"^) { $localVersion = $matches[1] }
+    echo     } elseif ^($Vendor -eq "Mandrel" -and $implVerLine^) {
+    echo         $raw = ^($implVerLine -split "=", 2^)[1].Trim^([char]34, [char]39, ' '^).TrimStart^('mandrel-'^)
+    echo         if ^($raw -match "([0-9]+[0-9A-Za-z._+-]*)"^) { $localVersion = $matches[1] }
+    echo     } elseif ^($Vendor -eq "Dragonwell" -and $implVerLine^) {
+    echo         $raw = ^($implVerLine -split "=", 2^)[1].Trim^([char]34, [char]39, ' '^)
+    echo         if ^($raw -match "([0-9]+[0-9A-Za-z._+-]*)"^) { $localVersion = $matches[1] }
+    echo     } elseif ^($Vendor -eq "Kona" -and $implVerLine^) {
+    echo         $raw = ^($implVerLine -split "=", 2^)[1].Trim^([char]34, [char]39, ' '^).TrimStart^('TencentKonaJDK-'^)
+    echo         if ^($raw -match "([0-9]+[0-9A-Za-z._+-]*)"^) { $localVersion = $matches[1] }
     echo     } elseif ^($implVerLine^) {
-    echo         $localVersion = ^($implVerLine -split "=", 2^)[1].Trim^([char]34, ' '^) -replace '^^[A-Za-z_-]+', ''
-    echo     } elseif ^($javaVerLine^) {
-    echo         $localVersion = ^($javaVerLine -split "=", 2^)[1].Trim^([char]34, ' '^)
+    echo         $raw = ^($implVerLine -split "=", 2^)[1].Trim^([char]34, [char]39, ' '^)
+    echo         if ^($raw -match "([0-9]+[0-9A-Za-z._+-]*)"^) { $localVersion = $matches[1] }
+    echo     }
+    echo     if ^($localVersion -eq "UNKNOWN" -or $localVersion -notmatch '\d'^) {
+    echo         if ^($semVerLine^) {
+    echo             $val = ^($semVerLine -split "=", 2^)[1].Trim^([char]34, [char]39, ' '^)
+    echo             if ^($val -match '^^[0-9A-Za-z._+-]{1,64}$'^) { $localVersion = $val }
+    echo         }
+    echo     }
+    echo     if ^($localVersion -eq "UNKNOWN" -or $localVersion -notmatch '\d'^) {
+    echo         if ^($javaVerLine^) {
+    echo             $val = ^($javaVerLine -split "=", 2^)[1].Trim^([char]34, [char]39, ' '^)
+    echo             if ^($val -match '^^[0-9A-Za-z._+-]{1,64}$'^) { $localVersion = $val }
+    echo         }
+    echo     }
+    echo     if ^($localVersion -eq "UNKNOWN" -or $localVersion -notmatch '\d'^) {
+    echo         if ^($runtimeVerLine^) {
+    echo             $val = ^($runtimeVerLine -split "=", 2^)[1].Trim^([char]34, [char]39, ' '^)
+    echo             if ^($val -match '^^[0-9A-Za-z._+-]{1,64}$'^) { $localVersion = $val }
+    echo         }
     echo     }
     echo     if ^($localVersion -notmatch '^^[0-9A-Za-z._+-]{1,64}$'^) { $localVersion = "UNKNOWN" }
     echo }
-    echo if ^($localVersion -eq "UNKNOWN"^) {
+    echo if ^($localVersion -eq "UNKNOWN" -or $localVersion -notmatch '\d'^) {
     echo     $folderName = Split-Path $LocalPath -Leaf
-    echo     if ^($folderName -match '^^(?:jdk^|java^|semeru^)[-_]?^([0-9A-Za-z._+-]+^)$'^) {
-    echo         $localVersion = $matches[1]
+    echo     if ^($folderName -match "([0-9]+[0-9A-Za-z._+-]*)"^) {
+    echo         $cand = $matches[1]
+    echo         if ^($cand -match '^^[0-9A-Za-z._+-]{1,64}$'^) { $localVersion = $cand }
     echo     }
     echo }
     echo $remoteVersion = "UNKNOWN"
@@ -3764,6 +4255,70 @@ set "UPDATE_CHECKER_PS1=%JVM_SECURE_TEMP%\jvm_update_!UPD_RANDOM_NAME!.ps1"
     echo     } elseif ^($Vendor -eq "Semeru"^) {
     echo         $res = Invoke-RestMethod -Uri "https://api.github.com/repos/ibmruntimes/semeru$Major-binaries/releases/latest" -UseBasicParsing -TimeoutSec 5
     echo         if ^($res -and $res.tag_name^) { $remoteVersion = $res.tag_name -replace "^^jdk-", "" }
+    echo     } elseif ^($Vendor -eq "SapMachine"^) {
+    echo         $res = Invoke-RestMethod -Uri "https://sap.github.io/SapMachine/assets/data/sapmachine_releases.json" -UseBasicParsing -TimeoutSec 5
+    echo         if ^($res.assets.$Major -and $res.assets.$Major.releases[0].jdk.'windows-x64' -match "sapmachine-(?:jdk-)?([0-9A-Za-z._+-]+)_windows"^) { $remoteVersion = $matches[1] }
+    echo     } elseif ^($Vendor -eq "Mandrel"^) {
+    echo         $found = $null
+    echo         try {
+    echo             $h = @{}; if ^($env:GITHUB_TOKEN^) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }
+    echo             $res = Invoke-RestMethod -Uri "https://api.github.com/repos/graalvm/mandrel/releases" -Headers $h -UseBasicParsing -TimeoutSec 5
+    echo             foreach ^($r in $res^) {
+    echo                 if ^(-not $r.prerelease^) {
+    echo                     $a = $r.assets ^| Where-Object { $_.name -like "mandrel-java$Major-windows-amd64-*.zip" } ^| Select-Object -First 1
+    echo                     if ^($a -and $a.name -match "mandrel-java\d+-windows-amd64-([0-9A-Za-z._+-]+)\.zip"^) {
+    echo                         $remoteVersion = $matches[1]; $found = $true; break
+    echo                     }
+    echo                 }
+    echo             }
+    echo         } catch { }
+    echo         if ^(-not $found^) {
+    echo             $wc = New-Object Net.WebClient; $wc.Headers['User-Agent'] = 'Mozilla/5.0'
+    echo             $html = $wc.DownloadString^("https://github.com/graalvm/mandrel/releases"^)
+    echo             $tags = [regex]::Matches^($html, '/graalvm/mandrel/releases/tag/^([a-zA-Z0-9._+-]+^)'^) ^| ForEach-Object { $_.Groups[1].Value } ^| Select-Object -Unique
+    echo             foreach ^($t in $tags^) {
+    echo                 $eHtml = $wc.DownloadString^("https://github.com/graalvm/mandrel/releases/expanded_assets/" + $t^)
+    echo                 if ^($eHtml -match "mandrel-java$Major-windows-amd64-([0-9A-Za-z._+-]+)\.zip"^) {
+    echo                     $remoteVersion = $matches[1]; break
+    echo                 }
+    echo             }
+    echo         }
+    echo     } elseif ^($Vendor -eq "Dragonwell"^) {
+    echo         $tag = $null
+    echo         try {
+    echo             $h = @{}; if ^($env:GITHUB_TOKEN^) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }
+    echo             $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/dragonwell-project/dragonwell$Major/releases/latest" -Headers $h -UseBasicParsing -TimeoutSec 5
+    echo             if ^($rel.tag_name^) { $tag = $rel.tag_name }
+    echo         } catch { }
+    echo         if ^(-not $tag^) {
+    echo             $req = [Net.HttpWebRequest]::Create^("https://github.com/dragonwell-project/dragonwell$Major/releases/latest"^)
+    echo             $req.AllowAutoRedirect = $false
+    echo             $req.UserAgent = 'Mozilla/5.0'
+    echo             $req.Timeout = 5000
+    echo             $res = $req.GetResponse^(^)
+    echo             try { if ^($res.Headers["Location"] -match "/releases/tag/([a-zA-Z0-9._+-]+)$"^) { $tag = $matches[1] } } finally { $res.Close^(^) }
+    echo         }
+    echo         if ^($tag -and $tag -match "dragonwell-(?:standard-)?([0-9.]+)"^) {
+    echo             $remoteVersion = $matches[1]
+    echo         }
+    echo     } elseif ^($Vendor -eq "Kona"^) {
+    echo         $tag = $null
+    echo         try {
+    echo             $h = @{}; if ^($env:GITHUB_TOKEN^) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }
+    echo             $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/Tencent/TencentKona-$Major/releases/latest" -Headers $h -UseBasicParsing -TimeoutSec 5
+    echo             if ^($rel.tag_name^) { $tag = $rel.tag_name }
+    echo         } catch { }
+    echo         if ^(-not $tag^) {
+    echo             $req = [Net.HttpWebRequest]::Create^("https://github.com/Tencent/TencentKona-$Major/releases/latest"^)
+    echo             $req.AllowAutoRedirect = $false
+    echo             $req.UserAgent = 'Mozilla/5.0'
+    echo             $req.Timeout = 5000
+    echo             $res = $req.GetResponse^(^)
+    echo             try { if ^($res.Headers["Location"] -match "/releases/tag/([a-zA-Z0-9._+-]+)$"^) { $tag = $matches[1] } } finally { $res.Close^(^) }
+    echo         }
+    echo         if ^($tag -and $tag -match "TencentKona-([0-9A-Za-z._+-]+)"^) {
+    echo             $remoteVersion = $matches[1]
+    echo         }
     echo     }
     echo     if ^($remoteVersion -notmatch '^^[0-9A-Za-z._+-]{1,64}$'^) { $remoteVersion = "UNKNOWN" }
     echo } catch {
@@ -3777,12 +4332,29 @@ set "UPDATE_CHECKER_PS1=%JVM_SECURE_TEMP%\jvm_update_!UPD_RANDOM_NAME!.ps1"
     echo Write-Output "REMOTE|$remoteVersion"
     echo $cleanLocal = $localVersion -replace '^^1\.8\.0_', '8.0.' -replace '[\+-].*$', ''
     echo $cleanRemote = $remoteVersion -replace '^^1\.8\.0_', '8.0.' -replace '[\+-].*$', ''
-    echo if ^($localVersion -eq "UNKNOWN" -or $remoteVersion -eq "UNKNOWN"^) {
-    echo     Write-Output "RESULT|UNKNOWN"
+    echo if ^($localVersion -eq "UNKNOWN" -and $remoteVersion -eq "UNKNOWN"^) {
+    echo     Write-Output "RESULT|UNKNOWN_BOTH"
+    echo } elseif ^($localVersion -eq "UNKNOWN"^) {
+    echo     Write-Output "RESULT|UNKNOWN_LOCAL"
+    echo } elseif ^($remoteVersion -eq "UNKNOWN"^) {
+    echo     Write-Output "RESULT|UNKNOWN_REMOTE"
     echo } elseif ^($cleanLocal -eq $cleanRemote^) {
     echo     Write-Output "RESULT|UP_TO_DATE"
     echo } else {
-    echo     Write-Output "RESULT|UPDATE_AVAILABLE"
+    echo     $lParts = @^($cleanLocal.Split^('.'^) ^| ForEach-Object { [int]^($_ -replace '\D.*$', ''^) }^)
+    echo     $rParts = @^($cleanRemote.Split^('.'^) ^| ForEach-Object { [int]^($_ -replace '\D.*$', ''^) }^)
+    echo     $len = [math]::Max^($lParts.Length, $rParts.Length^)
+    echo     $diff = 0
+    echo     for ^($i = 0; $i -lt $len; $i++^) {
+    echo         $lp = if ^($i -lt $lParts.Length^) { $lParts[$i] } else { 0 }
+    echo         $rp = if ^($i -lt $rParts.Length^) { $rParts[$i] } else { 0 }
+    echo         if ^($lp -ne $rp^) { $diff = $lp - $rp; break }
+    echo     }
+    echo     if ^($diff -ge 0^) {
+    echo         Write-Output "RESULT|UP_TO_DATE"
+    echo     } else {
+    echo         Write-Output "RESULT|UPDATE_AVAILABLE"
+    echo     }
     echo }
 ) > "!UPDATE_CHECKER_PS1!"
 
@@ -3812,6 +4384,18 @@ if defined API_ERROR (
 echo %cBLUE%[  INFO  ]%cRESET% Local Build Version : !LOCAL_VER!
 echo %cBLUE%[  INFO  ]%cRESET% Remote API Version  : !REMOTE_VER!
 
+if "!UPDATE_RESULT!"=="UNKNOWN_LOCAL" (
+    echo %cRED%[ ERROR  ]%cRESET% Could not determine local build version from release metadata.
+    goto :eof
+)
+if "!UPDATE_RESULT!"=="UNKNOWN_REMOTE" (
+    echo %cRED%[ ERROR  ]%cRESET% Could not fetch update data from !UP_VENDOR!.
+    goto :eof
+)
+if "!UPDATE_RESULT!"=="UNKNOWN_BOTH" (
+    echo %cRED%[ ERROR  ]%cRESET% Could not fetch update data from !UP_VENDOR!.
+    goto :eof
+)
 if "!UPDATE_RESULT!"=="UNKNOWN" (
     echo %cRED%[ ERROR  ]%cRESET% Could not fetch update data from !UP_VENDOR!.
     goto :eof
@@ -3865,7 +4449,7 @@ if defined CLI_COMMAND (
 
 :TriggerUpdateDownload
 set "VENDOR_SUPPORTED="
-for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru) do (
+for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru SapMachine Mandrel Dragonwell Kona) do (
     if /i "!UP_VENDOR!"=="%%V" set "VENDOR_SUPPORTED=1"
 )
 if not defined VENDOR_SUPPORTED (
@@ -4337,7 +4921,7 @@ set "JVM_TRME2=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRI
     echo(    function Set-JvmVar {
     echo(        param^([string]$Name, [string]$OldValue, [string]$NewValue^)
     echo(
-    echo(        $allowedVars = @^('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME'^)
+    echo(        $allowedVars = @^('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME', 'ANT_HOME', 'SBT_HOME', 'JBANG_HOME', 'QUARKUS_HOME', 'SPRING_HOME', 'MICRONAUT_HOME'^)
     echo(        if ^($allowedVars -notcontains $Name^) { return }
     echo(
     echo(!JVM_TRIM1!
@@ -4378,7 +4962,7 @@ set "JVM_TRME2=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRI
     echo(            Set-JvmVar -Name $key -OldValue $old -NewValue $val
     echo(        }
     echo(    } else {
-    echo(        foreach ^($v in @^('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME'^)^) {
+    echo(        foreach ^($v in @^('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME', 'ANT_HOME', 'SBT_HOME', 'JBANG_HOME', 'QUARKUS_HOME', 'SPRING_HOME', 'MICRONAUT_HOME'^)^) {
     echo(            $old = [Environment]::GetEnvironmentVariable^($v, 'Process'^)
     echo(            $new = [Environment]::GetEnvironmentVariable^($v, 'User'^)
     echo(            if ^([string]::IsNullOrEmpty^($new^)^) {
@@ -4400,9 +4984,9 @@ set "JVM_TRME2=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRI
     echo(            'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
     echo(            'link', 'unlink', 'version', 'help', 'channel'
     echo(        ^)
-    echo(        $candidates = @^('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy'^)
-    echo(        $vendors = @^('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9'^)
-    echo(        $openTargets = @^('home', 'dir', 'bin', 'config', 'cache', 'downloads', 'backup', 'backups', 'links'^)
+    echo(        $candidates = @^('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn'^)
+    echo(        $vendors = @^('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9', 'sapmachine', 'sap', 'mandrel', 'redhat-mandrel', 'dragonwell', 'alibaba', 'kona', 'tencent'^)
+    echo(        $openTargets = @^('home', 'dir', 'bin', 'config', 'cache', 'downloads', 'backup', 'backups', 'links', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn'^)
     echo(        $hookTargets = @^('install', 'status', 'check', 'remove', 'uninstall'^)
     echo(        $flags = @^(
     echo(            '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
@@ -5010,7 +5594,9 @@ echo   jvm open, home [candidate]     Open active candidate or root in File Expl
 echo   jvm clean, prune               Purge temporary download caches and extraction artifacts
 echo   jvm clear                      Purge JAVA_HOME and remove Java from PATH
 echo   jvm env                        Display current environment variables
-echo   jvm install ^<candidate^> ^<ver^>  Download and install a tool or JDK ^(8 vendors supported^)
+echo   jvm install ^<candidate^> ^<ver^>  Download and install a tool or JDK ^(12 vendors supported^)
+echo   jvm install --locked, -l       Install exact dependencies from repository .jvm.lock
+echo   jvm lock [candidate] [ver]     Generate reproducible .jvm.lock lockfile
 echo   jvm uninstall, rm [cand] ^<ver^> Uninstall a specific JDK or candidate tool
 echo   jvm update ^<ver^> ^| --all       Check for and apply vendor patches to JDKs / tools
 echo   jvm link ^<path^> [name]         Register an external JDK directory
@@ -5026,15 +5612,18 @@ echo   jvm self-uninstall             Launch the deep uninstaller ^(full system 
 echo   jvm help, --help, -h, /?       Show this help message
 echo.
 echo Flag Overrides:
-echo   --vendor ^<name^>                Filter or target vendor ^(oracle, adoptium, graalvm, corretto, zulu, ms, liberica, semeru^)
+echo   --vendor ^<name^>                Filter or target vendor ^(oracle, adoptium, graalvm, corretto, zulu, ms, liberica, semeru, sapmachine, mandrel, dragonwell, kona^)
 echo   --channel ^<name^>               Override update channel ^(stable or nightly^)
 echo   --nightly, --stable            Shortcut flags to target update channel
 echo   --symlink                      Force Symlink Mode ^(UAC-Free Directory Junction^)
 echo   --legacy, --registry           Force Legacy Mode ^(System HKLM Registry, requires UAC^)
 echo   --session                      Force True Session Isolation for the active terminal
 echo   --global                       Force global system-wide switch
+echo   --locked, -l, --lock           Install candidate^(s^) locked in .jvm.lock with strict checksums
+echo   --offline                      Disallow outbound network requests ^(operate locally only^)
+echo   --json                         Emit machine-readable JSON output for automation
 echo   --yes, -y                      Bypass interactive confirmation prompts
-echo   --no-lock                      Bypass mutual exclusion lock (UNSAFE for concurrent operations)
+echo   --no-lock                      Bypass mutual exclusion lock ^(UNSAFE for concurrent operations^)
 echo   --skip-checksum, --no-verify   Bypass checksum verification if hash is unavailable
 echo   --no-color                     Disable ANSI colors ^(also respects NO_COLOR env^)
 goto :eof
@@ -5272,6 +5861,16 @@ if exist "!CAND_ROOT!" (
     )
     if /i "!WHICH_TARGET!"=="kotlin" (
         for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\kotlinc.bat" 2^>nul') do (
+            if not defined FOUND_CAND_BIN set "FOUND_CAND_BIN=%%A"
+        )
+    )
+    if /i "!WHICH_TARGET!"=="micronaut" (
+        for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\mn.bat" "!CAND_ROOT!\mn.cmd" "!CAND_ROOT!\mn.exe" 2^>nul') do (
+            if not defined FOUND_CAND_BIN set "FOUND_CAND_BIN=%%A"
+        )
+    )
+    if /i "!WHICH_TARGET!"=="mn" (
+        for /f "delims=" %%A in ('dir /b /s "!CAND_ROOT!\mn.bat" "!CAND_ROOT!\mn.cmd" "!CAND_ROOT!\mn.exe" 2^>nul') do (
             if not defined FOUND_CAND_BIN set "FOUND_CAND_BIN=%%A"
         )
     )
@@ -5576,6 +6175,14 @@ if not defined OPEN_PATH (
         if /i "!CLI_TARGET!"=="kotlin" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\kotlin\current"
         if /i "!CLI_TARGET!"=="scala" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\scala\current"
         if /i "!CLI_TARGET!"=="groovy" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\groovy\current"
+        if /i "!CLI_TARGET!"=="ant" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\ant\current"
+        if /i "!CLI_TARGET!"=="sbt" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\sbt\current"
+        if /i "!CLI_TARGET!"=="jbang" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\jbang\current"
+        if /i "!CLI_TARGET!"=="quarkus" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\quarkus\current"
+        if /i "!CLI_TARGET!"=="spring" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\spring\current"
+        if /i "!CLI_TARGET!"=="micronaut" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\micronaut\current"
+        if /i "!CLI_TARGET!"=="mn" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\micronaut\current"
+        if not exist "!OPEN_PATH!" if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\!CLI_TARGET!" set "OPEN_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!CLI_TARGET!"
     )
 )
 
@@ -6308,12 +6915,800 @@ if not exist "!_CFG_FILE!" (
     exit /b 1
 )
 exit /b 0
+
+rem ============================================================
+rem REPRODUCIBLE LOCKFILE ENGINE (.jvm.lock)
+rem ============================================================
+
+:BuildEcosystemCandidateUrls
+set "DOWNLOAD_URL="
+set "CHECKSUM_URL="
+set "FALLBACK_URL="
+set "FALLBACK_CHECKSUM_URL="
+set "FALLBACK2_URL="
+set "FALLBACK2_CHECKSUM_URL="
+set "CHECKSUM_TYPE="
+if /i "!TARGET_CANDIDATE!"=="maven" (
+    set "DOWNLOAD_URL=https://downloads.apache.org/maven/maven-3/!TARGET_VER!/binaries/apache-maven-!TARGET_VER!-bin.zip"
+    set "CHECKSUM_URL=https://downloads.apache.org/maven/maven-3/!TARGET_VER!/binaries/apache-maven-!TARGET_VER!-bin.zip.sha512"
+    set "FALLBACK_URL=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/!TARGET_VER!/apache-maven-!TARGET_VER!-bin.zip"
+    set "FALLBACK_CHECKSUM_URL=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/!TARGET_VER!/apache-maven-!TARGET_VER!-bin.zip.sha512"
+    set "FALLBACK2_URL=https://archive.apache.org/dist/maven/maven-3/!TARGET_VER!/binaries/apache-maven-!TARGET_VER!-bin.zip"
+    set "FALLBACK2_CHECKSUM_URL=https://archive.apache.org/dist/maven/maven-3/!TARGET_VER!/binaries/apache-maven-!TARGET_VER!-bin.zip.sha512"
+    set "CHECKSUM_TYPE=SHA512"
+)
+if /i "!TARGET_CANDIDATE!"=="gradle" (
+    set "DOWNLOAD_URL=https://services.gradle.org/distributions/gradle-!TARGET_VER!-bin.zip"
+    set "CHECKSUM_URL=https://services.gradle.org/distributions/gradle-!TARGET_VER!-bin.zip.sha256"
+    set "FALLBACK_URL=https://downloads.gradle.org/distributions/gradle-!TARGET_VER!-bin.zip"
+    set "FALLBACK_CHECKSUM_URL=https://downloads.gradle.org/distributions/gradle-!TARGET_VER!-bin.zip.sha256"
+    set "CHECKSUM_TYPE=SHA256"
+)
+if /i "!TARGET_CANDIDATE!"=="kotlin" (
+    set "DOWNLOAD_URL=https://github.com/JetBrains/kotlin/releases/download/v!TARGET_VER!/kotlin-compiler-!TARGET_VER!.zip"
+    set "CHECKSUM_URL=https://github.com/JetBrains/kotlin/releases/download/v!TARGET_VER!/kotlin-compiler-!TARGET_VER!.zip.sha256"
+    set "CHECKSUM_TYPE=SHA256"
+)
+if /i "!TARGET_CANDIDATE!"=="scala" (
+    set "DOWNLOAD_URL=https://github.com/scala/scala3/releases/download/!TARGET_VER!/scala3-!TARGET_VER!.zip"
+    set "CHECKSUM_URL=https://github.com/scala/scala3/releases/download/!TARGET_VER!/scala3-!TARGET_VER!.zip.sha256"
+    set "CHECKSUM_TYPE=SHA256"
+)
+if /i "!TARGET_CANDIDATE!"=="groovy" (
+    set "DOWNLOAD_URL=https://archive.apache.org/dist/groovy/!TARGET_VER!/distribution/apache-groovy-binary-!TARGET_VER!.zip"
+    set "CHECKSUM_URL=https://archive.apache.org/dist/groovy/!TARGET_VER!/distribution/apache-groovy-binary-!TARGET_VER!.zip.sha256"
+    set "FALLBACK_URL=https://downloads.apache.org/groovy/!TARGET_VER!/distribution/apache-groovy-binary-!TARGET_VER!.zip"
+    set "FALLBACK_CHECKSUM_URL=https://downloads.apache.org/groovy/!TARGET_VER!/distribution/apache-groovy-binary-!TARGET_VER!.zip.sha256"
+    set "CHECKSUM_TYPE=SHA256"
+)
+if /i "!TARGET_CANDIDATE!"=="ant" (
+    set "DOWNLOAD_URL=https://archive.apache.org/dist/ant/binaries/apache-ant-!TARGET_VER!-bin.zip"
+    set "CHECKSUM_URL=https://archive.apache.org/dist/ant/binaries/apache-ant-!TARGET_VER!-bin.zip.sha512"
+    set "FALLBACK_URL=https://downloads.apache.org/ant/binaries/apache-ant-!TARGET_VER!-bin.zip"
+    set "FALLBACK_CHECKSUM_URL=https://downloads.apache.org/ant/binaries/apache-ant-!TARGET_VER!-bin.zip.sha512"
+    set "CHECKSUM_TYPE=SHA512"
+)
+if /i "!TARGET_CANDIDATE!"=="sbt" (
+    set "DOWNLOAD_URL=https://github.com/sbt/sbt/releases/download/v!TARGET_VER!/sbt-!TARGET_VER!.zip"
+    set "CHECKSUM_URL=https://github.com/sbt/sbt/releases/download/v!TARGET_VER!/sbt-!TARGET_VER!.zip.sha256"
+    set "CHECKSUM_TYPE=SHA256"
+)
+if /i "!TARGET_CANDIDATE!"=="jbang" (
+    set "DOWNLOAD_URL=https://github.com/jbangdev/jbang/releases/download/v!TARGET_VER!/jbang-!TARGET_VER!.zip"
+    set "CHECKSUM_URL=https://github.com/jbangdev/jbang/releases/download/v!TARGET_VER!/jbang-!TARGET_VER!.zip.sha256"
+    set "CHECKSUM_TYPE=SHA256"
+)
+if /i "!TARGET_CANDIDATE!"=="quarkus" (
+    set "DOWNLOAD_URL=https://github.com/quarkusio/quarkus/releases/download/!TARGET_VER!/quarkus-cli-!TARGET_VER!.zip"
+    set "CHECKSUM_URL=https://github.com/quarkusio/quarkus/releases/download/!TARGET_VER!/checksums_sha256.txt"
+    set "CHECKSUM_TYPE=SHA256"
+)
+if /i "!TARGET_CANDIDATE!"=="spring" (
+    set "DOWNLOAD_URL=https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-cli/!TARGET_VER!/spring-boot-cli-!TARGET_VER!-bin.zip"
+    set "CHECKSUM_URL=https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-cli/!TARGET_VER!/spring-boot-cli-!TARGET_VER!-bin.zip.sha1"
+    set "CHECKSUM_TYPE=SHA1"
+)
+if /i "!TARGET_CANDIDATE!"=="micronaut" (
+    set "DOWNLOAD_URL=https://github.com/micronaut-projects/micronaut-starter/releases/download/v!TARGET_VER!/micronaut-cli-!TARGET_VER!.zip"
+    set "CHECKSUM_URL=https://github.com/micronaut-projects/micronaut-starter/releases/download/v!TARGET_VER!/micronaut-cli-!TARGET_VER!.zip.sha256"
+    set "CHECKSUM_TYPE=SHA256"
+)
+if /i "!TARGET_CANDIDATE!"=="mn" (
+    set "TARGET_CANDIDATE=micronaut"
+    set "DOWNLOAD_URL=https://github.com/micronaut-projects/micronaut-starter/releases/download/v!TARGET_VER!/micronaut-cli-!TARGET_VER!.zip"
+    set "CHECKSUM_URL=https://github.com/micronaut-projects/micronaut-starter/releases/download/v!TARGET_VER!/micronaut-cli-!TARGET_VER!.zip.sha256"
+    set "CHECKSUM_TYPE=SHA256"
+)
+exit /b 0
+
+:ExecuteLockCommand
+call :RequireNetwork
+if errorlevel 1 exit /b 1
+
+call :AcquireStateLock
+if errorlevel 1 exit /b 1
+
+set "LOCK_CANDIDATE=!TARGET_CANDIDATE!"
+if not defined LOCK_CANDIDATE set "LOCK_CANDIDATE=java"
+if /i not "!LOCK_CANDIDATE!"=="java" goto :LockEcosystemCandidate
+
+:LockJavaCandidate
+set "LOCK_VER=!CLI_TARGET!"
+set "LOCK_VENDOR=!CLI_VENDOR!"
+
+if not defined LOCK_VER (
+    if exist "%INVOCATION_DIR%\.java-version" (
+        for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /r /v "^[ \t]*# ^ï»¿[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.java-version" 2^>nul ^| %FINDSTR_BIN% /r "[0-9]"') do (
+            if not defined LOCK_VER (
+                for /f "tokens=1,2,3" %%A in ("%%L") do (
+                    set "LOCK_VER=%%A"
+                    if /i "%%B"=="--vendor" set "LOCK_VENDOR=%%C"
+                )
+            )
+        )
+    )
+)
+
+if not defined LOCK_VER (
+    if exist "%INVOCATION_DIR%\.sdkmanrc" (
+        for /f "eol=# tokens=1,* delims==" %%A in ('%FINDSTR_BIN% /i /r "^[ \t]*java[ \t]*=" "%INVOCATION_DIR%\.sdkmanrc" 2^>nul') do (
+            set "SDK_VAL=%%B"
+            for /f "tokens=*" %%S in ("!SDK_VAL!") do set "SDK_VAL=%%S"
+            for /f "tokens=1,2 delims=-" %%V in ("!SDK_VAL!") do (
+                set "LOCK_VER=%%V"
+                if /i "%%W"=="tem" set "LOCK_VENDOR=Adoptium"
+                if /i "%%W"=="amzn" set "LOCK_VENDOR=Corretto"
+                if /i "%%W"=="zulu" set "LOCK_VENDOR=Zulu"
+                if /i "%%W"=="ms" set "LOCK_VENDOR=Microsoft"
+                if /i "%%W"=="librca" set "LOCK_VENDOR=Liberica"
+                if /i "%%W"=="sem" set "LOCK_VENDOR=Semeru"
+                if /i "%%W"=="graalce" set "LOCK_VENDOR=GraalVM"
+                if /i "%%W"=="sapmchn" set "LOCK_VENDOR=SapMachine"
+                if /i "%%W"=="mandrel" set "LOCK_VENDOR=Mandrel"
+                if /i "%%W"=="albba" set "LOCK_VENDOR=Dragonwell"
+                if /i "%%W"=="kona" set "LOCK_VENDOR=Kona"
+                if /i "%%W"=="oracle" set "LOCK_VENDOR=Oracle"
+            )
+        )
+    )
+)
+
+if not defined LOCK_VER (
+    if defined CURRENT_JDK_PATH if exist "!CURRENT_JDK_PATH!\release" (
+        for /f "tokens=2 delims==" %%A in ('%FINDSTR_BIN% /b "JAVA_VERSION=" "!CURRENT_JDK_PATH!\release" 2^>nul') do (
+            set "RAW_VER=%%~A"
+            for /f "tokens=1 delims=." %%M in ("!RAW_VER!") do (
+                if "%%M"=="1" ( set "LOCK_VER=8" ) else ( set "LOCK_VER=%%M" )
+            )
+        )
+    )
+)
+
+if not defined LOCK_VER (
+    if defined JDK_COUNT if !JDK_COUNT! GTR 0 (
+        set "LOCK_VER=!JDK_MAJOR_1!"
+        if not defined LOCK_VENDOR set "LOCK_VENDOR=!JDK_VENDOR_1!"
+    )
+)
+
+if not defined LOCK_VER (
+    echo %cRED%[ ERROR  ]%cRESET% No Java version specified and no active Java installation or .java-version found.
+    echo            Usage: jvm lock [version] [--vendor ^<name^>]
+    call :ReleaseStateLock
+    exit /b 1
+)
+
+if not defined LOCK_VENDOR set "LOCK_VENDOR=Adoptium"
+
+rem Normalize vendor
+if /i "!LOCK_VENDOR!"=="bellsoft" set "LOCK_VENDOR=Liberica"
+if /i "!LOCK_VENDOR!"=="ibm" set "LOCK_VENDOR=Semeru"
+if /i "!LOCK_VENDOR!"=="openj9" set "LOCK_VENDOR=Semeru"
+if /i "!LOCK_VENDOR!"=="temurin" set "LOCK_VENDOR=Adoptium"
+if /i "!LOCK_VENDOR!"=="sap" set "LOCK_VENDOR=SapMachine"
+if /i "!LOCK_VENDOR!"=="sapmachine" set "LOCK_VENDOR=SapMachine"
+if /i "!LOCK_VENDOR!"=="redhat-mandrel" set "LOCK_VENDOR=Mandrel"
+if /i "!LOCK_VENDOR!"=="mandrel" set "LOCK_VENDOR=Mandrel"
+if /i "!LOCK_VENDOR!"=="alibaba" set "LOCK_VENDOR=Dragonwell"
+if /i "!LOCK_VENDOR!"=="dragonwell" set "LOCK_VENDOR=Dragonwell"
+if /i "!LOCK_VENDOR!"=="tencent" set "LOCK_VENDOR=Kona"
+if /i "!LOCK_VENDOR!"=="kona" set "LOCK_VENDOR=Kona"
+
+set "IS_LOCKING_ONLY=1"
+set "DL_VERSION=!LOCK_VER!"
+set "CLI_VENDOR=!LOCK_VENDOR!"
+
+if /i "!LOCK_VENDOR!"=="oracle" goto :Resolve_Oracle
+if /i "!LOCK_VENDOR!"=="adoptium" goto :Resolve_Adoptium
+if /i "!LOCK_VENDOR!"=="graalvm" goto :Resolve_GraalVM
+if /i "!LOCK_VENDOR!"=="corretto" goto :Resolve_Corretto
+if /i "!LOCK_VENDOR!"=="zulu" goto :Resolve_Zulu
+if /i "!LOCK_VENDOR!"=="microsoft" goto :Resolve_Microsoft
+if /i "!LOCK_VENDOR!"=="liberica" goto :Resolve_Liberica
+if /i "!LOCK_VENDOR!"=="semeru" goto :Resolve_Semeru
+if /i "!LOCK_VENDOR!"=="sapmachine" goto :Resolve_SapMachine
+if /i "!LOCK_VENDOR!"=="mandrel" goto :Resolve_Mandrel
+if /i "!LOCK_VENDOR!"=="dragonwell" goto :Resolve_Dragonwell
+if /i "!LOCK_VENDOR!"=="kona" goto :Resolve_Kona
+
+echo %cRED%[ ERROR  ]%cRESET% Unknown or unsupported vendor: !LOCK_VENDOR!
+call :ReleaseStateLock
+exit /b 1
+
+:LockEcosystemCandidate
+call :GetCandidateEnvVar
+set "TARGET_VER=!CLI_TARGET!"
+if not defined TARGET_VER (
+    set "QUERY_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!LOCK_CANDIDATE!\current"
+    if exist "!QUERY_PATH!" (
+        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "^(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue^).Target" 2^>nul') do for %%X in ("%%A") do set "TARGET_VER=%%~nxX"
+    )
+)
+if not defined TARGET_VER set "TARGET_VER=latest"
+if /i "!TARGET_VER!"=="latest" (
+    echo %cBLUE%[ ACTION ]%cRESET% Resolving latest version of !CANDIDATE_PROPER_NAME!...
+    call :ResolveLatestEcosystemCandidate
+    set "TARGET_VER=!LATEST_VER!"
+    if "!TARGET_VER!"=="ERROR" (
+        echo %cRED%[ ERROR  ]%cRESET% Failed to resolve latest version of !CANDIDATE_PROPER_NAME!. Check your internet connection.
+        call :ReleaseStateLock
+        exit /b 1
+    )
+)
+call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Invalid candidate version: !TARGET_VER!
+    call :ReleaseStateLock
+    exit /b 1
+)
+
+set "TARGET_CANDIDATE=!LOCK_CANDIDATE!"
+call :BuildEcosystemCandidateUrls
+if not defined DOWNLOAD_URL (
+    echo %cRED%[ ERROR  ]%cRESET% No download source for candidate: !LOCK_CANDIDATE!
+    call :ReleaseStateLock
+    exit /b 1
+)
+
+set "FINAL_CHKSUM_VAL="
+if defined CHECKSUM_URL (
+    for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "LOCK_FETCH_RND=%%A"
+    set "FETCH_PS1=%JVM_SECURE_TEMP%\jvm_chk_fetch_!LOCK_FETCH_RND!.ps1"
+    (
+        echo $ErrorActionPreference = 'Stop'
+        echo [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288
+        echo try {
+        echo     $req = [Net.HttpWebRequest]::Create^($env:CHECKSUM_URL^)
+        echo     $req.UserAgent = 'Mozilla/5.0'
+        echo     $req.Timeout = 5000
+        echo     $resp = $req.GetResponse^(^)
+        echo     $sr = New-Object IO.StreamReader^($resp.GetResponseStream^(^)^)
+        echo     $txt = $sr.ReadToEnd^(^)
+        echo     $sr.Close^(^)
+        echo     $resp.Close^(^)
+        echo     if ^($txt -match '[0-9a-fA-F]{32,128}'^) { Write-Output $matches[0].ToLower^(^) }
+        echo } catch { }
+    ) > "!FETCH_PS1!"
+    for /f "delims=" %%H in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!FETCH_PS1!"') do set "FINAL_CHKSUM_VAL=%%H"
+    if exist "!FETCH_PS1!" del /f /q "!FETCH_PS1!" >nul 2>&1
+)
+
+if not defined FINAL_CHKSUM_VAL (
+    echo %cYELLOW%[ WARNING]%cRESET% Fetching checksum from archive payload...
+    set "DL_URL=!DOWNLOAD_URL!"
+    set "DL_ZIP=%JVM_SECURE_TEMP%\lock_calc_!TARGET_CANDIDATE!_!TARGET_VER!.zip"
+    set "DL_EXTRACT=%JVM_SECURE_TEMP%\lock_calc_!TARGET_CANDIDATE!_!TARGET_VER!_ext"
+    set "DL_CHKSUM_VAL="
+    set "DL_CHKSUM_URL="
+    set "DL_CHKSUM_TYPE=SHA256"
+    set "DL_STRIP_ROOT=0"
+    set "SKIP_CHECKSUM=1"
+    call :ExecuteSharedDownloader
+    if exist "!DL_ZIP!" (
+        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "LOCK_HASH_RND=%%A"
+        set "HASH_PS1=%JVM_SECURE_TEMP%\jvm_chk_hash_!LOCK_HASH_RND!.ps1"
+        (
+            echo $stream = [System.IO.File]::OpenRead^($env:DL_ZIP^)
+            echo $sha = [System.Security.Cryptography.SHA256]::Create^(^)
+            echo $hash = [System.BitConverter]::ToString^($sha.ComputeHash^($stream^)^).Replace^('-', ''^).ToLower^(^)
+            echo $stream.Close^(^)
+            echo Write-Output $hash
+        ) > "!HASH_PS1!"
+        for /f "delims=" %%H in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!HASH_PS1!"') do set "FINAL_CHKSUM_VAL=%%H"
+        if exist "!HASH_PS1!" del /f /q "!HASH_PS1!" >nul 2>&1
+        del /f /q "!DL_ZIP!" >nul 2>&1
+    )
+    if exist "!DL_EXTRACT!" rmdir /s /q "!DL_EXTRACT!" >nul 2>&1
+    set "SKIP_CHECKSUM="
+    set "CHECKSUM_TYPE=SHA256"
+)
+
+set "ENTRY_CANDIDATE=!LOCK_CANDIDATE!"
+set "ENTRY_VENDOR="
+set "ENTRY_VERSION=!TARGET_VER!"
+set "ENTRY_ARCH=all"
+set "ENTRY_URL=!DOWNLOAD_URL!"
+set "ENTRY_CHKSUM_TYPE=!CHECKSUM_TYPE!"
+set "ENTRY_CHKSUM=!FINAL_CHKSUM_VAL!"
+goto :WriteLockFileEntry
+
+:FinishLockResolution
+set "IS_LOCKING_ONLY="
+if not defined API_RESOLVED_VER set "API_RESOLVED_VER=!DL_VERSION!"
+set "FINAL_CHKSUM_VAL=!API_SHA256!"
+set "FINAL_CHKSUM_TYPE=sha256"
+if defined API_SHA1 (
+    set "FINAL_CHKSUM_VAL=!API_SHA1!"
+    set "FINAL_CHKSUM_TYPE=sha1"
+)
+if defined API_MD5 (
+    set "FINAL_CHKSUM_VAL=!API_MD5!"
+    set "FINAL_CHKSUM_TYPE=md5"
+)
+if not defined FINAL_CHKSUM_VAL (
+    set "FETCH_URL="
+    if defined API_SHA256_URL set "FETCH_URL=!API_SHA256_URL!" & set "FINAL_CHKSUM_TYPE=sha256"
+    if defined API_MD5_URL set "FETCH_URL=!API_MD5_URL!" & set "FINAL_CHKSUM_TYPE=md5"
+    if defined FETCH_URL (
+        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "LOCK_FETCH_RND=%%A"
+        set "FETCH_PS1=%JVM_SECURE_TEMP%\jvm_chk_fetch_!LOCK_FETCH_RND!.ps1"
+        (
+            echo $ErrorActionPreference = 'Stop'
+            echo [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288
+            echo try {
+            echo     $req = [Net.HttpWebRequest]::Create^($env:FETCH_URL^)
+            echo     $req.UserAgent = 'Mozilla/5.0'
+            echo     $req.Timeout = 5000
+            echo     $resp = $req.GetResponse^(^)
+            echo     $sr = New-Object IO.StreamReader^($resp.GetResponseStream^(^)^)
+            echo     $txt = $sr.ReadToEnd^(^)
+            echo     $sr.Close^(^)
+            echo     $resp.Close^(^)
+            echo     if ^($txt -match '[0-9a-fA-F]{32,128}'^) { Write-Output $matches[0].ToLower^(^) }
+            echo } catch { }
+        ) > "!FETCH_PS1!"
+        for /f "delims=" %%H in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!FETCH_PS1!"') do set "FINAL_CHKSUM_VAL=%%H"
+        if exist "!FETCH_PS1!" del /f /q "!FETCH_PS1!" >nul 2>&1
+    )
+)
+
+if not defined FINAL_CHKSUM_VAL (
+    echo %cYELLOW%[ WARNING]%cRESET% Upstream provider did not publish an automated checksum.
+    echo            Computing checksum by downloading payload into secure temporary cache...
+    set "DL_URL=!API_URL!"
+    set "DL_ZIP=%JVM_SECURE_TEMP%\lock_calc_!DL_RANDOM_NAME!.zip"
+    set "DL_EXTRACT=%JVM_SECURE_TEMP%\lock_calc_!DL_RANDOM_NAME!_ext"
+    set "DL_CHKSUM_VAL="
+    set "DL_CHKSUM_URL="
+    set "DL_CHKSUM_TYPE=SHA256"
+    set "DL_STRIP_ROOT=0"
+    set "SKIP_CHECKSUM=1"
+    call :ExecuteSharedDownloader
+    if exist "!DL_ZIP!" (
+        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "LOCK_HASH_RND=%%A"
+        set "HASH_PS1=%JVM_SECURE_TEMP%\jvm_chk_hash_!LOCK_HASH_RND!.ps1"
+        (
+            echo $stream = [System.IO.File]::OpenRead^($env:DL_ZIP^)
+            echo $sha = [System.Security.Cryptography.SHA256]::Create^(^)
+            echo $hash = [System.BitConverter]::ToString^($sha.ComputeHash^($stream^)^).Replace^('-', ''^).ToLower^(^)
+            echo $stream.Close^(^)
+            echo Write-Output $hash
+        ) > "!HASH_PS1!"
+        for /f "delims=" %%H in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!HASH_PS1!"') do set "FINAL_CHKSUM_VAL=%%H"
+        if exist "!HASH_PS1!" del /f /q "!HASH_PS1!" >nul 2>&1
+        del /f /q "!DL_ZIP!" >nul 2>&1
+    )
+    if exist "!DL_EXTRACT!" rmdir /s /q "!DL_EXTRACT!" >nul 2>&1
+    set "SKIP_CHECKSUM="
+    set "FINAL_CHKSUM_TYPE=sha256"
+)
+
+set "ENTRY_CANDIDATE=java"
+set "ENTRY_VENDOR=!LOCK_VENDOR!"
+set "ENTRY_VERSION=!API_RESOLVED_VER!"
+set "ENTRY_ARCH=!SYS_ARCH!"
+set "ENTRY_URL=!API_URL!"
+set "ENTRY_CHKSUM_TYPE=!FINAL_CHKSUM_TYPE!"
+set "ENTRY_CHKSUM=!FINAL_CHKSUM_VAL!"
+goto :WriteLockFileEntry
+
+:WriteLockFileEntry
+set "LOCK_FILE_PATH=%INVOCATION_DIR%\.jvm.lock"
+
+rem Security checks on .jvm.lock target (CWE-59)
+if exist "!LOCK_FILE_PATH!\" (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): .jvm.lock is a directory.
+    call :ReleaseStateLock
+    exit /b 1
+)
+"%FSUTIL_BIN%" reparsepoint query "!LOCK_FILE_PATH!" >nul 2>&1
+if not errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Refusing to overwrite symlink/reparse point .jvm.lock.
+    call :ReleaseStateLock
+    exit /b 1
+)
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "LOCK_PS_RND=%%A"
+set "LOCK_WRITER_PS1=%JVM_SECURE_TEMP%\jvm_lock_write_!LOCK_PS_RND!.ps1"
+
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo $lockPath = $env:LOCK_FILE_PATH
+    echo $candidate = $env:ENTRY_CANDIDATE
+    echo $vendor = $env:ENTRY_VENDOR
+    echo $version = $env:ENTRY_VERSION
+    echo $arch = $env:ENTRY_ARCH
+    echo $url = $env:ENTRY_URL
+    echo $chkType = $env:ENTRY_CHKSUM_TYPE
+    echo $chkVal = $env:ENTRY_CHKSUM
+    echo $toolsDict = [ordered]@{}
+    echo if ^(Test-Path -LiteralPath $lockPath^) {
+    echo     try {
+    echo         $raw = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8
+    echo         $existing = $raw ^| ConvertFrom-Json
+    echo         if ^($existing.tools^) {
+    echo             foreach ^($prop in $existing.tools.PSObject.Properties^) {
+    echo                 $toolsDict[$prop.Name] = $prop.Value
+    echo             }
+    echo         }
+    echo     } catch { }
+    echo }
+    echo $cType = if ^($chkType^) { $chkType.ToLowerInvariant^(^) } else { 'sha256' }
+    echo $cVal = if ^($chkVal^) { $chkVal.ToLowerInvariant^(^) } else { '' }
+    echo $entry = [ordered]@{
+    echo     version = $version
+    echo     arch = $arch
+    echo     url = $url
+    echo     checksum_type = $cType
+    echo     checksum = $cVal
+    echo }
+    echo if ^($vendor^) { $entry.vendor = $vendor.ToLowerInvariant^(^) }
+    echo $toolsDict[$candidate] = $entry
+    echo $lockObj = [ordered]@{
+    echo     lockfile_version = 1
+    echo     generated_at = ^(Get-Date^).ToUniversalTime^(^).ToString^("yyyy-MM-ddTHH:mm:ssZ"^)
+    echo     tools = $toolsDict
+    echo }
+    echo $json = $lockObj ^| ConvertTo-Json -Depth 10
+    echo $stage = $lockPath + ".stage." + [Guid]::NewGuid^(^).ToString^("N"^) + ".tmp"
+    echo $utf8NoBom = New-Object System.Text.UTF8Encoding^($false^)
+    echo [System.IO.File]::WriteAllText^($stage, ^($json + "`r`n"^), $utf8NoBom^)
+    echo Move-Item -LiteralPath $stage -Destination $lockPath -Force
+) > "!LOCK_WRITER_PS1!"
+
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!LOCK_WRITER_PS1!"
+set "LOCK_EXIT=!errorlevel!"
+if exist "!LOCK_WRITER_PS1!" del /f /q "!LOCK_WRITER_PS1!" >nul 2>&1
+
+if !LOCK_EXIT! NEQ 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to write .jvm.lock.
+    call :ReleaseStateLock
+    exit /b 1
+)
+
+if "%OUTPUT_JSON%"=="1" (
+    echo {"status":"locked","candidate":"!ENTRY_CANDIDATE!","version":"!ENTRY_VERSION!","vendor":"!ENTRY_VENDOR!","file":"!LOCK_FILE_PATH:\=\\!"}
+    call :ReleaseStateLock
+    exit /b 0
+)
+
+echo.
+echo %cGREEN%[   OK   ]%cRESET% Successfully locked !ENTRY_CANDIDATE! !ENTRY_VERSION! in:
+echo            !LOCK_FILE_PATH!
+call :ReleaseStateLock
+exit /b 0
+
+:ExecuteLockedInstall
+call :AcquireStateLock
+if errorlevel 1 exit /b 1
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "LOCK_FIND_RND=%%A"
+set "LOCK_FIND_PS1=%JVM_SECURE_TEMP%\jvm_lock_find_!LOCK_FIND_RND!.ps1"
+(
+    echo $dir = $env:INVOCATION_DIR
+    echo while ^($dir^) {
+    echo     $c = Join-Path $dir '.jvm.lock'
+    echo     if ^(Test-Path -LiteralPath $c^) {
+    echo         Write-Output $c
+    echo         break
+    echo     }
+    echo     $p = Split-Path -Path $dir -Parent
+    echo     if ^(-not $p -or $p -eq $dir^) { break }
+    echo     $dir = $p
+    echo }
+) > "!LOCK_FIND_PS1!"
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!LOCK_FIND_PS1!"') do (
+    set "RESOLVED_LOCK_FILE=%%A"
+)
+if exist "!LOCK_FIND_PS1!" del /f /q "!LOCK_FIND_PS1!" >nul 2>&1
+
+if not defined RESOLVED_LOCK_FILE (
+    echo %cRED%[ ERROR  ]%cRESET% No .jvm.lock found in the current directory or parent directories.
+    echo            Run 'jvm lock' to generate a lockfile for this project.
+    call :ReleaseStateLock
+    exit /b 1
+)
+
+rem 2. Security validation on resolved lockfile (CWE-59)
+if exist "!RESOLVED_LOCK_FILE!\" (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): .jvm.lock is a directory.
+    call :ReleaseStateLock
+    exit /b 1
+)
+"%FSUTIL_BIN%" reparsepoint query "!RESOLVED_LOCK_FILE!" >nul 2>&1
+if not errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Refusing to process symlinked/reparse point .jvm.lock.
+    call :ReleaseStateLock
+    exit /b 1
+)
+
+echo %cBLUE%[  INFO  ]%cRESET% Using lockfile: !RESOLVED_LOCK_FILE!
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "LOCK_RND=%%A"
+set "LOCK_PARSER_PS1=%JVM_SECURE_TEMP%\jvm_lock_parse_!LOCK_RND!.ps1"
+
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo try {
+    echo     $raw = Get-Content -LiteralPath $env:RESOLVED_LOCK_FILE -Raw -Encoding UTF8
+    echo     $data = $raw ^| ConvertFrom-Json
+    echo     if ^(-not $data.tools^) {
+    echo         Write-Output "ERROR|Lockfile does not contain any tool definitions"
+    echo         exit 0
+    echo     }
+    echo     foreach ^($prop in $data.tools.PSObject.Properties^) {
+    echo         $c = $prop.Name
+    echo         $t = $prop.Value
+    echo         $v = if ^($t.version^) { $t.version } else { 'none' }
+    echo         $vend = if ^($t.vendor^) { $t.vendor } else { 'none' }
+    echo         $arch = if ^($t.arch^) { $t.arch } else { 'all' }
+    echo         $url = if ^($t.url^) { $t.url } else { 'none' }
+    echo         $chkType = if ^($t.checksum_type^) { $t.checksum_type } else { 'sha256' }
+    echo         $chk = if ^($t.checksum^) { $t.checksum } else { 'none' }
+    echo         $line = @^('TOOL', $c, $vend, $v, $arch, $url, $chkType, $chk^) -join [char]124
+    echo         Write-Output $line
+    echo     }
+    echo } catch {
+    echo     Write-Output ^("ERROR|" + $_.Exception.Message^)
+    echo }
+) > "!LOCK_PARSER_PS1!"
+
+set "LOCK_ERR="
+set "LOCKED_TOOL_COUNT=0"
+for /f "tokens=1-8 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!LOCK_PARSER_PS1!"') do (
+    if "%%A"=="ERROR" set "LOCK_ERR=%%B"
+    if "%%A"=="TOOL" (
+        set /a LOCKED_TOOL_COUNT+=1
+        set "L_TOOL_!LOCKED_TOOL_COUNT!=%%B"
+        set "L_VEND_!LOCKED_TOOL_COUNT!=%%C"
+        set "L_VER_!LOCKED_TOOL_COUNT!=%%D"
+        set "L_ARCH_!LOCKED_TOOL_COUNT!=%%E"
+        set "L_URL_!LOCKED_TOOL_COUNT!=%%F"
+        set "L_CHKTYPE_!LOCKED_TOOL_COUNT!=%%G"
+        set "L_CHK_!LOCKED_TOOL_COUNT!=%%H"
+    )
+)
+if exist "!LOCK_PARSER_PS1!" del /f /q "!LOCK_PARSER_PS1!" >nul 2>&1
+
+if defined LOCK_ERR (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to parse .jvm.lock: !LOCK_ERR!
+    call :ReleaseStateLock
+    exit /b 1
+)
+
+if !LOCKED_TOOL_COUNT! EQU 0 (
+    echo %cYELLOW%[ WARNING]%cRESET% .jvm.lock contains no tool entries.
+    call :ReleaseStateLock
+    exit /b 0
+)
+
+rem 3. Process each locked tool
+set "FILTER_TOOL="
+if defined CLI_TARGET if /i not "!CLI_TARGET!"=="SKIP_JAVA" set "FILTER_TOOL=!CLI_TARGET!"
+if /i not "!TARGET_CANDIDATE!"=="java" set "FILTER_TOOL=!TARGET_CANDIDATE!"
+if defined FILTER_TOOL (
+    call :ValidateStrictIdentifier "!FILTER_TOOL!" FILTER_TOOL
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-20^): Invalid candidate filter '!FILTER_TOOL!'.
+        call :ReleaseStateLock
+        exit /b 1
+    )
+)
+
+set "MATCHED_LOCKED_COUNT=0"
+for /l %%i in (1,1,!LOCKED_TOOL_COUNT!) do (
+    set "CURR_TOOL=!L_TOOL_%%i!"
+    set "DO_PROCESS=1"
+    if defined FILTER_TOOL (
+        if /i "!CURR_TOOL!" NEQ "!FILTER_TOOL!" set "DO_PROCESS=0"
+    )
+    if "!DO_PROCESS!"=="1" (
+        set /a MATCHED_LOCKED_COUNT+=1
+        set "T_CAND=!L_TOOL_%%i!"
+        set "T_VEND=!L_VEND_%%i!"
+        set "T_VER=!L_VER_%%i!"
+        set "T_ARCH=!L_ARCH_%%i!"
+        set "T_URL=!L_URL_%%i!"
+        set "T_CHKTYPE=!L_CHKTYPE_%%i!"
+        set "T_CHK=!L_CHK_%%i!"
+        call :InstallSingleLockedTool
+        if errorlevel 1 (
+            call :ReleaseStateLock
+            exit /b 1
+        )
+    )
+)
+
+if defined FILTER_TOOL if !MATCHED_LOCKED_COUNT! EQU 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Candidate '!FILTER_TOOL!' is not defined in .jvm.lock.
+    call :ReleaseStateLock
+    exit /b 1
+)
+
+echo.
+echo %cGREEN%[   OK   ]%cRESET% Locked installation complete!
+call :ReleaseStateLock
+exit /b 0
+
+:InstallSingleLockedTool
+if not "%~1"=="" (
+    set "T_CAND=%~1"
+    set "T_VEND=%~2"
+    set "T_VER=%~3"
+    set "T_ARCH=%~4"
+    set "T_URL=%~5"
+    set "T_CHKTYPE=%~6"
+    set "T_CHK=%~7"
+)
+if /i "!T_VEND!"=="none" set "T_VEND="
+if /i "!T_CHK!"=="none" set "T_CHK="
+
+rem Security sanitization on locked candidate, version, vendor, and URL (CWE-20 / CWE-22 / CWE-319)
+call :ValidateStrictIdentifier "!T_CAND!" T_CAND
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-20^): Invalid candidate identifier in .jvm.lock: !T_CAND!
+    exit /b 1
+)
+call :ValidateStrictIdentifier "!T_VER!" T_VER
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-20^): Invalid candidate version in .jvm.lock: !T_VER!
+    exit /b 1
+)
+if defined T_VEND (
+    call :ValidateStrictIdentifier "!T_VEND!" T_VEND
+    if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-20^): Invalid candidate vendor in .jvm.lock: !T_VEND!
+        exit /b 1
+    )
+)
+set "VALID_LOCKED_CAND=0"
+for %%C in (java maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut mn visualvm) do (
+    if /i "!T_CAND!"=="%%C" set "VALID_LOCKED_CAND=1"
+)
+if "!VALID_LOCKED_CAND!"=="0" (
+    echo %cRED%[ ERROR  ]%cRESET% Security policy violation ^(CWE-20^): Unsupported or unmanaged tool '!T_CAND!' in .jvm.lock.
+    exit /b 1
+)
+if not "!T_URL:~0,8!"=="https://" (
+    echo %cRED%[ ERROR  ]%cRESET% Security policy violation ^(CWE-319^): Refusing non-HTTPS URL in .jvm.lock: !T_URL!
+    exit /b 1
+)
+
+echo.
+echo ------------------------------------------------------------
+echo %cBLUE%[ ACTION ]%cRESET% Processing locked candidate: !T_CAND! !T_VER! ...
+
+rem Validate architecture
+if /i "!T_ARCH!" NEQ "all" if /i "!T_ARCH!" NEQ "any" (
+    if /i "!T_ARCH!" NEQ "!SYS_ARCH!" (
+        if /i "!SYS_ARCH!"=="aarch64" if /i "!T_ARCH!"=="x64" (
+            echo %cYELLOW%[ WARNING]%cRESET% Locked tool is x64, running under ARM64 emulation.
+        ) else (
+            echo %cRED%[ ERROR  ]%cRESET% Architecture mismatch in .jvm.lock!
+            echo            Locked architecture: !T_ARCH!
+            echo            Current host       : !SYS_ARCH!
+            exit /b 1
+        )
+    )
+)
+
+if /i "!T_CAND!"=="java" goto :InstallLockedJava
+
+rem Ecosystem candidate
+set "INST_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!T_CAND!\!T_VER!"
+if exist "!INST_PATH!\bin" (
+    echo %cGREEN%[   OK   ]%cRESET% Locked !T_CAND! !T_VER! is already installed:
+    echo            !INST_PATH!
+    call :SwitchCandidate "!T_VER!"
+    exit /b 0
+)
+
+call :RequireNetwork
+if errorlevel 1 exit /b 1
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "T_RANDOM_NAME=%%A"
+set "DL_URL=!T_URL!"
+set "DL_ZIP=%JVM_SECURE_TEMP%\jvm_locked_!T_CAND!_!T_VER!_!T_RANDOM_NAME!.zip"
+set "DL_EXTRACT=!INST_PATH!"
+set "DL_CHKSUM_URL="
+set "DL_CHKSUM_VAL=!T_CHK!"
+set "DL_CHKSUM_TYPE=!T_CHKTYPE!"
+set "DL_STRIP_ROOT=1"
+
+call :ExecuteSharedDownloader
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to download/verify locked candidate !T_CAND!.
+    if exist "!INST_PATH!" rmdir /s /q "!INST_PATH!" >nul 2>&1
+    exit /b 1
+)
+
+set "TARGET_CANDIDATE=!T_CAND!"
+call :SwitchCandidate "!T_VER!"
+exit /b 0
+
+:InstallLockedJava
+set "ALREADY_INST_PATH="
+for /l %%k in (1,1,!JDK_COUNT!) do (
+    if not defined ALREADY_INST_PATH (
+        if /i "!JDK_VENDOR_%%k!"=="!T_VEND!" (
+            if "!JDK_MAJOR_%%k!"=="!T_VER!" set "ALREADY_INST_PATH=!JDK_PATH_%%k!"
+            if /i "!JDK_NAME_%%k!"=="!T_VER!" set "ALREADY_INST_PATH=!JDK_PATH_%%k!"
+        )
+    )
+)
+
+if defined ALREADY_INST_PATH (
+    echo %cGREEN%[   OK   ]%cRESET% Locked Java !T_VER! ^(!T_VEND!^) is already installed:
+    echo            !ALREADY_INST_PATH!
+    set "CURRENT_JDK_PATH=!ALREADY_INST_PATH!"
+    if "!SESSION_MODE!"=="1" (
+        call :EmitSessionEnv "JAVA_HOME=!CURRENT_JDK_PATH!"
+    ) else (
+        call :UpdateSystemPath
+    )
+    exit /b 0
+)
+
+call :RequireNetwork
+if errorlevel 1 exit /b 1
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "T_RANDOM_NAME=%%A"
+set "DL_VENDOR=!T_VEND!"
+set "DL_VERSION=!T_VER!"
+set "ZIP_PATH=%JVM_SECURE_TEMP%\jdk_locked_!T_VEND!_!T_VER!_!T_RANDOM_NAME!.zip"
+set "EXTRACT_DIR=%JVM_SECURE_TEMP%\jdk_locked_!T_VEND!_!T_VER!_!T_RANDOM_NAME!_ext"
+set "DEST_DIR=!JVM_PF!\Java"
+
+set "DL_URL=!T_URL!"
+set "DL_ZIP=!ZIP_PATH!"
+set "DL_EXTRACT=!EXTRACT_DIR!"
+set "DL_CHKSUM_URL="
+set "DL_CHKSUM_VAL=!T_CHK!"
+set "DL_CHKSUM_TYPE=!T_CHKTYPE!"
+set "DL_STRIP_ROOT=0"
+
+call :ExecuteSharedDownloader
+if errorlevel 1 (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to download/verify locked JDK !T_VER! ^(!T_VEND!^).
+    if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
+    if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
+    exit /b 1
+)
+
+setlocal enabledelayedexpansion
+goto :DoElevatedJdkInstall
+
 rem ============================================================
 rem Universal Candidate Engine
 rem ============================================================
 :RouteEcosystemCandidate
 if /i "!CLI_COMMAND!"=="install" (
+    if "!FLAG_LOCKED!"=="1" (
+        call :ExecuteLockedInstall
+        exit /b !errorlevel!
+    )
     call :InstallCandidate
+    exit /b !errorlevel!
+)
+if /i "!CLI_COMMAND!"=="update" (
+    call :RequireNetwork
+    if errorlevel 1 exit /b 1
+    set "act_ver=none"
+    set "QUERY_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\current"
+    if exist "!QUERY_PATH!" (
+        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do for %%X in ("%%A") do set "act_ver=%%~nxX"
+        call :ValidateStrictIdentifier "!act_ver!" act_ver
+        if errorlevel 1 set "act_ver=none"
+    )
+    call :EcoPerformCheck !TARGET_CANDIDATE! "!act_ver!"
+    exit /b !errorlevel!
+)
+if /i "!CLI_COMMAND!"=="lock" (
+    call :ExecuteLockCommand
+    exit /b !errorlevel!
+)
+if /i "!CLI_COMMAND!"=="list" (
+    call :ListEcosystemCandidates
     exit /b !errorlevel!
 )
 if /i "!CLI_COMMAND!"=="uninstall" (
@@ -6566,6 +7961,13 @@ if /i "!TARGET_CANDIDATE!"=="gradle" ( set "CANDIDATE_ENV_VAR=GRADLE_HOME" & set
 if /i "!TARGET_CANDIDATE!"=="kotlin" ( set "CANDIDATE_ENV_VAR=KOTLIN_HOME" & set "CANDIDATE_PROPER_NAME=Kotlin" )
 if /i "!TARGET_CANDIDATE!"=="scala" ( set "CANDIDATE_ENV_VAR=SCALA_HOME" & set "CANDIDATE_PROPER_NAME=Scala" )
 if /i "!TARGET_CANDIDATE!"=="groovy" ( set "CANDIDATE_ENV_VAR=GROOVY_HOME" & set "CANDIDATE_PROPER_NAME=Groovy" )
+if /i "!TARGET_CANDIDATE!"=="ant" ( set "CANDIDATE_ENV_VAR=ANT_HOME" & set "CANDIDATE_PROPER_NAME=Ant" )
+if /i "!TARGET_CANDIDATE!"=="sbt" ( set "CANDIDATE_ENV_VAR=SBT_HOME" & set "CANDIDATE_PROPER_NAME=sbt" )
+if /i "!TARGET_CANDIDATE!"=="jbang" ( set "CANDIDATE_ENV_VAR=JBANG_HOME" & set "CANDIDATE_PROPER_NAME=JBang" )
+if /i "!TARGET_CANDIDATE!"=="quarkus" ( set "CANDIDATE_ENV_VAR=QUARKUS_HOME" & set "CANDIDATE_PROPER_NAME=Quarkus" )
+if /i "!TARGET_CANDIDATE!"=="spring" ( set "CANDIDATE_ENV_VAR=SPRING_HOME" & set "CANDIDATE_PROPER_NAME=Spring Boot CLI" )
+if /i "!TARGET_CANDIDATE!"=="micronaut" ( set "CANDIDATE_ENV_VAR=MICRONAUT_HOME" & set "CANDIDATE_PROPER_NAME=Micronaut" )
+if /i "!TARGET_CANDIDATE!"=="mn" ( set "CANDIDATE_ENV_VAR=MICRONAUT_HOME" & set "CANDIDATE_PROPER_NAME=Micronaut" )
 exit /b 0
 
 :SwitchCandidate
@@ -6685,7 +8087,7 @@ if errorlevel 1 (
 
 rem Update user PATH safely in PowerShell avoiding CMD pipe parsing hazards
 set "PATH_UPDATED=0"
-for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$varBin = [char]37 + $env:CANDIDATE_ENV_VAR + [char]37 + '\bin'; $p = [Environment]::GetEnvironmentVariable(''Path'', ''User''); if (-not $p) { Set-ItemProperty -Path ''HKCU:\Environment'' -Name ''Path'' -Value $varBin -Type ExpandString; Write-Output ''INJECTED'' } elseif (($p -split '';'' | Where-Object { $_ -and $_.TrimEnd(''\'') -eq $varBin }) -eq $null) { Set-ItemProperty -Path ''HKCU:\Environment'' -Name ''Path'' -Value ($varBin + '';'' + $p) -Type ExpandString; Write-Output ''INJECTED'' } else { Write-Output ''EXISTS'' }"') do (
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$varBin = [char]37 + $env:CANDIDATE_ENV_VAR + [char]37 + '\bin'; $p = [Environment]::GetEnvironmentVariable('Path', 'User'); if (-not $p) { Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $varBin -Type ExpandString; Write-Output 'INJECTED' } elseif (($p -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -eq $varBin }) -eq $null) { Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value ($varBin + ';' + $p) -Type ExpandString; Write-Output 'INJECTED' } else { Write-Output 'EXISTS' }"') do (
     if "%%A"=="INJECTED" set "PATH_UPDATED=1"
 )
 if "!PATH_UPDATED!"=="1" (
@@ -6709,8 +8111,13 @@ exit /b 0
 
 :InstallCandidate
 call :RequireNetwork
-if errorlevel 1 exit /b 1
+if errorlevel 1 (
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
+    exit /b 1
+)
 call :GetCandidateEnvVar
+set "IS_INTERACTIVE_UI=0"
+if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" set "IS_INTERACTIVE_UI=1"
 echo %cBLUE%[ ACTION ]%cRESET% Installing !CANDIDATE_PROPER_NAME!...
 
 set "TARGET_VER=!CLI_TARGET!"
@@ -6722,6 +8129,7 @@ if /i "!TARGET_VER!"=="latest" (
     
     if "!TARGET_VER!"=="ERROR" (
         echo %cRED%[ ERROR  ]%cRESET% Failed to resolve latest version of !CANDIDATE_PROPER_NAME!. Check your internet connection.
+        if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
         exit /b 1
     )
     echo %cGREEN%[   OK   ]%cRESET% Latest version resolved to !TARGET_VER!.
@@ -6729,59 +8137,38 @@ if /i "!TARGET_VER!"=="latest" (
 
 if not "!TARGET_VER!"=="!TARGET_VER:\=!" (
     echo %cRED%[ ERROR  ]%cRESET% Version identifier cannot contain path separators: !TARGET_VER!
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
 )
 if not "!TARGET_VER!"=="!TARGET_VER:/=!" (
     echo %cRED%[ ERROR  ]%cRESET% Version identifier cannot contain path separators: !TARGET_VER!
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
 )
 if not "!TARGET_VER!"=="!TARGET_VER:..=!" (
     echo %cRED%[ ERROR  ]%cRESET% Version identifier cannot contain '..': !TARGET_VER!
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
 )
 if "!TARGET_VER!"=="." (
     echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier: '.' is forbidden.
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
 )
 if /i "!TARGET_VER!"=="current" (
     echo %cRED%[ ERROR  ]%cRESET% 'current' is a reserved keyword and cannot be targeted.
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
 )
 call :ValidateStrictIdentifier "!TARGET_VER!" TARGET_VER
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Invalid version identifier: !TARGET_VER!
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
 )
 
 rem Build the download URL
-set "DOWNLOAD_URL="
-set "CHECKSUM_URL="
-set "CHECKSUM_TYPE="
-if /i "!TARGET_CANDIDATE!"=="maven" (
-    set "DOWNLOAD_URL=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/!TARGET_VER!/apache-maven-!TARGET_VER!-bin.zip"
-    set "CHECKSUM_URL=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/!TARGET_VER!/apache-maven-!TARGET_VER!-bin.zip.sha512"
-    set "CHECKSUM_TYPE=SHA512"
-)
-if /i "!TARGET_CANDIDATE!"=="gradle" (
-    set "DOWNLOAD_URL=https://services.gradle.org/distributions/gradle-!TARGET_VER!-bin.zip"
-    set "CHECKSUM_URL=https://services.gradle.org/distributions/gradle-!TARGET_VER!-bin.zip.sha256"
-    set "CHECKSUM_TYPE=SHA256"
-)
-if /i "!TARGET_CANDIDATE!"=="kotlin" (
-    set "DOWNLOAD_URL=https://github.com/JetBrains/kotlin/releases/download/v!TARGET_VER!/kotlin-compiler-!TARGET_VER!.zip"
-    set "CHECKSUM_URL=https://github.com/JetBrains/kotlin/releases/download/v!TARGET_VER!/kotlin-compiler-!TARGET_VER!.zip.sha256"
-    set "CHECKSUM_TYPE=SHA256"
-)
-if /i "!TARGET_CANDIDATE!"=="scala" (
-    set "DOWNLOAD_URL=https://github.com/scala/scala3/releases/download/!TARGET_VER!/scala3-!TARGET_VER!.zip"
-    set "CHECKSUM_URL=https://github.com/scala/scala3/releases/download/!TARGET_VER!/scala3-!TARGET_VER!.zip.sha256"
-    set "CHECKSUM_TYPE=SHA256"
-)
-if /i "!TARGET_CANDIDATE!"=="groovy" (
-    set "DOWNLOAD_URL=https://archive.apache.org/dist/groovy/!TARGET_VER!/distribution/apache-groovy-binary-!TARGET_VER!.zip"
-    set "CHECKSUM_URL=https://archive.apache.org/dist/groovy/!TARGET_VER!/distribution/apache-groovy-binary-!TARGET_VER!.zip.sha256"
-    set "CHECKSUM_TYPE=SHA256"
-)
+call :BuildEcosystemCandidateUrls
 
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "CAND_RANDOM_NAME=%%A"
 set "ZIP_DEST=%JVM_SECURE_TEMP%\jvm_!TARGET_CANDIDATE!_!TARGET_VER!_!CAND_RANDOM_NAME!.zip"
@@ -6812,6 +8199,10 @@ set "DL_URL=!DOWNLOAD_URL!"
 set "DL_ZIP=!ZIP_DEST!"
 set "DL_EXTRACT=!EXTRACT_DEST_TEMP!"
 set "DL_CHKSUM_URL=!CHECKSUM_URL!"
+set "DL_FALLBACK_URL=!FALLBACK_URL!"
+set "DL_FALLBACK_CHKSUM=!FALLBACK_CHECKSUM_URL!"
+set "DL_FALLBACK2_URL=!FALLBACK2_URL!"
+set "DL_FALLBACK2_CHKSUM=!FALLBACK2_CHECKSUM_URL!"
 set "DL_CHKSUM_VAL="
 set "DL_CHKSUM_TYPE=!CHECKSUM_TYPE!"
 set "DL_STRIP_ROOT=1"
@@ -6819,13 +8210,17 @@ set "DL_STRIP_ROOT=1"
 if not exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!" mkdir "%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!"
 
 call :AcquireStateLock
-if errorlevel 1 exit /b 1
+if errorlevel 1 (
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
+    exit /b 1
+)
 
 call :ExecuteSharedDownloader
 if !errorlevel! NEQ 0 (
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
     call :ReleaseStateLock
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
 )
 
@@ -6842,6 +8237,7 @@ if errorlevel 1 (
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
     call :ReleaseStateLock
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
 )
 if not exist "!EXTRACT_DEST!" (
@@ -6850,6 +8246,7 @@ if not exist "!EXTRACT_DEST!" (
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
     call :ReleaseStateLock
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
 )
 if exist "!EXTRACT_DEST_OLD!" (
@@ -6867,7 +8264,16 @@ if not exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\current" 
     call :SwitchCandidate "!TARGET_VER!"
     if errorlevel 1 (
         call :ReleaseStateLock
+        if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
         exit /b 1
+    )
+) else (
+    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" (
+        echo.
+        "%CHOICE_BIN%" /C yn /N /M "Would you like to activate !CANDIDATE_PROPER_NAME! !TARGET_VER! now? (y/N): "
+        if !errorlevel!==1 (
+            call :SwitchCandidate "!TARGET_VER!"
+        )
     )
 )
 
@@ -7157,6 +8563,13 @@ if /i "!TARGET_CANDIDATE!"=="gradle" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https
 if /i "!TARGET_CANDIDATE!"=="kotlin" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.github.com/repos/JetBrains/kotlin/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; ((Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing -TimeoutSec 5).tag_name).TrimStart('v') } !PS_CATCH!"
 if /i "!TARGET_CANDIDATE!"=="scala" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.github.com/repos/scala/scala3/releases/latest'; try { $h = @{}; if ($env:GITHUB_TOKEN) { $h['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN }; (Invoke-RestMethod -Uri $url -Headers $h -UseBasicParsing -TimeoutSec 5).tag_name } !PS_CATCH!"
 if /i "!TARGET_CANDIDATE!"=="groovy" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.sdkman.io/2/candidates/default/groovy'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5) } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="ant" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.sdkman.io/2/candidates/default/ant'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5) } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="sbt" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.sdkman.io/2/candidates/default/sbt'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5) } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="jbang" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.sdkman.io/2/candidates/default/jbang'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5) } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="quarkus" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.sdkman.io/2/candidates/default/quarkus'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5) } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="spring" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.sdkman.io/2/candidates/default/springboot'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5) } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="micronaut" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.sdkman.io/2/candidates/default/micronaut'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5) } catch { 'ERROR' }"
+if /i "!TARGET_CANDIDATE!"=="mn" set "PS_RESOLVE_LATEST=!PS_TLS! $url='https://api.sdkman.io/2/candidates/default/micronaut'; try { (Invoke-RestMethod -Uri $url -UseBasicParsing -TimeoutSec 5) } catch { 'ERROR' }"
 
 set "LATEST_VER=ERROR"
 for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "!PS_RESOLVE_LATEST!"') do (
@@ -7209,10 +8622,10 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo     function Test-TrustedJvmUri^([System.Uri]$u^) {
     echo         if ^(-not $u -or $u.Scheme -ne 'https' -or $u.IsLoopback^) { return $false }
     echo         $h = $u.Host.ToLowerInvariant^(^)
-    echo         $exact = @^('download.oracle.com','edelivery.oracle.com','api.adoptium.net','github.com','api.github.com','objects.githubusercontent.com','release-assets.githubusercontent.com','raw.githubusercontent.com','corretto.aws','api.azul.com','cdn.azul.com','static.azul.com','aka.ms','download.visualstudio.microsoft.com','api.bell-sw.com','download.bell-sw.com','repo.maven.apache.org','archive.apache.org','dlcdn.apache.org','downloads.apache.org','services.gradle.org','downloads.gradle.org','downloads.gradle-dn.com','api.sdkman.io'^)
+    echo         $exact = @^('download.oracle.com','edelivery.oracle.com','api.adoptium.net','github.com','api.github.com','objects.githubusercontent.com','release-assets.githubusercontent.com','raw.githubusercontent.com','corretto.aws','api.azul.com','cdn.azul.com','static.azul.com','aka.ms','download.visualstudio.microsoft.com','api.bell-sw.com','download.bell-sw.com','repo.maven.apache.org','archive.apache.org','dlcdn.apache.org','downloads.apache.org','services.gradle.org','downloads.gradle.org','downloads.gradle-dn.com','api.sdkman.io','sap.github.io'^)
     echo         if ^($exact -contains $h^) { return $true }
     echo         if ^($h -match '^^corretto^(-downloads^)?\.[a-z0-9\-]+\.amazonaws\.com$' -or $h -match '^^corretto\.aws\.s3^(\.[a-z0-9\-]+^)?\.amazonaws\.com$'^) { return $true }
-    echo         foreach ^($sfx in @^('.oracle.com','.adoptium.net','.github.com','.githubusercontent.com','.azul.com','.microsoft.com','.bell-sw.com','.apache.org','.gradle.org','.gradle-dn.com'^)^) {
+    echo         foreach ^($sfx in @^('.oracle.com','.adoptium.net','.github.com','.githubusercontent.com','.azul.com','.microsoft.com','.bell-sw.com','.apache.org','.gradle.org','.gradle-dn.com','.github.io'^)^) {
     echo             if ^($h.EndsWith^($sfx^)^) { return $true }
     echo         }
     echo         return $false
@@ -7233,29 +8646,74 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo             throw ^('Security policy violation ^(CWE-918^): Untrusted checksum host: ' + $chkUri.Host^)
     echo         }
     echo     }
-    echo     Write-Host ^('[ ACTION ] Downloading from ' + $url + ' ...'^) -ForegroundColor Cyan
-    echo     $maxRetries = 3; $retryCount = 0; $response = $null
-    echo     while ^($retryCount -lt $maxRetries^) {
-    echo         try {
-    echo             $request = [System.Net.WebRequest]::Create^($url^)
-    echo             $request.Timeout = 15000
-    echo             $request.ReadWriteTimeout = 30000
-    echo             $response = $request.GetResponse^(^)
-    echo             if ^($response.ResponseUri -and $response.ResponseUri.Scheme -ne 'https'^) {
-    echo                 $badUri = $response.ResponseUri; $response.Close^(^)
-    echo                 throw ^('Security policy violation ^(CWE-319^): Blocked redirect to non-HTTPS URL: ' + $badUri^)
-    echo             }
-    echo             if ^($response.ResponseUri -and -not ^(Test-TrustedJvmUri $response.ResponseUri^)^) {
-    echo                 $badUri = $response.ResponseUri; $response.Close^(^)
-    echo                 throw ^('Security policy violation ^(CWE-601^): Blocked redirect to untrusted host: ' + $badUri.Host^)
-    echo             }
-    echo             break
-    echo         } catch {
-    echo             $retryCount++
-    echo             if ^($retryCount -eq $maxRetries^) { throw }
-    echo             Write-Host "`r[ WARNING] Network error, retrying ($retryCount/$maxRetries)... " -ForegroundColor Yellow
-    echo             Start-Sleep -Seconds 2
+    echo     $dlUrls = @^($url^)
+    echo     $dlChks = @^($env:DL_CHKSUM_URL^)
+    echo     if ^($env:DL_FALLBACK_URL^) {
+    echo         $fbUri = $null
+    echo         if ^(-not [System.Uri]::TryCreate^($env:DL_FALLBACK_URL, [System.UriKind]::Absolute, [ref]$fbUri^) -or $fbUri.Scheme -ne 'https'^) {
+    echo             throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS download URL: ' + $env:DL_FALLBACK_URL^)
     echo         }
+    echo         if ^(-not ^(Test-TrustedJvmUri $fbUri^)^) {
+    echo             throw ^('Security policy violation ^(CWE-918^): Untrusted download host: ' + $fbUri.Host^)
+    echo         }
+    echo         $dlUrls += $env:DL_FALLBACK_URL
+    echo         $dlChks += $env:DL_FALLBACK_CHKSUM
+    echo     }
+    echo     if ^($env:DL_FALLBACK2_URL^) {
+    echo         $fb2Uri = $null
+    echo         if ^(-not [System.Uri]::TryCreate^($env:DL_FALLBACK2_URL, [System.UriKind]::Absolute, [ref]$fb2Uri^) -or $fb2Uri.Scheme -ne 'https'^) {
+    echo             throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS download URL: ' + $env:DL_FALLBACK2_URL^)
+    echo         }
+    echo         if ^(-not ^(Test-TrustedJvmUri $fb2Uri^)^) {
+    echo             throw ^('Security policy violation ^(CWE-918^): Untrusted download host: ' + $fb2Uri.Host^)
+    echo         }
+    echo         $dlUrls += $env:DL_FALLBACK2_URL
+    echo         $dlChks += $env:DL_FALLBACK2_CHKSUM
+    echo     }
+    echo     $downloadStarted = $false
+    echo     $response = $null
+    echo     for ^($mi = 0; $mi -lt $dlUrls.Length; $mi++^) {
+    echo         $mUrl = $dlUrls[$mi]
+    echo         $mChk = $dlChks[$mi]
+    echo         Write-Host ^('[ ACTION ] Downloading from ' + $mUrl + ' ...'^) -ForegroundColor Cyan
+    echo         $maxRetries = 3; $retryCount = 0
+    echo         while ^($retryCount -lt $maxRetries^) {
+    echo             try {
+    echo                 $request = [System.Net.WebRequest]::Create^($mUrl^)
+    echo                 $request.Timeout = 15000
+    echo                 $request.ReadWriteTimeout = 30000
+    echo                 $response = $request.GetResponse^(^)
+    echo                 if ^($response.ResponseUri -and $response.ResponseUri.Scheme -ne 'https'^) {
+    echo                     $badUri = $response.ResponseUri; $response.Close^(^)
+    echo                     throw ^('Security policy violation ^(CWE-319^): Blocked redirect to non-HTTPS URL: ' + $badUri^)
+    echo                 }
+    echo                 if ^($response.ResponseUri -and -not ^(Test-TrustedJvmUri $response.ResponseUri^)^) {
+    echo                     $badUri = $response.ResponseUri; $response.Close^(^)
+    echo                     throw ^('Security policy violation ^(CWE-601^): Blocked redirect to untrusted host: ' + $badUri.Host^)
+    echo                 }
+    echo                 $downloadStarted = $true
+    echo                 $url = $mUrl
+    echo                 $env:DL_CHKSUM_URL = $mChk
+    echo                 break
+    echo             } catch {
+    echo                 $retryCount++
+    echo                 $is404 = $false
+    echo                 if ^($_.Exception -and $_.Exception.Response^) {
+    echo                     try { if ^([int]$_.Exception.Response.StatusCode -eq 404^) { $is404 = $true } } catch { }
+    echo                 }
+    echo                 if ^($is404^) { break }
+    echo                 if ^($retryCount -ge $maxRetries^) { break }
+    echo                 Write-Host "`r[ WARNING] Network error, retrying ($retryCount/$maxRetries)... " -ForegroundColor Yellow
+    echo                 Start-Sleep -Seconds 2
+    echo             }
+    echo         }
+    echo         if ^($downloadStarted^) { break }
+    echo         if ^($dlUrls.Length -gt 1^) {
+    echo             Write-Host "`n[  INFO  ] Mirror returned 404 or failed. Trying alternate mirror..." -ForegroundColor Yellow
+    echo         }
+    echo     }
+    echo     if ^(-not $downloadStarted -or -not $response^) {
+    echo         throw ^('Failed to download from any trusted mirror: ' + $url^)
     echo     }
     echo     $totalLength = $response.ContentLength
     echo     $stream = $response.GetResponseStream^(^)
@@ -7354,22 +8812,70 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo         } else {
     echo             $expectedHash = $env:DL_CHKSUM_VAL
     echo         }
-    echo         if ^($expectedHash^) { $expectedHash = ^($expectedHash -split '\s+'^)[0].Trim^(^) }
-    echo         if ^($cryptoType -eq 'SHA256' -and $expectedHash -notmatch '^[0-9a-fA-F]{64}$'^) { $expectedHash = $null }
-    echo         if ^($cryptoType -eq 'SHA512' -and $expectedHash -notmatch '^[0-9a-fA-F]{128}$'^) { $expectedHash = $null }
-    echo         if ^($cryptoType -eq 'SHA1' -and $expectedHash -notmatch '^[0-9a-fA-F]{40}$'^) { $expectedHash = $null }
+    echo         $zipName = [System.IO.Path]::GetFileName^($url^)
+    echo         if ^($expectedHash -and ^($expectedHash -match '[\r\n]'^)^) {
+    echo             $mLine = ^($expectedHash -split '[\r\n]+'^) ^| Where-Object { $_ -match [regex]::Escape^($zipName^) } ^| Select-Object -First 1
+    echo             if ^($mLine -and ^($mLine -match '[0-9a-fA-F]{32,128}'^)^) { $expectedHash = $Matches[0] }
+    echo         } elseif ^($expectedHash^) {
+    echo             if ^($expectedHash -match '[0-9a-fA-F]{32,128}'^) { $expectedHash = $Matches[0] } else { $expectedHash = ^($expectedHash -split '\s+'^)[0].Trim^(^) }
+    echo         }
+    echo         if ^([string]::IsNullOrWhiteSpace^($expectedHash^) -and $url.StartsWith^('https://github.com/'^) -and $url.Contains^('/releases/download/'^)^) {
+    echo             try {
+    echo                 $uParts = $url.Substring^(19^).Split^('/'^)
+    echo                 if ^($uParts.Length -ge 5 -and $uParts[2] -eq 'releases' -and $uParts[3] -eq 'download'^) {
+    echo                     $ghOwner = $uParts[0]; $ghRepo = $uParts[1]; $ghTag = $uParts[4]; $ghAsset = $uParts[$uParts.Length - 1]
+    echo                     $ghApiUri = [System.Uri]^('https://api.github.com/repos/' + $ghOwner + '/' + $ghRepo + '/releases/tags/' + $ghTag^)
+    echo                     if ^(Test-TrustedJvmUri $ghApiUri^) {
+    echo                         $ghReq = [System.Net.WebRequest]::Create^($ghApiUri^)
+    echo                         $ghReq.UserAgent = 'DiamTek-JVM'
+    echo                         $ghReq.Timeout = 8000
+    echo                         if ^($env:GITHUB_TOKEN^) { $ghReq.Headers['Authorization'] = 'token ' + $env:GITHUB_TOKEN }
+    echo                         $ghResp = $ghReq.GetResponse^(^)
+    echo                         try {
+    echo                             $ghSr = New-Object System.IO.StreamReader^($ghResp.GetResponseStream^(^)^)
+    echo                             try { $ghJson = $ghSr.ReadToEnd^(^) ^| ConvertFrom-Json } finally { $ghSr.Close^(^); $ghSr.Dispose^(^) }
+    echo                             if ^($ghJson -and $ghJson.assets^) {
+    echo                                 $mAst = $ghJson.assets ^| Where-Object { $_.name -eq $ghAsset } ^| Select-Object -First 1
+    echo                                 $dStr = [string]$mAst.digest
+    echo                                 if ^($dStr -and $dStr.Contains^(':'^)^) {
+    echo                                     $dParts = $dStr.Split^(':'^)
+    echo                                     if ^($dParts.Length -eq 2 -and $dParts[1] -match '^^[0-9a-fA-F]{64,128}$'^) {
+    echo                                         $expectedHash = $dParts[1]
+    echo                                         $cryptoType = 'SHA256'
+    echo                                     }
+    echo                                 }
+    echo                             }
+    echo                         } finally { $ghResp.Close^(^) }
+    echo                     }
+    echo                 }
+    echo             } catch { }
+    echo         }
+    echo         if ^($cryptoType -eq 'SHA256' -and $expectedHash -notmatch '^^[0-9a-fA-F]{64}$'^) { $expectedHash = $null }
+    echo         if ^($cryptoType -eq 'SHA512' -and $expectedHash -notmatch '^^[0-9a-fA-F]{128}$'^) { $expectedHash = $null }
+    echo         if ^($cryptoType -eq 'SHA1' -and $expectedHash -notmatch '^^[0-9a-fA-F]{40}$'^) { $expectedHash = $null }
+    echo         if ^($cryptoType -eq 'MD5' -and $expectedHash -notmatch '^^[0-9a-fA-F]{32}$'^) { $expectedHash = $null }
     echo         if ^([string]::IsNullOrWhiteSpace^($expectedHash^)^) {
     echo             Write-Host '[ WARNING] Integrity verification unavailable or failed to fetch.' -ForegroundColor Yellow
-    echo             if ^($env:SKIP_CHECKSUM -ne '1'^) {
+    echo             $allowUnverified = ^($env:SKIP_CHECKSUM -eq '1'^)
+    echo             if ^(-not $allowUnverified -and ^($env:IS_INTERACTIVE_UI -eq '1'^)^) {
+    echo                 Write-Host ""
+    echo                 $choice = Read-Host 'Do you want to continue installation without checksum verification? ^(y/N^)'
+    echo                 if ^($choice -and ^($choice.Trim^(^) -eq 'y' -or $choice.Trim^(^) -eq 'Y'^)^) {
+    echo                     $allowUnverified = $true
+    echo                 }
+    echo             }
+    echo             if ^(-not $allowUnverified^) {
     echo                 Write-Host '[ ERROR  ] Aborting due to security policy. Rerun with --skip-checksum to bypass verification.' -ForegroundColor Red
     echo                 if ^(Test-Path $out^) { Remove-Item $out -Force -ErrorAction SilentlyContinue }
     echo                 exit 1
     echo             }
-    echo             Write-Host '            Proceeding WITHOUT integrity verification ^(--skip-checksum active^).' -ForegroundColor Yellow
+    echo             Write-Host '[ WARNING] Proceeding WITHOUT integrity verification ^(--skip-checksum active^).' -ForegroundColor Yellow
     echo             Write-Host ""
     echo         } else {
     echo             $crypto = [System.Security.Cryptography.HashAlgorithm]::Create^($cryptoType^)
-    echo             if ^(-not $crypto^) { $crypto = [System.Security.Cryptography.SHA256]::Create^(^) }
+    echo             if ^(-not $crypto^) {
+    echo                 if ^($cryptoType -eq 'MD5'^) { $crypto = [System.Security.Cryptography.MD5]::Create^(^) } else { $crypto = [System.Security.Cryptography.SHA256]::Create^(^) }
+    echo             }
     echo             $fs2 = [System.IO.File]::OpenRead^($out^)
     echo             $hashBytes = try { $crypto.ComputeHash^($fs2^) } finally { $fs2.Close^(^); $fs2.Dispose^(^) }
     echo             $actualHash = [System.BitConverter]::ToString^($hashBytes^).Replace^('-', ''^).ToLower^(^)

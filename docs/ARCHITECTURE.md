@@ -18,11 +18,14 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [Dual Update Channel Engine & Trust Model Architecture](#dual-update-channel-engine-trust-model-architecture)
 - [UAC Elevation Boundary & Process Isolation](#uac-elevation-boundary--process-isolation)
 - [Environment Broadcast & Registry ValueKind Preservation](#environment-broadcast--registry-valuekind-preservation)
+- [Ecosystem Routing & Universal Candidate Engine](#ecosystem-routing-universal-candidate-engine)
+- [Multi-Tier Hash Resolution & Downloader Pipeline](#multi-tier-hash-resolution--downloader-pipeline)
 - [PowerShell Native Dynamic Environment Injection](#powershell-native-dynamic-environment-injection)
 - [Windows Terminal Settings JSONC Parser Engine](#windows-terminal-settings-jsonc-parser-engine)
 - [Packaging Architecture & Asset Distribution](#packaging-architecture--asset-distribution)
+- [Reproducible Lockfile Architecture (.jvm.lock & jvm install --locked)](#reproducible-lockfile-architecture-jvmlock--jvm-install---locked)
 - [Failure Recovery, Atomic State Rollback & Resource Hygiene](#failure-recovery-atomic-state-rollback--resource-hygiene)
-- [Automated Adversarial Test Architecture (201 Tests, 40 CWEs)](#automated-adversarial-test-architecture-201-tests-40-cwes)
+- [Automated Adversarial Test Architecture (210 Tests, 40 CWEs)](#automated-adversarial-test-architecture-210-tests-40-cwes)
 
 ---
 
@@ -39,7 +42,7 @@ During startup, inventory listing (`jvm list`), and quick-switching, the discove
 
 | Discovered Location | Target Distribution / Managing Tool | Discovery Mode |
 |---|---|---|
-| `C:\Program Files\Java\*` | Standard Oracle, Adoptium, Microsoft, Corretto, Liberica, Semeru installs | Automatic Scan |
+| `C:\Program Files\Java\*` | Standard Oracle, Adoptium, Microsoft, Corretto, Liberica, Semeru, SapMachine, Mandrel, Dragonwell, Kona installs | Automatic Scan |
 | `C:\Program Files (x86)\Java\*` | Legacy 32-bit JDKs and JREs | Automatic Scan |
 | `C:\Program Files\Eclipse Adoptium\*` | Official Eclipse Adoptium / Temurin installer root | Automatic Scan |
 | `C:\Program Files\Amazon Corretto\*` | Official Amazon Corretto installer root | Automatic Scan |
@@ -351,17 +354,92 @@ The Windows `PATH` environment variable frequently relies on variable expansion 
   3. Writes the updated PATH back using `REG_EXPAND_SZ` (`[Microsoft.Win32.RegistryValueKind]::ExpandString`) whenever `%` variable delimiters are present or previously configured, preserving `REG_SZ` only if the original type was `String` and strictly contains zero `%` markers.
 - **Buffer Safety Ceiling**: Computes combined PATH length (Machine + User). If `combinedLength > 8191` characters, modifications are aborted with an error to prevent environment block overflow; if `combinedLength > 2048`, a warning is logged regarding legacy Win32 tool compatibility.
 
+<a id="ecosystem-routing-universal-candidate-engine"></a>
 ## Ecosystem Routing (Universal Candidate Engine)
-Like SDKMAN!, this tool intercepts commands for popular Java tools (Maven, Gradle, Kotlin, Scala, Groovy). The CLI acts as a universal router:
+Like SDKMAN!, this tool intercepts commands for popular Java and JVM ecosystem tools (Maven, Gradle, Kotlin, Scala, Groovy, Ant, sbt, JBang, Quarkus, Spring Boot CLI, Micronaut). The CLI acts as a universal router:
 1. It intercepts the `jvm install <candidate> <version>` command.
-2. It executes a PowerShell `Invoke-RestMethod` to the respective API (Adoptium, GitHub Releases, Azul, BellSoft, IBM, etc.) to securely resolve the download URL and SHA-256 / SHA-1 checksums.
+2. It executes a PowerShell `Invoke-RestMethod` to the respective API (Adoptium, GitHub Releases, Azul, BellSoft, IBM, SAP, Alibaba, Tencent, Apache, etc.) to securely resolve the download URL and SHA-256 / SHA-512 / SHA-1 / MD5 checksums.
 3. The payloads are extracted via `Expand-Archive` and isolated in `%LOCALAPPDATA%\DiamTek\JVM\candidates\<candidate>`.
-4. Specific `<CANDIDATE>_HOME` variables are injected into the registry, mapping the ecosystem completely identically to native Java.
+4. Specific `<CANDIDATE>_HOME` variables (`JAVA_HOME`, `MAVEN_HOME`, `GRADLE_HOME`, `KOTLIN_HOME`, `SCALA_HOME`, `GROOVY_HOME`, `ANT_HOME`, `SBT_HOME`, `JBANG_HOME`, `QUARKUS_HOME`, `SPRING_HOME`, `MICRONAUT_HOME`) are injected into the registry, mapping the ecosystem completely identically to native Java.
 
 ### LTS Target Resolution Architecture
 The `lts` semantic target operates under two complementary models depending on the operation:
 - **Local JDK Switching (`jvm lts`):** Operates 100% offline. The switcher matches installed JDKs against a recognized Long-Term Support release table: **8, 11, 17, 21, 25, 29**. It resolves to the highest major LTS version currently present on disk.
 - **Remote JDK Installation (`jvm install lts --latest`):** Operates dynamically by querying the live Eclipse Adoptium v3 API (`/v3/info/available_releases`) to detect the newest official production LTS release published upstream before initiating the download.
+
+<a id="multi-tier-hash-resolution--downloader-pipeline"></a>
+### Multi-Tier Hash Resolution & Downloader Pipeline (`:ExecuteSharedDownloader`)
+
+Downloading and installing remote developer toolchains introduces significant supply chain and integrity risks (`CWE-494`). The universal downloader pipeline (`:ExecuteSharedDownloader`) implements a resilient 5-tier cryptographic resolution and verification protocol:
+
+```mermaid
+flowchart TD
+    Start["Initiate Candidate Download (:ExecuteSharedDownloader)"] --> ChecksumProvided{"Explicit Checksum URL Supplied by Vendor?"}
+    
+    ChecksumProvided -->|Yes| FetchSumFile["Tier 1: Fetch Remote Checksum File (.sha256 / .sha512 / .sha1 / .md5)"]
+    FetchSumFile --> ParseSumFile{"Checksum File Found? (HTTP 200 vs 404)"}
+    
+    ParseSumFile -->|HTTP 200 OK| ExtractHex["Extract Raw Hex Hash (Normalize BSD / GNU Format)"]
+    
+    ChecksumProvided -->|No / Missing| GitHubCheck
+    ParseSumFile -->|HTTP 404 Not Found| GitHubCheck{"Asset on GitHub Releases? (github.com/.../releases/download/...)"}
+    
+    GitHubCheck -->|Yes| QueryGHAPI["Tier 2: Query GitHub Releases API (/repos/:owner/:repo/releases/tags/:tag)"]
+    QueryGHAPI --> SniffDigest{"API Asset Digest Available? (digest: sha256:hex)"}
+    SniffDigest -->|Found| BindDigest["Extract SHA-256 Digest (Authenticated Infrastructure Hash)"]
+    
+    GitHubCheck -->|No / Mirror Available| MirrorFallback["Tier 3: Multi-Mirror Redirection (e.g. Apache archive.apache.org Fallback)"]
+    SniffDigest -->|Not Found / Blocked| InteractiveCheck
+    MirrorFallback --> InteractiveCheck{"Interactive TUI Mode? (!CLI_COMMAND! == '')"}
+    
+    InteractiveCheck -->|Yes - Interactive| PromptUser["Tier 4: Interactive Confirmation Prompt (Continue without checksum? y/N)"]
+    PromptUser --> UserChoice{"User Consent? (y/N)"}
+    UserChoice -->|Y / Yes| UnverifiedWarning["[WARNING] Proceeding unverified (Explicit user consent recorded)"]
+    UserChoice -->|N / No / Enter| FailClosedAbort["[ERROR] Aborting due to security policy (Preserve diagnostics & Pause)"]
+    
+    InteractiveCheck -->|No - Headless CLI| FlagCheck{"--skip-checksum or --no-verify? (Explicit CLI Flag)"}
+    FlagCheck -->|Yes| UnverifiedWarning
+    FlagCheck -->|No - Fail-Closed| FailClosedAbort
+    
+    ExtractHex --> StreamPayload["Download Payload via WebClient/Stream (Validate SSRF: Test-TrustedJvmUri)"]
+    BindDigest --> StreamPayload
+    UnverifiedWarning --> StreamPayload
+    
+    StreamPayload --> ComputeHash{"Compute Archive Hash (SHA256 / SHA512)"}
+    ComputeHash --> CheckMatch{"Hash Matches Manifest? (Byte-for-byte equality)"}
+    CheckMatch -->|Match OK| Unpack["Atomic Archive Unpack & Staging (Validate ZipSlip & Reparse Points)"]
+    CheckMatch -->|Mismatch| PurgeAbort["[FATAL] Cryptographic Hash Mismatch (Delete corrupt payload & halt)"]
+    Unpack --> PromptActivate{"Candidate Installed (Prompt or Auto-Activate)"}
+```
+
+#### 1. Tier 1: Vendor Checksum File Resolution (`.sha256`, `.sha512`, `.sha1`, `.md5`)
+The downloader attempts to resolve standalone vendor checksum manifests over HTTPS. It normalizes both single-line raw hex digests and GNU/BSD manifest formats (`<hash>  <filename>` or `SHA256 (<filename>) = <hash>`).
+
+#### 2. Tier 2: Upstream GitHub Releases REST API Asset Digest Auto-Discovery (`CWE-494`)
+When vendors publish archives on GitHub Releases without accompanying `.sha256` files (e.g., Micronaut CLI), attempting to download a `.sha256` URL returns HTTP 404. 
+- In Tier 2, the downloader detects GitHub release URLs and queries `https://api.github.com/repos/<owner>/<repo>/releases/tags/<tag>`.
+- It parses the release's asset list to locate the matching binary filename and extracts GitHub's authenticated asset `"digest": "sha256:<hex>"`.
+- Requests validate endpoints via `Test-TrustedJvmUri` (`CWE-918` / `CWE-601`) and authenticate with `$env:GITHUB_TOKEN` when present to eliminate rate-limiting constraints.
+
+#### 3. Tier 3: Multi-Mirror Redirection & Archive Fallback (e.g., Apache Maven)
+For vendors that transition active releases from production mirrors (`downloads.apache.org` or `repo.maven.apache.org`) to long-term archives (`archive.apache.org`), the downloader chains fallback URLs automatically before failing.
+
+#### 4. Tier 4: Interactive TUI Confirmation Fallback
+If upstream vendor mirrors provide neither a checksum file nor an API asset digest:
+- In interactive terminal UI mode, JVM displays `[ WARNING ] Integrity verification unavailable or failed to fetch` and asks:
+  ```text
+  Do you want to continue installation without checksum verification? (y/N)
+  ```
+- If declined, the engine halts fail-closed, pausing execution with `pause` so that error messages do not flash or disappear before returning to the menu.
+
+#### 5. Tier 5: Headless CLI Bypassing & Fail-Closed Enforcement (`--skip-checksum` / `--no-verify`)
+In non-interactive CI/CD scripting:
+- Providing `-y` / `--yes` alone **never** bypasses integrity validation (`CWE-494`).
+- Unverified downloads require the explicit `--skip-checksum` or `--no-verify` flag.
+
+#### 6. Candidate Version Activation & Batch Parser Escaping Rails
+- **Post-Install Activation:** When a candidate is installed, the engine prompts `Would you like to activate <Tool> <Version> now? (y/N): ` in interactive mode, or auto-activates in CLI mode. When update checks discover that the newest version is already on disk, JVM prompts the user to switch seamlessly.
+- **Parenthesized Batch Heredoc Escaping (`cmd.exe`):** Inside inline PowerShell scripts generated via `( echo ... ) > "!PS_SCRIPT!"`, any literal `(` or `)` in user prompts must be escaped as `^(y/N^)`, and regex anchors as `^^` (e.g., `'^^[0-9a-fA-F]{64}$'`). Unescaped parentheses cause `cmd.exe` to prematurely terminate the redirection block with `' was unexpected at this time.`.
 
 <a id="powershell-native-dynamic-environment-injection"></a>
 ## Real-Time PowerShell Session Propagation (`Set-JvmVar`)
@@ -486,6 +564,56 @@ graph LR
 
 ---
 
+<a id="reproducible-lockfile-architecture-jvmlock--jvm-install---locked"></a>
+## Reproducible Lockfile Architecture (.jvm.lock & jvm install --locked)
+
+To guarantee zero runtime drift across distributed engineering teams, CI/CD runners, and reproducible deployment pipelines (`CWE-354` / `CWE-494`), DiamTek JVM provides native lockfile generation and validation:
+
+### 1. Specification & JSON Schema Contract
+The `.jvm.lock` manifest records the exact tool candidate, runtime version, vendor, host architecture, official vendor download URL, and cryptographic digest:
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/schemas/jvm.lock.json",
+  "lockfile_version": 1,
+  "generated_at": "2026-10-01T07:00:00Z",
+  "tools": {
+    "java": {
+      "version": "21",
+      "vendor": "adoptium",
+      "arch": "x64",
+      "url": "https://github.com/adoptium/temurin21-binaries/releases/download/...",
+      "checksum": "a1b2c3d4e5...",
+      "checksum_type": "sha256"
+    },
+    "maven": {
+      "version": "3.9.9",
+      "vendor": null,
+      "arch": "all",
+      "url": "https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/...",
+      "checksum": "f6e5d4...",
+      "checksum_type": "sha512"
+    }
+  }
+}
+```
+
+### 2. Multi-Tool Composition & Atomic Staged Commit (`CWE-362`)
+- **Compositional Updates:** Running `jvm lock <version>` locks the active or requested JDK. Locking an ecosystem candidate (`jvm lock maven 3.9.9`) mutates the existing `.jvm.lock` in-place, adding or updating the candidate tool without clobbering previously locked tools.
+- **Atomic Staged Writes:** To eliminate corruption from concurrent file writes or mid-stream process interruption, the lockfile generator writes output to a temporary staging file (`.jvm.lock.stage.<guid>.tmp`) with UTF-8 No BOM encoding, and performs an atomic overwrite (`Move-Item -LiteralPath ... -Destination .jvm.lock -Force`).
+
+### 3. Hierarchical Traversal & Reparse Boundary Defense (`CWE-59` / `CWE-22`)
+- **Ancestor Traversal:** When running `jvm install --locked` (`-l` / `--lock`), the engine searches the current directory and ascends parent directory trees (`..`) until an authoritative `.jvm.lock` is discovered.
+- **Symlink & Reparse Defense:** Before reading the target lockfile, the engine verifies that the resolved path is a legitimate regular file, rejecting directory junctions, symlinks, and reparse points targeting untrusted volumes (`CWE-59`).
+
+### 4. Cryptographic Fail-Closed Enforcement (`CWE-494` / `CWE-354`)
+During `--locked` execution:
+1. Every download URL is strictly validated against `Test-TrustedJvmUri` domain allowlists (`CWE-918`).
+2. The payload is downloaded to an ACL-protected staging directory (`%LOCALAPPDATA%\DiamTek\JVM\temp`).
+3. Native `.NET` Cryptography APIs compute the SHA-256 (or SHA-512) digest of the downloaded archive.
+4. If the computed hash fails to match the lockfile checksum, the payload is immediately purged, the operation aborts fail-closed, and a security violation is emitted.
+
+---
+
 <a id="failure-recovery-atomic-state-rollback--resource-hygiene"></a>
 ## Failure Recovery, Atomic State Rollback & Resource Hygiene
 
@@ -526,22 +654,22 @@ flowchart TD
 
 ---
 
-<a id="automated-adversarial-test-architecture-201-tests-40-cwes"></a>
-## Automated Adversarial Test Architecture (201 Tests, 40 CWEs)
+<a id="automated-adversarial-test-architecture-210-tests-40-cwes"></a>
+## Automated Adversarial Test Architecture (210 Tests, 40 CWEs)
 
-The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **201 automated test cases across 8 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **210 automated test cases across 8 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
 
 | Suite | Category Focus | Test Count | Status |
 | :--- | :--- | :---: | :---: |
-| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF) | 81 / 81 | **PASS** |
+| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF) | 83 / 83 | **PASS** |
 | **Suite 2** | Registry & Environment Boundaries (ValueKind preservation, UAC elevation) | 6 / 6 | **PASS** |
 | **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery) | 17 / 17 | **PASS** |
-| **Suite 4** | Package Manifest Integrity (WiX v4, Chocolatey, Winget, Scoop, UUID v5) | 47 / 47 | **PASS** |
+| **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, Scoop, UUID v5, .jvm.lock) | 54 / 54 | **PASS** |
 | **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification) | 14 / 14 | **PASS** |
 | **Suite 6** | Corrupt Registry Recovery & PATH Resilience (De-bloat, length limits) | 14 / 14 | **PASS** |
 | **Suite 7** | Uninstallation Safety & Markers (Root markers, deferred cleanup) | 16 / 16 | **PASS** |
 | **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 6 / 6 | **PASS** |
-| **Total** | **Comprehensive Full-System Security Suite** | **201 / 201** | **`10.0 / 10.0`** |
+| **Total** | **Comprehensive Full-System Security Suite** | **210 / 210** | **`10.0 / 10.0`** |
 
 ---
 

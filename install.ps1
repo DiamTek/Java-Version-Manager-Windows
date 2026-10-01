@@ -757,7 +757,7 @@ function jvm {
     function Set-JvmVar {
         param([string]$Name, [string]$OldValue, [string]$NewValue)
 
-        $allowedVars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')
+        $allowedVars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME', 'ANT_HOME', 'SBT_HOME', 'JBANG_HOME', 'QUARKUS_HOME', 'SPRING_HOME', 'MICRONAUT_HOME')
         if ($allowedVars -notcontains $Name) { return }
 
         if ($OldValue) { $OldValue = $OldValue.Trim('`"').TrimEnd('\') }
@@ -820,7 +820,7 @@ function jvm {
             Set-JvmVar -Name $key -OldValue $old -NewValue $val
         }
     } else {
-        foreach ($v in @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')) {
+        foreach ($v in @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME', 'ANT_HOME', 'SBT_HOME', 'JBANG_HOME', 'QUARKUS_HOME', 'SPRING_HOME', 'MICRONAUT_HOME')) {
             $old = (Get-Item -Path "env:$v" -ErrorAction SilentlyContinue).Value
             $new = (Get-ItemProperty -Path 'HKCU:\Environment' -Name $v -ErrorAction SilentlyContinue).$v
             if ([string]::IsNullOrEmpty($new)) {
@@ -842,9 +842,9 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
             'link', 'unlink', 'version', 'help', 'channel'
         )
-        $candidates = @('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy')
-        $vendors = @('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9')
-        $openTargets = @('home', 'dir', 'bin', 'config', 'cache', 'downloads', 'backup', 'backups', 'links')
+        $candidates = @('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn')
+        $vendors = @('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9', 'sapmachine', 'sap', 'mandrel', 'redhat-mandrel', 'dragonwell', 'alibaba', 'kona', 'tencent')
+        $openTargets = @('home', 'dir', 'bin', 'config', 'cache', 'downloads', 'backup', 'backups', 'links', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn')
         $hookTargets = @('install', 'status', 'check', 'remove', 'uninstall')
         $flags = @(
             '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',

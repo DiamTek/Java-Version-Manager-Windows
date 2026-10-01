@@ -26,6 +26,7 @@ This document outlines every command, flag override, and semantic route availabl
 - [Dual Update Channels (Stable vs Nightly)](#update-channels-stable-vs-nightly)
 - [Directory-Based Auto-Switching (.java-version & .sdkmanrc)](#directory-based-auto-switching)
 - [Project Version Pinning (jvm pin / jvm local)](#project-version-pinning)
+- [Reproducible Lockfiles (.jvm.lock & jvm install --locked)](#reproducible-lockfiles)
 - [IDE & Build Tool Integration](#ide--build-tool-integration)
 - [Bring Your Own JDK (jvm link)](#bring-your-own-jdk-byo-jdk)
 - [Global Environment Management](#global-environment-management)
@@ -80,6 +81,8 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm install lts [--latest]` | Machine | Installs an LTS JDK (prompts for supported versions: 17, 21, 25; passing `--latest` locks onto newest). |
 | `jvm install <ver> -y` | Machine | Automated headless install with aggressive safety warning bypass for CI/CD. |
 | `jvm install <ver> --skip-checksum` | Machine | Bypasses checksum verification if vendor hash mirror is unreachable. |
+| `jvm install --locked` (or `-l`) | Machine / User | Installs and activates exact versions & dependencies pinned in repository `.jvm.lock` with strict checksum verification. |
+| `jvm lock [candidate] [version]` | Project | Generates or updates reproducible `.jvm.lock` manifest recording candidate, vendor, arch, exact URL, and cryptographic digest. |
 | `jvm install <tool> [version]` | User | Installs ecosystem tool (omitting version defaults to `latest`; e.g., `jvm install maven`, `jvm install gradle 8.9`; accepts `-y`). |
 | `jvm <tool> <version>` | User | Switches active ecosystem tool version (e.g., `jvm kotlin 2.0.20`, `jvm maven 3.9.6`). |
 | `jvm update <version>` | Machine | Checks for and applies vendor patches to a specific installed JDK (e.g., `jvm update 21`). |
@@ -143,9 +146,9 @@ jvm.bat ins<Tab>              # Expands to: jvm.bat install
 # 2. Cycling through installed JDK versions without typing them manually
 jvm use <Tab>                 # Cycles through: 21, 17, 11, 8, java, maven, gradle...
 
-# 3. Filtering by vendor (all 8 distributions supported)
+# 3. Filtering by vendor (all 12 distributions supported)
 jvm install 21 --ven<Tab>     # Expands to: jvm install 21 --vendor
-jvm install 21 --vendor <Tab> # Cycles: adoptium, temurin, oracle, corretto, zulu, microsoft, graalvm, liberica, bellsoft, semeru, ibm, openj9
+jvm install 21 --vendor <Tab> # Cycles: adoptium, temurin, oracle, corretto, zulu, microsoft, graalvm, liberica, bellsoft, semeru, ibm, openj9, sapmachine, sap, mandrel, redhat, dragonwell, alibaba, kona, tencent
 
 # 4. Opening specific application data directories
 jvm open do<Tab>              # Expands to: jvm open downloads
@@ -243,6 +246,10 @@ When multiple distributions of the same major version are installed, JVM prompts
 | `microsoft` | Microsoft Build | OpenJDK (Microsoft Build of OpenJDK) |
 | `liberica` | BellSoft Liberica | OpenJDK (BellSoft Liberica / FX) |
 | `semeru` | IBM Semeru | IBM Semeru Runtime (Eclipse OpenJ9) |
+| `sapmachine` | SAP SapMachine | OpenJDK (SAP SE) |
+| `mandrel` | Red Hat Mandrel | Downstream GraalVM Native Image (Red Hat) |
+| `dragonwell` | Alibaba Dragonwell | OpenJDK (Alibaba Cloud) |
+| `kona` | Tencent Kona | OpenJDK (Tencent) |
 | `custom` | Custom | Locally linked JDKs via `jvm link` |
 
 ### True Session Isolation
@@ -343,9 +350,9 @@ jvm install 21 --vendor adoptium --skip-checksum
 ```
 *(Note: `--yes` / `-y` only suppresses interactive confirmation prompts and does not disable checksum verification).*
 
-### Supported JDK Distribution Vendors (8 Native Upstream Ecosystems)
+### Supported JDK Distribution Vendors (12 Native Upstream Ecosystems)
 
-DiamTek JVM connects directly to official upstream vendor APIs to resolve, download, verify, and extract verified production JDKs. You can specify any of the 8 supported distributions using `--vendor <name>`:
+DiamTek JVM connects directly to official upstream vendor APIs to resolve, download, verify, and extract verified production JDKs. You can specify any of the 12 supported distributions using `--vendor <name>`:
 
 | Vendor Identifier | Canonical Name | Upstream Source / Engine | Primary Strengths & Use Cases | Example Installation |
 |---|---|---|---|---|
@@ -357,13 +364,17 @@ DiamTek JVM connects directly to official upstream vendor APIs to resolve, downl
 | `microsoft` / `ms` | Microsoft OpenJDK | Microsoft (HotSpot) | Azure-optimized cloud workloads, Windows native architecture. | `jvm install 21 --vendor microsoft` |
 | `liberica` / `bellsoft`| BellSoft Liberica | BellSoft (HotSpot / FX) | Spring Boot default base image, standard HotSpot with full TCK verification, JavaFX / LibericaFX support, compact lightweight footprints. | `jvm install 21 --vendor liberica` |
 | `semeru` / `ibm` / `openj9` | IBM Semeru Runtimes | IBM (Eclipse OpenJ9) | Eclipse OpenJ9 virtual machine, drastically lower memory footprint (up to 50% less RAM), rapid container startup times, dynamic AOT. | `jvm install 21 --vendor semeru` |
+| `sapmachine` / `sap` | SAP SapMachine | SAP SE (HotSpot) | Enterprise SAP workloads, mission-critical production environments, zero-rate-limit releases API. | `jvm install 21 --vendor sapmachine` |
+| `mandrel` / `redhat` | Red Hat Mandrel | Red Hat (SubstrateVM) | Downstream GraalVM CE distribution specialized for Quarkus native compilation and microservices. | `jvm install 21 --vendor mandrel` |
+| `dragonwell` / `alibaba` | Alibaba Dragonwell | Alibaba Cloud (HotSpot) | High-throughput e-commerce scale, JWarmup, Wisp coroutines, elastic heap management. | `jvm install 21 --vendor dragonwell` |
+| `kona` / `tencent` | Tencent Kona | Tencent (HotSpot) | Large-scale cloud architectures, high concurrency, distributed computing, MD5/SHA256 verified builds. | `jvm install 21 --vendor kona` |
 
 ---
 
 <a id="universal-candidate-engine-ecosystem-tools"></a>
 ## 📦 Ecosystem Build Tools (SDKMAN! Parity)
 
-JVM supports downloading, switching, and managing modern build tools natively alongside Java. You can manage these via the command line or through the interactive **Ecosystem Management** sub-menu. Supported candidates include `maven`, `gradle`, `kotlin`, `scala`, and `groovy`.
+JVM supports downloading, switching, and managing modern build tools natively alongside Java. You can manage these via the command line or through the interactive **Ecosystem Management** sub-menu. Supported candidates include `maven`, `gradle`, `kotlin`, `scala`, `groovy`, `ant`, `sbt`, `jbang`, `quarkus`, `spring`, and `micronaut` (`mn`).
 
 Install the absolute newest version of Maven directly from Apache (omitting the version defaults to `latest`):
 ```powershell
@@ -376,7 +387,10 @@ Install a specific legacy version of Gradle headless without overwrite prompts:
 jvm install gradle 8.9 -y
 ```
 > [!NOTE]
-> **First-Install Auto-Activation & Defaults:** Omitting the version argument for any ecosystem install command (e.g., `jvm install scala` or `jvm install kotlin`) automatically defaults to `latest`. The first time you install any ecosystem candidate tool on your workstation, JVM automatically activates it as your current version immediately without requiring a secondary switch command.
+> **First-Install Auto-Activation & Version Prompts:** Omitting the version argument for any ecosystem install command (e.g., `jvm install scala` or `jvm install kotlin`) automatically defaults to `latest`. The first time you install any ecosystem candidate tool on your workstation, JVM automatically activates it as your current version immediately without requiring a secondary switch command. If an existing version is already installed, JVM interactively prompts: `Would you like to activate <Tool> <Version> now? (y/N): `.
+
+> [!NOTE]
+> **Automated Checksum & GitHub API Digest Discovery:** Every downloaded tool archive is cryptographically verified against SHA-256 or SHA-512 hashes before extraction. For distributions hosted on GitHub Releases that do not provide standalone `.sha256` files (such as Micronaut), JVM queries the official GitHub Releases REST API for the release asset's cryptographic `digest` (`sha256:<hex>`) through SSRF-guarded channels (`CWE-918` / `CWE-601`). If a candidate lacks both a checksum file and an API digest, interactive UI mode prompts `Do you want to continue installation without checksum verification? (y/N)`.
 
 Instantly switch your active `KOTLIN_HOME` (and system PATH) to the specified version:
 ```powershell
@@ -386,10 +400,11 @@ jvm maven latest
 ```
 
 **Double-Dash Candidate Flags (Scripting Precision):**
-In shell scripts and automated tasks, you can also specify the target candidate using double-dash prefix flags (`--java`, `--maven`, `--gradle`, `--kotlin`, `--scala`, `--groovy`):
+In shell scripts and automated tasks, you can also specify the target candidate using double-dash prefix flags (`--java`, `--maven`, `--gradle`, `--kotlin`, `--scala`, `--groovy`, `--ant`, `--sbt`, `--jbang`, `--quarkus`, `--spring`, `--micronaut`, `--mn`):
 ```powershell
 jvm --maven 3.9.6
 jvm --gradle 8.5
+jvm --quarkus 3.15.1
 ```
 
 Safely uninstall a specific tool and cleanly scrub its environment variables from your registry:
@@ -405,7 +420,7 @@ jvm uninstall scala
 > **Smart Uninstall Auto-Detection:** When running `jvm uninstall <tool>` without a version argument, JVM automatically inspects your installed versions. If exactly **one** version is installed, it selects and uninstalls it immediately. If **multiple** versions are detected, JVM presents an interactive numbered selection menu so you can choose which version to remove.
 
 > [!TIP]
-> **Zero-Quota Rate Limit Resilience & `GITHUB_TOKEN`:** When discovering latest releases for ecosystem tools backed by GitHub (Maven, Kotlin, Scala), JVM queries the GitHub Releases API. If unauthenticated IP limits (60 requests/hour) are reached, JVM automatically engages a zero-quota **HTTP 302 redirect fallback** against GitHub web releases to resolve the latest tag without failing. (Gradle and Groovy resolve via independent endpoints at `services.gradle.org` and `api.sdkman.io`). If you are running high-frequency automation in CI/CD and wish to bypass all rate-limiting entirely, set `$env:GITHUB_TOKEN`:
+> **Zero-Quota Rate Limit Resilience & `GITHUB_TOKEN`:** When discovering latest releases for ecosystem tools backed by GitHub (Maven, Kotlin, Scala, Quarkus, Micronaut), JVM queries the GitHub Releases API. If unauthenticated IP limits (60 requests/hour) are reached, JVM automatically engages a zero-quota **HTTP 302 redirect fallback** against GitHub web releases to resolve the latest tag without failing. (Gradle, Groovy, Ant, and sbt resolve via independent endpoints at `services.gradle.org`, `archive.apache.org`, and `api.sdkman.io`). If you are running high-frequency automation in CI/CD and wish to bypass all rate-limiting entirely, set `$env:GITHUB_TOKEN`:
 > ```powershell
 > $env:GITHUB_TOKEN = "ghp_your_personal_access_token"
 > ```
@@ -420,7 +435,14 @@ Update a specific installed JDK to its latest vendor patch release:
 ```cmd
 jvm update 21
 ```
-**Bulk Updating:** Silently check and automatically patch *all* installed JDKs and Ecosystem Tools (Maven, Gradle, etc.) to their absolute newest releases:
+Update a specific ecosystem build tool directly:
+```cmd
+jvm update maven
+# Or candidate-first:
+jvm ant update
+jvm quarkus update
+```
+**Bulk Updating:** Silently check and automatically patch *all* installed JDKs and Ecosystem Tools (Maven, Gradle, Ant, Quarkus, etc.) to their absolute newest releases:
 ```cmd
 jvm update --all
 ```
@@ -505,6 +527,10 @@ When reading a `.sdkmanrc` file, JVM dynamically translates Unix SDKMAN! vendor 
 | `-ms` / `-msft` | Microsoft OpenJDK | `microsoft` | `java=21.0.2-ms` |
 | `-librca` / `-nik` | BellSoft Liberica | `liberica` | `java=21.0.2-librca` |
 | `-sem` / `-semeru` | IBM Semeru (OpenJ9) | `semeru` | `java=21.0.2-sem` |
+| `-sapm` | SAP SapMachine | `sapmachine` | `java=21.0.2-sapm` |
+| `-mandrel` | Red Hat Mandrel | `mandrel` | `java=21.0.2-mandrel` |
+| `-dragonwell` / `-alb` | Alibaba Dragonwell | `dragonwell` | `java=21.0.2-dragonwell` |
+| `-kona` | Tencent Kona | `kona` | `java=21.0.2-kona` |
 | *(bare number)* | Standard OpenJDK / Oracle | `oracle` / any installed | `java=21` |
 
 
@@ -526,6 +552,63 @@ jvm pin
 ```
 
 When you or a teammate runs `jvm` inside that directory, JVM immediately activates the pinned version with True Session Isolation.
+
+---
+
+<a id="reproducible-lockfiles"></a>
+## 🔒 Reproducible Lockfiles (`.jvm.lock` & `jvm install --locked`)
+
+While `.java-version` and `.sdkmanrc` pin semantic versions, production systems, enterprise teams, and deterministic CI/CD environments often require **100% byte-for-byte reproducibility** across developer laptops and build machines.
+
+Similar to `package-lock.json`, `Cargo.lock`, or `mise.lock`, DiamTek JVM introduces native support for **`.jvm.lock`** files:
+
+```powershell
+# 1. Lock the active Java version into .jvm.lock
+jvm lock 21 --vendor adoptium
+
+# 2. Lock ecosystem build tools into the same project lockfile
+jvm lock maven 3.9.9
+jvm lock gradle 8.10.2
+
+# 3. Headless installation of locked tools across CI/CD or new machines
+jvm install --locked
+# Shorthand alias:
+jvm install -l
+```
+
+### The `.jvm.lock` Schema
+When generated, `.jvm.lock` is written in UTF-8 without BOM using atomic staged writes (`.stage.<guid>.tmp` -> `.jvm.lock`) to eliminate partial-write race conditions (`CWE-362`):
+
+```json
+{
+  "lockfile_version": 1,
+  "generated_at": "2026-10-01T04:59:27Z",
+  "tools": {
+    "java": {
+      "version": "21",
+      "arch": "x64",
+      "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_windows_hotspot_21.0.12.1_1.zip",
+      "checksum_type": "sha256",
+      "checksum": "f9d6e191ab098c0d416e7d588a24420a8621cd2f4720dab2459b8b7b2d2d8b4e",
+      "vendor": "adoptium"
+    },
+    "maven": {
+      "version": "3.9.9",
+      "arch": "all",
+      "url": "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip",
+      "checksum_type": "sha512",
+      "checksum": "8beac8d11ef208f1e2a8df0682b9448a9a363d2ad13ca74af43705549e72e74c9378823bf689287801cbbfc2f6ea9596201d19ccacfdfb682ee8a2ff4c4418ba"
+    }
+  }
+}
+```
+
+### Security & Operational Guarantees
+- **Hierarchical Directory Discovery:** When executed from a nested subdirectory (e.g. `src/main/java`), `jvm install --locked` automatically ascends the directory tree to locate the nearest ancestor `.jvm.lock`.
+- **Cryptographic Enforcement (`CWE-494` / `CWE-354`):** Downloads are rigorously evaluated against the recorded checksum before extraction. If a hash mismatch occurs (indicating payload tampering or CDN corruption), installation aborts immediately with exit code `1` and purges all temporary files.
+- **Symlink & Reparse Point Defenses (`CWE-59`):** Refuses to write to or read from symlinked `.jvm.lock` files or directories posing as lockfiles.
+- **Selective Installation:** You can install all locked tools at once (`jvm install --locked`) or target a specific candidate (`jvm install --locked maven`).
+- **Offline Idempotency:** If the exact version and vendor are already present locally, `jvm install --locked` activates them immediately without making outbound network requests.
 
 ---
 

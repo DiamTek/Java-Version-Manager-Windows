@@ -1464,7 +1464,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         $installRaw = Get-Content (Join-Path $RepoRoot "install.ps1") -Raw
         $batRaw     = Get-Content $JvmBat -Raw
 
-        foreach ($varName in @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME')) {
+        foreach ($varName in @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME', 'ANT_HOME', 'SBT_HOME', 'JBANG_HOME', 'QUARKUS_HOME', 'SPRING_HOME', 'MICRONAUT_HOME')) {
             Assert-Contains $installRaw "'$varName'" "install.ps1 Set-JvmVar must allowlist $varName"
             Assert-Contains $batRaw "'$varName'" "jvm.bat Set-JvmVar must allowlist $varName"
         }
@@ -3527,6 +3527,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Assert-Contains $jvmRaw 'IMPLEMENTOR_VERSION=' "UPDATE_CHECKER_PS1 must check IMPLEMENTOR_VERSION from release file"
         Assert-Contains $jvmRaw 'if ^($Vendor -eq "Semeru" -and $implVerLine^)' "UPDATE_CHECKER_PS1 must parse Semeru implementor build version"
         Assert-Contains $jvmRaw 'elseif ^($Vendor -eq "Corretto" -and $implVerLine^)' "UPDATE_CHECKER_PS1 must parse Corretto implementor build version"
+        Assert-Contains $jvmRaw 'elseif ^($Vendor -eq "SapMachine" -and $implVerLine^)' "UPDATE_CHECKER_PS1 must parse SapMachine implementor build version"
+        Assert-Contains $jvmRaw 'elseif ^($Vendor -eq "Mandrel" -and $implVerLine^)' "UPDATE_CHECKER_PS1 must parse Mandrel implementor build version"
+        Assert-Contains $jvmRaw 'elseif ^($Vendor -eq "Dragonwell" -and $implVerLine^)' "UPDATE_CHECKER_PS1 must parse Dragonwell implementor build version"
+        Assert-Contains $jvmRaw 'elseif ^($Vendor -eq "Kona" -and $implVerLine^)' "UPDATE_CHECKER_PS1 must parse Kona implementor build version"
         Assert-Contains $jvmRaw 'if ^($folderName -match ' "UPDATE_CHECKER_PS1 must fall back to directory name when release file is missing"
     }
 
@@ -3612,6 +3616,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             'https://corretto.aws/downloads/latest/corretto.zip'                              = $true
             'https://api.adoptium.net/v3/assets/feature_releases/21/ga'                       = $true
             'https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven-bin.zip'      = $true
+            'https://sap.github.io/SapMachine/assets/data/sapmachine_releases.json'           = $true
+            'https://archive.apache.org/dist/ant/binaries/apache-ant-1.10.17-bin.zip'         = $true
             'https://corretto-downloads.us-east-1.amazonaws.com/corretto.zip'                 = $true
             'https://evil-bucket.s3.amazonaws.com/payload.zip'                                = $false
             'https://evil-bucket.s3.eu-west-1.amazonaws.com/payload.zip'                      = $false
@@ -3758,6 +3764,338 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             }
             Assert-True ($raw -eq '[]' -or $null -ne $parsed) "Parsed JSON output from 'jvm $sub' must not be null"
         }
+    }
+
+    # Test 202: .jvm.lock generation adhering to RFC schema with multi-tool composition and atomic staged write (CWE-354 / CWE-362)
+    Run-TestCase "Manifest" ".jvm.lock generation adhering to RFC schema with multi-tool composition and atomic staged write (CWE-354 / CWE-362)" {
+        $lockTestDir = Join-Path $SandboxRoot "LockSchemaTest"
+        New-Item -ItemType Directory -Path $lockTestDir -Force | Out-Null
+        $lockFile = Join-Path $lockTestDir ".jvm.lock"
+
+        # 1. Lock Java candidate
+        $outJava = & cmd.exe /c "cd /d `"$lockTestDir`" & call `"$JvmBat`" lock 21 --vendor adoptium" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm lock 21 --vendor adoptium must exit 0"
+        Assert-PathExists $lockFile ".jvm.lock must be created on disk"
+
+        $rawJson = Get-Content -LiteralPath $lockFile -Raw -Encoding UTF8
+        $lockObj = $rawJson | ConvertFrom-Json
+        Assert-Equals 1 $lockObj.lockfile_version ".jvm.lock lockfile_version must be 1"
+        Assert-True (-not [string]::IsNullOrWhiteSpace($lockObj.generated_at)) "generated_at must be populated"
+        Assert-True ($null -ne $lockObj.tools.java) "tools.java must exist in .jvm.lock"
+        Assert-Equals "21" $lockObj.tools.java.version "Locked Java version must be 21"
+        Assert-Equals "adoptium" $lockObj.tools.java.vendor "Locked Java vendor must be adoptium"
+        Assert-Equals "sha256" $lockObj.tools.java.checksum_type "Adoptium checksum type must be sha256"
+        Assert-True ($lockObj.tools.java.checksum -match '^[0-9a-fA-F]{64}$') "Adoptium checksum must be a valid 64-char hex string"
+        Assert-True ($lockObj.tools.java.url.StartsWith("https://")) "Download URL must be HTTPS (CWE-319)"
+
+        # 2. Lock Ecosystem candidate into the same lockfile
+        $outMaven = & cmd.exe /c "cd /d `"$lockTestDir`" & call `"$JvmBat`" lock maven 3.9.9" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm lock maven 3.9.9 must exit 0"
+
+        $rawJson2 = Get-Content -LiteralPath $lockFile -Raw -Encoding UTF8
+        $lockObj2 = $rawJson2 | ConvertFrom-Json
+        Assert-True ($null -ne $lockObj2.tools.java) "tools.java must be preserved after locking maven"
+        Assert-True ($null -ne $lockObj2.tools.maven) "tools.maven must be added to .jvm.lock"
+        Assert-Equals "3.9.9" $lockObj2.tools.maven.version "Locked Maven version must be 3.9.9"
+        Assert-Equals "sha512" $lockObj2.tools.maven.checksum_type "Maven checksum type must be sha512"
+        Assert-True ($lockObj2.tools.maven.checksum -match '^[0-9a-fA-F]{128}$') "Maven checksum must be a valid 128-char hex string"
+    }
+
+    # Test 203: jvm install --locked fail-closed defense on missing lockfile and cryptographic hash mismatch (CWE-494 / CWE-354)
+    Run-TestCase "Manifest" "jvm install --locked fail-closed defense on missing lockfile and cryptographic hash mismatch (CWE-494 / CWE-354)" {
+        $emptyDir = Join-Path $SandboxRoot "LockMissingTest"
+        New-Item -ItemType Directory -Path $emptyDir -Force | Out-Null
+
+        # 1. Missing .jvm.lock fails closed
+        $outMissing = & cmd.exe /c "cd /d `"$emptyDir`" & call `"$JvmBat`" install --locked" 2>&1 | Out-String
+        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must exit 1 when no .jvm.lock is present"
+        Assert-Contains $outMissing "No .jvm.lock found" "Output must alert user that .jvm.lock is missing"
+
+        # 2. Tampered checksum fails closed
+        $tamperDir = Join-Path $SandboxRoot "LockTamperTest"
+        New-Item -ItemType Directory -Path $tamperDir -Force | Out-Null
+        $tamperedJson = @"
+{
+    "lockfile_version": 1,
+    "generated_at": "2026-10-01T00:00:00Z",
+    "tools": {
+        "maven": {
+            "version": "3.9.7",
+            "arch": "all",
+            "url": "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.7/apache-maven-3.9.7-bin.zip",
+            "checksum_type": "sha512",
+            "checksum": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+    }
+}
+"@
+        [System.IO.File]::WriteAllText((Join-Path $tamperDir ".jvm.lock"), $tamperedJson, (New-Object System.Text.UTF8Encoding($false)))
+        $outTamper = & cmd.exe /c "cd /d `"$tamperDir`" & call `"$JvmBat`" install --locked maven" 2>&1 | Out-String
+        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must abort with exit code 1 on checksum mismatch"
+        Assert-Contains $outTamper "Checksum mismatch" "Output must identify checksum mismatch"
+        Assert-False (Test-Path "$env:LOCALAPPDATA\DiamTek\JVM\candidates\maven\3.9.7") "Tampered candidate must not be installed"
+    }
+
+    # Test 204: jvm install --locked parent directory traversal and reparse point / directory rejection (CWE-59 / CWE-22)
+    Run-TestCase "Manifest" "jvm install --locked parent directory traversal and reparse point / directory rejection (CWE-59 / CWE-22)" {
+        $parentDir = Join-Path $SandboxRoot "LockParentTest"
+        $nestedSub = Join-Path $parentDir "sub1\sub2\sub3"
+        New-Item -ItemType Directory -Path $nestedSub -Force | Out-Null
+
+        $dummyLock = @"
+{
+    "lockfile_version": 1,
+    "generated_at": "2026-10-01T00:00:00Z",
+    "tools": {
+        "maven": {
+            "version": "3.9.9",
+            "arch": "all",
+            "url": "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip",
+            "checksum_type": "sha512",
+            "checksum": "8beac8d11ef208f1e2a8df0682b9448a9a363d2ad13ca74af43705549e72e74c9378823bf689287801cbbfc2f6ea9596201d19ccacfdfb682ee8a2ff4c4418ba"
+        }
+    }
+}
+"@
+        [System.IO.File]::WriteAllText((Join-Path $parentDir ".jvm.lock"), $dummyLock, (New-Object System.Text.UTF8Encoding($false)))
+
+        # Verify ascent from deep nested folder
+        $outNested = & cmd.exe /c "cd /d `"$nestedSub`" & call `"$JvmBat`" install --locked maven" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm install --locked must discover .jvm.lock in ancestor directory"
+        Assert-Contains $outNested "Using lockfile:" "Must report resolved parent lockfile path"
+
+        # Security check: .jvm.lock is a directory (CWE-59)
+        $dirAsLock = Join-Path $SandboxRoot "DirAsLockTest"
+        New-Item -ItemType Directory -Path (Join-Path $dirAsLock ".jvm.lock") -Force | Out-Null
+        $outDirLock = & cmd.exe /c "cd /d `"$dirAsLock`" & call `"$JvmBat`" install --locked" 2>&1 | Out-String
+        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must reject .jvm.lock directory"
+        Assert-Contains $outDirLock "Security violation" "Must report CWE-59 security violation when .jvm.lock is a directory"
+    }
+
+    # Test 205: jvm install --locked SSRF and insecure HTTP scheme defense (CWE-918 / CWE-319)
+    Run-TestCase "Manifest" "jvm install --locked SSRF and insecure HTTP scheme defense (CWE-918 / CWE-319)" {
+        $ssrfDir = Join-Path $SandboxRoot "LockSsrfTest"
+        New-Item -ItemType Directory -Path $ssrfDir -Force | Out-Null
+
+        # 1. Insecure HTTP scheme injection must fail closed without making network requests
+        $insecureHttpLock = @"
+{
+    "lockfile_version": 1,
+    "generated_at": "2026-10-01T00:00:00Z",
+    "tools": {
+        "maven": {
+            "version": "99.9.9",
+            "arch": "all",
+            "url": "http://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip",
+            "checksum_type": "sha512",
+            "checksum": "8beac8d11ef208f1e2a8df0682b9448a9a363d2ad13ca74af43705549e72e74c9378823bf689287801cbbfc2f6ea9596201d19ccacfdfb682ee8a2ff4c4418ba"
+        }
+    }
+}
+"@
+        [System.IO.File]::WriteAllText((Join-Path $ssrfDir ".jvm.lock"), $insecureHttpLock, (New-Object System.Text.UTF8Encoding($false)))
+        $outHttp = & cmd.exe /c "cd /d `"$ssrfDir`" & call `"$JvmBat`" install --locked maven" 2>&1 | Out-String
+        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must abort with exit code 1 when URL is non-HTTPS"
+        Assert-Contains $outHttp "CWE-319" "Output must indicate CWE-319 non-HTTPS security violation"
+
+        # 2. SSRF / Untrusted domain host injection must fail closed
+        $untrustedHostLock = @"
+{
+    "lockfile_version": 1,
+    "generated_at": "2026-10-01T00:00:00Z",
+    "tools": {
+        "maven": {
+            "version": "99.9.9",
+            "arch": "all",
+            "url": "https://evil-attacker-site.com/payload.zip",
+            "checksum_type": "sha512",
+            "checksum": "8beac8d11ef208f1e2a8df0682b9448a9a363d2ad13ca74af43705549e72e74c9378823bf689287801cbbfc2f6ea9596201d19ccacfdfb682ee8a2ff4c4418ba"
+        }
+    }
+}
+"@
+        [System.IO.File]::WriteAllText((Join-Path $ssrfDir ".jvm.lock"), $untrustedHostLock, (New-Object System.Text.UTF8Encoding($false)))
+        $outSsrf = & cmd.exe /c "cd /d `"$ssrfDir`" & call `"$JvmBat`" install --locked maven" 2>&1 | Out-String
+        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must abort with exit code 1 when URL host is untrusted"
+        Assert-Contains $outSsrf "CWE-918" "Output must indicate CWE-918 untrusted host violation"
+    }
+
+    # Test 206: jvm install --locked path traversal and invalid candidate identifier rejection (CWE-22 / CWE-20)
+    Run-TestCase "Manifest" "jvm install --locked path traversal and invalid candidate identifier rejection (CWE-22 / CWE-20)" {
+        $travDir = Join-Path $SandboxRoot "LockTravTest"
+        New-Item -ItemType Directory -Path $travDir -Force | Out-Null
+
+        # 1. Path traversal in candidate tool key
+        $traversalLock = @"
+{
+    "lockfile_version": 1,
+    "generated_at": "2026-10-01T00:00:00Z",
+    "tools": {
+        "..\\..\\bad_candidate": {
+            "version": "1.0.0",
+            "arch": "all",
+            "url": "https://repo.maven.apache.org/sample.zip",
+            "checksum_type": "sha256",
+            "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+    }
+}
+"@
+        [System.IO.File]::WriteAllText((Join-Path $travDir ".jvm.lock"), $traversalLock, (New-Object System.Text.UTF8Encoding($false)))
+        $outTrav = & cmd.exe /c "cd /d `"$travDir`" & call `"$JvmBat`" install --locked" 2>&1 | Out-String
+        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must abort on candidate path traversal"
+        Assert-Contains $outTrav "CWE-20" "Output must report CWE-20 identifier validation error"
+
+        # 2. Path traversal in version field
+        $traversalVerLock = @"
+{
+    "lockfile_version": 1,
+    "generated_at": "2026-10-01T00:00:00Z",
+    "tools": {
+        "maven": {
+            "version": "..\\..\\3.9.9",
+            "arch": "all",
+            "url": "https://repo.maven.apache.org/sample.zip",
+            "checksum_type": "sha256",
+            "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+    }
+}
+"@
+        [System.IO.File]::WriteAllText((Join-Path $travDir ".jvm.lock"), $traversalVerLock, (New-Object System.Text.UTF8Encoding($false)))
+        $outVerTrav = & cmd.exe /c "cd /d `"$travDir`" & call `"$JvmBat`" install --locked maven" 2>&1 | Out-String
+        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must abort on version path traversal"
+        Assert-Contains $outVerTrav "CWE-20" "Output must report CWE-20 version validation error"
+
+        # 3. Illegal characters in candidate filter argument
+        $outFilter = & cmd.exe /c "cd /d `"$travDir`" & call `"$JvmBat`" install --locked `"maven;calc`"" 2>&1 | Out-String
+        Assert-Equals 1 $LASTEXITCODE "jvm install --locked with command-injected filter must abort"
+        Assert-Contains $outFilter "CWE-20" "Output must report CWE-20 invalid candidate filter error"
+    }
+
+    # Test 207: jvm lock and jvm install --locked symlink and reparse point defense (CWE-59)
+    Run-TestCase "Manifest" "jvm lock and jvm install --locked symlink and reparse point defense (CWE-59)" {
+        $juncTestDir = Join-Path $SandboxRoot "LockJunctionTest"
+        $realTargetDir = Join-Path $SandboxRoot "LockTargetDir"
+        New-Item -ItemType Directory -Path $juncTestDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $realTargetDir -Force | Out-Null
+
+        # Create a directory junction named .jvm.lock targeting realTargetDir
+        $juncLock = Join-Path $juncTestDir ".jvm.lock"
+        New-Item -ItemType Junction -Path $juncLock -Target $realTargetDir -Force | Out-Null
+
+        try {
+            # 1. jvm install --locked against junction .jvm.lock must fail closed
+            $outInst = & cmd.exe /c "cd /d `"$juncTestDir`" & call `"$JvmBat`" install --locked" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "jvm install --locked must fail closed when .jvm.lock is a junction"
+            Assert-Contains $outInst "CWE-59" "Output must report CWE-59 security violation on install"
+
+            # 2. jvm lock against junction .jvm.lock must fail closed and refuse overwrite
+            $outLock = & cmd.exe /c "cd /d `"$juncTestDir`" & call `"$JvmBat`" lock 21" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "jvm lock must refuse to overwrite junction .jvm.lock"
+            Assert-Contains $outLock "CWE-59" "Output must report CWE-59 security violation on lock write"
+        } finally {
+            & cmd.exe /c "rmdir `"$juncLock`"" 2>$null
+        }
+    }
+
+    # Test 208: jvm lock auto-discovery, CLI aliases, and multi-tool selective installation (CWE-20 / CWE-754)
+    Run-TestCase "Manifest" "jvm lock auto-discovery, CLI aliases, and multi-tool selective installation (CWE-20 / CWE-754)" {
+        $autoDir = Join-Path $SandboxRoot "LockAutoTest"
+        New-Item -ItemType Directory -Path $autoDir -Force | Out-Null
+
+        # 1. Create a mock .jvm.lock with multiple candidates
+        $multiLock = @"
+{
+    "lockfile_version": 1,
+    "generated_at": "2026-10-01T00:00:00Z",
+    "tools": {
+        "maven": {
+            "version": "3.9.9",
+            "arch": "all",
+            "url": "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip",
+            "checksum_type": "sha512",
+            "checksum": "8beac8d11ef208f1e2a8df0682b9448a9a363d2ad13ca74af43705549e72e74c9378823bf689287801cbbfc2f6ea9596201d19ccacfdfb682ee8a2ff4c4418ba"
+        }
+    }
+}
+"@
+        [System.IO.File]::WriteAllText((Join-Path $autoDir ".jvm.lock"), $multiLock, (New-Object System.Text.UTF8Encoding($false)))
+
+        # 2. Test CLI alias: jvm install -l fails-closed when requested candidate is missing from lockfile
+        $aliasOut1 = & cmd.exe /c "cd /d `"$autoDir`" & call `"$JvmBat`" install -l nonexistent_tool" 2>&1 | Out-String
+        Assert-Equals 1 $LASTEXITCODE "jvm install -l with missing candidate must exit 1"
+        Assert-Contains $aliasOut1 "is not defined in .jvm.lock" "Output must report tool not found in lockfile"
+
+        # 3. Test failure when jvm lock has no arguments and no .java-version is present
+        $noLockDir = Join-Path $SandboxRoot "LockNoArgTest"
+        New-Item -ItemType Directory -Path $noLockDir -Force | Out-Null
+        $noArgOut = & cmd.exe /c "cd /d `"$noLockDir`" & call `"$JvmBat`" lock" 2>&1 | Out-String
+        Assert-Equals 1 $LASTEXITCODE "jvm lock with no args and no .java-version or active candidate must fail closed"
+        Assert-Contains $noArgOut "No Java version specified" "Output must guide user on missing version"
+    }
+
+    # Test 209: JDK Update Checker batch parenthesis integrity for Oracle JDK 27 and vendor User-Agents (CWE-78 / CWE-20)
+    Run-TestCase "Adversarial" "JDK Update Checker batch parenthesis integrity for Oracle JDK 27 and vendor User-Agents (CWE-78 / CWE-20)" {
+        $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw -Encoding UTF8
+
+        # 1. Verify :ProcessSingleUpdate contains no unescaped ) inside parenthesized echo blocks
+        $inBlock = $false
+        $blockLines = [System.Collections.Generic.List[string]]::new()
+        foreach ($line in (Get-Content -LiteralPath $JvmBat -Encoding UTF8)) {
+            if ($line -match '^:ProcessSingleUpdate') { $inBlock = $true; continue }
+            if ($inBlock -and $line -match '^:[A-Za-z0-9_]+' -and $line -notmatch '^:ProcessSingleUpdate') { break }
+            if ($inBlock) { $blockLines.Add($line) }
+        }
+        Assert-True ($blockLines.Count -gt 50) "Must extract :ProcessSingleUpdate subroutine lines from jvm.bat"
+
+        # Ensure no unescaped parenthesis in echo lines inside ( ... ) blocks
+        $parenDepth = 0
+        foreach ($bl in $blockLines) {
+            $trimmed = $bl.Trim()
+            if ($trimmed.StartsWith("(") -and -not $trimmed.StartsWith("(echo") -and -not $trimmed.StartsWith("(@echo")) {
+                $parenDepth++
+            }
+            if ($trimmed -eq ")") {
+                $parenDepth--
+            }
+            if ($parenDepth -gt 0 -and $trimmed -match '^echo\s+') {
+                $afterEcho = $trimmed -replace '^echo\s+', ''
+                $unescapedCloseParen = [regex]::IsMatch($afterEcho, '(?<!\^)\)')
+                Assert-False $unescapedCloseParen "Line '$trimmed' in :ProcessSingleUpdate must not contain unescaped ')' inside parenthesized block"
+            }
+        }
+
+        # 2. Verify Mandrel, Dragonwell, and Kona update blocks include Mozilla/5.0 User-Agent
+        Assert-Contains $jvmRaw 'wc.Headers[''User-Agent''] = ''Mozilla/5.0''' "jvm.bat Mandrel update checker must set Mozilla/5.0 User-Agent"
+        Assert-Contains $jvmRaw 'req.UserAgent = ''Mozilla/5.0''' "jvm.bat Dragonwell/Kona update checker must set Mozilla/5.0 User-Agent"
+
+        # 3. Verify vendor support list includes all 12 major vendors in ProcessSingleUpdate
+        Assert-Contains $jvmRaw 'for %%V in (Oracle Adoptium GraalVM Corretto Zulu Microsoft Liberica Semeru SapMachine Mandrel Dragonwell Kona)' "ProcessSingleUpdate must support all 12 JDK vendors"
+    }
+
+    # Test 210: License header positioning and CWE-426 system executable bootstrapping (CWE-426 / CWE-754)
+    Run-TestCase "Adversarial" "License header positioning and CWE-426 system executable bootstrapping (CWE-426 / CWE-754)" {
+        $lines = @(Get-Content -LiteralPath $JvmBat -Encoding UTF8 | Select-Object -First 40)
+
+        # Line 1 must be @echo off
+        Assert-Equals "@echo off" $lines[0].Trim() "Line 1 of jvm.bat must be @echo off"
+
+        # Lines 2-16 must be the GNU AGPL disclaimer comments without external commands
+        for ($i = 1; $i -le 15; $i++) {
+            $l = $lines[$i].Trim()
+            Assert-True ($l -eq "" -or $l.StartsWith("rem ")) "Lines 2-16 must be comments or blank lines (disclaimer header)"
+        }
+        $headerText = ($lines[0..16] -join "`r`n")
+        Assert-Contains $headerText "GNU Affero General Public License" "Disclaimer header must contain AGPL notice"
+        Assert-Contains $headerText "DiamTek" "Disclaimer header must contain organization copyright"
+        Assert-Contains $headerText "Shishkin" "Disclaimer header must contain author copyright"
+
+        # Line 18-35 must enforce pinned System32 binaries against CWE-426
+        $postHeader = ($lines[17..35] -join "`r`n")
+        Assert-Contains $postHeader "NoDefaultCurrentDirectoryInExePath=1" "System32 bootstrap must disable default current directory in exe search"
+        Assert-Contains $postHeader 'SYS32=' "System32 bootstrap must initialize SYS32 variable"
+        Assert-Contains $postHeader 'PS_BIN=%SYS32%\WindowsPowerShell\v1.0\powershell.exe' "System32 bootstrap must pin PS_BIN"
     }
 
 } finally {
