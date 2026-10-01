@@ -1,8 +1,3 @@
----
-layout: default
-title: Frequently Asked Questions
-description: Answers to common questions about Java Version Manager for Windows, zero-admin UAC mode, enterprise proxies, and candidate tools.
----
 <h1 align="center">Frequently Asked Questions (FAQ)</h1>
 
 <div align="center" markdown="1">

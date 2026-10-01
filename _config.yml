@@ -26,6 +26,72 @@ include:
   - packages/choco/README.md
   - packages/msi/README.md
 
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+  - scope:
+      path: "docs/INSTALLATION.md"
+    values:
+      title: "Installation Guide"
+      description: "Quick install guide for DiamTek JVM via PowerShell one-liner, winget, scoop, chocolatey, or standalone WiX v4 MSI installers."
+  - scope:
+      path: "docs/USAGE.md"
+    values:
+      title: "Usage Reference"
+      description: "Complete CLI usage guide for Java Version Manager on Windows including quick-switching, ecosystem tools, and version pinning."
+  - scope:
+      path: "docs/ARCHITECTURE.md"
+    values:
+      title: "Architecture & Design"
+      description: "Technical deep dive into DiamTek JVM directory junctions, UAC elevation boundaries, and 5-tier hash verification."
+  - scope:
+      path: "docs/FAQ.md"
+    values:
+      title: "Frequently Asked Questions"
+      description: "Answers to common questions about Java Version Manager for Windows, zero-admin UAC mode, enterprise proxies, and candidate tools."
+  - scope:
+      path: "docs/SDKMAN-Comparison.md"
+    values:
+      title: "SDKMAN! Comparison"
+      description: "Feature-by-feature comparison between DiamTek JVM for Windows and Unix SDKMAN!, highlighting native performance and parity."
+  - scope:
+      path: "docs/CHANGELOG.md"
+    values:
+      title: "Changelog & Releases"
+      description: "Chronological record of releases, new features, security hardening, and bug fixes in Java Version Manager for Windows."
+  - scope:
+      path: "docs/SECURITY.md"
+    values:
+      title: "Security Policy & Audit"
+      description: "Security model, adversarial test coverage across 40 MITRE CWE categories, supply-chain verification, and reporting guidelines."
+  - scope:
+      path: "docs/CONTRIBUTING.md"
+    values:
+      title: "Contributing Guide"
+      description: "Guidelines for contributing code, reporting security vulnerabilities, and running the adversarial test suite for DiamTek JVM."
+  - scope:
+      path: "docs/CODE_OF_CONDUCT.md"
+    values:
+      title: "Code of Conduct"
+      description: "Contributor Covenant Code of Conduct and community participation standards for Java Version Manager for Windows."
+  - scope:
+      path: "docs/SUPPORT.md"
+    values:
+      title: "Support & Community"
+      description: "Get help, report bugs, join discussions, and find community resources for Java Version Manager for Windows."
+  - scope:
+      path: "packages/choco/README.md"
+    values:
+      title: "Chocolatey Package Guide"
+      description: "Technical guide for building, testing, and distributing the DiamTek JVM Chocolatey package on Windows."
+  - scope:
+      path: "packages/msi/README.md"
+    values:
+      title: "WiX MSI Package Guide"
+      description: "WiX Toolset v4 standalone MSI packaging architecture, custom action hooks, and test validation suite for DiamTek JVM."
+
 kramdown:
   input: GFM
   parse_block_html: true

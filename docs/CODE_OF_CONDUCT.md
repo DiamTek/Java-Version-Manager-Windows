@@ -1,8 +1,3 @@
----
-layout: default
-title: Code of Conduct
-description: Contributor Covenant Code of Conduct and community participation standards for Java Version Manager for Windows.
----
 <h1 align="center">Contributor Covenant Code of Conduct</h1>
 
 <div align="center" markdown="1">

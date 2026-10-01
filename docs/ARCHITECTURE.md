@@ -1,8 +1,3 @@
----
-layout: default
-title: Architecture & Design
-description: Technical deep dive into DiamTek JVM directory junctions, UAC elevation boundaries, and 5-tier hash verification.
----
 <h1 align="center">Architecture & Technical Implementation</h1>
 
 <div align="center" markdown="1">

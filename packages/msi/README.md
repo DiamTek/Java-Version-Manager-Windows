@@ -1,9 +1,3 @@
----
-layout: default
-permalink: /packages/msi/
-title: WiX MSI Package Guide
-description: WiX Toolset v4 standalone MSI packaging architecture, custom action hooks, and test validation suite for DiamTek JVM.
----
 # WiX v4 MSI Package for Java Version Manager (`DiamTek.JVM.msi`)
 
 This directory contains the WiX Toolset automation, build scripts, custom action hooks, and test harnesses for generating enterprise-ready Windows Installer (`.msi`) packages for **Java Version Manager for Windows (DiamTek JVM)**.
