@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://diamtek.github.io/Java-Version-Manager-Windows/sitemap.xml

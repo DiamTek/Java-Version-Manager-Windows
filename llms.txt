@@ -1,0 +1,57 @@
+# DiamTek Java Version Manager for Windows (JVM)
+
+> A lightweight, high-performance, color-coded Windows command-line utility designed to dynamically discover, download, and switch Java Development Kits (JDKs) and the entire JVM Ecosystem with native SDKMAN! parity. Developed by DiamTek.
+
+- Organization: DiamTek (https://github.com/DiamTek)
+- Official Website: https://diamtek.github.io/Java-Version-Manager-Windows/
+- GitHub Repository: https://github.com/DiamTek/Java-Version-Manager-Windows
+- Releases & Binaries: https://github.com/DiamTek/Java-Version-Manager-Windows/releases
+- Latest Version: 1.0.2
+
+## Installation (Native Windows PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex
+```
+
+## Supported JDK Distributions (12 Upstream Vendors)
+- Eclipse Adoptium Temurin (`adoptium`, `temurin`)
+- Oracle JDK (`oracle`)
+- Amazon Corretto (`corretto`)
+- Azul Zulu (`zulu`)
+- Microsoft Build of OpenJDK (`microsoft`)
+- BellSoft Liberica (`liberica`)
+- IBM Semeru / OpenJ9 (`semeru`)
+- SAP SapMachine (`sapmachine`)
+- Red Hat Mandrel (`mandrel`)
+- Alibaba Dragonwell (`dragonwell`)
+- Tencent Kona (`kona`)
+- GraalVM Community Edition (`graalvm`)
+
+## Supported JVM Ecosystem Tools (11 Universal Candidates)
+- Apache Maven (`jvm install maven`)
+- Gradle (`jvm install gradle`)
+- Kotlin (`jvm install kotlin`)
+- Scala (`jvm install scala`)
+- Apache Groovy (`jvm install groovy`)
+- Apache Ant (`jvm install ant`)
+- sbt (Scala Build Tool) (`jvm install sbt`)
+- JBang (`jvm install jbang`)
+- Quarkus CLI (`jvm install quarkus`)
+- Spring Boot CLI (`jvm install spring`)
+- Micronaut CLI (`jvm install micronaut`)
+
+## Core Capabilities & Architecture
+- **Zero Admin Rights Required (UAC-Free)**: Uses NTFS Directory Junctions at `%LOCALAPPDATA%\DiamTek\JVM\current` to switch active versions in user space without administrative prompts.
+- **Legacy Registry Mode**: Optional administrator mode that writes directly to system `HKLM` environment variables when strict canonical paths are required.
+- **Project-Level Auto-Switching**: Automatically parses `.java-version` and SDKMAN! `.sdkmanrc` files with per-terminal session isolation.
+- **Reproducible Lockfiles**: `jvm lock` generates `.jvm.lock` manifests with cryptographic SHA-256 digests for deterministic team and CI/CD builds (`jvm install --locked`).
+- **Cryptographic Verification**: Enforces fail-closed SHA-256 / SHA-512 integrity verification across all remote vendor downloads.
+- **Dual Update Channels**: Seamlessly toggle between `[Stable]` (official releases) and `[Nightly]` (latest `main` commits) via `jvm channel`.
+
+## Key Documentation Links
+- [Installation Guide](https://diamtek.github.io/Java-Version-Manager-Windows/docs/INSTALLATION.html): PowerShell one-liners, package managers (Winget, Scoop, Chocolatey), and standalone WiX v4 MSIs.
+- [Usage Reference](https://diamtek.github.io/Java-Version-Manager-Windows/docs/USAGE.html): Complete CLI commands, argument flags, ecosystem tools, and project version pinning.
+- [Architecture Guide](https://diamtek.github.io/Java-Version-Manager-Windows/docs/ARCHITECTURE.html): Deep dive into directory junctions, UAC process isolation, and 5-tier hash resolution.
+- [SDKMAN! Comparison](https://diamtek.github.io/Java-Version-Manager-Windows/docs/SDKMAN-Comparison.html): Why DiamTek JVM is the premier native Windows alternative to SDKMAN!.
+- [FAQ](https://diamtek.github.io/Java-Version-Manager-Windows/docs/FAQ.html): Answers to common questions regarding UAC, proxies, and multi-vendor environments.
+- [Security Policy](https://diamtek.github.io/Java-Version-Manager-Windows/docs/SECURITY.html): 40 MITRE CWE defenses, zero-file elevation, and adversarial fuzzing audit results.
