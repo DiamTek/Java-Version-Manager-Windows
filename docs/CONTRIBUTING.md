@@ -117,7 +117,7 @@ powershell -ExecutionPolicy Bypass -File packages\choco\build-choco.ps1
 
 ## 📐 Windows Scripting Rules & Pitfalls
 
-The core `jvm.bat` engine is over 350 KB of mathematically optimized Windows Batch script. When contributing code, you **must** adhere to these battle-tested rules:
+The core `jvm.bat` engine is over 500 KB of mathematically optimized Windows Batch script. When contributing code, you **must** adhere to these battle-tested rules:
 
 ### 1. Strict CRLF Line Ending Enforcement
 - **The Issue:** Windows `cmd.exe` parses batch scripts line-by-line using byte offsets. If a batch file is checked out with UNIX (`LF`) line endings, `cmd.exe` miscalculates byte offsets when parsing multi-line blocks, corrupting `echo` statements into `e` + `cho` (the infamous "`'cho' is not recognized`" bug).

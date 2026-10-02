@@ -24,8 +24,9 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [Windows Terminal Settings JSONC Parser Engine](#windows-terminal-settings-jsonc-parser-engine)
 - [Packaging Architecture & Asset Distribution](#packaging-architecture--asset-distribution)
 - [Reproducible Lockfile Architecture (.jvm.lock & jvm install --locked)](#reproducible-lockfile-architecture-jvmlock--jvm-install---locked)
+- [Cryptographic Provenance Verification (jvm verify)](#cryptographic-provenance-verification-jvm-verify)
 - [Failure Recovery, Atomic State Rollback & Resource Hygiene](#failure-recovery-atomic-state-rollback--resource-hygiene)
-- [Automated Adversarial Test Architecture (211 Tests, 40 CWEs)](#automated-adversarial-test-architecture-211-tests-40-cwes)
+- [Automated Adversarial Test Architecture (215 Tests, 40 CWEs)](#automated-adversarial-test-architecture-215-tests-40-cwes)
 
 ---
 
@@ -569,12 +570,14 @@ graph LR
 
 To guarantee zero runtime drift across distributed engineering teams, CI/CD runners, and reproducible deployment pipelines (`CWE-354` / `CWE-494`), DiamTek JVM provides native lockfile generation and validation:
 
-### 1. Specification & JSON Schema Contract
+### 1. Specification & JSON Schema Contract (Schema v2)
 The `.jvm.lock` manifest records the exact tool candidate, runtime version, vendor, host architecture, official vendor download URL, and cryptographic digest:
 ```json
 {
+  "schema": 2,
   "$schema": "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/schemas/jvm.lock.json",
   "lockfile_version": 1,
+  "platform": "windows-x64",
   "generated_at": "2026-10-01T07:00:00Z",
   "tools": {
     "java": {
@@ -611,6 +614,25 @@ During `--locked` execution:
 2. The payload is downloaded to an ACL-protected staging directory (`%LOCALAPPDATA%\DiamTek\JVM\temp`).
 3. Native `.NET` Cryptography APIs compute the SHA-256 (or SHA-512) digest of the downloaded archive.
 4. If the computed hash fails to match the lockfile checksum, the payload is immediately purged, the operation aborts fail-closed, and a security violation is emitted.
+
+### 5. Lockfile Auditing & Lifecycle Management
+- **`jvm lock --check`**: Strictly audits the `.jvm.lock` manifest for JSON schema integrity, platform compatibility, candidate completeness, missing checksums, and semantic configuration drift against `.java-version`.
+- **`jvm lock --diff`**: Renders a granular comparison table highlighting version drift between the locked manifest and the active local environment.
+- **`jvm lock --update`**: Safely queries upstream vendor APIs to refresh cryptographic checksums and metadata for all locked candidates.
+
+---
+
+<a id="cryptographic-provenance-verification-jvm-verify"></a>
+## Cryptographic Provenance Verification (`jvm verify`)
+
+DiamTek JVM implements a dedicated, multi-tier cryptographic and provenance verification engine accessible via `jvm verify <version|all>`. This engine actively audits the local integrity and chain of trust for any installed runtime or ecosystem tool against a strict 6-tier checklist:
+
+1. **Artifact exists**: Confirms the physical binary or JAR exists on the local filesystem.
+2. **HTTPS verified**: Validates the payload originated from a secure `https://` transport layer.
+3. **Host trusted**: Asserts the download host is explicitly permitted in the `Test-TrustedJvmUri` domain allowlist (`CWE-918` / `CWE-601`).
+4. **SHA-256 verified**: Computes the payload's hash and ensures byte-for-byte equality with the official manifest.
+5. **Signature verified**: Checks the binary for a valid, unbroken Authenticode or embedded digital signature.
+6. **Provenance chain intact**: Conclusively asserts the end-to-end cryptographic and origin integrity of the artifact.
 
 ---
 
@@ -652,24 +674,32 @@ flowchart TD
 - **Path & Stack-Trace Redaction (`CWE-209`):** Error output is normalized to single-line diagnostics with stripped newlines, and sensitive filesystem paths (`%LOCALAPPDATA%`, `%USERPROFILE%`) are redacted from user-visible warnings.
 - **CLI Exit Code Propagation (`CWE-252` / `CWE-754` / `CWE-755`):** Subcommands (`clean`, `which`, `doctor`, `open`, `exec`, `hook`, `clear`, `channel`, `pin`) pass non-zero exit codes through `:CLI_DONE` across `setlocal` boundaries, ensuring scripts and CI/CD pipelines reliably detect failures.
 
+### 4. Transactional Installations & Journal Logging (`jvm transaction`)
+Every download and installation is strictly logged to an atomic JSON transaction journal (`%LOCALAPPDATA%\DiamTek\JVM\transactions`). 
+- **Isolation & Staging**: Installations are staged into secure temporary directories (`%JVM_SECURE_TEMP%`). A transaction manifest (`JVM-TXN-XXXXXXXXXXXX`) is created with an `IN_PROGRESS` status.
+- **Atomic Activation**: Upon successful extraction and validation, the staged files are atomically moved to the destination, and the transaction is marked `COMMITTED`.
+- **Auditing & Rollback**: Running `jvm transaction show` lists the complete audit log. If a network disruption or power failure interrupts the operation, or if the user manually invokes `jvm transaction rollback <id>`, the engine parses the transaction journal, purges staged paths, restores previous filesystem states, and permanently marks the transaction as `ROLLED_BACK` (`CWE-460` / `CWE-362`).
+
 ---
 
-<a id="automated-adversarial-test-architecture-211-tests-40-cwes"></a>
-## Automated Adversarial Test Architecture (211 Tests, 40 CWEs)
+<a id="automated-adversarial-test-architecture-215-tests-40-cwes"></a>
+## Automated Adversarial Test Architecture (215 Tests, 40 CWEs)
 
-The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **211 automated test cases across 8 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **215 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
 
 | Suite | Category Focus | Test Count | Status |
 | :--- | :--- | :---: | :---: |
 | **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF) | 83 / 83 | **PASS** |
-| **Suite 2** | Registry & Environment Boundaries (ValueKind preservation, UAC elevation) | 6 / 6 | **PASS** |
+| **Suite 2** | Registry & Env Boundaries (ValueKind preservation, UAC elevation) | 6 / 6 | **PASS** |
 | **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery) | 17 / 17 | **PASS** |
-| **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, Scoop, UUID v5, .jvm.lock) | 55 / 55 | **PASS** |
+| **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, .jvm.lock) | 56 / 56 | **PASS** |
 | **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification) | 14 / 14 | **PASS** |
 | **Suite 6** | Corrupt Registry Recovery & PATH Resilience (De-bloat, length limits) | 14 / 14 | **PASS** |
 | **Suite 7** | Uninstallation Safety & Markers (Root markers, deferred cleanup) | 16 / 16 | **PASS** |
 | **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 6 / 6 | **PASS** |
-| **Total** | **Comprehensive Full-System Security Suite** | **211 / 211** | **`10.0 / 10.0`** |
+| **Suite 9** | Supply Chain (`JVM_SKIP_CHECKSUM` rejection, Verification checklists) | 2 / 2 | **PASS** |
+| **Suite 10** | Atomic Operations (Transactional journaling, Rollback execution) | 1 / 1 | **PASS** |
+| **Total** | **Comprehensive Full-System Security Suite** | **215 / 215** | **`10.0 / 10.0`** |
 
 ---
 

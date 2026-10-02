@@ -4126,6 +4126,149 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Assert-Contains $buildMsiContent "HashAlgorithm          = 'SHA256'" "build-msi.ps1 must enforce SHA256 signature hash"
     }
 
+    # Test 212: Kill JVM_SKIP_CHECKSUM and enforce explicit CLI flag with high-visibility security banner and CI --yes requirement (CWE-494 / CWE-20)
+    Run-TestCase "SupplyChain" "Kill JVM_SKIP_CHECKSUM and enforce explicit CLI flag with high-visibility security banner and CI --yes requirement (CWE-494 / CWE-20)" {
+        $envDir = Join-Path $SandboxRoot "SkipChkEnvTest"
+        New-Item -ItemType Directory -Path $envDir -Force | Out-Null
+
+        # 1. Verify JVM_SKIP_CHECKSUM environment variable is ignored
+        $env:JVM_SKIP_CHECKSUM = "1"
+        try {
+            $raw = Get-Content -LiteralPath $JvmBat -Raw -Encoding UTF8
+            Assert-False ($raw -match 'if\s+/i\s+"%JVM_SKIP_CHECKSUM%"=="1"') "jvm.bat must not read JVM_SKIP_CHECKSUM environment variable"
+        } finally {
+            $env:JVM_SKIP_CHECKSUM = $null
+        }
+
+        # 2. In CI / Non-interactive environment, --skip-checksum without --yes must fail closed
+        $origCi = $env:CI
+        $env:CI = "1"
+        try {
+            $outCi = & cmd.exe /c "call `"$JvmBat`" install maven 3.9.9 --skip-checksum" 2>&1 | Out-String
+            Assert-Equals $LASTEXITCODE 1 "jvm install with --skip-checksum in CI without --yes must abort with exit code 1"
+            Assert-Contains $outCi "SECURITY WARNING" "Output must display security warning banner"
+            Assert-Contains $outCi "requires --yes" "Output must explain CI requires --yes"
+        } finally {
+            $env:CI = $origCi
+        }
+    }
+
+    # Test 213: Cryptographic provenance verification with multi-tier checklist output (CWE-345 / CWE-494)
+    Run-TestCase "SupplyChain" "Cryptographic provenance verification with multi-tier checklist output (CWE-345 / CWE-494)" {
+        # 1. Help message must list jvm verify
+        $helpOut = & cmd.exe /c "call `"$JvmBat`" help" 2>&1 | Out-String
+        Assert-Contains $helpOut "jvm verify" "Help output must list jvm verify command"
+
+        # 2. Verify invalid candidate returns error 1
+        $badOut = & cmd.exe /c "call `"$JvmBat`" verify non_existent_jdk_candidate_999" 2>&1 | Out-String
+        Assert-Equals $LASTEXITCODE 1 "jvm verify on nonexistent target must exit 1"
+        Assert-Contains $badOut "not found or not installed" "Output must report target was not found"
+
+        # 3. Verify on active java or all candidates outputs 6-tier checklist
+        $allOut = & cmd.exe /c "call `"$JvmBat`" verify all" 2>&1 | Out-String
+        if ($LASTEXITCODE -eq 0) {
+            Assert-Contains $allOut "Artifact exists" "Output must report Artifact exists"
+            Assert-Contains $allOut "HTTPS verified" "Output must report HTTPS verified"
+            Assert-Contains $allOut "Host trusted" "Output must report Host trusted"
+            Assert-Contains $allOut "SHA-256 verified" "Output must report SHA-256 verified"
+            Assert-Contains $allOut "Signature verified" "Output must report Signature verified"
+            Assert-Contains $allOut "Provenance verified" "Output must report Provenance verified"
+        }
+    }
+
+    # Test 214: .jvm.lock Schema v2 compliance, --check, --diff, and --update workflows (CWE-354 / CWE-494)
+    Run-TestCase "Manifest" ".jvm.lock Schema v2 compliance, --check, --diff, and --update workflows (CWE-354 / CWE-494)" {
+        $lockTestDir = Join-Path $SandboxRoot "LockV2SchemaTest"
+        New-Item -ItemType Directory -Path $lockTestDir -Force | Out-Null
+        $lockFile = Join-Path $lockTestDir ".jvm.lock"
+
+        # Write a mock Schema v2 lockfile
+        $mockV2Lock = @"
+{
+    "schema": 2,
+    "platform": "windows-x64",
+    "lockfile_version": 1,
+    "generated_at": "2026-10-01T00:00:00Z",
+    "tools": {
+        "maven": {
+            "version": "3.9.9",
+            "arch": "all",
+            "url": "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip",
+            "checksum_type": "sha512",
+            "checksum": "8beac8d11ef208f1e2a8df0682b9448a9a363d2ad13ca74af43705549e72e74c9378823bf689287801cbbfc2f6ea9596201d19ccacfdfb682ee8a2ff4c4418ba"
+        }
+    }
+}
+"@
+        [System.IO.File]::WriteAllText($lockFile, $mockV2Lock, (New-Object System.Text.UTF8Encoding($false)))
+
+        # 1. jvm lock --check validates lockfile
+        $outCheck = & cmd.exe /c "cd /d `"$lockTestDir`" & call `"$JvmBat`" lock --check" 2>&1 | Out-String
+        Assert-Equals $LASTEXITCODE 0 "jvm lock --check must exit 0 on valid Schema v2 lockfile"
+        Assert-Contains $outCheck ".jvm.lock is valid" "Must verify lockfile schema"
+        Assert-Contains $outCheck "Current platform is supported" "Must verify platform support"
+        Assert-Contains $outCheck "All requested candidates are locked" "Must verify candidate locks"
+        Assert-Contains $outCheck "All checksums are present" "Must verify checksum presence"
+        Assert-Contains $outCheck "No configuration drift detected" "Must verify zero drift"
+
+        # 2. jvm lock --diff shows comparison table
+        $outDiff = & cmd.exe /c "cd /d `"$lockTestDir`" & call `"$JvmBat`" lock --diff" 2>&1 | Out-String
+        Assert-Equals $LASTEXITCODE 0 "jvm lock --diff must exit 0"
+        Assert-Contains $outDiff "LOCKED VERSION" "Must render table header"
+        Assert-Contains $outDiff "maven" "Must list locked maven tool"
+
+        # 3. jvm lock --check detects corrupt/empty lockfile
+        $corruptDir = Join-Path $SandboxRoot "LockCorruptTest"
+        New-Item -ItemType Directory -Path $corruptDir -Force | Out-Null
+        [System.IO.File]::WriteAllText((Join-Path $corruptDir ".jvm.lock"), "{invalid_json", (New-Object System.Text.UTF8Encoding($false)))
+        $outBadCheck = & cmd.exe /c "cd /d `"$corruptDir`" & call `"$JvmBat`" lock --check" 2>&1 | Out-String
+        Assert-Equals $LASTEXITCODE 1 "jvm lock --check on corrupt file must exit 1"
+        Assert-Contains $outBadCheck "is corrupt or invalid" "Must report corrupted schema"
+    }
+
+    # Test 215: Transactional installations, atomic journal logging, and rollback execution (CWE-460 / CWE-362)
+    Run-TestCase "AtomicOperations" "Transactional installations, atomic journal logging, and rollback execution (CWE-460 / CWE-362)" {
+        # 1. Verify jvm transaction show command runs
+        $outTxnShow = & cmd.exe /c "call `"$JvmBat`" transaction show" 2>&1 | Out-String
+        Assert-Equals $LASTEXITCODE 0 "jvm transaction show must exit 0"
+        Assert-Contains $outTxnShow "JVM TRANSACTIONS" "Output must display transactions table header"
+
+        # 2. Create mock transaction journal and verify rollback restores clean state
+        $txnDir = "$env:LOCALAPPDATA\DiamTek\JVM\transactions"
+        if (-not (Test-Path -LiteralPath $txnDir)) { New-Item -ItemType Directory -Path $txnDir -Force | Out-Null }
+        $testTxnId = "JVM-TXN-TEST999999"
+        $mockStaged = Join-Path $SandboxRoot "mock_staged_trash"
+        New-Item -ItemType Directory -Path $mockStaged -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $mockStaged "junk.bin") -Value "TRASH"
+
+        $txnObj = [ordered]@{
+            id = $testTxnId
+            timestamp = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            action = 'install'
+            target = 'java-test'
+            staged_path = $mockStaged
+            target_path = ''
+            backup_path = ''
+            status = 'IN_PROGRESS'
+        }
+        $txnJson = $txnObj | ConvertTo-Json -Depth 5
+        [System.IO.File]::WriteAllText((Join-Path $txnDir "$testTxnId.json"), $txnJson, (New-Object System.Text.UTF8Encoding($false)))
+
+        try {
+            # Execute rollback
+            $outRb = & cmd.exe /c "call `"$JvmBat`" transaction rollback $testTxnId" 2>&1 | Out-String
+            Assert-Equals $LASTEXITCODE 0 "jvm transaction rollback must exit 0"
+            Assert-Contains $outRb "Successfully rolled back" "Output must confirm rollback"
+            Assert-False (Test-Path -LiteralPath $mockStaged) "Rollback must remove staged paths"
+
+            # Check journal status updated to ROLLED_BACK
+            $updatedRaw = Get-Content -LiteralPath (Join-Path $txnDir "$testTxnId.json") -Raw | ConvertFrom-Json
+            Assert-Equals "ROLLED_BACK" $updatedRaw.status "Transaction status in journal must be ROLLED_BACK"
+        } finally {
+            Remove-Item -LiteralPath (Join-Path $txnDir "$testTxnId.json") -Force -ErrorAction SilentlyContinue
+        }
+    }
+
 } finally {
     # --------------------------------------------------------------------------
     # Sandbox Cleanup (Guaranteed Non-Recursive Reparse Safe Cleanup)

@@ -27,6 +27,8 @@ This document outlines every command, flag override, and semantic route availabl
 - [Directory-Based Auto-Switching (.java-version & .sdkmanrc)](#directory-based-auto-switching)
 - [Project Version Pinning (jvm pin / jvm local)](#project-version-pinning)
 - [Reproducible Lockfiles (.jvm.lock & jvm install --locked)](#reproducible-lockfiles)
+- [Cryptographic Provenance Verification (jvm verify)](#cryptographic-provenance-verification)
+- [Transactional Installations (jvm transaction)](#transactional-installations)
 - [IDE & Build Tool Integration](#ide--build-tool-integration)
 - [Bring Your Own JDK (jvm link)](#bring-your-own-jdk-byo-jdk)
 - [Global Environment Management](#global-environment-management)
@@ -83,6 +85,12 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm install <ver> --skip-checksum` | Machine | Bypasses checksum verification if vendor hash mirror is unreachable. |
 | `jvm install --locked` (or `-l`) | Machine / User | Installs and activates exact versions & dependencies pinned in repository `.jvm.lock` with strict checksum verification. |
 | `jvm lock [candidate] [version]` | Project | Generates or updates reproducible `.jvm.lock` manifest recording candidate, vendor, arch, exact URL, and cryptographic digest. |
+| `jvm lock --check` | Project | Audits `.jvm.lock` manifest for JSON schema integrity, platform support, and configuration drift. |
+| `jvm lock --diff` | Project | Compares `.jvm.lock` definitions against the active environment in a structured table. |
+| `jvm lock --update` | Project | Queries upstream vendor APIs to refresh checksums and metadata in `.jvm.lock`. |
+| `jvm verify [version\|all]` | Audit | Audits cryptographic provenance, HTTPS transport, host trust, SHA-256 digests, and Authenticode signatures. |
+| `jvm transaction show` | System | Displays atomic transaction log table with status flags (`COMMITTED`, `ROLLED_BACK`, `IN_PROGRESS`). |
+| `jvm transaction rollback <id>` | System | Atomically rolls back a failed or interrupted installation transaction (`jvm txn rollback`). |
 | `jvm install <tool> [version]` | User | Installs ecosystem tool (omitting version defaults to `latest`; e.g., `jvm install maven`, `jvm install gradle 8.9`; accepts `-y`). |
 | `jvm <tool> <version>` | User | Switches active ecosystem tool version (e.g., `jvm kotlin 2.0.20`, `jvm maven 3.9.6`). |
 | `jvm update <version>` | Machine | Checks for and applies vendor patches to a specific installed JDK (e.g., `jvm update 21`). |
@@ -570,18 +578,30 @@ jvm lock 21 --vendor adoptium
 jvm lock maven 3.9.9
 jvm lock gradle 8.10.2
 
-# 3. Headless installation of locked tools across CI/CD or new machines
+# 3. Audit lockfile integrity and platform compatibility
+jvm lock --check
+
+# 4. Compare locked tool versions against active environment
+jvm lock --diff
+
+# 5. Check upstream vendors for updates to locked tools
+jvm lock --update
+
+# 6. Headless installation of locked tools across CI/CD or new machines
 jvm install --locked
 # Shorthand alias:
 jvm install -l
 ```
 
-### The `.jvm.lock` Schema
+### The `.jvm.lock` Schema (Schema v2)
 When generated, `.jvm.lock` is written in UTF-8 without BOM using atomic staged writes (`.stage.<guid>.tmp` -> `.jvm.lock`) to eliminate partial-write race conditions (`CWE-362`):
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/schemas/jvm.lock.json",
+  "schema": 2,
   "lockfile_version": 1,
+  "platform": "windows-x64",
   "generated_at": "2026-10-01T04:59:27Z",
   "tools": {
     "java": {
@@ -609,6 +629,52 @@ When generated, `.jvm.lock` is written in UTF-8 without BOM using atomic staged 
 - **Symlink & Reparse Point Defenses (`CWE-59`):** Refuses to write to or read from symlinked `.jvm.lock` files or directories posing as lockfiles.
 - **Selective Installation:** You can install all locked tools at once (`jvm install --locked`) or target a specific candidate (`jvm install --locked maven`).
 - **Offline Idempotency:** If the exact version and vendor are already present locally, `jvm install --locked` activates them immediately without making outbound network requests.
+
+---
+
+<a id="cryptographic-provenance-verification"></a>
+## 🔐 Cryptographic Provenance Verification (`jvm verify`)
+
+Audit the local integrity and cryptographic chain of trust for any installed runtime or ecosystem tool:
+
+```powershell
+# Audit active Java runtime
+jvm verify
+
+# Audit a specific installed JDK version
+jvm verify 21
+
+# Audit an ecosystem tool
+jvm verify maven
+
+# Audit all installed runtimes and candidates
+jvm verify all
+```
+
+The verification checklist audits 6 criteria:
+1. `[OK]` Artifact exists on local filesystem
+2. `[OK]` Download origin verified HTTPS
+3. `[OK]` Host verified in trusted domains
+4. `[OK]` Cryptographic checksum matches recorded manifest
+5. `[OK]` Digital signature valid (Authenticode / GPG if present)
+6. `[OK]` Provenance chain intact
+
+---
+
+<a id="transactional-installations"></a>
+## 🔄 Transactional Installations (`jvm transaction`)
+
+DiamTek JVM provides complete atomic transaction guarantees across downloads and extractions (`JVM-TXN-XXXXXXXXXXXX`). If a download or extraction is interrupted, aborted, or corrupted, the system rolls back cleanly without leaving orphan directories or broken junctions:
+
+```powershell
+# Display active or recent transaction state
+jvm transaction show
+# Alias:
+jvm txn show
+
+# Rollback an aborted or interrupted transaction
+jvm transaction rollback <transaction-id>
+```
 
 ---
 

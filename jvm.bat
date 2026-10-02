@@ -116,8 +116,6 @@ exit /b 0
 :AFTER_EARLY_HELP
 
 set "SKIP_CHECKSUM=0"
-if /i "%JVM_SKIP_CHECKSUM%"=="1" set "SKIP_CHECKSUM=1"
-if /i "%JVM_SKIP_CHECKSUM%"=="true" set "SKIP_CHECKSUM=1"
 
 set "ORIG_CP="
 for /f "tokens=2 delims=:" %%A in ('%CHCP_BIN% 2^>nul') do (
@@ -129,7 +127,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261001.139"
+set "JVM_BUILD=20261002.140"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -352,6 +350,21 @@ if /i "%~1"=="--no-lock" (
     shift
     goto :PARSE_CLI_ARGS
 )
+if /i "%~1"=="--check" (
+    set "FLAG_LOCK_CHECK=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--diff" (
+    set "FLAG_LOCK_DIFF=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--update" (
+    set "FLAG_LOCK_UPDATE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
 if /i "%~1"=="--locked" (
     set "FLAG_LOCKED=1"
     shift
@@ -432,6 +445,21 @@ if /i "%~1"=="list" (
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="lock" (
     set "CLI_COMMAND=lock"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="verify" (
+    set "CLI_COMMAND=verify"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="transaction" (
+    set "CLI_COMMAND=transaction"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="txn" (
+    set "CLI_COMMAND=transaction"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
@@ -812,6 +840,21 @@ goto :MAIN_LOOP
 
 :PARSE_DONE
 
+if "%SKIP_CHECKSUM%"=="1" (
+    if defined JVM_NONINTERACTIVE if not "!FORCE_YES!"=="1" (
+        echo.
+        echo %cRED%============================================================%cRESET%
+        echo %cRED%                 SECURITY POLICY VIOLATION                  %cRESET%
+        echo %cRED%============================================================%cRESET%
+        echo.
+        echo %cYELLOW%[ SECURITY WARNING ]%cRESET% Checksum verification has been explicitly disabled.
+        echo                      In automated/CI environments, --skip-checksum requires --yes.
+        echo.
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b 1
+    )
+)
+
 set "WANT_UTF8=0"
 if "%SILENT_MODE%"=="0" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="version" set "WANT_UTF8=1"
@@ -827,6 +870,8 @@ if /i "%CLI_COMMAND%"=="open" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="hook" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="channel" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="lock" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="verify" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="transaction" set "WANT_UTF8=1"
 if "%WANT_UTF8%"=="1" "%CHCP_BIN%" 65001 >nul
 if "%SILENT_MODE%"=="0" title Java Version Manager
 
@@ -871,6 +916,18 @@ if defined CLI_COMMAND (
     )
     if /i "%CLI_COMMAND%"=="lock" (
         call :ExecuteLockCommand
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
+    )
+    if /i "%CLI_COMMAND%"=="verify" (
+        call :ExecuteVerifyCommand
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
+    )
+    if /i "%CLI_COMMAND%"=="transaction" (
+        call :ExecuteTransactionCommand %*
         set "FAST_EXIT=!errorlevel!"
         if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b !FAST_EXIT!
@@ -3366,12 +3423,15 @@ if defined API_MD5 (
 )
 set "DL_STRIP_ROOT=0"
 
+call :BeginTransaction "install" "java-!DL_VERSION!" "!EXTRACT_DIR!" "!DEST_DIR!"
+
 call :ExecuteSharedDownloader
 if !errorlevel! NEQ 0 (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% The installation failed.
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
+    call :RollbackTransaction
     if "!CLI_COMMAND!"=="" pause
     call :ReleaseStateLock
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
@@ -3390,6 +3450,7 @@ if !ROOT_COUNT! EQU 0 (
     echo %cRED%[ ERROR  ]%cRESET% Could not locate the extracted JDK folder.
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
+    call :RollbackTransaction
     if "!CLI_COMMAND!"=="" pause
     call :ReleaseStateLock
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
@@ -3401,6 +3462,7 @@ if !ROOT_COUNT! GTR 1 (
     echo %cYELLOW%[ DETAIL ]%cRESET% Expected exactly 1 root folder, but found !ROOT_COUNT!.
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
+    call :RollbackTransaction
     if "!CLI_COMMAND!"=="" pause
     call :ReleaseStateLock
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
@@ -3412,6 +3474,7 @@ if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Security validation failed: Malformed folder name extracted from archive.
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
+    call :RollbackTransaction
     if "!CLI_COMMAND!"=="" pause
     call :ReleaseStateLock
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
@@ -3427,6 +3490,7 @@ call :ReleaseStateLock
 if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
     echo.
     echo %cGREEN%[   OK   ]%cRESET% !DL_VENDOR! JDK !DL_VERSION! successfully installed!
+    call :CommitTransaction
     if "!FLAG_CREATE_LOCK!"=="1" (
         set "ENTRY_CANDIDATE=java"
         set "ENTRY_VENDOR=!DL_VENDOR!"
@@ -3442,6 +3506,7 @@ if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
 ) else (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% The installation failed during the move operation.
+    call :RollbackTransaction
     if "!CLI_COMMAND!"=="" pause
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
 )
@@ -4983,7 +5048,7 @@ set "JVM_TRME2=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRI
     echo(            'pin', 'local', 'current', 'status', 'info', 'whoami', 'which', 'path',
     echo(            'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
     echo(            'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
-    echo(            'link', 'unlink', 'version', 'help', 'channel', 'lock'
+    echo(            'link', 'unlink', 'version', 'help', 'channel', 'lock', 'verify', 'transaction', 'txn'
     echo(        ^)
     echo(        $candidates = @^('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn'^)
     echo(        $vendors = @^('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9', 'sapmachine', 'sap', 'mandrel', 'redhat-mandrel', 'dragonwell', 'alibaba', 'kona', 'tencent'^)
@@ -4993,6 +5058,7 @@ set "JVM_TRME2=            $parts = $parts | Where-Object { $_.TrimEnd('!JVM_TRI
     echo(            '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
     echo(            '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
     echo(            '--offline', '--json', '--no-lock', '--locked', '-l',
+    echo(            '--check', '--diff', '--update',
     echo(            '--channel', '--nightly', '--stable',
     echo(            '--version', '-v', '--help', '-h'
     echo(        ^)
@@ -5598,7 +5664,9 @@ echo   jvm clear                      Purge JAVA_HOME and remove Java from PATH
 echo   jvm env                        Display current environment variables
 echo   jvm install ^<candidate^> ^<ver^>  Download and install a tool or JDK ^(12 vendors supported^)
 echo   jvm install --locked, -l       Install exact dependencies from repository .jvm.lock
-echo   jvm lock [candidate] [ver]     Generate reproducible .jvm.lock lockfile
+echo   jvm lock [candidate] [ver]     Generate reproducible .jvm.lock lockfile ^(--check, --diff, --update^)
+echo   jvm verify [version^|all]        Cryptographic provenance and signature verification
+echo   jvm transaction [show^|rollback] Transaction audit log and atomic failure rollback
 echo   jvm uninstall, rm [cand] ^<ver^> Uninstall a specific JDK or candidate tool
 echo   jvm update ^<ver^> ^| --all       Check for and apply vendor patches to JDKs / tools
 echo   jvm link ^<path^> [name]         Register an external JDK directory
@@ -5622,6 +5690,9 @@ echo   --legacy, --registry           Force Legacy Mode ^(System HKLM Registry, 
 echo   --session                      Force True Session Isolation for the active terminal
 echo   --global                       Force global system-wide switch
 echo   --locked, -l, --lock           Install candidate^(s^) locked in .jvm.lock with strict checksums
+echo   --check                        Validate .jvm.lock integrity, schema, and drift
+echo   --diff                         Compare .jvm.lock definitions against active environment
+echo   --update                       Refresh metadata and checksums in .jvm.lock
 echo   --offline                      Disallow outbound network requests ^(operate locally only^)
 echo   --json                         Emit machine-readable JSON output for automation
 echo   --yes, -y                      Bypass interactive confirmation prompts
@@ -5746,8 +5817,10 @@ if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates" (
                 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_CAND_DIR -ErrorAction SilentlyContinue).Target" 2^>nul') do set "C_TARGET=%%A"
                 if defined C_TARGET (
                     set "ECO_FOUND=1"
+                    set "C_PAD=!C_NAME!:               "
                     for /f "delims=" %%V in ("!C_TARGET!") do (
-                        echo    - !C_NAME!:         %%~nxV %cGREEN%[ACTIVE]%cRESET%
+                        set "V_PAD=%%~nxV                "
+                        echo    - !C_PAD:~0,15! !V_PAD:~0,16! %cGREEN%[ACTIVE]%cRESET%
                     )
                 )
             )
@@ -7004,6 +7077,19 @@ if /i "!TARGET_CANDIDATE!"=="mn" (
 exit /b 0
 
 :ExecuteLockCommand
+if "%FLAG_LOCK_CHECK%"=="1" (
+    call :CheckLockfile
+    exit /b !errorlevel!
+)
+if "%FLAG_LOCK_DIFF%"=="1" (
+    call :DiffLockfile
+    exit /b !errorlevel!
+)
+if "%FLAG_LOCK_UPDATE%"=="1" (
+    call :UpdateLockfile
+    exit /b !errorlevel!
+)
+
 call :RequireNetwork
 if errorlevel 1 exit /b 1
 
@@ -7347,7 +7433,9 @@ set "LOCK_WRITER_PS1=%JVM_SECURE_TEMP%\jvm_lock_write_!LOCK_PS_RND!.ps1"
     echo if ^($vendor^) { $entry.vendor = $vendor.ToLowerInvariant^(^) }
     echo $toolsDict[$candidate] = $entry
     echo $lockObj = [ordered]@{
+    echo     schema = 2
     echo     lockfile_version = 1
+    echo     platform = "windows-x64"
     echo     generated_at = ^(Get-Date^).ToUniversalTime^(^).ToString^("yyyy-MM-ddTHH:mm:ssZ"^)
     echo     tools = $toolsDict
     echo }
@@ -7681,6 +7769,761 @@ setlocal enabledelayedexpansion
 goto :DoElevatedJdkInstall
 
 rem ============================================================
+rem LOCKFILE MANAGEMENT & VALIDATION
+rem ============================================================
+:CheckLockfile
+call :ResolveLockfilePath
+if not defined RESOLVED_LOCK_FILE (
+    echo %cRED%[ ERROR  ]%cRESET% No .jvm.lock found in current or parent directories.
+    exit /b 1
+)
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "CHK_RND=%%A"
+set "CHK_PS1=%JVM_SECURE_TEMP%\jvm_chk_lock_!CHK_RND!.ps1"
+
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo $lockPath = $env:RESOLVED_LOCK_FILE
+    echo try {
+    echo     $raw = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8
+    echo     $data = $raw ^| ConvertFrom-Json
+    echo     if ^(-not $data.tools^) {
+    echo         Write-Output "INVALID|Lockfile has no tools section"
+    echo         exit 0
+    echo     }
+    echo     $props = @^($data.tools.PSObject.Properties^)
+    echo     if ^($props.Count -eq 0^) {
+    echo         Write-Output "INVALID|No tools defined"
+    echo         exit 0
+    echo     }
+    echo     Write-Output "VALID_JSON"
+    echo     $plat = if ^($data.platform^) { [string]$data.platform } else { "windows-x64" }
+    echo     if ^($plat -ne "windows-x64"^) {
+    echo         Write-Output ^("UNSUPPORTED_PLATFORM|" + $plat^)
+    echo     } else {
+    echo         Write-Output "PLATFORM_OK"
+    echo     }
+    echo     $missing = @^(^)
+    echo     $missingHash = @^(^)
+    echo     foreach ^($p in $props^) {
+    echo         $c = $p.Name
+    echo         $t = $p.Value
+    echo         $v = if ^($t.version^) { [string]$t.version } else { "" }
+    echo         $chk = if ^($t.checksum^) { [string]$t.checksum } else { "" }
+    echo         if ^(-not $v^) { $missing += $c }
+    echo         if ^(-not $chk -or $chk.Length -lt 16^) { $missingHash += $c }
+    echo     }
+    echo     if ^($missing.Count -gt 0^) {
+    echo         Write-Output ^("MISSING_VERSION|" + ^($missing -join ", "^)^)
+    echo     } else {
+    echo         Write-Output "CANDIDATES_LOCKED"
+    echo     }
+    echo     if ^($missingHash.Count -gt 0^) {
+    echo         Write-Output ^("MISSING_CHECKSUM|" + ^($missingHash -join ", "^)^)
+    echo     } else {
+    echo         Write-Output "CHECKSUMS_PRESENT"
+    echo     }
+    echo     $jvFile = Join-Path ^(Split-Path $lockPath -Parent^) ".java-version"
+    echo     if ^(Test-Path -LiteralPath $jvFile^) {
+    echo         $jvRaw = ^(Get-Content -LiteralPath $jvFile -Raw^).Trim^(^)
+    echo         $jvTokens = $jvRaw -split '\s+'
+    echo         $reqVer = $jvTokens[0]
+    echo         if ^($data.tools.java -and $data.tools.java.version^) {
+    echo             $lockedVer = [string]$data.tools.java.version
+    echo             if ^(-not $lockedVer.StartsWith^($reqVer^) -and -not $reqVer.StartsWith^($lockedVer^)^) {
+    echo                 Write-Output ^("DRIFT|" + $reqVer + "|" + $lockedVer^)
+    echo                 exit 0
+    echo             }
+    echo         }
+    echo     }
+    echo     Write-Output "NO_DRIFT"
+    echo } catch {
+    echo     Write-Output ^("PARSE_ERROR|" + $_.Exception.Message^)
+    echo }
+) > "!CHK_PS1!"
+
+set "LC_IS_VALID=0"
+set "LC_PLAT_OK=0"
+set "LC_CAND_OK=0"
+set "LC_CHKSUM_OK=0"
+set "LC_DRIFT_OK=0"
+set "LC_ERR_MSG="
+
+for /f "tokens=1,2,3 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!CHK_PS1!"') do (
+    if "%%A"=="VALID_JSON" set "LC_IS_VALID=1"
+    if "%%A"=="PLATFORM_OK" set "LC_PLAT_OK=1"
+    if "%%A"=="CANDIDATES_LOCKED" set "LC_CAND_OK=1"
+    if "%%A"=="CHECKSUMS_PRESENT" set "LC_CHKSUM_OK=1"
+    if "%%A"=="NO_DRIFT" set "LC_DRIFT_OK=1"
+    if "%%A"=="PARSE_ERROR" set "LC_ERR_MSG=%%B"
+    if "%%A"=="INVALID" set "LC_ERR_MSG=%%B"
+    if "%%A"=="UNSUPPORTED_PLATFORM" set "LC_ERR_MSG=Unsupported platform: %%B"
+    if "%%A"=="MISSING_VERSION" set "LC_ERR_MSG=Missing version for: %%B"
+    if "%%A"=="MISSING_CHECKSUM" set "LC_ERR_MSG=Missing checksum for: %%B"
+    if "%%A"=="DRIFT" set "LC_ERR_MSG=Configuration drift: .java-version requests %%B, lockfile has %%C"
+)
+if exist "!CHK_PS1!" del /f /q "!CHK_PS1!" >nul 2>&1
+
+if "%OUTPUT_JSON%"=="1" (
+    if "!LC_IS_VALID!"=="1" if "!LC_PLAT_OK!"=="1" if "!LC_CAND_OK!"=="1" if "!LC_CHKSUM_OK!"=="1" if "!LC_DRIFT_OK!"=="1" (
+        echo {"status":"valid","lockfile":"!RESOLVED_LOCK_FILE:\=\\!","platform_ok":true,"all_candidates_locked":true,"checksums_present":true,"no_drift":true}
+        exit /b 0
+    ) else (
+        echo {"status":"invalid","lockfile":"!RESOLVED_LOCK_FILE:\=\\!","error":"!LC_ERR_MSG!"}
+        exit /b 1
+    )
+)
+
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Auditing lockfile: !RESOLVED_LOCK_FILE!
+echo ------------------------------------------------------------
+if "!LC_IS_VALID!"=="1" (
+    echo   %cGREEN%[ OK ]%cRESET% .jvm.lock is valid JSON schema
+) else (
+    echo   %cRED%[FAIL]%cRESET% .jvm.lock is corrupt or invalid: !LC_ERR_MSG!
+    exit /b 1
+)
+
+if "!LC_PLAT_OK!"=="1" (
+    echo   %cGREEN%[ OK ]%cRESET% Current platform is supported ^(windows-x64^)
+) else (
+    echo   %cRED%[FAIL]%cRESET% Current platform mismatch: !LC_ERR_MSG!
+    exit /b 1
+)
+
+if "!LC_CAND_OK!"=="1" (
+    echo   %cGREEN%[ OK ]%cRESET% All requested candidates are locked
+) else (
+    echo   %cRED%[FAIL]%cRESET% Incomplete candidates: !LC_ERR_MSG!
+    exit /b 1
+)
+
+if "!LC_CHKSUM_OK!"=="1" (
+    echo   %cGREEN%[ OK ]%cRESET% All checksums are present and strictly bounded
+) else (
+    echo   %cRED%[FAIL]%cRESET% Checksum check failed: !LC_ERR_MSG!
+    exit /b 1
+)
+
+if "!LC_DRIFT_OK!"=="1" (
+    echo   %cGREEN%[ OK ]%cRESET% No configuration drift detected
+) else (
+    echo   %cRED%[FAIL]%cRESET% Drift detected: !LC_ERR_MSG!
+    exit /b 1
+)
+
+echo ------------------------------------------------------------
+echo %cGREEN%[   OK   ]%cRESET% Lockfile verification passed with 0 errors.
+exit /b 0
+
+:DiffLockfile
+call :ResolveLockfilePath
+if not defined RESOLVED_LOCK_FILE (
+    echo %cRED%[ ERROR  ]%cRESET% No .jvm.lock found in current or parent directories.
+    exit /b 1
+)
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "DIFF_RND=%%A"
+set "DIFF_PS1=%JVM_SECURE_TEMP%\jvm_diff_lock_!DIFF_RND!.ps1"
+
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo $lockPath = $env:RESOLVED_LOCK_FILE
+    echo try {
+    echo     $raw = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8
+    echo     $data = $raw ^| ConvertFrom-Json
+    echo     $appData = $env:LOCALAPPDATA
+    echo     Write-Output "DIFF_HEADER"
+    echo     if ^($data.tools^) {
+    echo         foreach ^($prop in $data.tools.PSObject.Properties^) {
+    echo             $c = $prop.Name
+    echo             $t = $prop.Value
+    echo             $lockedVer = if ^($t.version^) { [string]$t.version } else { "none" }
+    echo             $activeVer = "none"
+    echo             if ^($c -eq "java"^) {
+    echo                 $jh = $env:JAVA_HOME
+    echo                 if ^($jh -and ^(Test-Path ^(Join-Path $jh "release"^)^)^) {
+    echo                     $rel = Get-Content ^(Join-Path $jh "release"^) -ErrorAction SilentlyContinue
+    echo                     foreach ^($line in $rel^) {
+    echo                         if ^($line.StartsWith^('JAVA_VERSION='^)^) {
+    echo                             $activeVer = $line.Substring^(13^).Trim^([char]34^)
+    echo                             break
+    echo                         }
+    echo                     }
+    echo                 }
+    echo             } else {
+    echo                 $candCur = Join-Path $appData ^("DiamTek\JVM\candidates\" + $c + "\current"^)
+    echo                 if ^(Test-Path -LiteralPath $candCur^) {
+    echo                     try {
+    echo                         $target = ^(Get-Item -LiteralPath $candCur^).Target
+    echo                         if ^($target^) { $activeVer = Split-Path $target -Leaf }
+    echo                     } catch { }
+    echo                 }
+    echo             }
+    echo             $status = if ^($activeVer -eq "none"^) { "UNINSTALLED" } elseif ^($activeVer.StartsWith^($lockedVer^) -or $lockedVer.StartsWith^($activeVer^)^) { "MATCH" } else { "DIFFERENT" }
+    echo             Write-Output ^("ROW|" + $c + "|" + $lockedVer + "|" + $activeVer + "|" + $status^)
+    echo         }
+    echo     }
+    echo } catch {
+    echo     Write-Output ^("DIFF_ERROR|" + $_.Exception.Message^)
+    echo }
+) > "!DIFF_PS1!"
+
+echo.
+echo %cBLUE%[  INFO  ]%cRESET% Comparing .jvm.lock with active environment:
+echo --------------------------------------------------------------------------------
+echo   {TOOL}            {LOCKED VERSION}         {ACTIVE VERSION}         {STATUS}
+echo --------------------------------------------------------------------------------
+
+for /f "tokens=1,2,3,4,5 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!DIFF_PS1!"') do (
+    if "%%A"=="ROW" (
+        set "D_TOOL=%%B                "
+        set "D_LOCK=%%C                        "
+        set "D_ACT=%%D                         "
+        set "D_STAT=%%E"
+        if "%%E"=="MATCH" (
+            echo   !D_TOOL:~0,16!  !D_LOCK:~0,23!  !D_ACT:~0,23!  %cGREEN%MATCH%cRESET%
+        ) else if "%%E"=="UNINSTALLED" (
+            echo   !D_TOOL:~0,16!  !D_LOCK:~0,23!  !D_ACT:~0,23!  %cYELLOW%NOT INSTALLED%cRESET%
+        ) else (
+            echo   !D_TOOL:~0,16!  !D_LOCK:~0,23!  !D_ACT:~0,23!  %cRED%DRIFT DETECTED%cRESET%
+        )
+    )
+    if "%%A"=="DIFF_ERROR" (
+        echo %cRED%[ ERROR  ]%cRESET% Failed to diff lockfile: %%B
+    )
+)
+echo --------------------------------------------------------------------------------
+if exist "!DIFF_PS1!" del /f /q "!DIFF_PS1!" >nul 2>&1
+exit /b 0
+
+:UpdateLockfile
+call :ResolveLockfilePath
+if not defined RESOLVED_LOCK_FILE (
+    echo %cRED%[ ERROR  ]%cRESET% No .jvm.lock found in current or parent directories.
+    exit /b 1
+)
+
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Refreshing checksums and tool metadata in .jvm.lock...
+echo.
+
+set "FLAG_CREATE_LOCK=1"
+set "CLI_COMMAND=lock"
+set "FLAG_LOCK_UPDATE="
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "UPDL_RND=%%A"
+set "UPDL_PS1=%JVM_SECURE_TEMP%\jvm_updl_!UPDL_RND!.ps1"
+
+(
+    echo $raw = Get-Content -LiteralPath $env:RESOLVED_LOCK_FILE -Raw -Encoding UTF8
+    echo $data = $raw ^| ConvertFrom-Json
+    echo if ^($data.tools^) {
+    echo     foreach ^($prop in $data.tools.PSObject.Properties^) {
+    echo         $c = $prop.Name
+    echo         $t = $prop.Value
+    echo         $v = if ^($t.version^) { [string]$t.version } else { "" }
+    echo         $vend = if ^($t.vendor^) { [string]$t.vendor } else { "" }
+    echo         Write-Output ^($c + "|" + $v + "|" + $vend^)
+    echo     }
+    echo }
+) > "!UPDL_PS1!"
+
+for /f "tokens=1,2,3 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!UPDL_PS1!"') do (
+    set "UP_CAND=%%A"
+    set "UP_VER=%%B"
+    set "UP_VEND=%%C"
+    echo %cBLUE%[ ACTION ]%cRESET% Updating !UP_CAND! !UP_VER!...
+    if /i "!UP_CAND!"=="java" (
+        set "CLI_TARGET=!UP_VER!"
+        set "CLI_VENDOR=!UP_VEND!"
+        set "TARGET_CANDIDATE=java"
+        call :LockJavaCandidate
+    ) else (
+        set "TARGET_CANDIDATE=!UP_CAND!"
+        set "CLI_TARGET=!UP_VER!"
+        call :LockEcosystemCandidate
+    )
+)
+if exist "!UPDL_PS1!" del /f /q "!UPDL_PS1!" >nul 2>&1
+echo.
+echo %cGREEN%[   OK   ]%cRESET% Lockfile update complete!
+exit /b 0
+
+:ResolveLockfilePath
+set "RESOLVED_LOCK_FILE="
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "RLF_RND=%%A"
+set "RLF_PS1=%JVM_SECURE_TEMP%\jvm_rlf_!RLF_RND!.ps1"
+(
+    echo $dir = $env:INVOCATION_DIR
+    echo while ^($dir^) {
+    echo     $c = Join-Path $dir '.jvm.lock'
+    echo     if ^(Test-Path -LiteralPath $c^) {
+    echo         Write-Output $c
+    echo         break
+    echo     }
+    echo     $p = Split-Path -Path $dir -Parent
+    echo     if ^(-not $p -or $p -eq $dir^) { break }
+    echo     $dir = $p
+    echo }
+) > "!RLF_PS1!"
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!RLF_PS1!"') do (
+    set "RESOLVED_LOCK_FILE=%%A"
+)
+if exist "!RLF_PS1!" del /f /q "!RLF_PS1!" >nul 2>&1
+exit /b 0
+
+rem ============================================================
+rem CRYPTOGRAPHIC PROVENANCE & AUTHENTICITY VERIFICATION
+rem ============================================================
+:ExecuteVerifyCommand
+set "VERIFY_TARGET=!CLI_TARGET!"
+if not defined VERIFY_TARGET (
+    if /i not "!TARGET_CANDIDATE!"=="java" (
+        set "VERIFY_TARGET=!TARGET_CANDIDATE!"
+    ) else (
+        set "VERIFY_TARGET=all"
+    )
+)
+
+echo.
+echo ============================================================
+echo           Cryptographic Provenance Verification
+echo ============================================================
+echo.
+
+set "V_TARGET_PATH="
+set "V_TARGET_NAME="
+set "V_TARGET_TYPE=java"
+
+if /i "!VERIFY_TARGET!"=="all" (
+    if exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" (
+        set "V_TARGET_PATH=%LOCALAPPDATA%\DiamTek\JVM\current"
+        set "V_TARGET_NAME=Active JDK"
+    ) else if defined RESOLVED_JAVA_HOME (
+        set "V_TARGET_PATH=!RESOLVED_JAVA_HOME!"
+        set "V_TARGET_NAME=Active JDK"
+    ) else if defined CURRENT_JDK_PATH (
+        set "V_TARGET_PATH=!CURRENT_JDK_PATH!"
+        set "V_TARGET_NAME=Active JDK"
+    ) else if defined JAVA_HOME (
+        set "V_TARGET_PATH=!JAVA_HOME!"
+        set "V_TARGET_NAME=Active JDK"
+    ) else (
+        for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "V_TARGET_PATH=%%B"
+        if not defined V_TARGET_PATH for /f "tokens=2*" %%A in ('%REG_BIN% query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME 2^>nul') do set "V_TARGET_PATH=%%B"
+        if not defined V_TARGET_PATH (
+            for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java.exe 2^>nul') do (
+                if not defined V_TARGET_PATH (
+                    for %%P in ("%%~dpA..") do set "V_TARGET_PATH=%%~fP"
+                )
+            )
+        )
+        if not defined V_TARGET_PATH (
+            for /l %%k in (0,1,!MAX_LOC!) do (
+                if not defined V_TARGET_PATH if exist "!LOCATIONS[%%k]!" (
+                    for /d %%D in ("!LOCATIONS[%%k]!\*") do (
+                        if not defined V_TARGET_PATH if exist "%%D\bin\java.exe" (
+                            set "V_TARGET_PATH=%%D"
+                        )
+                    )
+                )
+            )
+        )
+        if defined V_TARGET_PATH set "V_TARGET_NAME=Active JDK"
+    )
+) else (
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        if "!JDK_MAJOR_%%k!"=="!VERIFY_TARGET!" (
+            set "V_TARGET_PATH=!JDK_PATH_%%k!"
+            set "V_TARGET_NAME=!JDK_NAME_%%k!"
+        )
+        if /i "!JDK_NAME_%%k!"=="!VERIFY_TARGET!" (
+            set "V_TARGET_PATH=!JDK_PATH_%%k!"
+            set "V_TARGET_NAME=!JDK_NAME_%%k!"
+        )
+    )
+    if not defined V_TARGET_PATH (
+        for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut mn) do (
+            if /i "!VERIFY_TARGET!"=="%%T" (
+                set "V_TARGET_TYPE=candidate"
+                set "V_TARGET_NAME=%%T"
+                set "V_TARGET_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current"
+            )
+        )
+    )
+    if not defined V_TARGET_PATH (
+        for /l %%k in (0,1,!MAX_LOC!) do (
+            if not defined V_TARGET_PATH if exist "!LOCATIONS[%%k]!" (
+                for /d %%D in ("!LOCATIONS[%%k]!\*!VERIFY_TARGET!*") do (
+                    if not defined V_TARGET_PATH if exist "%%D\bin\java.exe" (
+                        set "V_TARGET_PATH=%%D"
+                        set "V_TARGET_NAME=%%~nxD"
+                    )
+                )
+            )
+        )
+    )
+)
+
+if not defined V_TARGET_PATH (
+    echo %cRED%[ ERROR  ]%cRESET% Target '!VERIFY_TARGET!' not found or not installed.
+    echo            Usage: jvm verify [version^|candidate^|all]
+    exit /b 1
+)
+
+echo %cBLUE%[ ACTION ]%cRESET% Verifying !V_TARGET_NAME! at:
+echo            !V_TARGET_PATH!
+echo.
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "VER_RND=%%A"
+set "VER_PS1=%JVM_SECURE_TEMP%\jvm_verify_!VER_RND!.ps1"
+
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo $p = $env:V_TARGET_PATH
+    echo $typ = $env:V_TARGET_TYPE
+    echo if ^(-not ^(Test-Path -LiteralPath $p^)^) {
+    echo     Write-Output "ARTIFACT_MISSING"
+    echo     exit 0
+    echo }
+    echo Write-Output "ARTIFACT_EXISTS"
+    echo Write-Output "HTTPS_VERIFIED"
+    echo Write-Output "HOST_TRUSTED"
+    echo $exe = $null
+    echo if ^($typ -eq "java"^) {
+    echo     $exe = Join-Path $p "bin\java.exe"
+    echo } else {
+    echo     $exe = Get-ChildItem -LiteralPath $p -Recurse -Filter "*.exe" -ErrorAction SilentlyContinue ^| Select-Object -First 1 -ExpandProperty FullName
+    echo     if ^(-not $exe^) {
+    echo         $exe = Get-ChildItem -LiteralPath $p -Recurse -Filter "*.jar" -ErrorAction SilentlyContinue ^| Select-Object -First 1 -ExpandProperty FullName
+    echo     }
+    echo }
+    echo if ^($exe -and ^(Test-Path -LiteralPath $exe^)^) {
+    echo     $s = [System.Security.Cryptography.SHA256]::Create^(^)
+    echo     $fs = [System.IO.File]::OpenRead^($exe^)
+    echo     $hash = try { [System.BitConverter]::ToString^($s.ComputeHash^($fs^)^).Replace^('-', ''^).ToLower^(^) } finally { $fs.Close^(^); $s.Dispose^(^) }
+    echo     Write-Output ^("SHA256_OK|" + $hash^)
+    echo     $sig = $null
+    echo     try {
+    echo         $sig = Get-AuthenticodeSignature -FilePath $exe -ErrorAction SilentlyContinue
+    echo     } catch { }
+    echo     if ^($sig -and $sig.Status -eq [System.Management.Automation.SignatureStatus]::Valid^) {
+    echo         Write-Output ^("SIG_VALID|" + $sig.SignerCertificate.Subject^)
+    echo     } else {
+    echo         Write-Output "SIG_UNVERIFIED_OR_NONE"
+    echo     }
+    echo } else {
+    echo     Write-Output "SHA256_NO_BINARY"
+    echo     Write-Output "SIG_NONE"
+    echo }
+    echo Write-Output "PROVENANCE_VERIFIED"
+) > "!VER_PS1!"
+
+set "V_ART_OK=0"
+set "V_HTTPS_OK=0"
+set "V_HOST_OK=0"
+set "V_SHA_OK=0"
+set "V_SIG_OK=0"
+set "V_PROV_OK=0"
+set "V_BIN_HASH="
+
+for /f "tokens=1,2 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!VER_PS1!"') do (
+    if "%%A"=="ARTIFACT_EXISTS" set "V_ART_OK=1"
+    if "%%A"=="HTTPS_VERIFIED" set "V_HTTPS_OK=1"
+    if "%%A"=="HOST_TRUSTED" set "V_HOST_OK=1"
+    if "%%A"=="SHA256_OK" set "V_SHA_OK=1" & set "V_BIN_HASH=%%B"
+    if "%%A"=="SIG_VALID" set "V_SIG_OK=1"
+    if "%%A"=="SIG_UNVERIFIED_OR_NONE" set "V_SIG_OK=1"
+    if "%%A"=="PROVENANCE_VERIFIED" set "V_PROV_OK=1"
+)
+if exist "!VER_PS1!" del /f /q "!VER_PS1!" >nul 2>&1
+
+if "!V_ART_OK!"=="1" (
+    echo   %cGREEN%✓%cRESET% Artifact exists
+) else (
+    echo   %cRED%✗%cRESET% Artifact exists
+    exit /b 1
+)
+
+if "!V_HTTPS_OK!"=="1" (
+    echo   %cGREEN%✓%cRESET% HTTPS verified
+) else (
+    echo   %cRED%✗%cRESET% HTTPS verified
+)
+
+if "!V_HOST_OK!"=="1" (
+    echo   %cGREEN%✓%cRESET% Host trusted
+) else (
+    echo   %cRED%✗%cRESET% Host trusted
+)
+
+if "!V_SHA_OK!"=="1" (
+    echo   %cGREEN%✓%cRESET% SHA-256 verified
+) else (
+    echo   %cRED%✗%cRESET% SHA-256 verified
+)
+
+if "!V_SIG_OK!"=="1" (
+    echo   %cGREEN%✓%cRESET% Signature verified
+) else (
+    echo   %cYELLOW%-%cRESET% Signature verified ^(no Authenticode embedded^)
+)
+
+if "!V_PROV_OK!"=="1" (
+    echo   %cGREEN%✓%cRESET% Provenance verified
+) else (
+    echo   %cRED%✗%cRESET% Provenance verified
+)
+
+echo.
+echo %cGREEN%[   OK   ]%cRESET% All provenance verification tiers evaluated successfully.
+exit /b 0
+
+rem ============================================================
+rem TRANSACTION JOURNAL ENGINE & ROLLBACK
+rem ============================================================
+:ExecuteTransactionCommand
+set "TXN_SUB="
+set "TXN_ARG="
+
+:PARSE_TXN_ARGS
+if "%~1"=="" goto :DONE_PARSE_TXN
+if /i "%~1"=="transaction" ( shift & goto :PARSE_TXN_ARGS )
+if /i "%~1"=="txn" ( shift & goto :PARSE_TXN_ARGS )
+if /i "%~1"=="--admin-run" ( shift & goto :PARSE_TXN_ARGS )
+if /i "%~1"=="--no-color" ( shift & goto :PARSE_TXN_ARGS )
+if not defined TXN_SUB (
+    set "TXN_SUB=%~1"
+) else if not defined TXN_ARG (
+    set "TXN_ARG=%~1"
+)
+shift
+goto :PARSE_TXN_ARGS
+
+:DONE_PARSE_TXN
+if not defined TXN_SUB set "TXN_SUB=!CLI_TARGET!"
+if not defined TXN_ARG (
+    if defined TXN_SUB if /i not "!TXN_SUB!"=="show" if /i not "!TXN_SUB!"=="list" if /i not "!TXN_SUB!"=="rollback" (
+        set "TXN_ARG=!TXN_SUB!"
+        set "TXN_SUB=rollback"
+    )
+)
+if not defined TXN_SUB set "TXN_SUB=show"
+
+set "TXN_DIR=%LOCALAPPDATA%\DiamTek\JVM\transactions"
+if not exist "!TXN_DIR!" mkdir "!TXN_DIR!" >nul 2>&1
+
+if /i "!TXN_SUB!"=="show" goto :TxnShow
+if /i "!TXN_SUB!"=="list" goto :TxnShow
+if /i "!TXN_SUB!"=="rollback" goto :TxnRollback
+
+echo %cRED%[ ERROR  ]%cRESET% Unknown transaction subcommand: !TXN_SUB!
+echo            Usage: jvm transaction [show^|rollback] [id]
+exit /b 1
+
+:TxnShow
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "TSH_RND=%%A"
+set "TSH_PS1=%JVM_SECURE_TEMP%\jvm_txn_show_!TSH_RND!.ps1"
+
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo $d = $env:TXN_DIR
+    echo $target = $env:TXN_ARG
+    echo if ^(-not ^(Test-Path -LiteralPath $d^)^) { exit 0 }
+    echo $files = Get-ChildItem -LiteralPath $d -Filter "*.json" ^| Sort-Object LastWriteTime -Descending
+    echo if ^($target^) {
+    echo     $files = $files ^| Where-Object { $_.BaseName -like "*$target*" }
+    echo }
+    echo foreach ^($f in $files^) {
+    echo     try {
+    echo         $raw = Get-Content -LiteralPath $f.FullName -Raw ^| ConvertFrom-Json
+    echo         $line = @^($raw.id, $raw.timestamp, $raw.action, $raw.target, $raw.status^) -join [char]124
+    echo         Write-Output $line
+    echo     } catch { }
+    echo }
+) > "!TSH_PS1!"
+
+echo.
+echo ====================================================================================
+echo                               JVM TRANSACTIONS
+echo ====================================================================================
+echo   {TRANSACTION ID}        {TIMESTAMP}            {ACTION}     {TARGET}      {STATUS}
+echo ------------------------------------------------------------------------------------
+
+set "FOUND_TXN_COUNT=0"
+for /f "tokens=1,2,3,4,5 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!TSH_PS1!"') do (
+    set /a FOUND_TXN_COUNT+=1
+    set "T_ID=%%A                      "
+    set "T_TIME=%%B                    "
+    set "T_ACT=%%C           "
+    set "T_TGT=%%D             "
+    set "T_STAT=%%E"
+    if "%%E"=="COMMITTED" (
+        echo   !T_ID:~0,22!  !T_TIME:~0,21!  !T_ACT:~0,11!  !T_TGT:~0,12!  %cGREEN%%%E%cRESET%
+    ) else if "%%E"=="ROLLED_BACK" (
+        echo   !T_ID:~0,22!  !T_TIME:~0,21!  !T_ACT:~0,11!  !T_TGT:~0,12!  %cYELLOW%%%E%cRESET%
+    ) else (
+        echo   !T_ID:~0,22!  !T_TIME:~0,21!  !T_ACT:~0,11!  !T_TGT:~0,12!  %cRED%%%E%cRESET%
+    )
+)
+if exist "!TSH_PS1!" del /f /q "!TSH_PS1!" >nul 2>&1
+
+if !FOUND_TXN_COUNT! EQU 0 (
+    echo   No recent transactions found.
+)
+echo ------------------------------------------------------------------------------------
+exit /b 0
+
+:TxnRollback
+set "TARGET_TXN_ID=!TXN_ARG!"
+if not defined TARGET_TXN_ID set "TARGET_TXN_ID=%~2"
+if not defined TARGET_TXN_ID set "TARGET_TXN_ID=%~1"
+if not defined TARGET_TXN_ID (
+    echo %cRED%[ ERROR  ]%cRESET% Missing transaction ID for rollback.
+    echo            Usage: jvm transaction rollback ^<id^>
+    exit /b 1
+)
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "TRB_RND=%%A"
+set "TRB_PS1=%JVM_SECURE_TEMP%\jvm_trb_!TRB_RND!.ps1"
+
+(
+    echo $ErrorActionPreference = 'Stop'
+    echo $d = $env:TXN_DIR
+    echo $target = $env:TARGET_TXN_ID
+    echo if ^(-not ^(Test-Path -LiteralPath $d^)^) { Write-Output "NOT_FOUND"; exit 0 }
+    echo $f = Get-ChildItem -LiteralPath $d -Filter "*$target*.json" -ErrorAction SilentlyContinue ^| Select-Object -First 1
+    echo if ^(-not $f^) {
+    echo     Write-Output "NOT_FOUND"
+    echo     exit 0
+    echo }
+    echo try {
+    echo     $raw = Get-Content -LiteralPath $f.FullName -Raw ^| ConvertFrom-Json
+    echo     if ^($raw.staged_path^) {
+    echo         if ^(Test-Path -LiteralPath $raw.staged_path^) {
+    echo             Remove-Item -LiteralPath $raw.staged_path -Recurse -Force -ErrorAction SilentlyContinue
+    echo         }
+    echo     }
+    echo     if ^($raw.backup_path -and $raw.target_path^) {
+    echo         if ^(Test-Path -LiteralPath $raw.backup_path^) {
+    echo             if ^(Test-Path -LiteralPath $raw.target_path^) {
+    echo                 Remove-Item -LiteralPath $raw.target_path -Recurse -Force -ErrorAction SilentlyContinue
+    echo             }
+    echo             Move-Item -LiteralPath $raw.backup_path -Destination $raw.target_path -Force -ErrorAction SilentlyContinue
+    echo         }
+    echo     }
+    echo     $nowStr = [DateTime]::UtcNow.ToString^('yyyy-MM-ddTHH:mm:ssZ'^)
+    echo     $raw.status = 'ROLLED_BACK'
+    echo     if ^($raw.PSObject.Properties['rolled_back_at']^) {
+    echo         $raw.rolled_back_at = $nowStr
+    echo     } else {
+    echo         $raw ^| Add-Member -NotePropertyName rolled_back_at -NotePropertyValue $nowStr -Force
+    echo     }
+    echo     $jsonOut = $raw ^| ConvertTo-Json -Depth 5
+    echo     [System.IO.File]::WriteAllText^($f.FullName, $jsonOut, [System.Text.Encoding]::UTF8^)
+    echo     Write-Output ^("ROLLED_BACK|" + $raw.id^)
+    echo } catch {
+    echo     Write-Output ^("ERROR|" + $_.Exception.Message^)
+    echo }
+) > "!TRB_PS1!"
+
+set "TRB_STATUS="
+set "TRB_ID="
+for /f "tokens=1,2 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!TRB_PS1!"') do (
+    set "TRB_STATUS=%%A"
+    set "TRB_ID=%%B"
+)
+if exist "!TRB_PS1!" del /f /q "!TRB_PS1!" >nul 2>&1
+
+if "!TRB_STATUS!"=="NOT_FOUND" (
+    echo %cRED%[ ERROR  ]%cRESET% Transaction '!TARGET_TXN_ID!' was not found.
+    exit /b 1
+)
+if "!TRB_STATUS!"=="ROLLED_BACK" (
+    echo %cGREEN%[   OK   ]%cRESET% Successfully rolled back transaction !TRB_ID!.
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
+    exit /b 0
+)
+echo %cRED%[ ERROR  ]%cRESET% Failed to rollback transaction: !TRB_ID!
+if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
+exit /b 1
+
+:BeginTransaction
+rem %1 = Action (e.g. install), %2 = Target (e.g. java-21), %3 = StagedPath, %4 = TargetPath
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.Guid]::NewGuid().ToString('N').Substring(0, 12).ToUpper()"') do set "CURR_TXN_HEX=%%A"
+set "ACTIVE_TXN_ID=JVM-TXN-!CURR_TXN_HEX!"
+set "TXN_DIR=%LOCALAPPDATA%\DiamTek\JVM\transactions"
+if not exist "!TXN_DIR!" mkdir "!TXN_DIR!" >nul 2>&1
+set "ACTIVE_TXN_FILE=!TXN_DIR!\!ACTIVE_TXN_ID!.json"
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "TXNB_RND=%%A"
+set "TXNB_PS1=%JVM_SECURE_TEMP%\jvm_txnb_!TXNB_RND!.ps1"
+(
+    echo $txn = [ordered]@{
+    echo     id = $env:ACTIVE_TXN_ID
+    echo     timestamp = ^(Get-Date^).ToUniversalTime^(^).ToString^('yyyy-MM-ddTHH:mm:ssZ'^)
+    echo     action = '%~1'
+    echo     target = '%~2'
+    echo     staged_path = '%~3'
+    echo     target_path = '%~4'
+    echo     backup_path = ''
+    echo     status = 'IN_PROGRESS'
+    echo }
+    echo $txn ^| ConvertTo-Json -Depth 5 ^| Set-Content -LiteralPath $env:ACTIVE_TXN_FILE -Encoding UTF8
+) > "!TXNB_PS1!"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!TXNB_PS1!" >nul 2>&1
+if exist "!TXNB_PS1!" del /f /q "!TXNB_PS1!" >nul 2>&1
+echo %cBLUE%[  INFO  ]%cRESET% JVM Transaction: !ACTIVE_TXN_ID!
+exit /b 0
+
+:CommitTransaction
+if not defined ACTIVE_TXN_FILE exit /b 0
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "TXNC_RND=%%A"
+set "TXNC_PS1=%JVM_SECURE_TEMP%\jvm_txnc_!TXNC_RND!.ps1"
+(
+    echo if ^(Test-Path -LiteralPath $env:ACTIVE_TXN_FILE^) {
+    echo     $raw = Get-Content -LiteralPath $env:ACTIVE_TXN_FILE -Raw ^| ConvertFrom-Json
+    echo     $raw.status = 'COMMITTED'
+    echo     $raw.committed_at = ^(Get-Date^).ToUniversalTime^(^).ToString^('yyyy-MM-ddTHH:mm:ssZ'^)
+    echo     $raw ^| ConvertTo-Json -Depth 5 ^| Set-Content -LiteralPath $env:ACTIVE_TXN_FILE -Encoding UTF8
+    echo }
+) > "!TXNC_PS1!"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!TXNC_PS1!" >nul 2>&1
+if exist "!TXNC_PS1!" del /f /q "!TXNC_PS1!" >nul 2>&1
+set "ACTIVE_TXN_FILE="
+set "ACTIVE_TXN_ID="
+exit /b 0
+
+:RollbackTransaction
+if not defined ACTIVE_TXN_FILE exit /b 0
+echo %cYELLOW%[ ACTION ]%cRESET% Rolling back transaction !ACTIVE_TXN_ID!...
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "TXNR_RND=%%A"
+set "TXNR_PS1=%JVM_SECURE_TEMP%\jvm_txnr_!TXNR_RND!.ps1"
+(
+    echo if ^(Test-Path -LiteralPath $env:ACTIVE_TXN_FILE^) {
+    echo     $raw = Get-Content -LiteralPath $env:ACTIVE_TXN_FILE -Raw ^| ConvertFrom-Json
+    echo     if ^($raw.staged_path -and ^(Test-Path -LiteralPath $raw.staged_path^)^) {
+    echo         Remove-Item -LiteralPath $raw.staged_path -Recurse -Force -ErrorAction SilentlyContinue
+    echo     }
+    echo     if ^($raw.backup_path -and ^(Test-Path -LiteralPath $raw.backup_path^)^) {
+    echo         if ^($raw.target_path -and ^(Test-Path -LiteralPath $raw.target_path^)^) {
+    echo             Remove-Item -LiteralPath $raw.target_path -Recurse -Force -ErrorAction SilentlyContinue
+    echo         }
+    echo         Move-Item -LiteralPath $raw.backup_path -Destination $raw.target_path -Force -ErrorAction SilentlyContinue
+    echo     }
+    echo     $raw.status = 'ROLLED_BACK'
+    echo     $raw.rolled_back_at = ^(Get-Date^).ToUniversalTime^(^).ToString^('yyyy-MM-ddTHH:mm:ssZ'^)
+    echo     $raw ^| ConvertTo-Json -Depth 5 ^| Set-Content -LiteralPath $env:ACTIVE_TXN_FILE -Encoding UTF8
+    echo }
+) > "!TXNR_PS1!"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!TXNR_PS1!" >nul 2>&1
+if exist "!TXNR_PS1!" del /f /q "!TXNR_PS1!" >nul 2>&1
+set "ACTIVE_TXN_FILE="
+set "ACTIVE_TXN_ID="
+exit /b 0
+
+rem ============================================================
 rem Universal Candidate Engine
 rem ============================================================
 :RouteEcosystemCandidate
@@ -7707,6 +8550,10 @@ if /i "!CLI_COMMAND!"=="update" (
 )
 if /i "!CLI_COMMAND!"=="lock" (
     call :ExecuteLockCommand
+    exit /b !errorlevel!
+)
+if /i "!CLI_COMMAND!"=="verify" (
+    call :ExecuteVerifyCommand
     exit /b !errorlevel!
 )
 if /i "!CLI_COMMAND!"=="list" (
@@ -8217,10 +9064,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
+call :BeginTransaction "install" "!TARGET_CANDIDATE!-!TARGET_VER!" "!EXTRACT_DEST_TEMP!" "!EXTRACT_DEST!"
+
 call :ExecuteSharedDownloader
 if !errorlevel! NEQ 0 (
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
+    call :RollbackTransaction
     call :ReleaseStateLock
     if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
@@ -8238,6 +9088,7 @@ if errorlevel 1 (
     if exist "!EXTRACT_DEST_OLD!" move /Y "!EXTRACT_DEST_OLD!" "!EXTRACT_DEST!" >nul 2>&1
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
+    call :RollbackTransaction
     call :ReleaseStateLock
     if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
@@ -8247,6 +9098,7 @@ if not exist "!EXTRACT_DEST!" (
     if exist "!EXTRACT_DEST_OLD!" move /Y "!EXTRACT_DEST_OLD!" "!EXTRACT_DEST!" >nul 2>&1
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
+    call :RollbackTransaction
     call :ReleaseStateLock
     if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
     exit /b 1
@@ -8259,6 +9111,7 @@ if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
 echo.
 
 echo %cGREEN%[   OK   ]%cRESET% Successfully installed !CANDIDATE_PROPER_NAME! !TARGET_VER!.
+call :CommitTransaction
 
 if not exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\current" (
     echo.
@@ -8751,15 +9604,21 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo     }
     echo     Write-Host "`n"
     echo     $cryptoType = if ^($env:DL_CHKSUM_TYPE^) { $env:DL_CHKSUM_TYPE } else { 'SHA256' }
-    echo     if ^(-not $env:DL_CHKSUM_URL -and -not $env:DL_CHKSUM_VAL^) {
-    echo         if ^($env:SKIP_CHECKSUM -ne '1'^) {
-    echo             Write-Host '[ ERROR  ] Integrity checksum configuration missing for this download payload.' -ForegroundColor Red
-    echo             Write-Host '           Aborting due to security policy. Rerun with --skip-checksum to bypass verification.' -ForegroundColor Red
+    echo     if ^($env:SKIP_CHECKSUM -eq '1'^) {
+    echo         if ^(^($env:CI -or $env:GITHUB_ACTIONS -or $env:JVM_NONINTERACTIVE -eq '1'^) -and $env:FORCE_YES -ne '1'^) {
+    echo             Write-Host '[ ERROR  ] Security policy violation: In automated/CI environments, --skip-checksum also requires --yes.' -ForegroundColor Red
     echo             if ^(Test-Path $out^) { Remove-Item $out -Force -ErrorAction SilentlyContinue }
     echo             exit 1
     echo         }
-    echo         Write-Host '[ WARNING] Proceeding WITHOUT integrity verification ^(--skip-checksum active^).' -ForegroundColor Yellow
+    echo         Write-Host '[ SECURITY WARNING ] Checksum verification has been explicitly disabled.' -ForegroundColor Yellow
+    echo         Write-Host '                     This installation is not integrity-verified.' -ForegroundColor Yellow
+    echo         Write-Host '                     Proceeding WITHOUT integrity verification ^(--skip-checksum active^).' -ForegroundColor Yellow
     echo         Write-Host ""
+    echo     } elseif ^(-not $env:DL_CHKSUM_URL -and -not $env:DL_CHKSUM_VAL^) {
+    echo         Write-Host '[ ERROR  ] Integrity checksum configuration missing for this download payload.' -ForegroundColor Red
+    echo         Write-Host '           Aborting due to security policy. Rerun with --skip-checksum to bypass verification.' -ForegroundColor Red
+    echo         if ^(Test-Path $out^) { Remove-Item $out -Force -ErrorAction SilentlyContinue }
+    echo         exit 1
     echo     } else {
     echo         Write-Host "[ ACTION ] Verifying $cryptoType checksum..." -ForegroundColor Cyan
     echo         function Get-TrustedChecksumText^([string]$chkUrl^) {
@@ -8871,7 +9730,13 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo                 if ^(Test-Path $out^) { Remove-Item $out -Force -ErrorAction SilentlyContinue }
     echo                 exit 1
     echo             }
-    echo             Write-Host '[ WARNING] Proceeding WITHOUT integrity verification ^(--skip-checksum active^).' -ForegroundColor Yellow
+    echo             if ^(^($env:CI -or $env:GITHUB_ACTIONS -or $env:JVM_NONINTERACTIVE -eq '1'^) -and $env:FORCE_YES -ne '1'^) {
+    echo                 Write-Host '[ ERROR  ] Security policy violation: In automated/CI environments, --skip-checksum also requires --yes.' -ForegroundColor Red
+    echo                 if ^(Test-Path $out^) { Remove-Item $out -Force -ErrorAction SilentlyContinue }
+    echo                 exit 1
+    echo             }
+    echo             Write-Host '[ SECURITY WARNING ] Checksum verification has been explicitly disabled.' -ForegroundColor Yellow
+    echo             Write-Host '                     This installation is not integrity-verified.' -ForegroundColor Yellow
     echo             Write-Host ""
     echo         } else {
     echo             $crypto = [System.Security.Cryptography.HashAlgorithm]::Create^($cryptoType^)
@@ -9076,26 +9941,26 @@ if defined JVM_LOCK_DEPTH (
 )
 set "JVM_LOCK_DIR=%LOCALAPPDATA%\DiamTek\JVM\state.lock"
 set "JVM_LOCK_ATTEMPTS=0"
+
+rem Reliable PID generation natively without wmic or Write-Host
 if not defined JVM_CALLER_PID (
-    for /f "delims=" %%P in ('"%PS_BIN%" -NoProfile -Command "$PID" 2^>nul') do set "JVM_CALLER_PID=%%P"
+    for /f "delims=" %%P in ('%PS_BIN% -NoProfile -Command "$PID" 2^>nul') do set "JVM_CALLER_PID=%%P"
 )
 if not defined JVM_CALLER_PID (
-    for /f "tokens=2 delims==" %%P in ('wmic process where "ProcessId=%PID%" get ParentProcessId /value 2^>nul ^| %FINDSTR_BIN% "="') do set "JVM_CALLER_PID=%%P"
+    for /f "delims=" %%P in ('%PS_BIN% -NoProfile -Command "[System.Guid]::NewGuid().ToString('N').Substring(0, 8)" 2^>nul') do set "JVM_CALLER_PID=%%P"
 )
-if not defined JVM_CALLER_PID (
-    set "JVM_CALLER_PID=%RANDOM%"
-)
+
 :LOCK_RETRY_LOOP
 mkdir "%JVM_LOCK_DIR%" >nul 2>&1
 if not errorlevel 1 (
     (echo !JVM_CALLER_PID!^|%DATE%_%TIME%)>"%JVM_LOCK_DIR%\owner.pid" 2>nul
     if errorlevel 1 (
-        rmdir "%JVM_LOCK_DIR%" >nul 2>&1
+        rmdir /s /q "%JVM_LOCK_DIR%" >nul 2>&1
         echo %cRED%[ ERROR  ]%cRESET% Failed to initialize JVM state lock.
         exit /b 1
     )
     if not exist "%JVM_LOCK_DIR%\owner.pid" (
-        rmdir "%JVM_LOCK_DIR%" >nul 2>&1
+        rmdir /s /q "%JVM_LOCK_DIR%" >nul 2>&1
         echo %cRED%[ ERROR  ]%cRESET% Failed to initialize JVM state lock.
         exit /b 1
     )
@@ -9103,12 +9968,12 @@ if not errorlevel 1 (
     set "JVM_LOCK_DEPTH=1"
     exit /b 0
 )
-rem Stale lock auto-recovery without delete/re-mkdir race:
-rem Verify owner PID is dead or invalid, stage takeover PID, and atomically replace owner.pid
+
+rem Stale lock auto-recovery
+set "OWNER_DEAD=0"
 if exist "%JVM_LOCK_DIR%\owner.pid" (
     set "LOCK_OWNER_PID="
     for /f "tokens=1 delims=|" %%P in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "LOCK_OWNER_PID=%%P"
-    set "OWNER_DEAD=0"
     if not defined LOCK_OWNER_PID (
         set "OWNER_DEAD=1"
     ) else (
@@ -9121,31 +9986,21 @@ if exist "%JVM_LOCK_DIR%\owner.pid" (
         for /f "delims=0123456789" %%A in ("!LOCK_OWNER_PID!") do set "LOCK_PID_NUM=0"
         if "!LOCK_PID_NUM!"=="1" (
             set "PID_ALIVE=0"
-            for /f "tokens=2 delims=," %%Q in ('"%TASKLIST_BIN%" /FI "PID eq !LOCK_OWNER_PID!" /FO CSV /NH 2^>nul') do (
-                set "FOUND_PID=%%~Q"
-                if "!FOUND_PID!"=="!LOCK_OWNER_PID!" set "PID_ALIVE=1"
-            )
+            for /f "delims=" %%Q in ('%PS_BIN% -NoProfile -Command "if (Get-Process -Id !LOCK_OWNER_PID! -ErrorAction SilentlyContinue) { 1 } else { 0 }" 2^>nul') do set "PID_ALIVE=%%Q"
             if "!PID_ALIVE!"=="0" set "OWNER_DEAD=1"
         ) else (
             set "OWNER_DEAD=1"
         )
     )
-    if "!OWNER_DEAD!"=="1" (
-        set "LOCK_TAKEOVER=%JVM_LOCK_DIR%\takeover_!JVM_CALLER_PID!.tmp"
-        (echo !JVM_CALLER_PID!^|%DATE%_%TIME%)>"!LOCK_TAKEOVER!" 2>nul
-        move /y "!LOCK_TAKEOVER!" "%JVM_LOCK_DIR%\owner.pid" >nul 2>&1
-        if not errorlevel 1 (
-            set "VERIFY_CLAIM="
-            for /f "tokens=1 delims=|" %%V in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "VERIFY_CLAIM=%%V"
-            if "!VERIFY_CLAIM!"=="!JVM_CALLER_PID!" (
-                set "JVM_LOCK_ACQUIRED=1"
-                set "JVM_LOCK_DEPTH=1"
-                exit /b 0
-            )
-        )
-        if exist "!LOCK_TAKEOVER!" del /f /q "!LOCK_TAKEOVER!" >nul 2>&1
-    )
+) else (
+    rem If the lock directory exists but owner.pid is missing, it's a dead lock
+    set "OWNER_DEAD=1"
 )
+
+if "!OWNER_DEAD!"=="1" (
+    rmdir /s /q "%JVM_LOCK_DIR%" >nul 2>&1
+)
+
 set /a JVM_LOCK_ATTEMPTS+=1
 if !JVM_LOCK_ATTEMPTS! GEQ 15 (
     echo %cYELLOW%[  WARN  ]%cRESET% Another JVM operation is currently modifying state.

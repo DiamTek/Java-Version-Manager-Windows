@@ -840,7 +840,7 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             'pin', 'local', 'current', 'status', 'info', 'whoami', 'which', 'path',
             'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
             'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
-            'link', 'unlink', 'version', 'help', 'channel', 'lock'
+            'link', 'unlink', 'version', 'help', 'channel', 'lock', 'verify', 'transaction', 'txn'
         )
         $candidates = @('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn')
         $vendors = @('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9', 'sapmachine', 'sap', 'mandrel', 'redhat-mandrel', 'dragonwell', 'alibaba', 'kona', 'tencent')
@@ -850,6 +850,7 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
             '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
             '--offline', '--json', '--no-lock', '--locked', '-l',
+            '--check', '--diff', '--update',
             '--channel', '--nightly', '--stable',
             '--version', '-v', '--help', '-h'
         )

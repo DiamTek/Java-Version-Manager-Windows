@@ -1,0 +1,104 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "DiamTek JVM Lockfile Schema",
+    "description": "Schema definition for DiamTek JVM reproducible lockfiles (.jvm.lock).",
+    "type": "object",
+    "required": [
+        "schema",
+        "lockfile_version",
+        "platform",
+        "generated_at",
+        "tools"
+    ],
+    "properties": {
+        "$schema": {
+            "type": "string",
+            "description": "URL to the JSON schema."
+        },
+        "schema": {
+            "type": "integer",
+            "enum": [
+                2
+            ],
+            "description": "Schema format version."
+        },
+        "lockfile_version": {
+            "type": "integer",
+            "enum": [
+                1
+            ],
+            "description": "Internal lockfile revision number."
+        },
+        "platform": {
+            "type": "string",
+            "enum": [
+                "windows-x64",
+                "windows-arm64"
+            ],
+            "description": "Target Windows operating system platform."
+        },
+        "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 UTC timestamp when this lockfile was generated."
+        },
+        "tools": {
+            "type": "object",
+            "description": "Dictionary of locked runtimes and build tools.",
+            "additionalProperties": {
+                "type": "object",
+                "required": [
+                    "version",
+                    "arch",
+                    "url",
+                    "checksum_type",
+                    "checksum"
+                ],
+                "properties": {
+                    "version": {
+                        "type": "string",
+                        "description": "Full semantic version or major release number."
+                    },
+                    "vendor": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Distribution vendor name (e.g. adoptium, oracle, corretto)."
+                    },
+                    "arch": {
+                        "type": "string",
+                        "enum": [
+                            "x64",
+                            "aarch64",
+                            "all",
+                            "any"
+                        ],
+                        "description": "Binary architecture target."
+                    },
+                    "url": {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https://",
+                        "description": "Secure HTTPS download URL."
+                    },
+                    "checksum_type": {
+                        "type": "string",
+                        "enum": [
+                            "sha256",
+                            "sha512",
+                            "sha1",
+                            "md5"
+                        ],
+                        "description": "Cryptographic digest algorithm."
+                    },
+                    "checksum": {
+                        "type": "string",
+                        "pattern": "^[0-9a-fA-F]{32,128}$",
+                        "description": "Hexadecimal cryptographic digest string."
+                    }
+                }
+            }
+        }
+    }
+}
