@@ -3564,7 +3564,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         $concSandbox = Join-Path $SandboxRoot "conc_sandbox_197"
         $lockDir = Join-Path $concSandbox "DiamTek\JVM\state.lock"
         New-Item -ItemType Directory -Path $lockDir -Force | Out-Null
-        Set-Content -LiteralPath (Join-Path $lockDir "owner.pid") -Value "$PID|$([DateTime]::UtcNow.Ticks)"
+        $currProc = Get-Process -Id $PID
+        Set-Content -LiteralPath (Join-Path $lockDir "owner.pid") -Value "$PID|$($currProc.StartTime.ToUniversalTime().Ticks)"
 
         try {
             $env:LOCALAPPDATA = $concSandbox
