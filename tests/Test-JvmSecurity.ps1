@@ -3728,7 +3728,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
             # --no-lock bypass with live blocking PID
             New-Item -ItemType Directory -Path $lockDir -Force | Out-Null
-            Set-Content -LiteralPath (Join-Path $lockDir "owner.pid") -Value "$PID|$([DateTime]::UtcNow.Ticks)"
+            $currProc = Get-Process -Id $PID
+            Set-Content -LiteralPath (Join-Path $lockDir "owner.pid") -Value "$PID|$($currProc.StartTime.ToUniversalTime().Ticks)"
 
             $outNoLock = & cmd.exe /c "call `"$JvmBat`" clean --no-lock" 2>&1 | Out-String
             Assert-Equals 0 $LASTEXITCODE "jvm clean --no-lock must bypass active lock and exit 0"

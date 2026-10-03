@@ -127,7 +127,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261003.142"
+set "JVM_BUILD=20261003.143"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -8531,7 +8531,7 @@ if "!TRB_STATUS!"=="ROLLED_BACK" (
         )
         set "RB_OWNER_ALIVE=0"
         if defined RB_LOCK_PID if defined RB_LOCK_TICKS (
-            for /f "delims=" %%Q in ('%PS_BIN% -NoProfile -Command "$ErrorActionPreference=''Stop''; try { $p=Get-Process -Id !RB_LOCK_PID!; if ($p.StartTime.ToUniversalTime().Ticks.ToString() -eq ''!RB_LOCK_TICKS!'') { Write-Output 1 } else { Write-Output 0 } } catch { Write-Output 0 }" 2^>nul') do set "RB_OWNER_ALIVE=%%Q"
+            for /f "delims=" %%Q in ('%PS_BIN% -NoProfile -Command "$p = Get-Process -Id !RB_LOCK_PID! -ErrorAction SilentlyContinue; if ($p -and ($p.StartTime.ToUniversalTime().Ticks -eq !RB_LOCK_TICKS!)) { 1 } else { 0 }" 2^>nul') do set "RB_OWNER_ALIVE=%%Q"
         )
         if "!RB_OWNER_ALIVE!"=="0" rmdir /s /q "!RB_LOCK_DIR!" >nul 2>&1
     )
@@ -10180,7 +10180,7 @@ if exist "%JVM_LOCK_DIR%\owner.pid" (
         )
         set "PID_ALIVE=0"
         if defined LOCK_TICKS (
-            for /f "delims=" %%Q in ('%PS_BIN% -NoProfile -Command "$ErrorActionPreference='Stop'; try { $p=Get-Process -Id !LOCK_PID!; if ($p.StartTime.ToUniversalTime().Ticks.ToString() -eq '!LOCK_TICKS!') { Write-Output 1 } else { Write-Output 0 } } catch { Write-Output 0 }" 2^>nul') do set "PID_ALIVE=%%Q"
+            for /f "delims=" %%Q in ('%PS_BIN% -NoProfile -Command "$p = Get-Process -Id !LOCK_PID! -ErrorAction SilentlyContinue; if ($p -and ($p.StartTime.ToUniversalTime().Ticks -eq !LOCK_TICKS!)) { 1 } else { 0 }" 2^>nul') do set "PID_ALIVE=%%Q"
         )
         if "!PID_ALIVE!"=="0" set "OWNER_DEAD=1"
     )
@@ -10216,7 +10216,7 @@ if !JVM_LOCK_ATTEMPTS! GEQ 30 (
     echo            To force override, re-run with: %cCYAN%--no-lock%cRESET%
     exit /b 1
 )
-"%TIMEOUT_BIN%" /t 1 >nul 2>&1
+"%TIMEOUT_BIN%" /t 1 >nul 2>&1 || "%SYS32%\PING.EXE" -n 2 127.0.0.1 >nul 2>&1
 goto :LOCK_RETRY_LOOP
 
 :ReleaseStateLock
