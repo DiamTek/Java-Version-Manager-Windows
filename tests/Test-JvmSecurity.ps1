@@ -4171,8 +4171,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             Assert-Contains $allOut "HTTPS verified" "Output must report HTTPS verified"
             Assert-Contains $allOut "Host trusted" "Output must report Host trusted"
             Assert-Contains $allOut "SHA-256 verified" "Output must report SHA-256 verified"
-            Assert-Contains $allOut "Signature verified" "Output must report Signature verified"
-            Assert-Contains $allOut "Provenance verified" "Output must report Provenance verified"
+            Assert-True (($allOut -match "Signature verified") -or ($allOut -match "Signature unavailable")) "Output must report Signature status"
+            Assert-True (($allOut -match "Provenance cryptographically verified") -or ($allOut -match "Provenance unavailable")) "Output must report Provenance status"
         }
     }
 
@@ -4233,39 +4233,205 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Assert-Equals $LASTEXITCODE 0 "jvm transaction show must exit 0"
         Assert-Contains $outTxnShow "JVM TRANSACTIONS" "Output must display transactions table header"
 
-        # 2. Create mock transaction journal and verify rollback restores clean state
-        $txnDir = "$env:LOCALAPPDATA\DiamTek\JVM\transactions"
-        if (-not (Test-Path -LiteralPath $txnDir)) { New-Item -ItemType Directory -Path $txnDir -Force | Out-Null }
-        $testTxnId = "JVM-TXN-TEST999999"
-        $mockStaged = Join-Path $SandboxRoot "mock_staged_trash"
-        New-Item -ItemType Directory -Path $mockStaged -Force | Out-Null
-        Set-Content -LiteralPath (Join-Path $mockStaged "junk.bin") -Value "TRASH"
-
-        $txnObj = [ordered]@{
-            id = $testTxnId
-            timestamp = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-            action = 'install'
-            target = 'java-test'
-            staged_path = $mockStaged
-            target_path = ''
-            backup_path = ''
-            status = 'IN_PROGRESS'
-        }
-        $txnJson = $txnObj | ConvertTo-Json -Depth 5
-        [System.IO.File]::WriteAllText((Join-Path $txnDir "$testTxnId.json"), $txnJson, (New-Object System.Text.UTF8Encoding($false)))
-
+        # 2. Mid-flight process termination (kill) transaction recovery
+        $txnSandbox = Join-Path $SandboxRoot "kill_txn_test"
+        New-Item -ItemType Directory -Path $txnSandbox -Force | Out-Null
+        $origLocalAppData = $env:LOCALAPPDATA
+        $proc = $null
         try {
-            # Execute rollback
-            $outRb = & cmd.exe /c "call `"$JvmBat`" transaction rollback $testTxnId" 2>&1 | Out-String
-            Assert-Equals $LASTEXITCODE 0 "jvm transaction rollback must exit 0"
-            Assert-Contains $outRb "Successfully rolled back" "Output must confirm rollback"
-            Assert-False (Test-Path -LiteralPath $mockStaged) "Rollback must remove staged paths"
+            $env:LOCALAPPDATA =$txnSandbox
+            New-Item -ItemType Directory -Path (Join-Path $txnSandbox "DiamTek\JVM") -Force | Out-Null
+            
+            # Start a transactional JDK installation with JVM_TEST_HOLD_AFTER_TRANSACTION to pause deterministically after journal creation
+            $proc = Start-Process -FilePath "cmd.exe" -ArgumentList @('/d', '/c', "set `"JVM_TEST_HOLD_AFTER_TRANSACTION=1`" && call `"$JvmBat`" install 21 --vendor Oracle -y") -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $txnSandbox "out.txt")
 
-            # Check journal status updated to ROLLED_BACK
-            $updatedRaw = Get-Content -LiteralPath (Join-Path $txnDir "$testTxnId.json") -Raw | ConvertFrom-Json
-            Assert-Equals "ROLLED_BACK" $updatedRaw.status "Transaction status in journal must be ROLLED_BACK"
+            # Poll for the transaction journal to be created and IN_PROGRESS
+            $txnDir = Join-Path $txnSandbox "DiamTek\JVM\transactions"
+            $journalFound = $false
+            $foundTxnFile = $null
+            $txnId = $null
+            
+            for ($i = 0; $i -lt 150; $i++) {
+                if (Test-Path -LiteralPath $txnDir) {
+                    $files = @(Get-ChildItem -LiteralPath $txnDir -Filter "*.json" -ErrorAction SilentlyContinue)
+                    if ($files.Count -gt 0) {
+                        try {
+                            $rawJson = Get-Content -LiteralPath $files[0].FullName -Raw -ErrorAction Stop
+                            $txnData = $rawJson | ConvertFrom-Json -ErrorAction Stop
+                            if ($txnData.status -eq 'IN_PROGRESS') {
+                                $journalFound = $true
+                                $foundTxnFile = $files[0].FullName
+                                $txnId = $txnData.id
+                                break
+                            }
+                        } catch {
+                            Write-Verbose "Transaction JSON polling read error: $($_.Exception.Message)"
+                        }
+                    }
+                }
+                Start-Sleep -Milliseconds 100
+            }
+
+            Assert-True $journalFound "Transaction journal must enter IN_PROGRESS state"
+            Assert-True ($null -ne $txnId) "Transaction ID must be retrieved"
+
+            # KILL THE PROCESS TREE MID-FLIGHT (Simulate terminal close)
+            # Must use taskkill /T to kill child powershell.exe downloaders holding file locks
+            & taskkill.exe /F /T /PID $($proc.Id) 2>&1 | Out-Null
+            Start-Sleep -Milliseconds 500
+
+            # Verify it left a stale lock
+            $staleLock = Join-Path $txnSandbox "DiamTek\JVM\state.lock"
+            Assert-PathExists $staleLock "Process kill must leave a stale state lock"
+
+            # Run JVM transaction rollback to recover
+            $outRb = & cmd.exe /c "call `"$JvmBat`" transaction rollback $txnId" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "Rollback must succeed and auto-recover lock after process termination"
+            Assert-Contains $outRb "Successfully rolled back" "Rollback output must confirm recovery"
+
+            $updated = Get-Content -LiteralPath $foundTxnFile -Raw | ConvertFrom-Json
+            Assert-Equals "ROLLED_BACK" $updated.status "Journal must reflect ROLLED_BACK state"
+            
+            # Verify staging artifacts were successfully purged
+            $tempDirs = @(Get-ChildItem -LiteralPath (Join-Path $txnSandbox "DiamTek\JVM\temp") -Directory -ErrorAction SilentlyContinue)
+            Assert-Equals 0 $tempDirs.Count "Staging artifacts and directories must be completely deleted by rollback"
         } finally {
-            Remove-Item -LiteralPath (Join-Path $txnDir "$testTxnId.json") -Force -ErrorAction SilentlyContinue
+            if ($proc -and -not $proc.HasExited) { 
+                & taskkill.exe /F /T /PID $($proc.Id) 2>&1 | Out-Null
+            }
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # Test 216: Mid-flight process termination (kill) and transaction recovery (CWE-460 / CWE-362)
+    Run-TestCase "AtomicOperations" "Mid-flight process termination (kill) and transaction recovery (CWE-460 / CWE-362)" {
+        $txnSandbox = Join-Path $SandboxRoot "kill_txn_test_216"
+        New-Item -ItemType Directory -Path $txnSandbox -Force | Out-Null
+        $origLocalAppData = $env:LOCALAPPDATA
+        $proc = $null
+        try {
+            $env:LOCALAPPDATA = $txnSandbox
+            $proc = Start-Process -FilePath "cmd.exe" -ArgumentList @('/d', '/c', "call `"$JvmBat`" install maven latest -y") -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $txnSandbox "out.txt")
+
+            # Poll for the transaction journal to be created and IN_PROGRESS
+            $txnDir = Join-Path $txnSandbox "DiamTek\JVM\transactions"
+            $journalFound = $false
+            $foundTxnFile = $null
+            $txnId = $null
+            
+            for ($i = 0; $i -lt 150; $i++) {
+                if (Test-Path -LiteralPath $txnDir) {
+                    $files = @(Get-ChildItem -LiteralPath $txnDir -Filter "*.json" -ErrorAction SilentlyContinue)
+                    if ($files.Count -gt 0) {
+                        try {
+                            $rawJson = Get-Content -LiteralPath $files[0].FullName -Raw -ErrorAction Stop
+                            $txnData = $rawJson | ConvertFrom-Json -ErrorAction Stop
+                            if ($txnData.status -eq 'IN_PROGRESS') {
+                                $journalFound = $true
+                                $foundTxnFile = $files[0].FullName
+                                $txnId = $txnData.id
+                                break
+                            }
+                        } catch {
+                            Write-Verbose "Transaction JSON polling read error: $($_.Exception.Message)"
+                        }
+                    }
+                }
+                Start-Sleep -Milliseconds 100
+            }
+
+            Assert-True $journalFound "Transaction journal must enter IN_PROGRESS state"
+            Assert-True ($null -ne $txnId) "Transaction ID must be retrieved"
+
+            # KILL THE PROCESS TREE MID-FLIGHT (Simulate terminal close)
+            & taskkill.exe /F /T /PID $($proc.Id) 2>&1 | Out-Null
+            Start-Sleep -Milliseconds 500
+
+            # Verify it left a stale lock
+            $staleLock = Join-Path $txnSandbox "DiamTek\JVM\state.lock"
+            Assert-PathExists $staleLock "Process kill must leave a stale state lock"
+
+            # Run JVM transaction rollback to recover
+            $outRb = & cmd.exe /c "call `"$JvmBat`" transaction rollback $txnId" 2>&1 | Out-String
+            Assert-Equals $LASTEXITCODE 0 "Rollback must succeed and auto-recover lock after process termination"
+            Assert-Contains $outRb "Successfully rolled back" "Rollback output must confirm recovery"
+
+            $updated = Get-Content -LiteralPath $foundTxnFile -Raw | ConvertFrom-Json
+            Assert-Equals $updated.status "ROLLED_BACK" "Journal must reflect ROLLED_BACK state"
+            
+            # Verify staging artifacts were successfully purged
+            $tempDirs = @(Get-ChildItem -LiteralPath (Join-Path $txnSandbox "DiamTek\JVM\temp") -Directory -ErrorAction SilentlyContinue)
+            Assert-Equals $tempDirs.Count 0 "Staging artifacts and directories must be completely deleted by rollback"
+        } finally {
+            if ($proc -and -not $proc.HasExited) { 
+                & taskkill.exe /F /T /PID $($proc.Id) 2>&1 | Out-Null
+            }
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # Test 217: Interrupted activation pre-state restoration (CWE-460 / CWE-362)
+    Run-TestCase "AtomicOperations" "Interrupted activation pre-state restoration (CWE-460 / CWE-362)" {
+        $txnSandbox = Join-Path $SandboxRoot "kill_txn_junc_test"
+        New-Item -ItemType Directory -Path $txnSandbox -Force | Out-Null
+        $origLocalAppData = $env:LOCALAPPDATA
+        try {
+            $env:LOCALAPPDATA = $txnSandbox
+            $txnDir = Join-Path $txnSandbox "DiamTek\JVM\transactions"
+            New-Item -ItemType Directory -Path $txnDir -Force | Out-Null
+
+            $juncPath = Join-Path $txnSandbox "current"
+            $oldTarget = Join-Path $txnSandbox "jdk-old"
+            $newTarget = Join-Path $txnSandbox "jdk-new"
+            New-Item -ItemType Directory -Path $oldTarget -Force | Out-Null
+            New-Item -ItemType Directory -Path $newTarget -Force | Out-Null
+
+            # Setup the environment as if it crashed AFTER junction switch but BEFORE commit
+            & cmd.exe /c "mklink /J `"$juncPath`" `"$newTarget`"" > $null 2>&1
+
+            $testTxnId = "JVM-TXN-CRASH99999"
+            $txnObj = [ordered]@{
+                id = $testTxnId
+                timestamp = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+                action = 'install'
+                target = 'java-test'
+                staged_path = ''
+                target_path = ''
+                backup_path = ''
+                junction_path = $juncPath
+                prev_junction = $oldTarget
+                status = 'IN_PROGRESS'
+            }
+            $txnJson = $txnObj | ConvertTo-Json -Depth 5
+            [System.IO.File]::WriteAllText((Join-Path $txnDir "$testTxnId.json"), $txnJson, (New-Object System.Text.UTF8Encoding($false)))
+
+            # Execute Rollback
+            $outRb = & cmd.exe /c "call `"$JvmBat`" transaction rollback $testTxnId" 2>&1 | Out-String
+            Assert-Equals $LASTEXITCODE 0 "Rollback must exit 0"
+            
+            # Verify junction was restored to oldTarget
+            $item = Get-Item -LiteralPath $juncPath -Force
+            $resolvedTarget = if ($item.Target -is [array]) { $item.Target[0] } else { $item.Target }
+            Assert-Contains $resolvedTarget "jdk-old" "Transaction rollback must restore previous active directory junction pre-state"
+        } finally {
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # Test 218: JVM_CALLER_PID generation strictly fails closed and enforces timestamped process identity (CWE-362)
+    Run-TestCase "Concurrency" "JVM_CALLER_PID generation strictly fails closed and enforces timestamped process identity (CWE-362)" {
+        $origPid = $env:JVM_CALLER_PID
+        try {
+            # Inject an invalid non-numeric PID string (similar to the old GUID fallback)
+            $env:JVM_CALLER_PID = "invalid_guid_fallback"
+            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'; $out = & cmd.exe /c "call `"$JvmBat`" install maven latest -y" 2>&1 | Out-String
+            $exitCode = $LASTEXITCODE
+            $ErrorActionPreference = $prevEAP
+
+            Assert-Equals $exitCode 1 "jvm.bat must exit 1 when JVM_CALLER_PID is invalid rather than continuing with unsafe lock identity"
+            Assert-Contains $out "Failed to determine valid JVM_CALLER_PID" "Output must report safe abort on invalid PID"
+        } finally {
+            $env:JVM_CALLER_PID = $origPid
         }
     }
 

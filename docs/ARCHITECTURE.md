@@ -26,7 +26,7 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [Reproducible Lockfile Architecture (.jvm.lock & jvm install --locked)](#reproducible-lockfile-architecture-jvmlock--jvm-install---locked)
 - [Cryptographic Provenance Verification (jvm verify)](#cryptographic-provenance-verification-jvm-verify)
 - [Failure Recovery, Atomic State Rollback & Resource Hygiene](#failure-recovery-atomic-state-rollback--resource-hygiene)
-- [Automated Adversarial Test Architecture (215 Tests, 40 CWEs)](#automated-adversarial-test-architecture-215-tests-40-cwes)
+- [Automated Adversarial Test Architecture (218 Tests, 40 CWEs)](#automated-adversarial-test-architecture-218-tests-40-cwes)
 
 ---
 
@@ -674,18 +674,20 @@ flowchart TD
 - **Path & Stack-Trace Redaction (`CWE-209`):** Error output is normalized to single-line diagnostics with stripped newlines, and sensitive filesystem paths (`%LOCALAPPDATA%`, `%USERPROFILE%`) are redacted from user-visible warnings.
 - **CLI Exit Code Propagation (`CWE-252` / `CWE-754` / `CWE-755`):** Subcommands (`clean`, `which`, `doctor`, `open`, `exec`, `hook`, `clear`, `channel`, `pin`) pass non-zero exit codes through `:CLI_DONE` across `setlocal` boundaries, ensuring scripts and CI/CD pipelines reliably detect failures.
 
-### 4. Transactional Installations & Journal Logging (`jvm transaction`)
-Every download and installation is strictly logged to an atomic JSON transaction journal (`%LOCALAPPDATA%\DiamTek\JVM\transactions`). 
-- **Isolation & Staging**: Installations are staged into secure temporary directories (`%JVM_SECURE_TEMP%`). A transaction manifest (`JVM-TXN-XXXXXXXXXXXX`) is created with an `IN_PROGRESS` status.
-- **Atomic Activation**: Upon successful extraction and validation, the staged files are atomically moved to the destination, and the transaction is marked `COMMITTED`.
-- **Auditing & Rollback**: Running `jvm transaction show` lists the complete audit log. If a network disruption or power failure interrupts the operation, or if the user manually invokes `jvm transaction rollback <id>`, the engine parses the transaction journal, purges staged paths, restores previous filesystem states, and permanently marks the transaction as `ROLLED_BACK` (`CWE-460` / `CWE-362`).
+### 4. Transactional Installations & Crash-Safe State Machine (`jvm transaction`)
+Every download, extraction, and activation is coordinated through an atomic JSON transaction journal (`%LOCALAPPDATA%\DiamTek\JVM\transactions`):
+- **Full Pre-State Journaling**: Before mutating any system state, `:BeginTransaction` captures `staged_path`, `target_path`, `backup_path`, `junction_path`, and `prev_junction`.
+- **Strict Post-Activation Commit Boundary**: The transaction remains in the `IN_PROGRESS` state through archive extraction, target replacement, junction switching, and runtime binary verification. `:CommitTransaction` is only executed once every mutation step succeeds.
+- **Delayed Backup Garbage-Collection**: Previous installation directories are retained in `.jvm_bak_` locations until *after* the transaction has safely committed, preventing unrecoverable states if activation fails mid-flight.
+- **Atomic Crash Recovery (`jvm transaction rollback`)**: If an installation process is killed or abruptly interrupted, `jvm transaction rollback <id>` parses the journal, removes staged artifacts, restores target backups, repoints `junction_path` back to `prev_junction`, and marks the journal `ROLLED_BACK` (`CWE-460` / `CWE-362`).
+- **Timestamped Process Identity Locking (`state.lock`)**: State locks record both the caller process ID and high-resolution process creation ticks (`PID|StartTimeTicks`). Stale locks left by dead processes are reclaimed via atomic `move /y` file replacement (`takeover_<PID>.tmp` -> `owner.pid`), eliminating TOCTOU directory deletion races and OS PID reuse hazards.
 
 ---
 
-<a id="automated-adversarial-test-architecture-215-tests-40-cwes"></a>
-## Automated Adversarial Test Architecture (215 Tests, 40 CWEs)
+<a id="automated-adversarial-test-architecture-218-tests-40-cwes"></a>
+## Automated Adversarial Test Architecture (218 Tests, 40 CWEs)
 
-The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **215 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **218 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
 
 | Suite | Category Focus | Test Count | Status |
 | :--- | :--- | :---: | :---: |
@@ -693,13 +695,13 @@ The security, integrity, and operational resilience of DiamTek JVM are verified 
 | **Suite 2** | Registry & Env Boundaries (ValueKind preservation, UAC elevation) | 6 / 6 | **PASS** |
 | **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery) | 17 / 17 | **PASS** |
 | **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, .jvm.lock) | 56 / 56 | **PASS** |
-| **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification) | 14 / 14 | **PASS** |
+| **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification, PID timestamping) | 15 / 15 | **PASS** |
 | **Suite 6** | Corrupt Registry Recovery & PATH Resilience (De-bloat, length limits) | 14 / 14 | **PASS** |
 | **Suite 7** | Uninstallation Safety & Markers (Root markers, deferred cleanup) | 16 / 16 | **PASS** |
 | **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 6 / 6 | **PASS** |
 | **Suite 9** | Supply Chain (`JVM_SKIP_CHECKSUM` rejection, Verification checklists) | 2 / 2 | **PASS** |
-| **Suite 10** | Atomic Operations (Transactional journaling, Rollback execution) | 1 / 1 | **PASS** |
-| **Total** | **Comprehensive Full-System Security Suite** | **215 / 215** | **`10.0 / 10.0`** |
+| **Suite 10** | Atomic Operations (Transactional journaling, Process kill tests, Pre-state junction recovery) | 3 / 3 | **PASS** |
+| **Total** | **Comprehensive Full-System Security Suite** | **218 / 218** | **`10.0 / 10.0`** |
 
 ---
 

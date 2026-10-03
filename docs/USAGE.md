@@ -88,9 +88,9 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm lock --check` | Project | Audits `.jvm.lock` manifest for JSON schema integrity, platform support, and configuration drift. |
 | `jvm lock --diff` | Project | Compares `.jvm.lock` definitions against the active environment in a structured table. |
 | `jvm lock --update` | Project | Queries upstream vendor APIs to refresh checksums and metadata in `.jvm.lock`. |
-| `jvm verify [version\|all]` | Audit | Audits cryptographic provenance, HTTPS transport, host trust, SHA-256 digests, and Authenticode signatures. |
+| `jvm verify [version/all]` | Audit | Audits cryptographic provenance, HTTPS transport, host trust, SHA-256 digests, and Authenticode signatures (distinguishes verified, unavailable, and failed states). |
 | `jvm transaction show` | System | Displays atomic transaction log table with status flags (`COMMITTED`, `ROLLED_BACK`, `IN_PROGRESS`). |
-| `jvm transaction rollback <id>` | System | Atomically rolls back a failed or interrupted installation transaction (`jvm txn rollback`). |
+| `jvm transaction rollback <id>` | System | Atomically rolls back an interrupted installation, restoring pre-state directory junctions, target artifacts, and locks (`jvm txn rollback`). |
 | `jvm install <tool> [version]` | User | Installs ecosystem tool (omitting version defaults to `latest`; e.g., `jvm install maven`, `jvm install gradle 8.9`; accepts `-y`). |
 | `jvm <tool> <version>` | User | Switches active ecosystem tool version (e.g., `jvm kotlin 2.0.20`, `jvm maven 3.9.6`). |
 | `jvm update <version>` | Machine | Checks for and applies vendor patches to a specific installed JDK (e.g., `jvm update 21`). |
@@ -649,22 +649,25 @@ jvm verify maven
 
 # Audit all installed runtimes and candidates
 jvm verify all
+
+# Machine-readable provenance audit as pure JSON
+jvm verify --json
 ```
 
-The verification checklist audits 6 criteria:
-1. `[OK]` Artifact exists on local filesystem
-2. `[OK]` Download origin verified HTTPS
-3. `[OK]` Host verified in trusted domains
-4. `[OK]` Cryptographic checksum matches recorded manifest
-5. `[OK]` Digital signature valid (Authenticode / GPG if present)
-6. `[OK]` Provenance chain intact
+The verification checklist evaluates 6 criteria with explicit status reporting:
+1. `[OK]` **Artifact exists:** Binary or JAR present on disk.
+2. `[OK]` **HTTPS verified:** Payload downloaded via encrypted TLS 1.2/1.3 transport.
+3. `[OK]` **Host trusted:** Origin matched against `Test-TrustedJvmUri` domain whitelist.
+4. `[OK]` **SHA-256 verified:** Byte-for-byte integrity verified against release checksums.
+5. `[OK]` / `[⚠]` **Signature status:** Verified Authenticode signature, or flagged as unavailable if unsigned.
+6. `[OK]` / `[⚠]` **Provenance status:** Cryptographically attested build provenance (SLSA/in-toto), or flagged as unavailable if vendor attestation is not published.
 
 ---
 
 <a id="transactional-installations"></a>
 ## 🔄 Transactional Installations (`jvm transaction`)
 
-DiamTek JVM provides complete atomic transaction guarantees across downloads and extractions (`JVM-TXN-XXXXXXXXXXXX`). If a download or extraction is interrupted, aborted, or corrupted, the system rolls back cleanly without leaving orphan directories or broken junctions:
+DiamTek JVM operates as a crash-safe state machine across downloads, extractions, and activations (`VM-TXN-XXXXXXXXXXXX`). Transactions remain `IN_PROGRESS` through candidate activation and only reach `COMMITTED` once the final runtime verification succeeds:
 
 ```powershell
 # Display active or recent transaction state
@@ -675,6 +678,10 @@ jvm txn show
 # Rollback an aborted or interrupted transaction
 jvm transaction rollback <transaction-id>
 ```
+
+- **Pre-State Capture:** Journals capture `staged_path`, `target_path`, `backup_path`, `junction_path`, and `prev_junction` prior to any disk mutation.
+- **Mid-Flight Crash Recovery:** If a process crashes or is killed during activation or replacement, `jvm transaction rollback <id>` restores the original directory junction and cleans up staged artifacts.
+- **Delayed Backup Garbage-Collection:** Existing installation backups are retained until after the transaction is fully committed.
 
 ---
 

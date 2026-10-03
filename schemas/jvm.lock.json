@@ -90,7 +90,7 @@
                             "sha1",
                             "md5"
                         ],
-                        "description": "Cryptographic digest algorithm."
+                        "description": "Cryptographic digest algorithm. Note: sha1 and md5 are supported for legacy compatibility only and do not provide secure cryptographic integrity (CWE-328)."
                     },
                     "checksum": {
                         "type": "string",

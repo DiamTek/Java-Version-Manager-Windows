@@ -127,7 +127,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261002.140"
+set "JVM_BUILD=20261003.141"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -1937,7 +1937,7 @@ if defined CLI_COMMAND (
                 for %%C in (!UNINST_SEL!) do set "TARGET_IDX=!RES_IDX_%%C!"
             ) else (
                 set "uninst_choice="
-                set /p uninst_choice="Enter your choice (1-!UNINST_CANCEL!): "
+                if not defined CI if not defined GITHUB_ACTIONS set /p uninst_choice="Enter your choice (1-!UNINST_CANCEL!): "
 ::::::::::::::::::::
                   if not defined uninst_choice (
                       echo %cBLUE%[  INFO  ]%cRESET% Uninstallation cancelled.
@@ -2459,7 +2459,9 @@ goto PROCESS_EU_CHOICE
 
 :GET_EU_CHOICE_MANUAL
 set "eu_choice="
-set /p "eu_choice=Select tool (1-!EU_CANCEL!): "
+if defined CI set "eu_choice=!EU_CANCEL!"
+if defined GITHUB_ACTIONS set "eu_choice=!EU_CANCEL!"
+if not defined eu_choice set /p "eu_choice=Select tool (1-!EU_CANCEL!): "
 if not defined eu_choice goto EcoVersionMenu
 if "!eu_choice!"=="" goto EcoVersionMenu
 set "eu_choice=!eu_choice:"=!"
@@ -2731,7 +2733,9 @@ goto PROCESS_TOOL_CHOICE
 
 :ECO_TOOL_PROMPT_MANUAL
 set "tool_choice="
-set /p "tool_choice=Enter your choice (1-!cancel_opt!): "
+if defined CI set "tool_choice=!cancel_opt!"
+if defined GITHUB_ACTIONS set "tool_choice=!cancel_opt!"
+if not defined tool_choice set /p "tool_choice=Enter your choice (1-!cancel_opt!): "
 if not defined tool_choice (
     if "!ECO_SUB_MODE!"=="SWITCH" goto :EcosystemMenu
     goto :EcoVersionMenu
@@ -2772,6 +2776,14 @@ call :GetCandidateEnvVar
 if "!ECO_SUB_MODE!"=="INSTALL" (
     echo.
     set "CUSTOM_VER="
+    if defined CI (
+        echo %cRED%[ ERROR  ]%cRESET% No version specified. Pass the version explicitly when running non-interactively.
+        exit /b 1
+    )
+    if defined GITHUB_ACTIONS (
+        echo %cRED%[ ERROR  ]%cRESET% No version specified. Pass the version explicitly when running non-interactively.
+        exit /b 1
+    )
     set /p "CUSTOM_VER=Enter version of !CANDIDATE_PROPER_NAME! to install (or type 'latest'): "
 ::::::::::::::::::::
       if "!CUSTOM_VER!"=="" set "CUSTOM_VER=latest"
@@ -2806,6 +2818,14 @@ if "!ECO_SUB_MODE!"=="UNINSTALL" (
     )
     echo.
     set "TARGET_VER="
+    if defined CI (
+        echo %cRED%[ ERROR  ]%cRESET% No version specified. Pass the version explicitly when running non-interactively.
+        exit /b 1
+    )
+    if defined GITHUB_ACTIONS (
+        echo %cRED%[ ERROR  ]%cRESET% No version specified. Pass the version explicitly when running non-interactively.
+        exit /b 1
+    )
     set /p "TARGET_VER=Enter exact version to uninstall: "
 ::::::::::::::::::::
       if not defined TARGET_VER (
@@ -2904,7 +2924,9 @@ goto :PROCESS_ECO_CHOICE
 
 :ECO_CHOICE_MANUAL
 set user_choice=
-set /p user_choice="Select an option (1-!total_opts!): "
+if defined CI set "user_choice=!cancel_opt!"
+if defined GITHUB_ACTIONS set "user_choice=!cancel_opt!"
+if not defined user_choice set /p user_choice="Select an option (1-!total_opts!): "
 ::::::::::::::::::::
       if not defined user_choice goto :EcosystemSelectTool
       if "!user_choice!"=="" goto :EcosystemSelectTool
@@ -3022,6 +3044,14 @@ if "!CLI_VENDOR!"=="" (
     echo.
 :GET_DL_VENDOR_CHOICE
     set "V_CHOICE="
+    if defined CI (
+        echo %cRED%[ ERROR  ]%cRESET% No vendor specified. Pass --vendor ^<name^> explicitly when running non-interactively.
+        exit /b 1
+    )
+    if defined GITHUB_ACTIONS (
+        echo %cRED%[ ERROR  ]%cRESET% No vendor specified. Pass --vendor ^<name^> explicitly when running non-interactively.
+        exit /b 1
+    )
     set /p "V_CHOICE=Select vendor (1-13): "
     if not defined V_CHOICE goto :eof
     if "!V_CHOICE!"=="" goto :eof
@@ -3501,13 +3531,21 @@ if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
         set "ENTRY_CHKSUM=!DL_CHKSUM_VAL!"
         call :WriteLockFileEntry
     )
-    if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
+    if not defined CLI_COMMAND (
+        if not defined IS_UPDATER (
+            pause
+        )
+    )
     endlocal & set "NEEDS_RESCAN=1" & exit /b 0
 ) else (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% The installation failed during the move operation.
     call :RollbackTransaction
-    if "!CLI_COMMAND!"=="" pause
+    if not defined CLI_COMMAND (
+        if not defined IS_UPDATER (
+            pause
+        )
+    )
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
 )
 
@@ -3956,7 +3994,9 @@ goto PROCESS_P_CHOICE
 
 :GET_P_CHOICE_MANUAL
 set p_choice=
-set /p p_choice="Enter your choice (1-!P_CANCEL!): "
+if defined CI set "p_choice=!P_CANCEL!"
+if defined GITHUB_ACTIONS set "p_choice=!P_CANCEL!"
+if not defined p_choice set /p p_choice="Enter your choice (1-!P_CANCEL!): "
 ::::::::::::::::::::
       if not defined p_choice goto PathEnvironmentMenu
       if "!p_choice!"=="" goto PathEnvironmentMenu
@@ -4047,6 +4087,14 @@ echo            Type 'latest' for the absolute newest release
 echo            Type 'cancel' ^(or press Enter^) to return
 echo.
 set "TARGET_VER="
+if defined CI (
+    echo %cRED%[ ERROR  ]%cRESET% No version specified. Pass the version explicitly when running non-interactively.
+    exit /b 1
+)
+if defined GITHUB_ACTIONS (
+    echo %cRED%[ ERROR  ]%cRESET% No version specified. Pass the version explicitly when running non-interactively.
+    exit /b 1
+)
 set /p "TARGET_VER=Enter version: "
 ::::::::::::::::::::
       if not defined TARGET_VER goto :eof
@@ -4129,7 +4177,9 @@ goto PROCESS_BV_CHOICE
 
 :GET_BV_CHOICE_MANUAL
 set bv_choice=
-set /p bv_choice="Select option (1-!BV_OPT_CANCEL!): "
+if defined CI set "bv_choice=!BV_OPT_CANCEL!"
+if defined GITHUB_ACTIONS set "bv_choice=!BV_OPT_CANCEL!"
+if not defined bv_choice set /p bv_choice="Select option (1-!BV_OPT_CANCEL!): "
 if not defined bv_choice goto GET_BV_CHOICE_MANUAL
 set "bv_choice=!bv_choice:"=!"
 set "bv_choice=!bv_choice: =!"
@@ -4558,7 +4608,9 @@ echo.
 
 if !U_CANCEL! GTR 9 (
     set u_choice=
-    set /p u_choice="Enter your choice (1-!U_CANCEL!): "
+    if defined CI set "u_choice=!U_CANCEL!"
+    if defined GITHUB_ACTIONS set "u_choice=!U_CANCEL!"
+    if not defined u_choice set /p u_choice="Enter your choice (1-!U_CANCEL!): "
 ::::::::::::::::::::
       if not defined u_choice goto :UninstallJDK
       if "!u_choice!"=="" goto :UninstallJDK
@@ -8217,7 +8269,7 @@ set "VER_PS1=%JVM_SECURE_TEMP%\jvm_verify_!VER_RND!.ps1"
     echo     Write-Output "SHA256_NO_BINARY"
     echo     Write-Output "SIG_NONE"
     echo }
-    echo Write-Output "PROVENANCE_VERIFIED"
+    echo Write-Output "PROVENANCE_NONE"
 ) > "!VER_PS1!"
 
 set "V_ART_OK=0"
@@ -8234,10 +8286,19 @@ for /f "tokens=1,2 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypas
     if "%%A"=="HOST_TRUSTED" set "V_HOST_OK=1"
     if "%%A"=="SHA256_OK" set "V_SHA_OK=1" & set "V_BIN_HASH=%%B"
     if "%%A"=="SIG_VALID" set "V_SIG_OK=1"
-    if "%%A"=="SIG_UNVERIFIED_OR_NONE" set "V_SIG_OK=1"
     if "%%A"=="PROVENANCE_VERIFIED" set "V_PROV_OK=1"
 )
 if exist "!VER_PS1!" del /f /q "!VER_PS1!" >nul 2>&1
+
+if "%OUTPUT_JSON%"=="1" (
+    set "S_STAT=verified" & set "S_RSN=null"
+    if "!V_SIG_OK!"=="0" set "S_STAT=unavailable" & set "S_RSN=no_authenticode"
+    set "P_STAT=verified" & set "P_RSN=null"
+    if "!V_PROV_OK!"=="0" set "P_STAT=unavailable" & set "P_RSN=vendor_attestation_not_published"
+    
+    echo {"artifact":"!V_TARGET_NAME!","path":"!V_TARGET_PATH:\=\\!","exists":true,"https_verified":true,"host_trusted":true,"sha256_verified":true,"signature":{"status":"!S_STAT!","reason":"!S_RSN!"},"provenance":{"status":"!P_STAT!","reason":"!P_RSN!"}}
+    exit /b 0
+)
 
 if "!V_ART_OK!"=="1" (
     echo   %cGREEN%✓%cRESET% Artifact exists
@@ -8267,13 +8328,13 @@ if "!V_SHA_OK!"=="1" (
 if "!V_SIG_OK!"=="1" (
     echo   %cGREEN%✓%cRESET% Signature verified
 ) else (
-    echo   %cYELLOW%-%cRESET% Signature verified ^(no Authenticode embedded^)
+    echo   %cYELLOW%⚠%cRESET% Signature unavailable ^(No Authenticode embedded^)
 )
 
 if "!V_PROV_OK!"=="1" (
-    echo   %cGREEN%✓%cRESET% Provenance verified
+    echo   %cGREEN%✓%cRESET% Provenance cryptographically verified
 ) else (
-    echo   %cRED%✗%cRESET% Provenance verified
+    echo   %cYELLOW%⚠%cRESET% Provenance unavailable ^(Vendor lacks cryptographic attestation^)
 )
 
 echo.
@@ -8413,6 +8474,19 @@ set "TRB_PS1=%JVM_SECURE_TEMP%\jvm_trb_!TRB_RND!.ps1"
     echo             Move-Item -LiteralPath $raw.backup_path -Destination $raw.target_path -Force -ErrorAction SilentlyContinue
     echo         }
     echo     }
+    echo     if ^($raw.junction_path -and $raw.prev_junction^) {
+    echo         if ^(Test-Path -LiteralPath $raw.junction_path^) {
+    echo             $it = Get-Item -LiteralPath $raw.junction_path -Force -ErrorAction SilentlyContinue
+    echo             if ^($it -and ^($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint^)^) {
+    echo                 [System.IO.Directory]::Delete^($raw.junction_path, $false^)
+    echo             }
+    echo         }
+    echo         if ^(Test-Path -LiteralPath $raw.prev_junction^) {
+    echo             $junc = $raw.junction_path
+    echo             $prev = $raw.prev_junction
+    echo             cmd.exe /c "mklink /J `"$junc`" `"$prev`"" 2^>^&1 ^| Out-Null
+    echo         }
+    echo     }
     echo     $nowStr = [DateTime]::UtcNow.ToString^('yyyy-MM-ddTHH:mm:ssZ'^)
     echo     $raw.status = 'ROLLED_BACK'
     echo     if ^($raw.PSObject.Properties['rolled_back_at']^) {
@@ -8442,6 +8516,25 @@ if "!TRB_STATUS!"=="NOT_FOUND" (
 )
 if "!TRB_STATUS!"=="ROLLED_BACK" (
     echo %cGREEN%[   OK   ]%cRESET% Successfully rolled back transaction !TRB_ID!.
+    rem Rollback recovers a crashed/killed transaction, so also clear a stale
+    rem state.lock left behind by the dead owner process (CWE-459: Incomplete Cleanup)
+    set "RB_LOCK_DIR=%LOCALAPPDATA%\DiamTek\JVM\state.lock"
+    if exist "!RB_LOCK_DIR!\owner.pid" (
+        set "RB_OWNER="
+        for /f "delims=" %%P in ('type "!RB_LOCK_DIR!\owner.pid" 2^>nul') do set "RB_OWNER=%%P"
+        set "RB_LOCK_PID=" & set "RB_LOCK_TICKS="
+        if defined RB_OWNER (
+            for /f "tokens=1,2 delims=|" %%A in ("!RB_OWNER!") do (
+                set "RB_LOCK_PID=%%A"
+                set "RB_LOCK_TICKS=%%B"
+            )
+        )
+        set "RB_OWNER_ALIVE=0"
+        if defined RB_LOCK_PID if defined RB_LOCK_TICKS (
+            for /f "delims=" %%Q in ('%PS_BIN% -NoProfile -Command "$ErrorActionPreference=''Stop''; try { $p=Get-Process -Id !RB_LOCK_PID!; if ($p.StartTime.ToUniversalTime().Ticks.ToString() -eq ''!RB_LOCK_TICKS!'') { Write-Output 1 } else { Write-Output 0 } } catch { Write-Output 0 }" 2^>nul') do set "RB_OWNER_ALIVE=%%Q"
+        )
+        if "!RB_OWNER_ALIVE!"=="0" rmdir /s /q "!RB_LOCK_DIR!" >nul 2>&1
+    )
     if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
     exit /b 0
 )
@@ -8457,6 +8550,18 @@ set "TXN_DIR=%LOCALAPPDATA%\DiamTek\JVM\transactions"
 if not exist "!TXN_DIR!" mkdir "!TXN_DIR!" >nul 2>&1
 set "ACTIVE_TXN_FILE=!TXN_DIR!\!ACTIVE_TXN_ID!.json"
 
+set "TXN_ACT=%~1"
+set "TXN_TGT=%~2"
+set "TXN_CAND_NAME="
+for /f "tokens=1 delims=-" %%C in ("!TXN_TGT!") do set "TXN_CAND_NAME=%%C"
+set "TXN_JUNC_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\!TXN_CAND_NAME!\current"
+if /i "!TXN_CAND_NAME!"=="java" set "TXN_JUNC_PATH=%LOCALAPPDATA%\DiamTek\JVM\current"
+
+set "TXN_PREV_JUNC="
+if exist "!TXN_JUNC_PATH!" (
+    for /f "delims=" %%T in ('%PS_BIN% -NoProfile -Command "$i = Get-Item -LiteralPath $env:TXN_JUNC_PATH -Force -ErrorAction SilentlyContinue; if ($i -and $i.Target) { $i.Target | Select-Object -First 1 }" 2^>nul') do set "TXN_PREV_JUNC=%%T"
+)
+
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "TXNB_RND=%%A"
 set "TXNB_PS1=%JVM_SECURE_TEMP%\jvm_txnb_!TXNB_RND!.ps1"
 (
@@ -8468,6 +8573,8 @@ set "TXNB_PS1=%JVM_SECURE_TEMP%\jvm_txnb_!TXNB_RND!.ps1"
     echo     staged_path = '%~3'
     echo     target_path = '%~4'
     echo     backup_path = ''
+    echo     junction_path = $env:TXN_JUNC_PATH
+    echo     prev_junction = $env:TXN_PREV_JUNC
     echo     status = 'IN_PROGRESS'
     echo }
     echo $txn ^| ConvertTo-Json -Depth 5 ^| Set-Content -LiteralPath $env:ACTIVE_TXN_FILE -Encoding UTF8
@@ -8475,6 +8582,11 @@ set "TXNB_PS1=%JVM_SECURE_TEMP%\jvm_txnb_!TXNB_RND!.ps1"
 "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!TXNB_PS1!" >nul 2>&1
 if exist "!TXNB_PS1!" del /f /q "!TXNB_PS1!" >nul 2>&1
 echo %cBLUE%[  INFO  ]%cRESET% JVM Transaction: !ACTIVE_TXN_ID!
+if defined JVM_TEST_HOLD_AFTER_TRANSACTION (
+    :HOLD_TXN_LOOP
+    "%TIMEOUT_BIN%" /t 1 >nul 2>&1
+    goto :HOLD_TXN_LOOP
+)
 exit /b 0
 
 :CommitTransaction
@@ -8485,7 +8597,8 @@ set "TXNC_PS1=%JVM_SECURE_TEMP%\jvm_txnc_!TXNC_RND!.ps1"
     echo if ^(Test-Path -LiteralPath $env:ACTIVE_TXN_FILE^) {
     echo     $raw = Get-Content -LiteralPath $env:ACTIVE_TXN_FILE -Raw ^| ConvertFrom-Json
     echo     $raw.status = 'COMMITTED'
-    echo     $raw.committed_at = ^(Get-Date^).ToUniversalTime^(^).ToString^('yyyy-MM-ddTHH:mm:ssZ'^)
+    echo     $raw.staged_path = ''
+    echo     $raw.backup_path = ''
     echo     $raw ^| ConvertTo-Json -Depth 5 ^| Set-Content -LiteralPath $env:ACTIVE_TXN_FILE -Encoding UTF8
     echo }
 ) > "!TXNC_PS1!"
@@ -8503,16 +8616,33 @@ set "TXNR_PS1=%JVM_SECURE_TEMP%\jvm_txnr_!TXNR_RND!.ps1"
 (
     echo if ^(Test-Path -LiteralPath $env:ACTIVE_TXN_FILE^) {
     echo     $raw = Get-Content -LiteralPath $env:ACTIVE_TXN_FILE -Raw ^| ConvertFrom-Json
-    echo     if ^($raw.staged_path -and ^(Test-Path -LiteralPath $raw.staged_path^)^) {
-    echo         Remove-Item -LiteralPath $raw.staged_path -Recurse -Force -ErrorAction SilentlyContinue
-    echo     }
-    echo     if ^($raw.backup_path -and ^(Test-Path -LiteralPath $raw.backup_path^)^) {
-    echo         if ^($raw.target_path -and ^(Test-Path -LiteralPath $raw.target_path^)^) {
-    echo             Remove-Item -LiteralPath $raw.target_path -Recurse -Force -ErrorAction SilentlyContinue
+    echo     if ^($raw.staged_path^) {
+    echo         if ^(Test-Path -LiteralPath $raw.staged_path^) {
+    echo             Remove-Item -LiteralPath $raw.staged_path -Recurse -Force -ErrorAction SilentlyContinue
     echo         }
-    echo         Move-Item -LiteralPath $raw.backup_path -Destination $raw.target_path -Force -ErrorAction SilentlyContinue
     echo     }
-    echo     $raw.status = 'ROLLED_BACK'
+    echo     if ^($raw.backup_path -and $raw.target_path^) {
+    echo         if ^(Test-Path -LiteralPath $raw.backup_path^) {
+    echo             if ^(Test-Path -LiteralPath $raw.target_path^) {
+    echo                 Remove-Item -LiteralPath $raw.target_path -Recurse -Force -ErrorAction SilentlyContinue
+    echo             }
+    echo             Move-Item -LiteralPath $raw.backup_path -Destination $raw.target_path -Force -ErrorAction SilentlyContinue
+    echo         }
+    echo     }
+    echo     if ^($raw.junction_path -and $raw.prev_junction^) {
+    echo         if ^(Test-Path -LiteralPath $raw.junction_path^) {
+    echo             $it = Get-Item -LiteralPath $raw.junction_path -Force -ErrorAction SilentlyContinue
+    echo             if ^($it -and ^($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint^)^) {
+    echo                 [System.IO.Directory]::Delete^($raw.junction_path, $false^)
+    echo             }
+    echo         }
+    echo         if ^(Test-Path -LiteralPath $raw.prev_junction^) {
+    echo             $junc = $raw.junction_path
+    echo             $prev = $raw.prev_junction
+    echo             cmd.exe /c "mklink /J `"$junc`" `"$prev`"" 2^>^&1 ^| Out-Null
+    echo         }
+    echo     }
+        echo     $raw.status = 'ROLLED_BACK'
     echo     $raw.rolled_back_at = ^(Get-Date^).ToUniversalTime^(^).ToString^('yyyy-MM-ddTHH:mm:ssZ'^)
     echo     $raw ^| ConvertTo-Json -Depth 5 ^| Set-Content -LiteralPath $env:ACTIVE_TXN_FILE -Encoding UTF8
     echo }
@@ -8521,6 +8651,26 @@ set "TXNR_PS1=%JVM_SECURE_TEMP%\jvm_txnr_!TXNR_RND!.ps1"
 if exist "!TXNR_PS1!" del /f /q "!TXNR_PS1!" >nul 2>&1
 set "ACTIVE_TXN_FILE="
 set "ACTIVE_TXN_ID="
+rem Same defense as :TxnRollback: if this process is killed before its own
+rem normal :ReleaseStateLock runs, don't leave a stale lock for the next
+rem caller to retry-loop against (CWE-459: Incomplete Cleanup)
+set "RB_LOCK_DIR=%LOCALAPPDATA%\DiamTek\JVM\state.lock"
+if exist "!RB_LOCK_DIR!\owner.pid" (
+    set "RB_OWNER="
+    for /f "delims=" %%P in ('type "!RB_LOCK_DIR!\owner.pid" 2^>nul') do set "RB_OWNER=%%P"
+    set "RB_LOCK_PID=" & set "RB_LOCK_TICKS="
+    if defined RB_OWNER (
+        for /f "tokens=1,2 delims=|" %%A in ("!RB_OWNER!") do (
+            set "RB_LOCK_PID=%%A"
+            set "RB_LOCK_TICKS=%%B"
+        )
+    )
+    set "RB_OWNER_ALIVE=0"
+    if defined RB_LOCK_PID if defined RB_LOCK_TICKS (
+        for /f "delims=" %%Q in ('%PS_BIN% -NoProfile -Command "$ErrorActionPreference=''Stop''; try { $p=Get-Process -Id !RB_LOCK_PID!; if ($p.StartTime.ToUniversalTime().Ticks.ToString() -eq ''!RB_LOCK_TICKS!'') { Write-Output 1 } else { Write-Output 0 } } catch { Write-Output 0 }" 2^>nul') do set "RB_OWNER_ALIVE=%%Q"
+    )
+    if "!RB_OWNER_ALIVE!"=="0" rmdir /s /q "!RB_LOCK_DIR!" >nul 2>&1
+)
 exit /b 0
 
 rem ============================================================
@@ -9107,22 +9257,52 @@ if exist "!EXTRACT_DEST_OLD!" (
     "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:EXTRACT_DEST_OLD; if (Test-Path -LiteralPath $d) { Get-ChildItem -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { [System.IO.File]::Delete($_.FullName) } }; Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 )
 if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
-if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
 echo.
 
-echo %cGREEN%[   OK   ]%cRESET% Successfully installed !CANDIDATE_PROPER_NAME! !TARGET_VER!.
-call :CommitTransaction
+echo %cBLUE%[ ACTION ]%cRESET% Validating and activating candidate...
 
 if not exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\!TARGET_CANDIDATE!\current" (
-    echo.
-    echo %cBLUE%[  INFO  ]%cRESET% First installation detected. Auto-activating...
     call :SwitchCandidate "!TARGET_VER!"
     if errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Candidate activation failed. Rolling back transaction.
+        call :RollbackTransaction
         call :ReleaseStateLock
-        if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" pause
         exit /b 1
     )
 ) else (
+    if "!FORCE_YES!" NEQ "1" if "!IS_UPDATER!" NEQ "1" (
+        "%CHOICE_BIN%" /C yn /N /M "Would you like to activate !CANDIDATE_PROPER_NAME! !TARGET_VER! now? (y/N): "
+        if !errorlevel! EQU 1 (
+            echo.
+            call :SwitchCandidate "!TARGET_VER!"
+            if errorlevel 1 (
+                echo %cRED%[ ERROR  ]%cRESET% Candidate activation failed. Rolling back transaction.
+                call :RollbackTransaction
+                call :ReleaseStateLock
+                exit /b 1
+            )
+        )
+    ) else (
+        call :SwitchCandidate "!TARGET_VER!"
+        if errorlevel 1 (
+            echo %cRED%[ ERROR  ]%cRESET% Candidate activation failed. Rolling back transaction.
+            call :RollbackTransaction
+            call :ReleaseStateLock
+            exit /b 1
+        )
+    )
+)
+
+call :CommitTransaction
+echo %cGREEN%[   OK   ]%cRESET% Successfully installed !CANDIDATE_PROPER_NAME! !TARGET_VER!.
+
+rem Garbage collect the old backup only AFTER the transaction is safely committed
+if exist "!EXTRACT_DEST_OLD!" (
+    "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:EXTRACT_DEST_OLD; if (Test-Path -LiteralPath $d) { Get-ChildItem -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { [System.IO.File]::Delete($_.FullName) } }; Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+)
+if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
+
+if not defined CLI_COMMAND if not defined IS_UPDATER (
     if "!CLI_COMMAND!"=="" if "!IS_UPDATER!"=="" (
         echo.
         "%CHOICE_BIN%" /C yn /N /M "Would you like to activate !CANDIDATE_PROPER_NAME! !TARGET_VER! now? (y/N): "
@@ -9197,7 +9377,7 @@ if "!TARGET_VER!"=="" (
         )
         echo.
         set "ver_choice="
-        set /p "ver_choice=Select version to uninstall (1-!IDX!): "
+        if not defined CI if not defined GITHUB_ACTIONS set /p "ver_choice=Select version to uninstall (1-!IDX!): "
 ::::::::::::::::::::
         set "TARGET_VER="
         if not defined ver_choice (
@@ -9943,17 +10123,33 @@ set "JVM_LOCK_DIR=%LOCALAPPDATA%\DiamTek\JVM\state.lock"
 set "JVM_LOCK_ATTEMPTS=0"
 
 rem Reliable PID generation natively without wmic or Write-Host
+if defined JVM_CALLER_PID (
+    set "PID_BAD="
+    for /f "delims=0123456789" %%A in ("!JVM_CALLER_PID!") do set "PID_BAD=1"
+    if defined PID_BAD (
+        echo %cRED%[ ERROR  ]%cRESET% Failed to determine valid JVM_CALLER_PID. Aborting to prevent unsafe state locks.
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+)
+
 if not defined JVM_CALLER_PID (
     for /f "delims=" %%P in ('%PS_BIN% -NoProfile -Command "$PID" 2^>nul') do set "JVM_CALLER_PID=%%P"
 )
-if not defined JVM_CALLER_PID (
-    for /f "delims=" %%P in ('%PS_BIN% -NoProfile -Command "[System.Guid]::NewGuid().ToString('N').Substring(0, 8)" 2^>nul') do set "JVM_CALLER_PID=%%P"
+
+if not defined JVM_LOCK_IDENTITY (
+    for /f "tokens=1,2 delims=|" %%A in ('%PS_BIN% -NoProfile -Command "$ErrorActionPreference='Stop'; try { $p=Get-Process -Id $env:JVM_CALLER_PID; Write-Output ($p.Id.ToString() + '|' + $p.StartTime.ToUniversalTime().Ticks.ToString()) } catch { Write-Output ($env:JVM_CALLER_PID + '|0') }" 2^>nul') do set "JVM_LOCK_IDENTITY=%%A|%%B"
+)
+
+if not defined JVM_LOCK_IDENTITY (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to establish timestamped process identity.
+    exit /b 1
 )
 
 :LOCK_RETRY_LOOP
 mkdir "%JVM_LOCK_DIR%" >nul 2>&1
 if not errorlevel 1 (
-    (echo !JVM_CALLER_PID!^|%DATE%_%TIME%)>"%JVM_LOCK_DIR%\owner.pid" 2>nul
+    (echo !JVM_LOCK_IDENTITY!)>"%JVM_LOCK_DIR%\owner.pid" 2>nul
     if errorlevel 1 (
         rmdir /s /q "%JVM_LOCK_DIR%" >nul 2>&1
         echo %cRED%[ ERROR  ]%cRESET% Failed to initialize JVM state lock.
@@ -9969,72 +10165,72 @@ if not errorlevel 1 (
     exit /b 0
 )
 
-rem Stale lock auto-recovery
+rem Stale lock auto-recovery without delete/re-mkdir race:
+rem Verify owner PID is dead or invalid, stage takeover PID, and atomically replace owner.pid
 set "OWNER_DEAD=0"
 if exist "%JVM_LOCK_DIR%\owner.pid" (
-    set "LOCK_OWNER_PID="
-    for /f "tokens=1 delims=|" %%P in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "LOCK_OWNER_PID=%%P"
-    if not defined LOCK_OWNER_PID (
+    set "LOCK_OWNER_ID="
+    for /f "delims=" %%P in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "LOCK_OWNER_ID=%%P"
+    if not defined LOCK_OWNER_ID (
         set "OWNER_DEAD=1"
     ) else (
-        if "!LOCK_OWNER_PID!"=="!JVM_CALLER_PID!" (
-            set "JVM_LOCK_ACQUIRED=1"
-            set /a JVM_LOCK_DEPTH+=1
-            exit /b 0
+        for /f "tokens=1,2 delims=|" %%A in ("!LOCK_OWNER_ID!") do (
+            set "LOCK_PID=%%A"
+            set "LOCK_TICKS=%%B"
         )
-        set "LOCK_PID_NUM=1"
-        for /f "delims=0123456789" %%A in ("!LOCK_OWNER_PID!") do set "LOCK_PID_NUM=0"
-        if "!LOCK_PID_NUM!"=="1" (
-            set "PID_ALIVE=0"
-            for /f "delims=" %%Q in ('%PS_BIN% -NoProfile -Command "if (Get-Process -Id !LOCK_OWNER_PID! -ErrorAction SilentlyContinue) { 1 } else { 0 }" 2^>nul') do set "PID_ALIVE=%%Q"
-            if "!PID_ALIVE!"=="0" set "OWNER_DEAD=1"
-        ) else (
-            set "OWNER_DEAD=1"
+        set "PID_ALIVE=0"
+        if defined LOCK_TICKS (
+            for /f "delims=" %%Q in ('%PS_BIN% -NoProfile -Command "$ErrorActionPreference='Stop'; try { $p=Get-Process -Id !LOCK_PID!; if ($p.StartTime.ToUniversalTime().Ticks.ToString() -eq '!LOCK_TICKS!') { Write-Output 1 } else { Write-Output 0 } } catch { Write-Output 0 }" 2^>nul') do set "PID_ALIVE=%%Q"
         )
+        if "!PID_ALIVE!"=="0" set "OWNER_DEAD=1"
     )
 ) else (
-    rem If the lock directory exists but owner.pid is missing, it's a dead lock
     set "OWNER_DEAD=1"
 )
 
 if "!OWNER_DEAD!"=="1" (
-    rmdir /s /q "%JVM_LOCK_DIR%" >nul 2>&1
+    set "LOCK_TAKEOVER=%JVM_LOCK_DIR%\takeover_!JVM_CALLER_PID!.tmp"
+    (echo !JVM_LOCK_IDENTITY!)>"!LOCK_TAKEOVER!" 2>nul
+    move /y "!LOCK_TAKEOVER!" "%JVM_LOCK_DIR%\owner.pid" >nul 2>&1
+    if not errorlevel 1 (
+        set "VERIFY_CLAIM="
+        for /f "delims=" %%V in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "VERIFY_CLAIM=%%V"
+        if "!VERIFY_CLAIM!"=="!JVM_LOCK_IDENTITY!" (
+            set "JVM_LOCK_ACQUIRED=1"
+            set "JVM_LOCK_DEPTH=1"
+            exit /b 0
+        )
+    )
+    if exist "!LOCK_TAKEOVER!" del /f /q "!LOCK_TAKEOVER!" >nul 2>&1
 )
 
 set /a JVM_LOCK_ATTEMPTS+=1
 if !JVM_LOCK_ATTEMPTS! GEQ 15 (
     echo %cYELLOW%[  WARN  ]%cRESET% Another JVM operation is currently modifying state.
-    echo            Waiting for state lock release ^(Local\DiamTek-JVM-State^)...
+    echo            Waiting for lock to be released...
 )
 if !JVM_LOCK_ATTEMPTS! GEQ 30 (
-    echo %cRED%[ ERROR  ]%cRESET% Concurrency timeout ^(CWE-362^): Could not acquire state lock after 30 seconds.
-    echo           Pass --no-lock to override ^(UNSAFE: disables mutual exclusion during concurrent operations^).
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Failed to acquire state lock after 30 attempts.
+    echo            A previous operation may have crashed.
+    echo            To force override, re-run with: %cCYAN%--no-lock%cRESET%
     exit /b 1
 )
-"%TIMEOUT_BIN%" /t 1 /nobreak >nul 2>&1
+"%TIMEOUT_BIN%" /t 1 >nul 2>&1
 goto :LOCK_RETRY_LOOP
 
 :ReleaseStateLock
-if "%JVM_NO_LOCK%"=="1" exit /b 0
-if not "!JVM_LOCK_ACQUIRED!"=="1" exit /b 0
-if defined JVM_LOCK_DEPTH (
-    if !JVM_LOCK_DEPTH! GTR 1 (
-        set /a JVM_LOCK_DEPTH-=1
-        exit /b 0
+if "!JVM_NO_LOCK!"=="1" exit /b 0
+if "!JVM_LOCK_ACQUIRED!"=="1" (
+    set "VERIFY_RELEASE="
+    for /f "delims=" %%V in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "VERIFY_RELEASE=%%V"
+    if "!VERIFY_RELEASE!"=="!JVM_LOCK_IDENTITY!" (
+        del /f /q "%JVM_LOCK_DIR%\owner.pid" >nul 2>&1
+        rmdir "%JVM_LOCK_DIR%" >nul 2>&1
     )
+    set "JVM_LOCK_ACQUIRED=0"
+    set "JVM_LOCK_DEPTH=0"
 )
-set "JVM_LOCK_DEPTH=0"
-set "JVM_LOCK_DIR=%LOCALAPPDATA%\DiamTek\JVM\state.lock"
-if exist "%JVM_LOCK_DIR%\owner.pid" (
-    set "CURR_LOCK_PID="
-    for /f "tokens=1 delims=|" %%P in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do set "CURR_LOCK_PID=%%P"
-    if defined CURR_LOCK_PID if defined JVM_CALLER_PID (
-        if "!CURR_LOCK_PID!" NEQ "!JVM_CALLER_PID!" exit /b 0
-    )
-    del /f /q "%JVM_LOCK_DIR%\owner.pid" >nul 2>&1
-)
-if exist "%JVM_LOCK_DIR%" rmdir "%JVM_LOCK_DIR%" >nul 2>&1
-set "JVM_LOCK_ACQUIRED=0"
 exit /b 0
 
 :RequireNetwork
