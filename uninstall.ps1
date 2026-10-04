@@ -317,6 +317,33 @@ foreach ($p in $profiles) {
 Remove-Item -Path "Function:\jvm" -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "Function:\Set-JvmVar" -Force -ErrorAction SilentlyContinue
 
+# Restore original prompt function and purge auto-switch session state
+if ($global:__jvm_original_prompt) {
+    Set-Item -Path "Function:\prompt" -Value $global:__jvm_original_prompt -Force -ErrorAction SilentlyContinue
+    Remove-Variable -Name '__jvm_original_prompt' -Scope Global -Force -ErrorAction SilentlyContinue
+    Remove-Variable -Name '__jvm_prev_pwd' -Scope Global -Force -ErrorAction SilentlyContinue
+    Remove-Variable -Name '__jvm_host_state' -Scope Global -Force -ErrorAction SilentlyContinue
+}
+
+# Clean CMD Command Processor AutoRun registration
+try {
+    $cmdRegPath = "HKCU:\Software\Microsoft\Command Processor"
+    if (Test-Path -LiteralPath $cmdRegPath) {
+        $existingAutoRun = (Get-ItemProperty -Path $cmdRegPath -Name "AutoRun" -ErrorAction SilentlyContinue).AutoRun
+        if ($existingAutoRun -and $existingAutoRun -match '(?i)cmd_hook\.cmd') {
+            $cleanedAutoRun = ($existingAutoRun -split '&' | Where-Object { $_ -and $_ -notmatch '(?i)cmd_hook\.cmd' } | ForEach-Object { $_.Trim() }) -join ' & '
+            if ([string]::IsNullOrWhiteSpace($cleanedAutoRun)) {
+                Remove-ItemProperty -Path $cmdRegPath -Name "AutoRun" -Force -ErrorAction SilentlyContinue
+            } else {
+                Set-ItemProperty -Path $cmdRegPath -Name "AutoRun" -Value $cleanedAutoRun -Type String -Force
+            }
+            Write-Host "[   OK   ] CMD Command Processor AutoRun hook cleaned." -ForegroundColor Green
+        }
+    }
+} catch {
+    Write-Verbose "CMD AutoRun registry cleanup warning: $($_.Exception.Message)"
+}
+
 # ----------------------------------------------------------------
 # Environment variables
 # ----------------------------------------------------------------
@@ -558,6 +585,18 @@ Get-ChildItem -LiteralPath $env:TEMP -Filter "jvm_*" -File -Force -ErrorAction S
 Get-ChildItem -LiteralPath $env:TEMP -Filter "diamtek_uninstall_*" -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.FullName -ne $PSCommandPath -and -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) } | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
 
 Write-Host "[   OK   ] Windows uninstall registration removed." -ForegroundColor Green
+
+# Remove CMD AutoRun hook file if present
+$cmdHookFile = Join-Path $localAppData "DiamTek\JVM\bin\cmd_hook.cmd"
+if (Test-Path -LiteralPath $cmdHookFile) {
+    Remove-Item -LiteralPath $cmdHookFile -Force -ErrorAction SilentlyContinue
+}
+
+# Remove config.json if present
+$cfgPath = Join-Path $localAppData "DiamTek\JVM\config.json"
+if (Test-Path -LiteralPath $cfgPath) {
+    Remove-Item -LiteralPath $cfgPath -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host "`n[ ACTION ] Deleting JVM AppData and Candidate folders..." -ForegroundColor Cyan
 $diamtekAppData = Join-Path $localAppData "DiamTek"

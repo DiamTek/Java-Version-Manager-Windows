@@ -26,7 +26,10 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [Reproducible Lockfile Architecture (.jvm.lock & jvm install --locked)](#reproducible-lockfile-architecture-jvmlock--jvm-install---locked)
 - [Cryptographic Provenance Verification (jvm verify)](#cryptographic-provenance-verification-jvm-verify)
 - [Failure Recovery, Atomic State Rollback & Resource Hygiene](#failure-recovery-atomic-state-rollback--resource-hygiene)
-- [Automated Adversarial Test Architecture (218 Tests, 40 CWEs)](#automated-adversarial-test-architecture-218-tests-40-cwes)
+- [Unified Configuration Engine & config.json](#unified-configuration-engine--configjson)
+- [Project Toolchain Parser (.jvm.toml / .jvmrc)](#project-toolchain-parser-jvmtoml--jvmrc)
+- [CMD & PowerShell Transparent Directory Switching Hooks](#cmd--powershell-transparent-directory-switching-hooks)
+- [Automated Adversarial Test Architecture (223 Tests, 40 CWEs)](#automated-adversarial-test-architecture-223-tests-40-cwes)
 
 ---
 
@@ -684,24 +687,42 @@ Every download, extraction, and activation is coordinated through an atomic JSON
 
 ---
 
-<a id="automated-adversarial-test-architecture-218-tests-40-cwes"></a>
-## Automated Adversarial Test Architecture (218 Tests, 40 CWEs)
+<a id="unified-configuration-engine--configjson"></a>
+### Unified Configuration Engine & `config.json`
+DiamTek JVM provides an atomic configuration engine backed by `%LOCALAPPDATA%\DiamTek\JVM\config.json`.
+- **Validation & Whitelisting (`CWE-20` / `CWE-74`):** When modifying configuration settings via `jvm config set <key> <val>`, the key is verified against a strict key whitelist. Values are typed as booleans, integers, or strings.
+- **Atomic Persistence:** Serialized using UTF-8 encoding via `.NET` APIs, preventing partial-write file corruption during unexpected power or process termination.
 
-The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **218 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
+<a id="project-toolchain-parser-jvmtoml--jvmrc"></a>
+### Project Toolchain Parser (`.jvm.toml` / `.jvmrc`)
+Projects can specify toolchains across Java and ecosystem candidates using standard TOML structure:
+- **Metacharacter Defense (`CWE-78`):** `:LoadProjectConfig` uses dedicated regex matching to extract `[section]` headers and `key = value` pairs. Raw values containing shell operators (`&`, `|`, `;`, `>`, `<`, `` ` ``) are isolated from batch execution, ensuring external repositories cannot execute arbitrary shell commands via configuration files.
+
+<a id="cmd--powershell-transparent-directory-switching-hooks"></a>
+### CMD & PowerShell Transparent Directory Switching Hooks
+- **PowerShell Session Navigation:** The installer registers a wrapper around `prompt` in `$PROFILE`. When `$pwd.Path` changes, the hook checks for `.jvm.toml`, `.jvmrc`, or `.java-version`. If found, it saves the host `$env:JAVA_HOME` and `$env:Path` in `$global:__jvm_host_state` and invokes `jvm --session`. When navigating out of the project tree, it restores the previous host environment baseline.
+- **Command Prompt AutoRun (`cmd_hook.cmd`):** During installation, `install.ps1` configures `HKCU:\Software\Microsoft\Command Processor\AutoRun` pointing to `%LOCALAPPDATA%\DiamTek\JVM\bin\cmd_hook.cmd`. This establishes a `doskey cd=call "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat" --session-cd $*` macro, giving standard Windows `cmd.exe` sessions directory switching capabilities without requiring external shell extensions.
+
+---
+
+<a id="automated-adversarial-test-architecture-223-tests-40-cwes"></a>
+## Automated Adversarial Test Architecture (223 Tests, 40 CWEs)
+
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **223 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
 
 | Suite | Category Focus | Test Count | Status |
 | :--- | :--- | :---: | :---: |
-| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF) | 83 / 83 | **PASS** |
-| **Suite 2** | Registry & Env Boundaries (ValueKind preservation, UAC elevation) | 6 / 6 | **PASS** |
-| **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery) | 17 / 17 | **PASS** |
-| **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, .jvm.lock) | 56 / 56 | **PASS** |
+| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF, TOML Metacharacters) | 84 / 84 | **PASS** |
+| **Suite 2** | Registry & Env Boundaries (ValueKind preservation, UAC elevation, Config Engine, Env Diff) | 8 / 8 | **PASS** |
+| **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery, Doctor Self-Healing) | 18 / 18 | **PASS** |
+| **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, .jvm.lock, CMD AutoRun Hook) | 57 / 57 | **PASS** |
 | **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification, PID timestamping) | 15 / 15 | **PASS** |
 | **Suite 6** | Corrupt Registry Recovery & PATH Resilience (De-bloat, length limits) | 14 / 14 | **PASS** |
 | **Suite 7** | Uninstallation Safety & Markers (Root markers, deferred cleanup) | 16 / 16 | **PASS** |
 | **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 6 / 6 | **PASS** |
 | **Suite 9** | Supply Chain (`JVM_SKIP_CHECKSUM` rejection, Verification checklists) | 2 / 2 | **PASS** |
 | **Suite 10** | Atomic Operations (Transactional journaling, Process kill tests, Pre-state junction recovery) | 3 / 3 | **PASS** |
-| **Total** | **Comprehensive Full-System Security Suite** | **218 / 218** | **`10.0 / 10.0`** |
+| **Total** | **Comprehensive Full-System Security Suite** | **223 / 223** | **`10.0 / 10.0`** |
 
 ---
 

@@ -1254,8 +1254,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1 -Detailed
 ```
 
-#### 2. What the 218 Automated Tests & 40 CWEs Cover
-The test suite executes **218 automated test cases across 10 defensive suites** and outputs both per-test `[CWE-XX]` badges and a numerically sorted **40-CWE Coverage Summary** table (`CWE-20`, `CWE-22`, `CWE-41`, `CWE-59`, `CWE-66`, `CWE-73`, `CWE-74`, `CWE-78`, `CWE-88`, `CWE-94`, `CWE-155`, `CWE-184`, `CWE-209`, `CWE-250`, `CWE-252`, `CWE-276`, `CWE-295`, `CWE-319`, `CWE-330`, `CWE-345`, `CWE-354`, `CWE-362`, `CWE-367`, `CWE-377`, `CWE-390`, `CWE-400`, `CWE-409`, `CWE-426`, `CWE-427`, `CWE-428`, `CWE-459`, `CWE-460`, `CWE-494`, `CWE-532`, `CWE-601`, `CWE-611`, `CWE-674`, `CWE-754`, `CWE-755`, `CWE-918`), achieving a 100% pass rate (`218 / 218 PASS`) and a verified **10.0 / 10.0** Error Management & Security Architecture scorecard:
+#### 2. What the 223 Automated Tests & 40 CWEs Cover
+The test suite executes **223 automated test cases across 10 defensive suites** and outputs both per-test `[CWE-XX]` badges and a numerically sorted **40-CWE Coverage Summary** table (`CWE-20`, `CWE-22`, `CWE-41`, `CWE-59`, `CWE-66`, `CWE-73`, `CWE-74`, `CWE-78`, `CWE-88`, `CWE-94`, `CWE-155`, `CWE-184`, `CWE-209`, `CWE-250`, `CWE-252`, `CWE-276`, `CWE-295`, `CWE-319`, `CWE-330`, `CWE-345`, `CWE-354`, `CWE-362`, `CWE-367`, `CWE-377`, `CWE-390`, `CWE-400`, `CWE-409`, `CWE-426`, `CWE-427`, `CWE-428`, `CWE-459`, `CWE-460`, `CWE-494`, `CWE-532`, `CWE-601`, `CWE-611`, `CWE-674`, `CWE-754`, `CWE-755`, `CWE-918`), achieving a 100% pass rate (`223 / 223 PASS`) and a verified **10.0 / 10.0** Error Management & Security Architecture scorecard:
 
 | Suite | Focus Area | Tests | Key Adversarial & Security Vectors Verified |
 |:---|:---|:---:|:---|

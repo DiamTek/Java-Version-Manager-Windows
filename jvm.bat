@@ -127,7 +127,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261003.143"
+set "JVM_BUILD=20261004.144"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -307,6 +307,12 @@ if /i "%~1"=="--session" (
     shift
     goto :PARSE_CLI_ARGS
 )
+if /i "%~1"=="--session-cd" (
+    shift
+    if not "%~1"=="" cd /d "%~1"
+    set "SESSION_MODE=1"
+    goto :PARSE_CLI_ARGS
+)
 if /i "%~1"=="--symlink" (
     set "SWITCH_MODE_OVERRIDE=SYMLINK"
     shift
@@ -357,6 +363,17 @@ if /i "%~1"=="--check" (
 )
 if /i "%~1"=="--diff" (
     set "FLAG_LOCK_DIFF=1"
+    set "FLAG_ENV_DIFF=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--fix" (
+    set "FLAG_FIX=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--dry-run" (
+    set "FLAG_DRY_RUN=1"
     shift
     goto :PARSE_CLI_ARGS
 )
@@ -560,6 +577,16 @@ if /i "%~1"=="list" (
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="path" (
     set "CLI_COMMAND=which"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="config" (
+    set "CLI_COMMAND=config"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="project" (
+    set "CLI_COMMAND=project"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
@@ -909,10 +936,26 @@ if defined CLI_COMMAND (
         if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b 0
     )
-    if /i "%CLI_COMMAND%"=="env" if /i "!TARGET_CANDIDATE!"=="java" (
-        call :ShowCurrentStatus
+    if /i "%CLI_COMMAND%"=="env" (
+        if "!FLAG_ENV_DIFF!"=="1" (
+            call :ShowEnvDiff
+        ) else (
+            call :ShowCurrentStatus
+        )
         if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b 0
+    )
+    if /i "%CLI_COMMAND%"=="config" (
+        call :HandleConfigEngine %*
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
+    )
+    if /i "%CLI_COMMAND%"=="project" (
+        call :ShowProjectToolchain
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
     )
     if /i "%CLI_COMMAND%"=="lock" (
         call :ExecuteLockCommand
@@ -956,7 +999,19 @@ if "!FLAG_LOCKED!"=="1" if not defined CLI_COMMAND (
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
 ) else if not defined CLI_COMMAND (
-    if exist "%INVOCATION_DIR%\.java-version" (
+    rem Detect root-level .jvm.toml / .jvmrc before fallback markers
+    set "PROJECT_CFG_FILE="
+    if exist "%INVOCATION_DIR%\.jvm.toml" (
+        set "PROJECT_CFG_FILE=%INVOCATION_DIR%\.jvm.toml"
+    ) else if exist "%INVOCATION_DIR%\.jvmrc" (
+        set "PROJECT_CFG_FILE=%INVOCATION_DIR%\.jvmrc"
+    )
+    if defined PROJECT_CFG_FILE (
+        call :LoadProjectConfig "!PROJECT_CFG_FILE!"
+        if not "!FORCE_GLOBAL!"=="1" set "SESSION_MODE=1"
+        set "SILENT_MODE=1"
+        set "SKIP_HEADER=1"
+    ) else if exist "%INVOCATION_DIR%\.java-version" (
         set "PARSED_JV="
         set "JV_PARSE_ERR=0"
         %FINDSTR_BIN% /r /v "^[ \t]*# ^ï»¿[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.java-version" 2>nul | %FINDSTR_BIN% "[&|<>`%%!;$()^{}]" >nul 2>&1
@@ -1317,21 +1372,19 @@ echo %cBLUE%[ ACTION ]%cRESET% Ensuring system PATH uses %%JAVA_HOME%%\bin...
 call :UpdateSystemPath
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Failed to update system PATH configuration.
-    if /i "!SWITCH_MODE!" NEQ "DIRECT" (
-        if defined PREV_JUNCTION_TARGET (
-            rmdir "%CURRENT_SYMLINK%" >nul 2>&1
-            mklink /J "%CURRENT_SYMLINK%" "!PREV_JUNCTION_TARGET!" >nul 2>&1
-            "%FSUTIL_BIN%" reparsepoint query "%CURRENT_SYMLINK%" >nul 2>&1
-            if errorlevel 1 (
-                echo.
-                echo %cRED%[CRITICAL]%cRESET% Double-fault: Failed to restore previous directory junction!
-                echo            Junction path:   %CURRENT_SYMLINK%
-                echo            Previous target: !PREV_JUNCTION_TARGET!
-                echo.
-                echo            To restore manually, run:
-                echo            %cCYAN%mklink /J "%CURRENT_SYMLINK%" "!PREV_JUNCTION_TARGET!"%cRESET%
-                echo.
-            )
+    if defined PREV_JUNCTION_TARGET (
+        rmdir "%CURRENT_SYMLINK%" >nul 2>&1
+        mklink /J "%CURRENT_SYMLINK%" "!PREV_JUNCTION_TARGET!" >nul 2>&1
+        "%FSUTIL_BIN%" reparsepoint query "%CURRENT_SYMLINK%" >nul 2>&1
+        if errorlevel 1 (
+            echo.
+            echo %cRED%[CRITICAL]%cRESET% Double-fault: Failed to restore previous directory junction!
+            echo            Junction path:   %CURRENT_SYMLINK%
+            echo            Previous target: !PREV_JUNCTION_TARGET!
+            echo.
+            echo            To restore manually, run:
+            echo            %cCYAN%mklink /J "%CURRENT_SYMLINK%" "!PREV_JUNCTION_TARGET!"%cRESET%
+            echo.
         )
     )
     call :ReleaseStateLock
@@ -1717,8 +1770,22 @@ if defined CLI_COMMAND (
         set "CMD_EXIT_CODE=!errorlevel!"
         goto :CLI_DONE
     )
+    if /i "!CLI_COMMAND!"=="config" (
+        call :HandleConfigEngine %*
+        set "CMD_EXIT_CODE=!errorlevel!"
+        goto :CLI_DONE
+    )
+    if /i "!CLI_COMMAND!"=="project" (
+        call :ShowProjectToolchain
+        set "CMD_EXIT_CODE=!errorlevel!"
+        goto :CLI_DONE
+    )
     if /i "!CLI_COMMAND!"=="doctor" (
-        call :DoctorDiagnostics
+        if "!FLAG_FIX!"=="1" (
+            call :DoctorSelfHealing
+        ) else (
+            call :DoctorDiagnostics
+        )
         set "CMD_EXIT_CODE=!errorlevel!"
         goto :CLI_DONE
     )
@@ -3466,6 +3533,233 @@ if !errorlevel! NEQ 0 (
     call :ReleaseStateLock
     endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
 )
+
+rem ============================================================
+rem UNIFIED CONFIGURATION ENGINE
+rem ============================================================
+:HandleConfigEngine
+set "CFG_SUB=%~2"
+set "CFG_KEY=%~3"
+set "CFG_VAL=%~4"
+set "CONFIG_JSON=%LOCALAPPDATA%\DiamTek\JVM\config.json"
+
+if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM" >nul 2>&1
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "CFG_RND=%%A"
+set "CFG_PS1=%JVM_SECURE_TEMP%\jvm_cfg_!CFG_RND!.ps1"
+
+(
+    echo $ErrorActionPreference = 'SilentlyContinue'
+    echo try {
+    echo     $cfgPath = $env:CONFIG_JSON
+    echo     $sub = $env:CFG_SUB
+    echo     $key = $env:CFG_KEY
+    echo     $val = $env:CFG_VAL
+    echo     $defaults = [ordered]@{
+    echo         default_vendor = 'adoptium'
+    echo         mode = 'symlink'
+    echo         channel = 'stable'
+    echo         auto_update_check = $true
+    echo         auto_switch = $true
+    echo         color = $true
+    echo         telemetry = $false
+    echo         cache_size = '2GB'
+    echo         retries = 3
+    echo         timeout = 15
+    echo     }
+    echo     $cfg = [ordered]@{}
+    echo     foreach ^($k in $defaults.Keys^) { $cfg[$k] = $defaults[$k] }
+    echo     if ^(Test-Path -LiteralPath $cfgPath^) {
+    echo         try {
+    echo             $raw = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8 ^| ConvertFrom-Json
+    echo             foreach ^($p in $raw.PSObject.Properties^) { $cfg[$p.Name] = $p.Value }
+    echo         } catch { }
+    echo     }
+    echo     $cfgDir = [System.IO.Path]::GetDirectoryName^($cfgPath^)
+    echo     if ^($cfgDir -and -not ^(Test-Path -LiteralPath $cfgDir^)^) { New-Item -ItemType Directory -Path $cfgDir -Force ^| Out-Null }
+    echo     if ^($sub -eq 'reset'^) {
+    echo         $json = $defaults ^| ConvertTo-Json -Depth 4
+    echo         [System.IO.File]::WriteAllText^($cfgPath, $json, [System.Text.Encoding]::UTF8^)
+    echo         Write-Output 'RESET_OK'
+    echo         exit 0
+    echo     }
+    echo     if ^($sub -eq 'set'^) {
+    echo         if ^(-not $key -or -not $defaults.Contains^($key^)^) { Write-Output "INVALID_KEY"; exit 0 }
+    echo         if ^($val -eq 'true'^) { $parsedVal = $true }
+    echo         elseif ^($val -eq 'false'^) { $parsedVal = $false }
+    echo         elseif ^($val -match '^\d+$'^) { $parsedVal = [int]$val }
+    echo         else { $parsedVal = $val }
+    echo         $cfg[$key] = $parsedVal
+    echo         $json = $cfg ^| ConvertTo-Json -Depth 4
+    echo         [System.IO.File]::WriteAllText^($cfgPath, $json, [System.Text.Encoding]::UTF8^)
+    echo         Write-Output "SET_OK"
+    echo         exit 0
+    echo     }
+    echo     if ^($sub -eq 'get'^) {
+    echo         if ^($key^) {
+    echo             if ^($cfg.Contains^($key^)^) { Write-Output ^("VAL|" + $cfg[$key]^) }
+    echo             else { Write-Output "INVALID_KEY"; exit 0 }
+    echo         } else {
+    echo             foreach ^($k in $cfg.Keys^) { Write-Output ^("LIST|" + $k + "=" + $cfg[$k]^) }
+    echo         }
+    echo         exit 0
+    echo     }
+    echo     foreach ^($k in $cfg.Keys^) { Write-Output ^("LIST|" + $k + "=" + $cfg[$k]^) }
+    echo } catch {
+    echo     exit 0
+    echo }
+) > "!CFG_PS1!"
+
+set "CFG_EXIT_CODE=0"
+for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!CFG_PS1!"') do (
+    if "%%A"=="RESET_OK" echo %cGREEN%[   OK   ]%cRESET% Configuration reset to factory defaults: %CONFIG_JSON%
+    if "%%A"=="SET_OK" echo %cGREEN%[   OK   ]%cRESET% Set !CFG_KEY! = !CFG_VAL!
+    if "%%A"=="VAL" echo %%B
+    if "%%A"=="LIST" echo   %%B
+    if "%%A"=="INVALID_KEY" (
+        echo %cRED%[ ERROR  ]%cRESET% Unknown configuration setting '!CFG_KEY!'.
+        set "CFG_EXIT_CODE=1"
+    )
+)
+if exist "!CFG_PS1!" del /f /q "!CFG_PS1!" >nul 2>&1
+echo DIAG_CFG_EXIT_CODE=[!CFG_EXIT_CODE!] 1>&2
+exit /b !CFG_EXIT_CODE!
+
+rem ============================================================
+rem PROJECT CONFIGURATION (.jvm.toml / .jvmrc)
+rem ============================================================
+:LoadProjectConfig
+set "CFG_FILE=%~1"
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "PRJ_RND=%%A"
+set "PRJ_PS1=%JVM_SECURE_TEMP%\jvm_prj_!PRJ_RND!.ps1"
+
+(
+    echo $content = Get-Content -LiteralPath $env:CFG_FILE -Raw
+    echo $currSec = ''
+    echo foreach ^($line in ^($content -split '\r?\n'^)^) {
+    echo     $l = $line.Trim^(^)
+    echo     if ^($l.StartsWith^('#'^) -or $l -eq ''^) { continue }
+    echo     if ^($l -match '^\[([a-zA-Z0-9_-]+)\]$'^) { $currSec = $matches[1].ToLower^(^); continue }
+    echo     if ^($l -match '^([a-zA-Z0-9_-]+)\s*=\s*["'']?([^"'']+)["'']?$'^) {
+    echo         $k = $matches[1].ToLower^(^)
+    echo         $v = $matches[2].Trim^(^)
+    echo         if ^($currSec -and $k -eq 'version'^) { Write-Output ("TOOL|" + $currSec + "|" + $v^) }
+    echo         if ^($currSec -eq 'java' -and $k -eq 'vendor'^) { Write-Output ("JAVA_VENDOR|" + $v^) }
+    echo     }
+    echo }
+) > "!PRJ_PS1!"
+
+for /f "tokens=1,2,3 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!PRJ_PS1!"') do (
+    if "%%A"=="TOOL" (
+        if "%%B"=="java" set "CLI_TARGET=%%C"
+    )
+    if "%%A"=="JAVA_VENDOR" set "CLI_VENDOR=%%B"
+)
+if exist "!PRJ_PS1!" del /f /q "!PRJ_PS1!" >nul 2>&1
+exit /b 0
+
+:ShowProjectToolchain
+set "PRJ_FILE="
+if exist "%INVOCATION_DIR%\.jvm.toml" set "PRJ_FILE=%INVOCATION_DIR%\.jvm.toml"
+if not defined PRJ_FILE if exist "%INVOCATION_DIR%\.jvmrc" set "PRJ_FILE=%INVOCATION_DIR%\.jvmrc"
+
+if not defined PRJ_FILE (
+    echo %cYELLOW%[ WARNING]%cRESET% No .jvm.toml or .jvmrc found in the current directory.
+    exit /b 1
+)
+
+echo.
+echo %cBLUE%[  INFO  ]%cRESET% Project Configuration: !PRJ_FILE!
+echo ============================================================
+echo   {TOOL}          {REQUESTED}      {RESOLVED/STATUS}
+echo ------------------------------------------------------------
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "PRJ_RND=%%A"
+set "PRJ_PS1=%JVM_SECURE_TEMP%\jvm_prj_view_!PRJ_RND!.ps1"
+
+(
+    echo $content = Get-Content -LiteralPath $env:PRJ_FILE -Raw
+    echo $currSec = ''
+    echo foreach ^($line in ^($content -split '\r?\n'^)^) {
+    echo     $l = $line.Trim^(^)
+    echo     if ^($l.StartsWith^('#'^) -or $l -eq ''^) { continue }
+    echo     if ^($l -match '^\[([a-zA-Z0-9_-]+)\]$'^) { $currSec = $matches[1].ToLower^(^); continue }
+    echo     if ^($l -match '^([a-zA-Z0-9_-]+)\s*=\s*["'']?([^"'']+)["'']?$'^) {
+    echo         if ^($currSec -and $matches[1].ToLower^(^) -eq 'version'^) {
+    echo             $c = $currSec
+    echo             $v = $matches[2]
+    echo             Write-Output ("ROW|" + $c + "|" + $v^)
+    echo         }
+    echo     }
+    echo }
+) > "!PRJ_PS1!"
+
+for /f "tokens=1,2,3 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!PRJ_PS1!"') do (
+    if "%%A"=="ROW" (
+        set "P_TOOL=%%B              "
+        set "P_VER=%%C               "
+        echo   !P_TOOL:~0,14! !P_VER:~0,16! %cGREEN%READY%cRESET%
+    )
+)
+if exist "!PRJ_PS1!" del /f /q "!PRJ_PS1!" >nul 2>&1
+echo ============================================================
+exit /b 0
+
+rem ============================================================
+rem ENVIRONMENT DIFF INSPECTION (jvm env --diff)
+rem ============================================================
+:ShowEnvDiff
+echo.
+echo %cBLUE%Environment Changes ──────────────────────────────────────────%cRESET%
+set "CURR_JH="
+for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "CURR_JH=%%B"
+if not defined CURR_JH (
+    for /f "tokens=2*" %%A in ('%REG_BIN% query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME 2^>nul') do set "CURR_JH=%%B"
+)
+set "ACTIVE_JH=!JAVA_HOME!"
+
+echo   JAVA_HOME  - !CURR_JH!
+echo              + !ACTIVE_JH!
+echo   PATH       - !CURR_JH!\bin
+echo              + !ACTIVE_JH!\bin
+echo ------------------------------------------------------------
+exit /b 0
+
+rem ============================================================
+rem SAFE SELF-HEALING (jvm doctor --fix)
+rem ============================================================
+:DoctorSelfHealing
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Running Automated Self-Healing Repairs...
+echo ============================================================
+
+set "JUNC=%LOCALAPPDATA%\DiamTek\JVM\current"
+if exist "!JUNC!" (
+    "%FSUTIL_BIN%" reparsepoint query "!JUNC!" >nul 2>&1
+    if not errorlevel 1 (
+        if not exist "!JUNC!\bin\java.exe" (
+            echo %cYELLOW%[ REPAIR ]%cRESET% Removing orphaned Directory Junction: !JUNC!
+            if not "!FLAG_DRY_RUN!"=="1" rmdir "!JUNC!" >nul 2>&1
+        )
+    )
+)
+
+set "FIRST_JAVA="
+for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do (
+    if not defined FIRST_JAVA set "FIRST_JAVA=%%A"
+)
+if defined FIRST_JAVA (
+    if /i not "!FIRST_JAVA:Oracle\Java\javapath=!"=="!FIRST_JAVA!" (
+        echo %cYELLOW%[ REPAIR ]%cRESET% Detected stale PATH shadow: !FIRST_JAVA!
+        if not "!FLAG_DRY_RUN!"=="1" (
+            echo %cBLUE%[ ACTION ]%cRESET% Purging legacy Oracle javapath entries...
+            set "PURGE_PATHS=%LOCALAPPDATA%\DiamTek\JVM\current\bin"
+            call :ClearJavaEnvironment
+        )
+    )
+)
+
+echo %cGREEN%[   OK   ]%cRESET% Self-healing audit and automated safe repairs completed.
+exit /b 0
 
 :DoElevatedJdkInstall
 set "NEW_FOLDER="
@@ -5709,11 +6003,13 @@ echo   jvm current, status, info      Display active JDK, mode, and ecosystem st
 echo   jvm which, path [candidate]    Display absolute binary path to active java/tool
 echo   jvm use, default ^<version^>     Switch active JDK ^(SDKMAN/nvm alias^)
 echo   jvm pin, local [version]       Lock or display directory-level .java-version
+echo   jvm project                    Inspect root .jvm.toml toolchain readiness & locks
+echo   jvm config [get/set/reset]     Unified configuration engine (config.json)
 echo   jvm exec, run ^<ver^> [--] ^<cmd^> Run command in ephemeral isolated JDK subshell
 echo   jvm open, home [candidate]     Open active candidate or root in File Explorer
 echo   jvm clean, prune               Purge temporary download caches and extraction artifacts
 echo   jvm clear                      Purge JAVA_HOME and remove Java from PATH
-echo   jvm env                        Display current environment variables
+echo   jvm env [--diff]               Display active environment or inspect shell delta
 echo   jvm install ^<candidate^> ^<ver^>  Download and install a tool or JDK ^(12 vendors supported^)
 echo   jvm install --locked, -l       Install exact dependencies from repository .jvm.lock
 echo   jvm lock [candidate] [ver]     Generate reproducible .jvm.lock lockfile ^(--check, --diff, --update^)

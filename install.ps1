@@ -640,6 +640,24 @@ if (-not (Test-Path -LiteralPath $channelFile)) {
     [System.IO.File]::WriteAllText($channelFile, "$cVal`r`n", (New-Object System.Text.UTF8Encoding($false)))
 }
 
+$configFile = Join-Path $repoRoot "config.json"
+Remove-ReparsePointOrFail -FilePath $configFile
+if (-not (Test-Path -LiteralPath $configFile)) {
+    $defaultCfg = [ordered]@{
+        default_vendor    = "adoptium"
+        mode              = "symlink"
+        channel           = if ($Channel -eq "Nightly") { "nightly" } else { "stable" }
+        auto_update_check = $true
+        auto_switch       = $true
+        color             = $true
+        telemetry         = $false
+        cache_size        = "2GB"
+        retries           = 3
+        timeout           = 15
+    } | ConvertTo-Json -Depth 4
+    [System.IO.File]::WriteAllText($configFile, "$defaultCfg`r`n", (New-Object System.Text.UTF8Encoding($false)))
+}
+
 # 3. Safe REG_EXPAND_SZ Path Injection
 Update-Progress -Percent 80 -Activity "Configuring User PATH..."
 
@@ -832,6 +850,42 @@ function jvm {
     }
 }
 
+# --- Automatic Directory Environment Switching Hook ---
+if (-not $global:__jvm_original_prompt) {
+    $global:__jvm_original_prompt = $function:prompt
+    $global:__jvm_prev_pwd = ''
+    $global:__jvm_host_state = @{}
+    
+    function global:prompt {
+        $curr = $pwd.Path
+        if ($curr -ne $global:__jvm_prev_pwd) {
+            $global:__jvm_prev_pwd = $curr
+            $marker = $null
+            if (Test-Path (Join-Path $curr '.jvm.toml')) { $marker = Join-Path $curr '.jvm.toml' }
+            elseif (Test-Path (Join-Path $curr '.jvmrc')) { $marker = Join-Path $curr '.jvmrc' }
+            elseif (Test-Path (Join-Path $curr '.java-version')) { $marker = Join-Path $curr '.java-version' }
+
+            if ($marker) {
+                if ($global:__jvm_host_state.Count -eq 0) {
+                    $global:__jvm_host_state['JAVA_HOME'] = $env:JAVA_HOME
+                    $global:__jvm_host_state['PATH'] = $env:Path
+                }
+                jvm --session
+            } elseif ($global:__jvm_host_state.Count -gt 0) {
+                # Restore previous host environment state upon leaving project boundaries
+                if ($global:__jvm_host_state.ContainsKey('JAVA_HOME')) {
+                    $env:JAVA_HOME = $global:__jvm_host_state['JAVA_HOME']
+                }
+                if ($global:__jvm_host_state.ContainsKey('PATH')) {
+                    $env:Path = $global:__jvm_host_state['PATH']
+                }
+                $global:__jvm_host_state.Clear()
+            }
+        }
+        if ($global:__jvm_original_prompt) { & $global:__jvm_original_prompt } else { "PS $pwd> " }
+    }
+}
+
 if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
     Register-ArgumentCompleter -Native -CommandName @('jvm', 'jvm.bat', '.\jvm.bat') -ScriptBlock {
         param($wordToComplete, $commandAst, $cursorPosition)
@@ -840,7 +894,8 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             'pin', 'local', 'current', 'status', 'info', 'whoami', 'which', 'path',
             'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
             'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
-            'link', 'unlink', 'version', 'help', 'channel', 'lock', 'verify', 'transaction', 'txn'
+            'link', 'unlink', 'version', 'help', 'channel', 'lock', 'verify', 'transaction', 'txn',
+            'config', 'project'
         )
         $candidates = @('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn')
         $vendors = @('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9', 'sapmachine', 'sap', 'mandrel', 'redhat-mandrel', 'dragonwell', 'alibaba', 'kona', 'tencent')
@@ -850,7 +905,7 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
             '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
             '--offline', '--json', '--no-lock', '--locked', '-l',
-            '--check', '--diff', '--update',
+            '--check', '--diff', '--update', '--fix', '--dry-run',
             '--channel', '--nightly', '--stable',
             '--version', '-v', '--help', '-h'
         )
@@ -964,6 +1019,28 @@ foreach ($p in $profiles) {
             Remove-Item -LiteralPath $stageProf -Force -ErrorAction SilentlyContinue
         }
     }
+}
+
+# 4b. Configure CMD AutoRun Hook
+try {
+    $cmdHookPath = Join-Path $installDir "cmd_hook.cmd"
+    Remove-ReparsePointOrFail -FilePath $cmdHookPath
+    $cmdHookContent = @'
+@echo off
+if defined __JVM_CMD_HOOK_ACTIVE exit /b 0
+set "__JVM_CMD_HOOK_ACTIVE=1"
+doskey cd=call "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat" --session-cd $*
+'@
+    [System.IO.File]::WriteAllText($cmdHookPath, ($cmdHookContent -replace "`r?`n", "`r`n"), $utf8NoBom)
+    $cmdRegPath = "HKCU:\Software\Microsoft\Command Processor"
+    if (-not (Test-Path -LiteralPath $cmdRegPath)) { New-Item -Path $cmdRegPath -Force | Out-Null }
+    $existingAutoRun = (Get-ItemProperty -Path $cmdRegPath -Name "AutoRun" -ErrorAction SilentlyContinue).AutoRun
+    if (-not $existingAutoRun -or $existingAutoRun -notmatch '(?i)cmd_hook\.cmd') {
+        $newAutoRun = if ($existingAutoRun) { "$existingAutoRun & `"$cmdHookPath`"" } else { "`"$cmdHookPath`"" }
+        Set-ItemProperty -Path $cmdRegPath -Name "AutoRun" -Value $newAutoRun -Type String -Force
+    }
+} catch {
+    Write-Verbose "CMD AutoRun hook registration skipped: $($_.Exception.Message)"
 }
 
 # 5. Register Windows Uninstaller & Start Menu Shortcuts

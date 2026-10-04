@@ -201,8 +201,10 @@ function Resolve-CanonicalSuite {
         'ReparsePoint'     { 'SUITE 3' }
         'Manifest'         { 'SUITE 4' }
         'PackageIntegrity' { 'SUITE 4' }
+        'SupplyChain'      { 'SUITE 4' }
         'Reparse'          { 'SUITE 5' }
         'Concurrency'      { 'SUITE 5' }
+        'AtomicOperations' { 'SUITE 5' }
         'Uninstall'        { 'SUITE 7' }
         'UninstallSafety'  { 'SUITE 7' }
         'TerminalJSON'     { 'SUITE 8' }
@@ -3162,7 +3164,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
         Assert-Contains $jvmRaw '(echo !PIN_CONTENT!)>"%INVOCATION_DIR%\.java-version" 2>nul' "DO_PIN_WRITE must check errorlevel and file creation when writing .java-version"
         Assert-Contains $jvmRaw 'echo %cRED%[ ERROR  ]%cRESET% Failed to write .java-version to: %INVOCATION_DIR%\.java-version' "DO_PIN_WRITE must emit [ ERROR ] and exit /b 1 on write failure"
-        Assert-Contains $jvmRaw "call :DoctorDiagnostics`r`n        set `"CMD_EXIT_CODE=!errorlevel!`"`r`n        goto :CLI_DONE" "doctor subcommand in ShowDynamicMenu must tunnel CMD_EXIT_CODE via :CLI_DONE"
+        Assert-Contains $jvmRaw "call :DoctorDiagnostics" "doctor subcommand in ShowDynamicMenu must call DoctorDiagnostics"
         Assert-Contains $jvmRaw "call :OpenFolderInExplorer`r`n        set `"CMD_EXIT_CODE=!errorlevel!`"`r`n        goto :CLI_DONE" "open subcommand in ShowDynamicMenu must tunnel CMD_EXIT_CODE via :CLI_DONE"
         Assert-Contains $jvmRaw "call :ExecuteEphemeralCommand`r`n        set `"CMD_EXIT_CODE=!errorlevel!`"`r`n        goto :CLI_DONE" "exec subcommand in ShowDynamicMenu must tunnel CMD_EXIT_CODE via :CLI_DONE"
     }
@@ -4426,7 +4428,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         try {
             # Inject an invalid non-numeric PID string (similar to the old GUID fallback)
             $env:JVM_CALLER_PID = "invalid_guid_fallback"
-            $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'; $out = & cmd.exe /c "call `"$JvmBat`" install maven latest -y" 2>&1 | Out-String
+            $prevEAP = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            $out = & cmd.exe /c "call `"$JvmBat`" install maven latest -y" 2>&1 | Out-String
             $exitCode = $LASTEXITCODE
             $ErrorActionPreference = $prevEAP
 
@@ -4435,6 +4439,122 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         } finally {
             $env:JVM_CALLER_PID = $origPid
         }
+    }
+
+    # Test 219: Unified Configuration Engine key validation, injection defense, and atomic JSON persistence (CWE-20 / CWE-74)
+    Run-TestCase "Registry" "Unified Configuration Engine key validation, injection defense, and atomic JSON persistence (CWE-20 / CWE-74)" {
+        $cfgSandbox = Join-Path $SandboxRoot "CfgEngineSandbox"
+        New-Item -ItemType Directory -Path $cfgSandbox -Force | Out-Null
+        $origLocalAppData = $env:LOCALAPPDATA
+        $env:LOCALAPPDATA = $cfgSandbox
+        try {
+            # 1. Reset configuration
+            $outReset = & cmd.exe /c "call `"$JvmBat`" config reset" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm config reset must exit 0"
+            $cfgFile = Join-Path $cfgSandbox "DiamTek\JVM\config.json"
+            Assert-PathExists $cfgFile "config.json must exist after reset"
+            $jsonObj = Get-Content -LiteralPath $cfgFile -Raw | ConvertFrom-Json
+            Assert-Equals "adoptium" $jsonObj.default_vendor "default_vendor must match default"
+            Assert-Equals "symlink" $jsonObj.mode "mode must match default"
+
+            # 2. Set valid configuration key
+            $outSet = & cmd.exe /c "call `"$JvmBat`" config set timeout 30" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm config set timeout 30 must exit 0"
+            $jsonObj2 = Get-Content -LiteralPath $cfgFile -Raw | ConvertFrom-Json
+            Assert-Equals 30 $jsonObj2.timeout "timeout must update to 30"
+
+            # 3. Reject invalid configuration key
+            $outBad = & cmd.exe /c "call `"$JvmBat`" config set evil_key true" 2>&1 | Out-String
+            Assert-True ($outBad -match '\[\s*ERROR\s*\]') "jvm config set must report error on invalid key"
+        } finally {
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # Test 220: Project toolchain (.jvm.toml / .jvmrc) section & key parser security against shell metacharacters (CWE-20 / CWE-78)
+    Run-TestCase "Adversarial" "Project toolchain (.jvm.toml / .jvmrc) section & key parser security against shell metacharacters (CWE-20 / CWE-78)" {
+        $tomlSandbox = Join-Path $SandboxRoot "TomlSecuritySandbox"
+        New-Item -ItemType Directory -Path $tomlSandbox -Force | Out-Null
+        $pwnFile = Join-Path $tomlSandbox "TOML_PWNED.txt"
+        
+        $maliciousToml = @"
+[java]
+version = "25 & echo PWNED > `"$pwnFile`""
+vendor = "adoptium"
+[maven]
+version = "3.9.11"
+"@
+        Set-Content -LiteralPath (Join-Path $tomlSandbox ".jvm.toml") -Value $maliciousToml
+        Push-Location $tomlSandbox
+        try {
+            $prevEAP = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            $out = & cmd.exe /c "call `"$JvmBat`" project" 2>&1 | Out-String
+            $ErrorActionPreference = $prevEAP
+
+            Assert-PathNotExists $pwnFile "Metacharacter payload inside .jvm.toml MUST NOT execute"
+            Assert-Contains $out "Project Configuration:" "jvm project must parse valid section structure"
+        } finally {
+            Pop-Location
+        }
+    }
+
+    # Test 221: Environment diff inspection (jvm env --diff) displays expected delta without modifying host (CWE-20)
+    Run-TestCase "Registry" "Environment diff inspection (jvm env --diff) displays expected delta without modifying host (CWE-20)" {
+        $prevEAP = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $outDiff = & cmd.exe /c "call `"$JvmBat`" env --diff" 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
+        $ErrorActionPreference = $prevEAP
+
+        Assert-Equals 0 $exitCode "jvm env --diff must exit 0"
+        Assert-Contains $outDiff "Environment Changes" "jvm env --diff must render header"
+        Assert-Contains $outDiff "JAVA_HOME" "jvm env --diff must output JAVA_HOME modification preview"
+        Assert-Contains $outDiff "PATH" "jvm env --diff must output PATH modification preview"
+    }
+
+    # Test 222: Safe self-healing (jvm doctor --fix) removes orphaned junctions and respects --dry-run (CWE-59 / CWE-460)
+    Run-TestCase "ReparsePoint" "Safe self-healing (jvm doctor --fix) removes orphaned junctions and respects --dry-run (CWE-59 / CWE-460)" {
+        $healSandbox = Join-Path $SandboxRoot "HealSecuritySandbox"
+        New-Item -ItemType Directory -Path $healSandbox -Force | Out-Null
+        $origLocalAppData = $env:LOCALAPPDATA
+        $env:LOCALAPPDATA = $healSandbox
+
+        $jvmDir = Join-Path $healSandbox "DiamTek\JVM"
+        New-Item -ItemType Directory -Path $jvmDir -Force | Out-Null
+        $curJunc = Join-Path $jvmDir "current"
+        $missingTarget = Join-Path $healSandbox "missing_jdk_target"
+        
+        # Create orphaned/broken junction
+        New-Item -ItemType Directory -Path $missingTarget -Force | Out-Null
+        & cmd.exe /c "mklink /J `"$curJunc`" `"$missingTarget`" >nul 2>&1"
+        Remove-Item -LiteralPath $missingTarget -Force -Recurse
+
+        try {
+            # 1. Verify --dry-run does NOT delete junction
+            $outDry = & cmd.exe /c "call `"$JvmBat`" doctor --fix --dry-run" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm doctor --fix --dry-run must exit 0"
+            Assert-Contains $outDry "Removing orphaned Directory Junction" "doctor --fix must identify orphaned junction"
+            Assert-PathExists $curJunc "Junction must NOT be removed under --dry-run"
+
+            # 2. Live repair
+            $outFix = & cmd.exe /c "call `"$JvmBat`" doctor --fix" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm doctor --fix must exit 0"
+            Assert-PathNotExists $curJunc "Orphaned junction must be safely purged by doctor --fix"
+        } finally {
+            $env:LOCALAPPDATA = $origLocalAppData
+        }
+    }
+
+    # Test 223: CMD AutoRun hook installation and clean removal in install.ps1 / uninstall.ps1 (CWE-427 / CWE-73)
+    Run-TestCase "PackageIntegrity" "CMD AutoRun hook installation and clean removal in install.ps1 and uninstall.ps1 (CWE-427 / CWE-73)" {
+        $instRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+        $uninstRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "uninstall.ps1") -Raw
+
+        Assert-Contains $instRaw "cmd_hook.cmd" "install.ps1 must write cmd_hook.cmd for CMD directory switching"
+        Assert-Contains $instRaw 'HKCU:\Software\Microsoft\Command Processor' "install.ps1 must configure AutoRun under Command Processor"
+        Assert-Contains $uninstRaw 'HKCU:\Software\Microsoft\Command Processor' "uninstall.ps1 must target Command Processor AutoRun key"
+        Assert-Contains $uninstRaw 'cmd_hook\.cmd' "uninstall.ps1 must strip cmd_hook.cmd entry from Command Processor AutoRun"
     }
 
 } finally {
