@@ -29,7 +29,8 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [Unified Configuration Engine & config.json](#unified-configuration-engine--configjson)
 - [Project Toolchain Parser (.jvm.toml / .jvmrc)](#project-toolchain-parser-jvmtoml--jvmrc)
 - [CMD & PowerShell Transparent Directory Switching Hooks](#cmd--powershell-transparent-directory-switching-hooks)
-- [Automated Adversarial Test Architecture (223 Tests, 40 CWEs)](#automated-adversarial-test-architecture-223-tests-40-cwes)
+- [Content-Addressed Storage & Resilient Transport Engine](#content-addressed-storage--resilient-transport-engine)
+- [Automated Adversarial Test Architecture (233 Tests, 40 CWEs)](#automated-adversarial-test-architecture-233-tests-40-cwes)
 
 ---
 
@@ -705,24 +706,32 @@ Projects can specify toolchains across Java and ecosystem candidates using stand
 
 ---
 
-<a id="automated-adversarial-test-architecture-223-tests-40-cwes"></a>
-## Automated Adversarial Test Architecture (223 Tests, 40 CWEs)
+<a id="content-addressed-storage--resilient-transport-engine"></a>
+### Content-Addressed Storage & Resilient Transport Engine
+- **Content-Addressed Storage Layout (`cache\sha256\`):** Downloads are indexed by cryptographic digests inside `%LOCALAPPDATA%\DiamTek\JVM\cache\sha256\<hash-prefix>\<hash>.zip`. Installations inspect the local store prior to engaging the network, enabling true air-gapped provisioning via `jvm install <version> --offline`.
+- **Resumable Range Downloads & Smart Backoff:** Downloads stage into `.part` files using HTTP `Range` headers (`AddRange([int64]$existingLen)`) and evaluate `HTTP 206 Partial Content`. Network faults discriminate status codes: `HTTP 429` triggers exponential backoff (1s, 2s, 4s, 8s), `5xx` and DNS errors engage retry with jitter, `HTTP 404` aborts immediately, and checksum failures halt execution without redownloading.
+- **Variable Ownership Tracking (`ownership.json`):** Tracks variables and PATH tokens modified by DiamTek JVM inside `%LOCALAPPDATA%\DiamTek\JVM\ownership.json`. During teardown, `uninstall.ps1` cross-references this manifest to preserve user-defined variables and unowned system PATH entries.
 
-The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **223 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
+---
+
+<a id="automated-adversarial-test-architecture-233-tests-40-cwes"></a>
+## Automated Adversarial Test Architecture (233 Tests, 40 CWEs)
+
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **233 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
 
 | Suite | Category Focus | Test Count | Status |
 | :--- | :--- | :---: | :---: |
 | **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF, TOML Metacharacters) | 84 / 84 | **PASS** |
 | **Suite 2** | Registry & Env Boundaries (ValueKind preservation, UAC elevation, Config Engine, Env Diff) | 8 / 8 | **PASS** |
 | **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery, Doctor Self-Healing) | 18 / 18 | **PASS** |
-| **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, .jvm.lock, CMD AutoRun Hook) | 57 / 57 | **PASS** |
+| **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, .jvm.lock, CAS Layout, Cache CLI, Ownership Tracking) | 67 / 67 | **PASS** |
 | **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification, PID timestamping) | 15 / 15 | **PASS** |
 | **Suite 6** | Corrupt Registry Recovery & PATH Resilience (De-bloat, length limits) | 14 / 14 | **PASS** |
 | **Suite 7** | Uninstallation Safety & Markers (Root markers, deferred cleanup) | 16 / 16 | **PASS** |
 | **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 6 / 6 | **PASS** |
 | **Suite 9** | Supply Chain (`JVM_SKIP_CHECKSUM` rejection, Verification checklists) | 2 / 2 | **PASS** |
 | **Suite 10** | Atomic Operations (Transactional journaling, Process kill tests, Pre-state junction recovery) | 3 / 3 | **PASS** |
-| **Total** | **Comprehensive Full-System Security Suite** | **223 / 223** | **`10.0 / 10.0`** |
+| **Total** | **Comprehensive Full-System Security Suite** | **233 / 233** | **`10.0 / 10.0`** |
 
 ---
 

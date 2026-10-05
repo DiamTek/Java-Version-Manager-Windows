@@ -654,8 +654,42 @@ if (-not (Test-Path -LiteralPath $configFile)) {
         cache_size        = "2GB"
         retries           = 3
         timeout           = 15
+        mirror            = ""
     } | ConvertTo-Json -Depth 4
     [System.IO.File]::WriteAllText($configFile, "$defaultCfg`r`n", (New-Object System.Text.UTF8Encoding($false)))
+}
+
+$cacheDir = Join-Path $repoRoot "cache"
+$cacheShaDir = Join-Path $cacheDir "sha256"
+Initialize-SecureDirectory -DirPath $cacheDir -RestrictDacl:$isDefaultAppDataRoot
+Initialize-SecureDirectory -DirPath $cacheShaDir -RestrictDacl:$isDefaultAppDataRoot
+foreach ($subCache in @('jdk', 'maven', 'gradle', 'kotlin')) {
+    Initialize-SecureDirectory -DirPath (Join-Path $cacheDir $subCache) -RestrictDacl:$isDefaultAppDataRoot
+}
+
+$ownershipFile = Join-Path $repoRoot "ownership.json"
+try {
+    $existingOwn = if (Test-Path -LiteralPath $ownershipFile) {
+        Get-Content -LiteralPath $ownershipFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    } else { $null }
+    $ownedPaths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $ownedVars = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    if ($existingOwn) {
+        if ($existingOwn.path_entries) { foreach ($pe in $existingOwn.path_entries) { $null = $ownedPaths.Add($pe) } }
+        if ($existingOwn.variables) { foreach ($v in $existingOwn.variables) { $null = $ownedVars.Add($v) } }
+    }
+    $null = $ownedPaths.Add((Normalize-PathEntry $installDir))
+    $null = $ownedPaths.Add((Normalize-PathEntry (Join-Path $repoRoot "current\bin")))
+    $null = $ownedVars.Add("JAVA_HOME")
+    $ownObj = [ordered]@{
+        version = "1.0.0"
+        updated_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+        variables = @($ownedVars)
+        path_entries = @($ownedPaths)
+    }
+    [System.IO.File]::WriteAllText($ownershipFile, ($ownObj | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding($false)))
+} catch {
+    Write-Verbose "Ownership tracking initialization warning: $($_.Exception.Message)"
 }
 
 # 3. Safe REG_EXPAND_SZ Path Injection
@@ -895,7 +929,7 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
             'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
             'link', 'unlink', 'version', 'help', 'channel', 'lock', 'verify', 'transaction', 'txn',
-            'config', 'project'
+            'config', 'project', 'cache', 'search', 'compare', 'list-remote'
         )
         $candidates = @('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn')
         $vendors = @('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9', 'sapmachine', 'sap', 'mandrel', 'redhat-mandrel', 'dragonwell', 'alibaba', 'kona', 'tencent')
@@ -906,7 +940,7 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
             '--offline', '--json', '--no-lock', '--locked', '-l',
             '--check', '--diff', '--update', '--fix', '--dry-run',
-            '--channel', '--nightly', '--stable',
+            '--channel', '--nightly', '--stable', '--security', '--bundle', '--mirror',
             '--version', '-v', '--help', '-h'
         )
 

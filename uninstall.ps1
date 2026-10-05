@@ -136,10 +136,31 @@ if (-not [string]::IsNullOrWhiteSpace($SourceDir) -and -not $validatedSourceDir)
     exit 1
 }
 
+$ownershipFile = Join-Path $localAppData "DiamTek\JVM\ownership.json"
+$ownedVars = @()
+$ownedPaths = @()
+if (Test-Path -LiteralPath $ownershipFile) {
+    try {
+        $ownData = Get-Content -LiteralPath $ownershipFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($ownData.PSObject.Properties['variables'] -and $ownData.variables) { $ownedVars = @($ownData.variables) }
+        if ($ownData.PSObject.Properties['path_entries'] -and $ownData.path_entries) { $ownedPaths = @($ownData.path_entries) }
+    } catch {
+        Write-Verbose "Could not parse ownership.json: $($_.Exception.Message)"
+    }
+}
+
 $jvmLocations = @(
     "$localAppData\DiamTek\JVM\bin",
     "$localAppData\DiamTek\JVM\current\bin"
 )
+if ($ownedPaths) {
+    foreach ($op in $ownedPaths) {
+        $valOp = Test-TrustedJvmInstallDirectory $op
+        if ($valOp -and ($jvmLocations -notcontains $valOp)) {
+            $jvmLocations += $valOp
+        }
+    }
+}
 
 # Validate Registry InstallLocation against tampering before adding to $jvmLocations (CWE-73)
 try {
@@ -351,10 +372,20 @@ Write-Host "`n[ ACTION ] Cleaning up Environment Variables..." -ForegroundColor 
 $vars = @('JAVA_HOME', 'MAVEN_HOME', 'GRADLE_HOME', 'KOTLIN_HOME', 'SCALA_HOME', 'GROOVY_HOME', 'ANT_HOME', 'SBT_HOME', 'JBANG_HOME', 'QUARKUS_HOME', 'SPRING_HOME', 'MICRONAUT_HOME')
 $removedVars = 0
 foreach ($v in $vars) {
+    if ($null -ne $ownedVars -and ($ownedVars -notcontains $v)) {
+        Write-Verbose "Skipping variable '$v' as it is not owned by DiamTek JVM per ownership.json."
+        continue
+    }
     foreach ($scope in @('User', 'Machine')) {
         try {
             $val = [Environment]::GetEnvironmentVariable($v, $scope)
             if ($val) {
+                if ($null -eq $ownedVars -and $scope -eq 'Machine') {
+                    $normVal = $val.TrimEnd('\')
+                    $isJvmVal = $normVal.IndexOf("DiamTek\JVM", [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                                $normVal.IndexOf("JavaVersionManager", [StringComparison]::OrdinalIgnoreCase) -ge 0
+                    if (-not $isJvmVal) { continue }
+                }
                 [Environment]::SetEnvironmentVariable($v, $null, $scope)
                 $removedVars++
             }

@@ -34,11 +34,11 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **Windows Services & GUI**| Inaccessible to Windows services | **Full System Visibility** (Jenkins, SonarQube, Task Scheduler, Start Menu) |
 | **Project File Support** | `.sdkmanrc` only | **Dual Support:** `.java-version` & Auto **`.sdkmanrc` Translation** |
 | **Local JDK Discovery** | Cannot scan Windows folders | **Automatic Local Discovery** (scans `Program Files` for existing JDKs) |
-| **Offline Operation** | May lag on remote API latency | **Zero-Ping Local Switching** (100% offline, instant) |
+| **Offline Operation & CAS Cache** | Basic cache directory | **Content-Addressed Storage (`cache\sha256\`), Portable Bundling (`.jvmcache`), & Zero-Ping Local Switching** |
 | **Pre-Change Safety** | None (overwrites shell files) | **Automated Registry Backups** (exports `.reg` to `%LOCALAPPDATA%\DiamTek\JVM\backups\`) |
 | **User Interface** | CLI Only (Manual typing) | **Interactive TUI** & Headless CLI |
 | **Archive Extraction** | Requires external `zip` / `tar` binaries | **Native `.NET System.IO.Compression`** |
-| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **223-Test Adversarial Suite (`40 MITRE CWEs`), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
+| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **233-Test Adversarial Suite (`40 MITRE CWEs`), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
 | **Provenance & Authenticity** | None | **`jvm verify [ver|all]`** (6-tier cryptographic & signature audit) |
 | **Installation Atomicity** | Basic unzips | **`jvm transaction`** (Atomic journaling & rollback engine) |
 | **CPU Architecture** | Manual configuration | **Native x64 / ARM64 Auto-Detection** |

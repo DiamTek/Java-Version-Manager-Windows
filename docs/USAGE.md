@@ -36,6 +36,10 @@ This document outlines every command, flag override, and semantic route availabl
 - [Unified Configuration Engine (jvm config)](#unified-configuration-engine)
 - [Project Toolchains (.jvm.toml / .jvmrc & jvm project)](#project-toolchain-configuration)
 - [Environment Diff Inspection (jvm env --diff)](#environment-diff-inspection)
+- [Content-Addressed Artifact Cache & Bundling (jvm cache)](#content-addressed-artifact-cache--bundling)
+- [Remote Search Engine & Catalog Queries (jvm search & jvm list-remote)](#remote-search-engine--catalog-queries)
+- [Compatibility & Release Differences (jvm info & jvm compare)](#compatibility--release-differences)
+- [Security-Aware Update Channel (jvm update --security)](#security-aware-update-channel)
 - [Explorer Directory Navigation (jvm open / jvm home)](#explorer-directory-navigation)
 - [PowerShell Profile Hook (jvm hook)](#powershell-profile-hook)
 - [Machine-Readable JSON & Offline Modes (--json / --offline)](#machine-readable-json--offline-modes)
@@ -97,7 +101,15 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm install <tool> [version]` | User | Installs ecosystem tool (omitting version defaults to `latest`; e.g., `jvm install maven`, `jvm install gradle 8.9`; accepts `-y`). |
 | `jvm <tool> <version>` | User | Switches active ecosystem tool version (e.g., `jvm kotlin 2.0.20`, `jvm maven 3.9.6`). |
 | `jvm update <version>` | Machine | Checks for and applies vendor patches to a specific installed JDK (e.g., `jvm update 21`). |
+| `jvm update <version> --security` | Machine | Restricts automatic patch updates strictly to explicit CVE security releases. |
 | `jvm update --all [--vendor <name>]` | Machine | Silently checks and patches all installed JDKs and tools to latest releases. |
+| `jvm cache [list/size/clean/prune]` | Maintenance | Inspects inventory, measures byte volume, or purges CAS artifact store (`cache\sha256\`). |
+| `jvm cache export [--bundle <path>]` | Bundling | Bundles central artifact cache into an offline `.jvmcache` zip container. |
+| `jvm cache import <bundle-path>` | Bundling | Extracts and validates offline cache bundle into the local CAS hierarchy. |
+| `jvm search <candidate> [query]` | Remote | Queries upstream vendor release catalogs (e.g., `jvm search java 25 --vendor zulu`). |
+| `jvm list-remote [candidate]` | Remote | Displays available remote releases with exact vendor build tags and LTS designations. |
+| `jvm info [version]` | Inspection | Outputs architecture, VM type, release date, LTS status, and CVE security classification. |
+| `jvm compare <v1> <v2>` | Inspection | Reports major JDK release differences, JEP additions, and deprecations between two versions. |
 | `jvm uninstall` | Interactive | Opens interactive JDK uninstaller selection list (marks `[ACTIVE]` runtime, includes Cancel option; supports `--vendor` filter; aliases: `jvm rm`, `jvm remove`). |
 | `jvm uninstall <version> [--vendor <name>]` | Machine | Uninstalls a specific installed JDK (aliases: `jvm rm <version>`, `jvm remove <version>`). |
 | `jvm uninstall <tool> [version]` | User | Uninstalls an ecosystem tool (auto-detects single installed version, or prompts with interactive menu if multiple). |
@@ -140,15 +152,15 @@ When you install or activate the PowerShell profile hook (`jvm hook` or via `ins
 
 | Input Context | Tab Behavior | Autocompleted Values |
 |---------------|--------------|----------------------|
-| `jvm <Tab>` / `jvm.bat <Tab>` / `.\jvm.bat <Tab>` | Subcommands, candidates, & global flags | `list`, `ls`, `install`, `uninstall`, `rm`, `use`, `pin`, `current`, `doctor`, `clean`, `channel`, `lock`, `config`, `project`, `java`, `maven`, `gradle`, etc. |
+| `jvm <Tab>` / `jvm.bat <Tab>` / `.\jvm.bat <Tab>` | Subcommands, candidates, & global flags | `list`, `ls`, `install`, `uninstall`, `rm`, `use`, `pin`, `current`, `doctor`, `clean`, `channel`, `lock`, `config`, `project`, `cache`, `search`, `compare`, `list-remote`, `java`, `maven`, `gradle`, etc. |
 | `jvm channel <Tab>` / `jvm --channel <Tab>` | Delivery update channel targets | `stable`, `nightly` |
 | `jvm open <Tab>` | Known filesystem navigation targets | `home`, `dir`, `bin`, `config`, `cache`, `downloads`, `backup`, `backups`, `links` |
 | `jvm hook <Tab>` | Profile hook lifecycle management actions | `install`, `status`, `check`, `remove`, `uninstall` |
-| `jvm --vendor <Tab>` | Certified JDK upstream distribution vendors | `adoptium`, `temurin`, `oracle`, `corretto`, `zulu`, `microsoft`, `graalvm`, `liberica`, `bellsoft`, `semeru`, `ibm`, `openj9` |
+| `jvm --vendor <Tab>` | Certified JDK upstream distribution vendors | `adoptium`, `temurin`, `oracle`, `corretto`, `zulu`, `microsoft`, `graalvm`, `liberica`, `bellsoft`, `semeru`, `ibm`, `openj9`, `sapmachine`, `sap`, `mandrel`, `dragonwell`, `alibaba`, `kona`, `tencent` |
 | `jvm use <Tab>` | Dynamically discovered installed versions | Scans `%LOCALAPPDATA%\JavaVersionManager\links` and `%USERPROFILE%\.jdks` in real-time |
 | `jvm pin <Tab>` | Dynamically discovered installed versions | Autocompletes installed JDK version tags for `.java-version` creation |
 | `jvm uninstall <Tab>` | Installed JDKs and candidates | Autocompletes installed version tags for targeted uninstallation |
-| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--offline`, `--json`, `--no-lock`, `--locked`, `-l`, `--check`, `--diff`, `--update`, `--fix`, `--dry-run`, `--channel`, `--nightly`, `--stable`, `--version`, `--help` |
+| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--offline`, `--json`, `--no-lock`, `--locked`, `-l`, `--check`, `--diff`, `--update`, `--fix`, `--dry-run`, `--channel`, `--nightly`, `--stable`, `--security`, `--bundle`, `--mirror`, `--version`, `--help` |
 
 ### Interactive Tab Session Examples
 
@@ -851,22 +863,22 @@ jvm list --json
 
 <a id="diagnostic-health-audit"></a>
 #### 🩺 Diagnostic Health Audit & Self-Healing (`jvm doctor`)
-Runs a comprehensive, automated 7-point health check across your entire Windows operating system and JVM installation environment[cite: 27]:
+Runs a comprehensive, automated 7-point health check across your entire Windows operating system and JVM installation environment:
 ```cmd
 jvm doctor
 ```
 
-**What `jvm doctor` Verifies:**[cite: 27]
-1. **Storage Root Accessibility:** Verifies that `%LOCALAPPDATA%\DiamTek\JVM` exists and has unrestricted read/write permissions[cite: 27].
-2. **Architecture Mode & Junction Integrity:** Validates whether Symlink Mode or Registry Mode is active[cite: 27]. For Symlink Mode, checks that `%LOCALAPPDATA%\DiamTek\JVM\current` exists, points to a valid target directory, and contains a working `bin\java.exe`[cite: 27].
-3. **Registry Synchronization:** Queries both User (`HKCU\Environment`) and Machine (`HKLM\...`) registries to verify `JAVA_HOME` configuration consistency[cite: 27].
-4. **PATH Precedence & Shadowing:** Evaluates `where.exe java` to detect rogue paths (such as legacy Oracle `javapath` or `System32\java.exe`) that might intercept `java` commands before JVM[cite: 27].
-5. **PowerShell Profile Hook:** Inspects `$PROFILE` across Windows PowerShell (5.1) and PowerShell Core (7+) for the active `# >>> jvm >>>` hook[cite: 27].
-6. **Hardware CPU Architecture:** Confirms native architecture detection (`x64` vs `ARM64`)[cite: 27].
-7. **JDK Inventory Count:** Scans and counts all locally discovered and managed JDK distributions[cite: 27].
+**What `jvm doctor` Verifies:**
+1. **Storage Root Accessibility:** Verifies that `%LOCALAPPDATA%\DiamTek\JVM` exists and has unrestricted read/write permissions.
+2. **Architecture Mode & Junction Integrity:** Validates whether Symlink Mode or Registry Mode is active. For Symlink Mode, checks that `%LOCALAPPDATA%\DiamTek\JVM\current` exists, points to a valid target directory, and contains a working `bin\java.exe`.
+3. **Registry Synchronization:** Queries both User (`HKCU\Environment`) and Machine (`HKLM\...`) registries to verify `JAVA_HOME` configuration consistency.
+4. **PATH Precedence & Shadowing:** Evaluates `where.exe java` to detect rogue paths (such as legacy Oracle `javapath` or `System32\java.exe`) that might intercept `java` commands before JVM.
+5. **PowerShell Profile Hook:** Inspects `$PROFILE` across Windows PowerShell (5.1) and PowerShell Core (7+) for the active `# >>> jvm >>>` hook.
+6. **Hardware CPU Architecture:** Confirms native architecture detection (`x64` vs `ARM64`).
+7. **JDK Inventory Count:** Scans and counts all locally discovered and managed JDK distributions.
 
 **Automated Safe Self-Healing (`--fix` & `--dry-run`):**
-When issues are found, `jvm doctor` can automatically heal broken junctions and purge PATH shadows[cite: 26]:
+When issues are found, `jvm doctor` can automatically heal broken junctions and purge PATH shadows:
 ```powershell
 # Preview repairs without touching disk or registry
 jvm doctor --fix --dry-run
@@ -875,16 +887,16 @@ jvm doctor --fix --dry-run
 jvm doctor --fix
 ```
 
-**Exit Codes for Automated Health Checks:**[cite: 27]
-- `0`: All diagnostic health checks passed with zero conflicts[cite: 27].
-- `1`: One or more warnings or misconfigurations detected[cite: 27].
+**Exit Codes for Automated Health Checks:**
+- `0`: All diagnostic health checks passed with zero conflicts.
+- `1`: One or more warnings or misconfigurations detected.
 
 ---
 
 <a id="unified-configuration-engine"></a>
 ## ⚙️ Unified Configuration Engine (`jvm config`)
 
-DiamTek JVM manages persistent user configuration settings in `%LOCALAPPDATA%\DiamTek\JVM\config.json`[cite: 26]. This eliminates the need to specify command-line flags on every run:
+DiamTek JVM manages persistent user configuration settings in `%LOCALAPPDATA%\DiamTek\JVM\config.json`. This eliminates the need to specify command-line flags on every run:
 
 ```powershell
 # List all active configuration key-value pairs
@@ -906,23 +918,24 @@ jvm config reset
 ### Configurable Keys Reference
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `default_vendor` | String | `adoptium` | Default upstream JDK vendor used when `--vendor` is omitted[cite: 26]. |
-| `mode` | String | `symlink` | Default switching mode (`symlink` or `direct`)[cite: 26]. |
-| `channel` | String | `stable` | Default update channel (`stable` or `nightly`)[cite: 26]. |
-| `auto_update_check` | Boolean | `true` | Enables background update availability checks[cite: 26]. |
-| `auto_switch` | Boolean | `true` | Enables directory-level auto-switching (`.jvm.toml` / `.java-version`)[cite: 26]. |
-| `color` | Boolean | `true` | Enables ANSI color escape sequences in output[cite: 26]. |
-| `telemetry` | Boolean | `false` | Controls telemetry collection[cite: 26]. |
-| `cache_size` | String | `2GB` | Maximum target cache boundary for package archives[cite: 26]. |
-| `retries` | Integer | `3` | Maximum network retry attempts for package downloads[cite: 26]. |
-| `timeout` | Integer | `15` | Default HTTP request timeout in seconds[cite: 26]. |
+| `default_vendor` | String | `adoptium` | Default upstream JDK vendor used when `--vendor` is omitted. |
+| `mode` | String | `symlink` | Default switching mode (`symlink` or `direct`). |
+| `channel` | String | `stable` | Default update channel (`stable` or `nightly`). |
+| `auto_update_check` | Boolean | `true` | Enables background update availability checks. |
+| `auto_switch` | Boolean | `true` | Enables directory-level auto-switching (`.jvm.toml` / `.java-version`). |
+| `color` | Boolean | `true` | Enables ANSI color escape sequences in output. |
+| `telemetry` | Boolean | `false` | Controls telemetry collection. |
+| `cache_size` | String | `2GB` | Maximum target cache boundary for package archives. |
+| `retries` | Integer | `3` | Maximum network retry attempts for package downloads. |
+| `timeout` | Integer | `15` | Default HTTP request timeout in seconds. |
+| `mirror` | String | `""` | Custom URL for routing remote artifact downloads. |
 
 ---
 
 <a id="project-toolchain-configuration"></a>
 ## 📁 Project Toolchains (.jvm.toml / .jvmrc & jvm project)
 
-In addition to `.java-version` files, JVM supports multi-tool project configuration files (`.jvm.toml` and `.jvmrc`)[cite: 26].
+In addition to `.java-version` files, JVM supports multi-tool project configuration files (`.jvm.toml` and `.jvmrc`).
 
 ### Example Configuration (`.jvm.toml` / `.jvmrc`)
 ```toml
@@ -938,7 +951,7 @@ version = "8.10.2"
 ```
 
 ### Inspecting Project Readiness
-Run `jvm project` inside any project root to inspect toolchain versions and verify readiness[cite: 26]:
+Run `jvm project` inside any project root to inspect toolchain versions and verify readiness:
 ```cmd
 jvm project
 ```
@@ -955,20 +968,20 @@ jvm project
 ============================================================
 ```
 
-When you enter a directory containing `.jvm.toml` or `.jvmrc`, JVM automatically switches the session environment for your tools across both PowerShell and Command Prompt[cite: 26].
+When you enter a directory containing `.jvm.toml` or `.jvmrc`, JVM automatically switches the session environment for your tools across both PowerShell and Command Prompt.
 
 ---
 
 <a id="environment-diff-inspection"></a>
 ## 🔍 Environment Diff Inspection (jvm env --diff)
 
-Inspect live process overrides against system registry baselines without changing state[cite: 26]:
+Inspect live process overrides against system registry baselines without changing state:
 
 ```cmd
 jvm env --diff
 ```
 
-**Output:**[cite: 26]
+**Output:**
 ```text
 Environment Changes ──────────────────────────────────────────
   JAVA_HOME  - C:\Program Files\Java\jdk-17
@@ -983,7 +996,7 @@ Environment Changes ────────────────────
 <a id="automated-doctor-self-healing"></a>
 ## 🩹 Automated Doctor Self-Healing (jvm doctor --fix)
 
-Repair broken directory junctions and purge stale PATH shadows automatically[cite: 26]:
+Repair broken directory junctions and purge stale PATH shadows automatically:
 
 ```cmd
 # Preview pending repairs without modifying the system:
@@ -994,8 +1007,93 @@ jvm doctor --fix
 ```
 
 ### Repair Actions Performed
-1. **Orphaned Directory Junctions:** If `%LOCALAPPDATA%\DiamTek\JVM\current` points to a missing JDK directory, `--fix` removes the broken reparse point[cite: 26].
-2. **PATH Shadow Remediation:** If legacy Oracle `javapath` entries precede JVM in your PATH, `--fix` purges them[cite: 26].
+1. **Orphaned Directory Junctions:** If `%LOCALAPPDATA%\DiamTek\JVM\current` points to a missing JDK directory, `--fix` removes the broken reparse point.
+2. **PATH Shadow Remediation:** If legacy Oracle `javapath` entries precede JVM in your PATH, `--fix` purges them.
+
+---
+
+<a id="content-addressed-artifact-cache--bundling"></a>
+## 📦 Content-Addressed Artifact Cache & Bundling (`jvm cache`)
+
+DiamTek JVM indexes all downloads inside a Content-Addressed Storage (CAS) layout at `%LOCALAPPDATA%\DiamTek\JVM\cache\` (`sha256\xx\xxxx...`):
+
+```powershell
+# List cached artifacts and disk footprint
+jvm cache list
+
+# Measure total cache size on disk
+jvm cache size
+
+# Prune unreferenced cache blobs older than 30 days
+jvm cache prune
+
+# Purge the local artifact cache
+jvm cache clean
+
+# Bundle local cache for air-gapped transport
+jvm cache export --bundle .\build-cache.jvmcache
+
+# Import and validate an offline cache bundle
+jvm cache import .\build-cache.jvmcache
+```
+
+When operating with `--offline`, `jvm install <version> --offline` bypasses remote network calls and provisions runtimes directly from this CAS repository.
+
+---
+
+<a id="remote-search-engine--catalog-queries"></a>
+## 🔎 Remote Search Engine & Catalog Queries (`jvm search` & `jvm list-remote`)
+
+Query upstream vendor distribution repositories without opening a web browser:
+
+```powershell
+# Search for JDK 25 across Adoptium releases
+jvm search java 25
+
+# Query specific vendors
+jvm search java 21 --vendor zulu
+
+# List remote releases with exact build tags and LTS markers
+jvm list-remote java
+```
+
+The search engine respects custom mirrors configured via `jvm config set mirror <url>` while enforcing strict checksum verification.
+
+---
+
+<a id="compatibility--release-differences"></a>
+## ⚖️ Compatibility & Release Differences (`jvm info` & `jvm compare`)
+
+Inspect release metadata and evaluate feature deltas between major Java platform specifications:
+
+```powershell
+# Inspect active or specified JDK release metadata
+jvm info
+jvm info 21
+
+# Compare feature sets and JEP differences between releases
+jvm compare 17 21
+jvm compare 21 25
+```
+
+`jvm info` displays architecture, Virtual Machine implementation, release date, LTS status, and security patch classification. `jvm compare` outputs a structured comparison highlighting introduced JEPs, API enhancements, and finalized language features.
+
+---
+
+<a id="security-aware-update-channel"></a>
+## 🛡️ Security-Aware Update Channel (`jvm update --security`)
+
+Restrict automated update routines strictly to explicit CVE security patches (Critical Patch Updates), ignoring standard maintenance builds:
+
+```powershell
+# Update only if a newer build represents an active security patch
+jvm update 21 --security
+
+# Apply to all installed runtimes in automation pipelines
+jvm update --all --security
+```
+
+When no CVE security update is detected, JVM informs the caller and safely bypasses installation without modifying the system environment.
 
 ---
 

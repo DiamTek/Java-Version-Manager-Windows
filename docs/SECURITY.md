@@ -171,17 +171,17 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
   - **Zero Silent `catch {}` Swallowing & Path Redaction (`CWE-209` / `CWE-390`):** PowerShell AST analysis enforces **0 empty `catch {}` blocks across all 9 repository PowerShell scripts** (`Test 157`). All error handlers log structured single-line warnings via `Write-Verbose` or `[ WARN ]`, stripping raw stack traces and redacting sensitive user profile paths (`%LOCALAPPDATA%`, `%USERPROFILE%`).
   - **Strict Exit Code Propagation (`CWE-252` / `CWE-754` / `CWE-755`):** All CLI subcommands (`doctor`, `which`, `open`, `exec`, `hook`, `clear`, `channel`, `pin`) route through `:CLI_DONE` with `endlocal & set "CMD_EXIT_CODE=%CMD_EXIT_CODE%" & exit /b %CMD_EXIT_CODE%`, propagating non-zero codes across batch scope boundaries. All 6 elevated UAC handoffs (`Start-Process -Verb RunAs`) specify `-PassThru`, dispose child process handles, and propagate `$p.ExitCode`.
 
-### 12. Automated 223-Test Security Suite & 40-CWE Coverage Matrix (`tests/Test-JvmSecurity.ps1`)
-Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1`, which executes **223 automated adversarial test cases across 10 defensive suites** with a 100% pass rate (`223 / 223 PASS`) and outputs a numerically sorted **40-CWE Coverage Summary**:
+### 12. Automated 233-Test Security Suite & 40-CWE Coverage Matrix (`tests/Test-JvmSecurity.ps1`)
+Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1`, which executes **233 automated adversarial test cases across 10 defensive suites** with a 100% pass rate (`233 / 233 PASS`) and outputs a numerically sorted **40-CWE Coverage Summary**:
 
 | CWE ID | Vulnerability Class | Tests Verified | Status |
 |:---|:---|:---:|:---:|
-| **`CWE-20`** | Improper Input & Config Validation (`.java-version` BOM/CRLF, `.sdkmanrc` fail-closed validation, `JVM_CALLER_PID`, `LATEST_VER`, `CUSTOM_VER`, `REL_ADOPTIUM`, `bump-version.ps1`, winget schema, Semeru/Corretto build parsing, interactive uninstaller menu, `--json` parsing contract, `DO_PIN_WRITE` validation, locked candidate/version validation, lock CLI aliases, PowerShell dynamic tab completion coverage) | **20 / 20** | **PASS** |
+| **`CWE-20`** | Improper Input & Config Validation (`.java-version` BOM/CRLF, `.sdkmanrc` fail-closed validation, `JVM_CALLER_PID`, `LATEST_VER`, `CUSTOM_VER`, `REL_ADOPTIUM`, `bump-version.ps1`, winget schema, Semeru/Corretto build parsing, interactive uninstaller menu, `--json` parsing contract, `DO_PIN_WRITE` validation, locked candidate/version validation, lock CLI aliases, PowerShell dynamic tab completion coverage, exact semantic build `+` support, `jvm cache` CLI arguments, `jvm search` query validation, `jvm compare` inputs) | **24 / 24** | **PASS** |
 | **`CWE-22`** | Path Traversal & ZipSlip (`..`, `/`, `\`, sibling-prefix collisions, rooted archive entries, `:FetchAndExtract` `GetFullPath`, `jvm install --locked` ancestor traversal, locked tool candidate traversal) | **22 / 22** | **PASS** |
 | **`CWE-41`** | Win32 Canonicalization Bypass (`current.`, `current `, multiple trailing dots/spaces) | **6 / 6** | **PASS** |
 | **`CWE-59`** | Symlink & Junction Safety (`Remove-DirectorySafely`, `Remove-ReparsePointOrFail`, `Test-HasReparsePointInLineage`, `CURRENT_SYMLINK`, `:WriteConfigFile`, `:EmitSessionEnv`, `jvm link`/`unlink`, `:UninstallCandidate`, elevated `:UninstallJDK`, `build-msi.ps1` hooks, `:CleanCache`, `jvm pin`, `$PROFILE` reparse guards, `.jvm.lock` reparse point / junction rejection) | **27 / 27** | **PASS** |
 | **`CWE-66`** | DOS Reserved Device (`CON`, `NUL.jdk`, archive entry device names) & NTFS ADS (`:stream`, `\\.\`) Abuse | **3 / 3** | **PASS** |
-| **`CWE-73`** | Environment, Registry ValueKind, `Test-TrustedJvmInstallDirectory` (`InstallLocation` / `-SourceDir` early abort) & System Root Protection | **9 / 9** | **PASS** |
+| **`CWE-73`** | Environment, Registry ValueKind, `Test-TrustedJvmInstallDirectory` (`InstallLocation` / `-SourceDir` early abort), System Root Protection, Content-Addressed Storage layout, and `ownership.json` variable tracking | **11 / 11** | **PASS** |
 | **`CWE-74`** | XML Attribute & Template Injection (`Escape-XmlAttr` / `[System.Security.SecurityElement]::Escape` in `build-msi.ps1`) | **1 / 1** | **PASS** |
 | **`CWE-78`** | OS Command & Shell Metacharacter Injection (`:ValidateStrictIdentifier`, `:RejectExclamationArg`, `:EcoPerformCheck`, `:ShowDynamicMenu`, `:ShowCurrentStatus`, `:DoctorDiagnostics`, pipe-free `:SwitchCandidate`, `Invoke-DeferredDirectoryCleanup`, `UPDATE_CHECKER_PS1` pipe character escaping, Oracle JDK 27 batch parenthesis integrity) | **25 / 25** | **PASS** |
 | **`CWE-88`** | Argument & Flag Injection (`--evil-flag`, `--vendor` poisoning, `jvm exec`, `jvm open` comma delimiter guard, `DL_STRIP_ROOT` leading hyphen guard, URL/PS metacharacter filter in `:ValidateStrictIdentifier`) | **9 / 9** | **PASS** |
@@ -193,7 +193,7 @@ Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1
 | **`CWE-252`** | Unchecked Return Value & Process Exit Code Propagation | **12 / 12** | **PASS** |
 | **`CWE-276`** | Strict Directory DACL & Reparse Isolation (`%JVM_SECURE_TEMP%`, `Initialize-SecureDirectory` fail-closed enforcement) | **2 / 2** | **PASS** |
 | **`CWE-295`** | TLS 1.2 / 1.3 Cryptographic Protocol Enforcement (`:ExecuteSharedDownloader`, `:SelfUpdate`, `:CheckUpdateStatus`) | **2 / 2** | **PASS** |
-| **`CWE-319`** | Strict `https://` URI Scheme & Redirect Enforcement (`:ExecuteSharedDownloader`, `chocolateyInstall.ps1`, `.jvm.lock` non-HTTPS rejection) | **3 / 3** | **PASS** |
+| **`CWE-319`** | Strict `https://` URI Scheme & Redirect Enforcement (`:ExecuteSharedDownloader`, `chocolateyInstall.ps1`, `.jvm.lock` non-HTTPS rejection, enterprise download mirror URL validation) | **4 / 4** | **PASS** |
 | **`CWE-330`** | CSPRNG Temp Filename Entropy (Zero predictable `!RANDOM!` paths; `[System.IO.Path]::GetRandomFileName()`) | **1 / 1** | **PASS** |
 | **`CWE-345`** | Version & Monotonic `JVM_BUILD` Downgrade Attack Defense (Alongside MSI Authenticode signing hook verification) | **3 / 3** | **PASS** |
 | **`CWE-354`** | Checksum Manifest Format Validation & SHA-256 Gate Enforcement (`.jvm.lock` SHA-256 validation & tamper defense) | **5 / 5** | **PASS** |
@@ -201,7 +201,7 @@ Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1
 | **`CWE-367`** | Atomic Staged Profile & Config File Writes (`Move-Item -LiteralPath`, Windows Terminal file-lock retry/backup, UTF-8 No BOM) | **3 / 3** | **PASS** |
 | **`CWE-377`** | Insecure Temporary File & Protected DACL Verification (Get-Acl / icacls fallback cross-version compatibility) | **2 / 2** | **PASS** |
 | **`CWE-390`** | Error Condition Action, AST Zero-Silent-Catch Audit & Logging | **3 / 3** | **PASS** |
-| **`CWE-400`** | Hang & Parser Resilience (`SendMessageTimeout`, state lock wait timeout, PATH boundaries, `NO_COLOR`, JSONC) | **10 / 10** | **PASS** |
+| **`CWE-400`** | Hang & Parser Resilience (`SendMessageTimeout`, state lock wait timeout, PATH boundaries, `NO_COLOR`, JSONC, Resumable Range `.part` download staging) | **11 / 11** | **PASS** |
 | **`CWE-409`** | Zip Bomb & Decompression Bounds (`40,000` entry ceiling & `1.75 GB` cumulative decompressed byte cap) | **1 / 1** | **PASS** |
 | **`CWE-426`** | Untrusted Search Path & CWD Trojan Binary Planting Defense (`%SYS32%`, `$PATH:java`, `chocolateyUninstall.ps1`, `test-msi.ps1`, license header pinning bootstrapping) | **9 / 9** | **PASS** |
 | **`CWE-427`** | Uncontrolled `PATH` Search-Order Hijack Immunity & Canonical `%LOCALAPPDATA%\DiamTek\JVM\bin` Registration | **2 / 2** | **PASS** |
@@ -213,9 +213,9 @@ Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1
 | **`CWE-601`** | Open Redirect Host Verification (`ResponseUri` validation on payload, `Get-TrustedChecksumText`, `:ResolveLatestEcosystemCandidate`, & `:CheckUpdateStatus`) | **4 / 4** | **PASS** |
 | **`CWE-611`** | XML External Entity (XXE) & DTD Prohibition (`DtdProcessing::Prohibit` & `XmlResolver = $null`) | **4 / 4** | **PASS** |
 | **`CWE-674`** | Uncontrolled Recursion & Cyclic Loops (`Remove-DirectorySafely` iterative non-recursive queue pattern immune to self-referential junctions) | **1 / 1** | **PASS** |
-| **`CWE-754`** | Exceptional Condition Check, Local NTFS Volume Advisories, Colon Guards (`::::::::::::::::::::`) & Fail-Closed Parameter Validation | **14 / 14** | **PASS** |
+| **`CWE-754`** | Exceptional Condition Check, Local NTFS Volume Advisories, Colon Guards (`::::::::::::::::::::`), Fail-Closed Parameter Validation, Smart Retry Exponential Backoff (429/5xx handling) | **15 / 15** | **PASS** |
 | **`CWE-755`** | Exceptional Condition Handling, Early `ConstrainedLanguageMode` Guard, Ctrl+C Offset Skip Absorption & Sanitized Exception Redaction | **6 / 6** | **PASS** |
-| **`CWE-918`** | SSRF & Vendor Domain Allowlist Enforcement (`Test-TrustedJvmUri` regex bounds, `chocolateyInstall.ps1` `$allowedHosts`, live CLI `--offline` network barrier, and `jvm install --locked` host allowlist) | **5 / 5** | **PASS** |
+| **`CWE-918`** | SSRF & Vendor Domain Allowlist Enforcement (`Test-TrustedJvmUri` regex bounds, `chocolateyInstall.ps1` `$allowedHosts`, live CLI `--offline` network barrier, `jvm install --locked` host allowlist, and CAS offline install verification) | **6 / 6** | **PASS** |
 
 <a id="100--100-audit-scorecard"></a>
 ### 13. Security & Error Management Audit Scorecard (`10.0 / 10.0`)
@@ -227,7 +227,7 @@ Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1
 | **Installers & Uninstallers** | `install.ps1` & `uninstall.ps1` | `CWE-73`, `CWE-209`, `CWE-252`, `CWE-276`, `CWE-367`, `CWE-390`, `CWE-459`, `CWE-460`, `CWE-494`, `CWE-674`, `CWE-754`, `CWE-755` | Verified atomic `$batBackup` rollback, fail-closed Nightly Git-blob SHA-1 verification, fail-closed `Initialize-SecureDirectory` DACL enforcement, partial download purging, COM apartment release, safe shortcut validation, early `ConstrainedLanguageMode` fail-closed policy, fail-closed invalid `-SourceDir` abort, and cyclic junction immunity (`Remove-DirectorySafely`). | **10.0 / 10.0** |
 | **Packaging & Build Pipelines** | `packages/msi/build-msi.ps1`, `packages/msi/test-msi.ps1`, `packages/choco/build-choco.ps1`, `scripts/bump-version.ps1` | `CWE-184`, `CWE-209`, `CWE-252`, `CWE-390`, `CWE-459`, `CWE-460`, `CWE-611`, `CWE-754` | Verified zero empty `catch {}` blocks via AST, emergency `msiexec /x` rollback, manifest rollback, clean git tree enforcement, and XXE prohibition. | **10.0 / 10.0** |
 | **Concurrency & State Synchronization** | `jvm.bat` (`:AcquireStateLock`, `:ReleaseStateLock`, `:WriteConfigFile`, `:EmitSessionEnv`, `%JVM_SECURE_TEMP%`) | `CWE-330`, `CWE-362`, `CWE-367`, `CWE-377`, `CWE-400` | Verified cross-process mutual exclusion (`state.lock`), atomic staged configuration replacement (`.stage.!_CFG_RND!.tmp` + `move /y`), CSPRNG random file naming, and per-user ACL lockdown. | **10.0 / 10.0** |
-| **Adversarial Test Suite** | `tests/Test-JvmSecurity.ps1` | All 40 MITRE CWE Classes | 223/223 tests passing (`0` failures) with runtime error injection, cyclic directory junction fuzzing, live process tree kill recovery, and automatic environment state preservation. | **10.0 / 10.0** |
+| **Adversarial Test Suite** | `tests/Test-JvmSecurity.ps1` | All 40 MITRE CWE Classes | 233/233 tests passing (`0` failures) with runtime error injection, cyclic directory junction fuzzing, live process tree kill recovery, CAS cache verification, and automatic environment state preservation. | **10.0 / 10.0** |
 | **Overall Posture** | **Complete Repository Ecosystem** | **40 MITRE CWE Classes** | **Zero unhandled failure paths, zero leaked handles, zero silent catches, zero cyclic recursion hazards.** | **`10.0 / 10.0`** |
 
 ---

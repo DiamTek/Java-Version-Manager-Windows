@@ -4557,6 +4557,100 @@ version = "3.9.11"
         Assert-Contains $uninstRaw 'cmd_hook\.cmd' "uninstall.ps1 must strip cmd_hook.cmd entry from Command Processor AutoRun"
     }
 
+    # Test 224: Content-Addressed Artifact Cache structure (%LOCALAPPDATA%\DiamTek\JVM\cache\) (CWE-73)
+    Run-TestCase "Manifest" "Content-Addressed Artifact Cache structure and CAS sha256 layout (CWE-73)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        $instRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "install.ps1") -Raw
+
+        Assert-Contains $batRaw '%LOCALAPPDATA%\DiamTek\JVM\cache' "jvm.bat must reference central cache directory"
+        Assert-Contains $batRaw 'cache\sha256' "jvm.bat must enforce CAS sha256 directory layout"
+        Assert-Contains $instRaw "Join-Path `$repoRoot `"cache`"" "install.ps1 must initialize cache root directory"
+    }
+
+    # Test 225: Air-Gapped Offline Mode install from CAS and missing artifact failure (CWE-918)
+    Run-TestCase "Adversarial" "Air-Gapped Offline Mode install inspection from local CAS without network (CWE-918)" {
+        $prevEAP = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $outOff = & cmd.exe /c "call `"$JvmBat`" install 99 --offline" 2>&1 | Out-String
+        $code = $LASTEXITCODE
+        $ErrorActionPreference = $prevEAP
+
+        Assert-Equals 1 $code "jvm install --offline for missing cache entry must exit with code 1"
+        Assert-Contains $outOff "Offline Mode:" "jvm install --offline must report missing CAS artifact error"
+    }
+
+    # Test 226: Cache management commands (jvm cache list, size, clean, export, import) (CWE-20)
+    Run-TestCase "Manifest" "Cache management commands (jvm cache list, size, export, import) (CWE-20)" {
+        $outList = & cmd.exe /c "call `"$JvmBat`" cache list" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm cache list must execute cleanly"
+        Assert-Contains $outList "Content-Addressed Artifact Cache Inventory" "jvm cache list must render inventory header"
+
+        $outSize = & cmd.exe /c "call `"$JvmBat`" cache size" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm cache size must execute cleanly"
+        Assert-Contains $outSize "Total Cache Size:" "jvm cache size must report byte total"
+    }
+
+    # Test 227: Resumable Downloads HTTP Range header logic and .part staging (CWE-400)
+    Run-TestCase "PackageIntegrity" "Resumable Downloads HTTP Range header logic and .part file staging (CWE-400)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw '$partFile = "$zipPath.part"' "Downloader must use .part staging file"
+        Assert-Contains $batRaw '$req.AddRange([int64]$existingLen)' "Downloader must add Range header when resuming"
+        Assert-Contains $batRaw '[int]$res.StatusCode -eq 206' "Downloader must inspect HTTP 206 Partial Content status"
+    }
+
+    # Test 228: Smart Retry with Exponential Backoff (429, 5xx, 404, integrity abort) (CWE-754)
+    Run-TestCase "PackageIntegrity" "Smart Retry with Exponential Backoff (429 backoff, 5xx jitter, 404 exit) (CWE-754)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw 'HTTP 404: Artifact not found' "Downloader must immediately terminate on HTTP 404"
+        Assert-Contains $batRaw 'HTTP 429 Rate limited' "Downloader must detect HTTP 429 rate limit"
+        Assert-Contains $batRaw 'Exponential backoff' "Downloader must apply exponential backoff"
+    }
+
+    # Test 229: Configurable Download Mirrors via jvm config set mirror (CWE-319)
+    Run-TestCase "Registry" "Configurable Download Mirrors via jvm config set mirror (CWE-319)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw '$mirror = [string]$cfgJson.mirror' "Downloader must check mirror setting from config.json"
+        Assert-Contains $batRaw 'Routing download through mirror' "Downloader must log mirror redirection notice"
+    }
+
+    # Test 230: Exact Semantic Build Support ('+' character in :ValidateStrictIdentifier) (CWE-20)
+    Run-TestCase "Adversarial" "Exact Semantic Build Support ('+' character in :ValidateStrictIdentifier) (CWE-20)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw 'if "!_VSI_CHAR!"=="+" goto :VSI_NextChar' "ValidateStrictIdentifier must accept '+' for build metadata"
+
+        $outRemote = & cmd.exe /c "call `"$JvmBat`" list-remote" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm list-remote must execute cleanly"
+        Assert-Contains $outRemote "Querying Available Remote JDK Releases" "jvm list-remote must print query banner"
+    }
+
+    # Test 231: Remote Search Engine metadata queries (jvm search) (CWE-20)
+    Run-TestCase "Manifest" "Remote Search Engine metadata queries (jvm search) (CWE-20)" {
+        $outSearch = & cmd.exe /c "call `"$JvmBat`" search java 21" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm search must execute cleanly"
+        Assert-Contains $outSearch "Searching metadata for" "jvm search must print search activity banner"
+    }
+
+    # Test 232: Compatibility & Release Differences (jvm info and jvm compare) (CWE-20)
+    Run-TestCase "Manifest" "Compatibility and Release Differences (jvm info and jvm compare) (CWE-20)" {
+        $outInfo = & cmd.exe /c "call `"$JvmBat`" info" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm info must execute cleanly"
+        Assert-Contains $outInfo "JDK Compatibility & Release Metadata" "jvm info must output compatibility metadata"
+
+        $outCmp = & cmd.exe /c "call `"$JvmBat`" compare 17 21" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm compare must execute cleanly"
+        Assert-Contains $outCmp "Comparing JDK 17 with JDK 21" "jvm compare must output comparison table"
+    }
+
+    # Test 233: Variable Ownership Tracking in ownership.json and selective uninstaller cleanup (CWE-73)
+    Run-TestCase "Uninstall" "Variable Ownership Tracking in ownership.json and selective uninstaller cleanup (CWE-73)" {
+        $uninstRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "uninstall.ps1") -Raw
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+
+        Assert-Contains $uninstRaw 'ownership.json' "uninstall.ps1 must inspect ownership.json"
+        Assert-Contains $uninstRaw 'Skipping variable ''$v'' as it is not owned by DiamTek JVM' "uninstall.ps1 must preserve unowned variables"
+        Assert-Contains $batRaw ':TrackOwnership' "jvm.bat must implement :TrackOwnership helper"
+    }
+
 } finally {
     # --------------------------------------------------------------------------
     # Sandbox Cleanup (Guaranteed Non-Recursive Reparse Safe Cleanup)

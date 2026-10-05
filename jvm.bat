@@ -127,7 +127,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261004.144"
+set "JVM_BUILD=20261005.145"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -335,6 +335,17 @@ if /i "%~1"=="--global" (
 )
 if /i "%~1"=="--offline" (
     set "JVM_OFFLINE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--security" (
+    set "FLAG_SECURITY_UPDATE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--bundle" (
+    set "FLAG_BUNDLE_PATH=%~2"
+    shift
     shift
     goto :PARSE_CLI_ARGS
 )
@@ -551,7 +562,7 @@ if /i "%~1"=="list" (
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="info" (
-    set "CLI_COMMAND=current"
+    set "CLI_COMMAND=info"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
@@ -587,6 +598,26 @@ if /i "%~1"=="list" (
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="project" (
     set "CLI_COMMAND=project"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="cache" (
+    set "CLI_COMMAND=cache"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="search" (
+    set "CLI_COMMAND=search"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="compare" (
+    set "CLI_COMMAND=compare"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="list-remote" (
+    set "CLI_COMMAND=list-remote"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
@@ -971,6 +1002,36 @@ if defined CLI_COMMAND (
     )
     if /i "%CLI_COMMAND%"=="transaction" (
         call :ExecuteTransactionCommand %*
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
+    )
+    if /i "%CLI_COMMAND%"=="cache" (
+        call :ExecuteCacheCommand %*
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
+    )
+    if /i "%CLI_COMMAND%"=="search" (
+        call :ExecuteSearchCommand %*
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
+    )
+    if /i "%CLI_COMMAND%"=="info" (
+        call :ExecuteInfoCommand %*
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
+    )
+    if /i "%CLI_COMMAND%"=="compare" (
+        call :ExecuteCompareCommand %*
+        set "FAST_EXIT=!errorlevel!"
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b !FAST_EXIT!
+    )
+    if /i "%CLI_COMMAND%"=="list-remote" (
+        call :ExecuteListRemoteCommand %*
         set "FAST_EXIT=!errorlevel!"
         if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b !FAST_EXIT!
@@ -3064,6 +3125,25 @@ for %%C in (!LTS_CHOICE!) do set "CLI_TARGET=!LTS_VER_%%C!"
 goto :eof
 
 :DownloadJDK_Headless
+if "%JVM_OFFLINE%"=="1" (
+    echo.
+    echo %cBLUE%[ ACTION ]%cRESET% Offline Mode: Searching local cache for JDK !DL_VERSION!...
+    for /f "delims=" %%A in ('"%PS_BIN%" -NoProfile -Command "$c = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\cache\sha256'; $f = Get-ChildItem -LiteralPath $c -Filter '*!DL_VERSION!*.zip' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($f) { Write-Output $f.FullName }"') do set "OFFLINE_ZIP=%%A"
+    if not defined OFFLINE_ZIP (
+        echo %cRED%[ ERROR  ]%cRESET% Offline Mode: Artifact for JDK !DL_VERSION! not found in local CAS cache.
+        if "!CLI_COMMAND!"=="" pause
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+    echo %cGREEN%[   OK   ]%cRESET% Found cached artifact: !OFFLINE_ZIP!
+    set "ZIP_PATH=!OFFLINE_ZIP!"
+    set "EXTRACT_DIR=%JVM_SECURE_TEMP%\jdk_offline_!DL_VERSION!_extract"
+    set "DEST_DIR=!JVM_PF!\Java"
+    set "DL_VENDOR=Offline"
+    if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
+    "%PS_BIN%" -NoProfile -Command "Expand-Archive -Path $env:ZIP_PATH -DestinationPath $env:EXTRACT_DIR -Force"
+    goto :DoElevatedJdkInstall
+)
 call :RequireNetwork
 if errorlevel 1 (
     if "!CLI_COMMAND!"=="" pause
@@ -3566,6 +3646,7 @@ set "CFG_PS1=%JVM_SECURE_TEMP%\jvm_cfg_!CFG_RND!.ps1"
     echo         cache_size = '2GB'
     echo         retries = 3
     echo         timeout = 15
+    echo         mirror = ''
     echo     }
     echo     $cfg = [ordered]@{}
     echo     foreach ^($k in $defaults.Keys^) { $cfg[$k] = $defaults[$k] }
@@ -3886,6 +3967,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
 
 echo.
 echo %cGREEN%[   OK   ]%cRESET% PATH update complete.
+call :TrackOwnership "JAVA_HOME" "%CURRENT_JDK_PATH%\bin"
 endlocal & exit /b 0
 
 rem ============================================================
@@ -4815,6 +4897,18 @@ if "!UPDATE_RESULT!"=="UP_TO_DATE" (
     goto :eof
 )
 
+if "%FLAG_SECURITY_UPDATE%"=="1" (
+    set "IS_SEC_PATCH=0"
+    if defined REMOTE_VER (
+        for /f "delims=" %%A in ('"%PS_BIN%" -NoProfile -Command "$v = $env:REMOTE_VER; if ($v -match '8u\d*[13579]$' -or $v -match '\.\d+\.[13579]+(?:[\+-]|$)') { Write-Output '1' } else { Write-Output '0' }"') do set "IS_SEC_PATCH=%%A"
+    )
+    if "!IS_SEC_PATCH!"=="0" (
+        echo %cBLUE%[  INFO  ]%cRESET% Candidate !REMOTE_VER! is a standard maintenance build, not an explicit CVE security update.
+        echo           Skipping auto-update under --security channel restriction.
+        goto :eof
+    )
+    echo %cYELLOW%[SECURITY]%cRESET% Security patch confirmed for JDK !UP_MAJOR! ^(!REMOTE_VER!^).
+)
 echo %cYELLOW%[ UPDATE ]%cRESET% A newer build is available!
 if not defined CLI_COMMAND (
     "%CHOICE_BIN%" /C yn /N /M "Would you like to download and install this update? (y/N): "
@@ -4849,6 +4943,16 @@ if "!REMOTE_DATE!"=="UNKNOWN" ( echo %cRED%[ ERROR  ]%cRESET% Could not connect 
 if "!LOCAL_DATE!"=="!REMOTE_DATE!" ( echo %cGREEN%[   OK   ]%cRESET% You are already running the latest build of JDK !UP_MAJOR!! & goto :eof )
 if "!LOCAL_DATE!" NEQ "UNKNOWN" if "!LOCAL_DATE!" GTR "!REMOTE_DATE!" ( echo %cGREEN%[   OK   ]%cRESET% Your local build is newer than the current Oracle release! & goto :eof )
 
+if "%FLAG_SECURITY_UPDATE%"=="1" (
+    set "IS_SEC_PATCH=0"
+    if defined REMOTE_VER if not "!REMOTE_VER:.0.=!"=="!REMOTE_VER!" set "IS_SEC_PATCH=1"
+    if "!IS_SEC_PATCH!"=="0" (
+        echo %cBLUE%[  INFO  ]%cRESET% Candidate !REMOTE_VER! is a standard maintenance build, not an explicit CVE security update.
+        echo           Skipping auto-update under --security channel restriction.
+        goto :eof
+    )
+    echo %cYELLOW%[SECURITY]%cRESET% Security patch confirmed for JDK !UP_MAJOR! ^(!REMOTE_VER!^).
+)
 echo %cYELLOW%[ UPDATE ]%cRESET% A newer build is available!
 if defined CLI_COMMAND (
     if /i "!CLI_TARGET!"=="" ( echo %cYELLOW%[ UPDATE ]%cRESET% Run 'jvm update !UP_MAJOR!' to install. & goto :eof )
@@ -9939,8 +10043,22 @@ rem ============================================================
 rem Universal Downloader & Extractor (PowerShell)
 rem ============================================================
 :ExecuteSharedDownloader
+set "CAS_CACHE_HIT=0"
+if defined DL_CHKSUM_VAL (
+    set "CAS_TARGET_FILE=%LOCALAPPDATA%\DiamTek\JVM\cache\sha256\!DL_CHKSUM_VAL:~0,2!\!DL_CHKSUM_VAL!.zip"
+    if exist "!CAS_TARGET_FILE!" (
+        echo %cGREEN%[ CACHE  ]%cRESET% Content-Addressed Cache hit for SHA-256: !DL_CHKSUM_VAL:~0,16!...
+        copy /y "!CAS_TARGET_FILE!" "!DL_ZIP!" >nul 2>&1
+        if not errorlevel 1 set "CAS_CACHE_HIT=1"
+    )
+)
+
+if "!CAS_CACHE_HIT!"=="1" goto :SKIP_NETWORK_DOWNLOAD
+
 call :RequireNetwork
 if errorlevel 1 exit /b 1
+
+:SKIP_NETWORK_DOWNLOAD
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "PS_RANDOM_NAME=%%A"
 set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
 (
@@ -10230,6 +10348,10 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo                 exit 1
     echo             }
     echo             Write-Host '[   OK   ] Checksum verified successfully.' -ForegroundColor Green
+    echo             $casDir = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\cache\sha256'
+    echo             $subDir = Join-Path $casDir $actualHash.Substring(0, 2)
+    echo             if (-not (Test-Path $subDir)) { New-Item -ItemType Directory -Path $subDir -Force | Out-Null }
+    echo             Copy-Item -LiteralPath $out -Destination (Join-Path $subDir ($actualHash + '.zip')) -Force -ErrorAction SilentlyContinue
     echo             Write-Host ""
     echo         }
     echo     }
@@ -10461,6 +10583,32 @@ if not errorlevel 1 (
     exit /b 0
 )
 
+rem If lock directory exists, check if owner process is stale/dead
+if exist "%JVM_LOCK_DIR%\owner.pid" (
+    for /f "tokens=1,2 delims=|" %%A in ('type "%JVM_LOCK_DIR%\owner.pid" 2^>nul') do (
+        set "LC_PID=%%A"
+        set "LC_TKS=%%B"
+    )
+    if defined LC_PID (
+        set "STALE_LOCK=0"
+        for /f "delims=" %%R in ('%PS_BIN% -NoProfile -Command "$ErrorActionPreference='Stop'; try { $p = Get-Process -Id $env:LC_PID -ErrorAction Stop; if ($p.StartTime.ToUniversalTime().Ticks.ToString() -eq '$env:LC_TKS') { '0' } else { '1' } } catch { '1' }" 2^>nul') do set "STALE_LOCK=%%R"
+        if "!STALE_LOCK!"=="1" (
+            echo %cYELLOW%[ WARNING]%cRESET% Stale state lock detected from dead or recycled PID !LC_PID!. Reclaiming...
+            rmdir /s /q "%JVM_LOCK_DIR%" >nul 2>&1
+            goto :LOCK_RETRY_LOOP
+        )
+    )
+)
+
+set /a JVM_LOCK_ATTEMPTS+=1
+if !JVM_LOCK_ATTEMPTS! LSS 10 (
+    "%TIMEOUT_BIN%" /t 1 >nul 2>&1
+    goto :LOCK_RETRY_LOOP
+)
+
+echo %cRED%[ ERROR  ]%cRESET% Timeout waiting for state lock. Another JVM operation is active. Use --no-lock to bypass.
+exit /b 1
+
 rem Stale lock auto-recovery without delete/re-mkdir race:
 rem Verify owner PID is dead or invalid, stage takeover PID, and atomically replace owner.pid
 set "OWNER_DEAD=0"
@@ -10624,6 +10772,148 @@ if exist "%VERIFY_RESULT%" (
 )
 
 if /i not "!VERIFY_STATUS!"=="VERIFIED" exit /b 1
+exit /b 0
+
+rem ============================================================
+rem CACHE MANAGEMENT & BUNDLING ENGINE
+rem ============================================================
+:ExecuteCacheCommand
+set "CACHE_ACTION=%~2"
+set "CACHE_ROOT=%LOCALAPPDATA%\DiamTek\JVM\cache"
+if not exist "%CACHE_ROOT%" mkdir "%CACHE_ROOT%" >nul 2>&1
+
+if "%CACHE_ACTION%"=="" set "CACHE_ACTION=list"
+if /i "%CACHE_ACTION%"=="list" goto :CacheList
+if /i "%CACHE_ACTION%"=="size" goto :CacheSize
+if /i "%CACHE_ACTION%"=="clean" goto :CacheClean
+if /i "%CACHE_ACTION%"=="prune" goto :CachePrune
+if /i "%CACHE_ACTION%"=="export" goto :CacheExport
+if /i "%CACHE_ACTION%"=="import" goto :CacheImport
+
+echo %cRED%[ ERROR  ]%cRESET% Unknown cache action '%CACHE_ACTION%'.
+echo Usage: jvm cache [list ^| size ^| clean ^| prune ^| export ^| import]
+exit /b 1
+
+:CacheList
+echo.
+echo %cBLUE%[  INFO  ]%cRESET% Content-Addressed Artifact Cache Inventory:
+echo ============================================================
+"%PS_BIN%" -NoProfile -Command "$root = $env:CACHE_ROOT; $files = Get-ChildItem -LiteralPath $root -Recurse -File -ErrorAction SilentlyContinue; if (-not $files) { Write-Host '  Cache is empty.' } else { foreach ($f in $files) { $mb = [math]::Round($f.Length / 1MB, 2); $rel = $f.FullName.Replace($root, '').TrimStart('\'); Write-Host ('  - ' + $rel.PadRight(45) + ' (' + $mb + ' MB)') } }"
+echo ============================================================
+exit /b 0
+
+:CacheSize
+echo.
+"%PS_BIN%" -NoProfile -Command "$root = $env:CACHE_ROOT; $files = Get-ChildItem -LiteralPath $root -Recurse -File -ErrorAction SilentlyContinue; $bytes = ($files | Measure-Object -Property Length -Sum).Sum; $mb = [math]::Round($bytes / 1MB, 2); $gb = [math]::Round($bytes / 1GB, 3); Write-Host ('Total Cache Size: ' + $mb + ' MB (' + $gb + ' GB)') -ForegroundColor Cyan"
+exit /b 0
+
+:CacheClean
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Purging artifact cache: %CACHE_ROOT%...
+"%PS_BIN%" -NoProfile -Command "$root = $env:CACHE_ROOT; if (Test-Path -LiteralPath $root) { Get-ChildItem -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }"
+echo %cGREEN%[   OK   ]%cRESET% Cache purged successfully.
+exit /b 0
+
+:CachePrune
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Pruning duplicate and unreferenced cache blobs...
+"%PS_BIN%" -NoProfile -Command "$root = $env:CACHE_ROOT; $shaRoot = Join-Path $root 'sha256'; if (Test-Path $shaRoot) { Get-ChildItem -LiteralPath $shaRoot -Recurse -File | Where-Object { $_.LastAccessTime -lt (Get-Date).AddDays(-30) } | Remove-Item -Force -ErrorAction SilentlyContinue }; Write-Host '[   OK   ] Cache prune complete.'"
+exit /b 0
+
+:CacheExport
+set "EXP_DEST=%~3"
+if /i "%EXP_DEST%"=="--bundle" set "EXP_DEST=%~4"
+if not defined EXP_DEST set "EXP_DEST=.\build-cache.jvmcache"
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Bundling cache into: !EXP_DEST!...
+"%PS_BIN%" -NoProfile -Command "$dest = $env:EXP_DEST; $root = $env:CACHE_ROOT; if (Test-Path $dest) { Remove-Item -LiteralPath $dest -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($root, (Resolve-Path -Path (Split-Path $dest -Parent)).Path + '\' + (Split-Path $dest -Leaf)); Write-Host '[   OK   ] Cache bundle exported successfully.'"
+exit /b 0
+
+:CacheImport
+set "IMP_SRC=%~3"
+if not defined IMP_SRC set "IMP_SRC=.\build-cache.jvmcache"
+if not exist "!IMP_SRC!" (
+    echo %cRED%[ ERROR  ]%cRESET% Bundle file not found: !IMP_SRC!
+    exit /b 1
+)
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Importing and validating cache bundle from: !IMP_SRC!...
+"%PS_BIN%" -NoProfile -Command "$src = $env:IMP_SRC; $root = $env:CACHE_ROOT; $tempExt = Join-Path $root 'temp_import'; if (Test-Path $tempExt) { Remove-Item $tempExt -Recurse -Force }; [System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $src).Path, $tempExt); Get-ChildItem -LiteralPath $tempExt -Recurse -File | ForEach-Object { $rel = $_.FullName.Substring($tempExt.Length).TrimStart('\','/'); $dest = Join-Path $root $rel; $destDir = Split-Path $dest -Parent; if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }; Move-Item -LiteralPath $_.FullName -Destination $dest -Force }; Remove-Item $tempExt -Recurse -Force; Write-Host '[   OK   ] Cache bundle imported and structured successfully.'"
+exit /b 0
+
+rem ============================================================
+rem REMOTE SEARCH ENGINE & LIST-REMOTE
+rem ============================================================
+:ExecuteListRemoteCommand
+echo.
+echo %cBLUE%[  INFO  ]%cRESET% Querying Available Remote JDK Releases (Adoptium API):
+echo ================================================================================
+echo   {VERSION}       {BUILD TAG}                {TYPE}      {STATUS}
+echo --------------------------------------------------------------------------------
+"%PS_BIN%" -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/info/available_releases' -TimeoutSec 10; foreach ($v in $res.available_releases) { $isLts = ($res.available_lts_releases -contains $v); $tag = if ($isLts) { 'LTS' } else { 'Feature' }; $b = Invoke-RestMethod -Uri ('https://api.adoptium.net/v3/assets/feature_releases/' + $v + '/ga?architecture=' + $env:SYS_ARCH + '&os=windows&page_size=1') -TimeoutSec 5; $sem = if ($b -and $b[0].version_data.semver) { $b[0].version_data.semver } else { $v }; Write-Host ('  ' + ('' + $v).PadRight(15) + $sem.PadRight(26) + 'JDK         GA (' + $tag + ')') } } catch { Write-Host '  Failed to fetch remote catalog.' -ForegroundColor Yellow }"
+echo ================================================================================
+exit /b 0
+
+:ExecuteSearchCommand
+set "SEARCH_TOOL=%~2"
+set "SEARCH_QUERY=%~3"
+if not defined SEARCH_TOOL set "SEARCH_TOOL=java"
+if not defined CLI_VENDOR set "CLI_VENDOR=Adoptium"
+
+if defined SEARCH_QUERY (
+    set "SRCH_TEST="
+    for /f "eol= delims=0123456789" %%A in ("!SEARCH_QUERY!") do set "SRCH_TEST=%%A"
+    if defined SRCH_TEST (
+        echo %cRED%[ ERROR  ]%cRESET% Invalid version query for search: '!SEARCH_QUERY!'. Expected a major version number ^(e.g., 17, 21^).
+        exit /b 1
+    )
+)
+
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Searching metadata for !SEARCH_TOOL! !SEARCH_QUERY! [!CLI_VENDOR!]...
+echo ================================================================================
+"%PS_BIN%" -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; try { $q = $env:SEARCH_QUERY; $v = if ($q) { $q } else { '21' }; $vend = $env:CLI_VENDOR; if ($vend -match '(?i)Zulu') { $res = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/?java_version=' + $v + '&os=windows&arch=' + $env:SYS_ARCH + '&archive_type=zip&java_package_type=jdk&page_size=5') -TimeoutSec 10; foreach ($item in $res) { Write-Host ('  Candidate: java | Version: ' + ($item.java_version -join '.') + ' | Vendor: Zulu | Arch: ' + $env:SYS_ARCH) } } else { $res = Invoke-RestMethod -Uri ('https://api.adoptium.net/v3/assets/feature_releases/' + $v + '/ga?architecture=' + $env:SYS_ARCH + '&os=windows&page_size=5') -TimeoutSec 10; foreach ($item in $res) { Write-Host ('  Candidate: java | Version: ' + $item.version_data.openjdk_version + ' | Vendor: Temurin | Arch: ' + $env:SYS_ARCH) } } } catch { Write-Host '  No matching releases found or network unavailable.' -ForegroundColor Yellow }"
+echo ================================================================================
+exit /b 0
+
+rem ============================================================
+rem COMPATIBILITY & RELEASE DIFFERENCES
+rem ============================================================
+:ExecuteInfoCommand
+set "INFO_TARGET=%~2"
+if not defined INFO_TARGET (
+    if defined RESOLVED_JAVA_HOME ( set "INFO_TARGET=!RESOLVED_JAVA_HOME!" ) else ( set "INFO_TARGET=!JAVA_HOME!" )
+)
+echo.
+echo %cBLUE%[  INFO  ]%cRESET% JDK Compatibility & Release Metadata:
+echo ============================================================
+"%PS_BIN%" -NoProfile -Command "$t = $env:INFO_TARGET; $ver = 'Unknown'; $arch = $env:SYS_ARCH; $vm = 'HotSpot Virtual Machine'; $relDate = 'N/A'; $lts = 'No'; $sec = 'Standard PSU'; if (Test-Path (Join-Path $t 'release')) { $c = Get-Content (Join-Path $t 'release'); foreach ($l in $c) { if ($l -match '^JAVA_VERSION=\x22?([^\x22]+)') { $ver = $matches[1] } elseif ($l -match '^JAVA_VERSION_DATE=\x22?([^\x22]+)') { $relDate = $matches[1] } } }; if ($ver -match '^(8|11|17|21|25)') { $lts = 'Yes (Long-Term Support)' }; if ($ver -match '\.0\.[1-9]') { $sec = 'Critical Patch Update (CPU/Security Patch)' }; Write-Host ('  Version          : ' + $ver); Write-Host ('  Architecture     : ' + $arch); Write-Host ('  Virtual Machine  : ' + $vm); Write-Host ('  Release Date     : ' + $relDate); Write-Host ('  LTS Status       : ' + $lts); Write-Host ('  Classification   : ' + $sec)"
+echo ============================================================
+exit /b 0
+
+:ExecuteCompareCommand
+set "CMP_V1=%~2"
+set "CMP_V2=%~3"
+if not defined CMP_V2 (
+    echo %cRED%[ ERROR  ]%cRESET% Please specify two versions to compare.
+    echo Usage: jvm compare ^<v1^> ^<v2^>
+    exit /b 1
+)
+echo.
+echo %cBLUE%[  INFO  ]%cRESET% Comparing JDK !CMP_V1! with JDK !CMP_V2!:
+echo ================================================================================
+"%PS_BIN%" -NoProfile -Command "$v1 = $env:CMP_V1; $v2 = $env:CMP_V2; Write-Host ('Differences between JDK ' + $v1 + ' and JDK ' + $v2 + ':') -ForegroundColor Cyan; $db = @{ '8-11' = @('+ JEP 333: ZGC (Experimental)', '+ JEP 321: HTTP Client', '+ JEP 328: Flight Recorder', '- JEP 320: Removed Java EE and CORBA'); '11-17' = @('+ JEP 356: Enhanced Pseudo-Random Number Generators', '+ JEP 382: New macOS Rendering Pipeline', '+ JEP 391: macOS/AArch64 Port', '+ JEP 409: Sealed Classes', '- JEP 407: Removed RMI Activation'); '17-21' = @('+ JEP 444: Virtual Threads', '+ JEP 431: Sequenced Collections', '+ JEP 440: Record Patterns', '+ JEP 439: Generational ZGC', '- JEP 441: Pattern Matching for switch'); '21-25' = @('+ JEP 456: Unnamed Variables & Patterns', '+ JEP 461: Stream Gatherers', '+ JEP 462: Structured Concurrency', '+ JEP 464: Scoped Values') }; $key = $v1 + '-' + $v2; if ($db.ContainsKey($key)) { foreach ($jep in $db[$key]) { $c = if ($jep.StartsWith('+')) { 'Green' } else { 'Yellow' }; Write-Host ('  ' + $jep) -ForegroundColor $c } } else { Write-Host ('  Feature release delta from OpenJDK ' + $v1 + ' to OpenJDK ' + $v2 + '. Use LTS boundaries (8-11, 11-17, 17-21, 21-25) for detailed JEPs.') }"
+echo ================================================================================
+exit /b 0
+
+rem ============================================================
+rem OWNERSHIP TRACKING HELPER
+rem ============================================================
+:TrackOwnership
+set "OWN_VAR=%~1"
+set "OWN_PATH=%~2"
+set "OWN_JSON=%LOCALAPPDATA%\DiamTek\JVM\ownership.json"
+"%PS_BIN%" -NoProfile -Command "$f = $env:OWN_JSON; $v = $env:OWN_VAR; $p = $env:OWN_PATH; $obj = if (Test-Path -LiteralPath $f) { try { Get-Content -LiteralPath $f -Raw | ConvertFrom-Json } catch { $null } } else { $null }; $vars = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase); $paths = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase); if ($obj) { if ($obj.variables) { foreach ($x in $obj.variables) { $null = $vars.Add($x) } }; if ($obj.path_entries) { foreach ($x in $obj.path_entries) { $null = $paths.Add($x) } } }; if ($v) { $null = $vars.Add($v) }; if ($p) { $null = $paths.Add($p) }; $out = [ordered]@{ version = '1.0.0'; updated_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); variables = @($vars); path_entries = @($paths) }; [System.IO.File]::WriteAllText($f, ($out | ConvertTo-Json -Depth 4), [System.Text.UTF8Encoding]::new($false))"
 exit /b 0
 
 rem END OF SCRIPT

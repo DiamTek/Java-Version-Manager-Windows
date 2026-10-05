@@ -206,17 +206,31 @@ Deploying inside corporate enterprise perimeters with deep packet inspection (Zs
   $env:HTTPS_PROXY = "http://proxy.corporate.com:8080"
   ```
 - **Enterprise Root CA Trust:** Unlike Unix utilities that require manual Java truststore (`cacerts`) imports, JVM validates TLS certificates against the native **Windows Trusted Root Certification Authorities** store. Corporate root certificates deployed via Intune or GPO are trusted automatically.
+- **Configurable Corporate Mirrors:** Route all remote artifact downloads through corporate artifact storage engines (Nexus, Artifactory, internal CDN mirrors):
+  ```powershell
+  jvm config set mirror "https://artifactory.corporate.internal/artifactory/jvm-mirror"
+  ```
 - **Internal / Pre-Approved JDKs (`jvm link`):** If enterprise policy restricts public Internet downloads, teams can stage pre-approved internal JDK builds to a corporate share or local directory and register them instantly:
   ```cmd
   jvm link "C:\Corporate\Java\zulu-21-approved" zulu-21
   ```
 
 ### 📦 Air-Gapped & Offline Corporate Environments
-For secure air-gapped workstations or offline development networks with no external internet connectivity:
-1. Download `jvm-windows-1.0.1-portable.zip` from GitHub Releases on an authorized bastion machine.
-2. Extract the archive directly into `%LOCALAPPDATA%\DiamTek\JVM\` on the target workstation.
-3. Pre-extract your organization's approved JDK distributions into `C:\Program Files\Java\` or a user folder.
-4. Register them using `jvm link <path> <name>`.
+For secure air-gapped workstations or offline development networks with zero external internet connectivity:
+1. **Cache Export & Bundling on Bastion Host:** On an internet-connected build station, bundle the central Content-Addressed Storage cache into a portable bundle:
+   ```powershell
+   jvm cache export --bundle .\build-cache.jvmcache
+   ```
+2. **Offline Ingestion:** Transfer and ingest the package directly into the target workstation's Content-Addressed cache:
+   ```powershell
+   jvm cache import .\build-cache.jvmcache
+   ```
+3. **Zero-Network Installation:** Execute true air-gapped installations with 0 outbound network requests:
+   ```powershell
+   jvm install 21 --offline
+   jvm install maven 3.9.9 --offline
+   ```
+4. **Standalone Pre-Extracted Runtimes:** Alternatively, extract pre-packaged runtimes into `C:\Program Files\Java\` and bind them via `jvm link <path> <name>`.
 
 <a id="building-the-msi-from-source"></a>
 ## Building the MSI from Source
