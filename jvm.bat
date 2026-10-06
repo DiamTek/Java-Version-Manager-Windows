@@ -61,8 +61,12 @@ if /i "%~1"=="-h" goto :EARLY_HELP
 if "%~1"=="/?" goto :EARLY_HELP
 
 rem Verify host environment directory existence before modifying host state
-set "JVM_DIR=%LOCALAPPDATA%\DiamTek\JVM"
-set "JVM_SECURE_TEMP=%JVM_DIR%\temp"
+for %%S in ("%LOCALAPPDATA%") do set "SAFE_LOCALAPPDATA=%%~fsS"
+if not defined SAFE_LOCALAPPDATA set "SAFE_LOCALAPPDATA=%LOCALAPPDATA%"
+set "JVM_DIR=%SAFE_LOCALAPPDATA%\DiamTek\JVM"
+if not exist "%JVM_DIR%\temp" mkdir "%JVM_DIR%\temp" >nul 2>&1
+for %%S in ("%JVM_DIR%\temp") do set "SAFE_SECURE_TEMP=%%~fsS"
+if defined SAFE_SECURE_TEMP ( set "JVM_SECURE_TEMP=%SAFE_SECURE_TEMP%" ) else ( set "JVM_SECURE_TEMP=%JVM_DIR%\temp" )
 
 if not exist "%JVM_DIR%" (
     if defined JVM_NONINTERACTIVE goto :AUTO_INIT_HOST
@@ -127,7 +131,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261005.145"
+set "JVM_BUILD=20261006.146"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -452,22 +456,24 @@ if /i "%~1"=="--admin-run" (
     goto :PARSE_CLI_ARGS
 )
 if /i "%~1"=="list" (
-    set "CLI_COMMAND=list"
+    if not defined CLI_COMMAND set "CLI_COMMAND=list"
+    if not defined CLI_TARGET set "CLI_TARGET=list"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="ls" (
-    set "CLI_COMMAND=list"
+    if not defined CLI_COMMAND set "CLI_COMMAND=list"
+    if not defined CLI_TARGET set "CLI_TARGET=list"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="env" (
-    set "CLI_COMMAND=env"
+    if not defined CLI_COMMAND set "CLI_COMMAND=env"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="install" (
-    set "CLI_COMMAND=install"
+    if not defined CLI_COMMAND set "CLI_COMMAND=install"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
@@ -1054,6 +1060,7 @@ if /i not "!TARGET_CANDIDATE!"=="java" (
 if "!FLAG_LOCKED!"=="1" if not defined CLI_COMMAND (
     call :ExecuteLockedInstall
     set "FAST_EXIT=!errorlevel!"
+    if "!FAST_EXIT!" NEQ "0" set "FAST_EXIT=1"
     if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     exit /b !FAST_EXIT!
 )
@@ -1879,6 +1886,7 @@ if defined CLI_COMMAND (
         if "!FLAG_LOCKED!"=="1" (
             call :ExecuteLockedInstall
             set "CMD_EXIT_CODE=!errorlevel!"
+            if "!CMD_EXIT_CODE!" NEQ "0" set "CMD_EXIT_CODE=1"
             goto :CLI_DONE
         )
         if not defined CLI_TARGET (
@@ -2150,6 +2158,8 @@ if defined CLI_COMMAND (
         if "!TARGET_IDX!"=="0" (
             echo %cRED%[ ERROR  ]%cRESET% JDK !CLI_TARGET! not found.
             set "JVM_EXIT_CODE=1"
+            set "CMD_EXIT_CODE=1"
+            goto :CLI_DONE
         ) else (
             for %%A in (!TARGET_IDX!) do (
                 set "DEL_PATH=!JDK_PATH_%%A!"
@@ -2293,15 +2303,22 @@ if defined CLI_TARGET (
     echo            Please ensure it is installed and try again.
     if "!SILENT_MODE!"=="0" "%TIMEOUT_BIN%" /t 3 >nul
     set "JVM_EXIT_CODE=1"
-    goto :CLI_DONE
+    set "CMD_EXIT_CODE=1"
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
+    exit /b 1
 )
 
 :CLI_DONE
-if defined JVM_EXIT_CODE (
-    endlocal & set "CMD_EXIT_CODE=%JVM_EXIT_CODE%" & exit /b %JVM_EXIT_CODE%
+set "FINAL_RET=0"
+if defined JVM_EXIT_CODE if "!JVM_EXIT_CODE!" NEQ "0" set "FINAL_RET=1"
+if defined CMD_EXIT_CODE if "!CMD_EXIT_CODE!" NEQ "0" set "FINAL_RET=1"
+if "!FINAL_RET!" NEQ "0" (
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
+    endlocal & set "CMD_EXIT_CODE=1" & exit /b 1
 )
-if defined CMD_EXIT_CODE (
-    endlocal & set "CMD_EXIT_CODE=%CMD_EXIT_CODE%" & exit /b %CMD_EXIT_CODE%
+if "!SILENT_MODE!"=="1" (
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul 2>&1
+    endlocal & set "CMD_EXIT_CODE=0" & exit /b 0
 )
 if "!SILENT_MODE!"=="1" (
     rem Safety catch: If we are hidden and CLI_TARGET was empty, abort so we don't hang!
@@ -3128,9 +3145,10 @@ goto :eof
 if "%JVM_OFFLINE%"=="1" (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Offline Mode: Searching local cache for JDK !DL_VERSION!...
-    for /f "delims=" %%A in ('"%PS_BIN%" -NoProfile -Command "$c = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\cache\sha256'; $f = Get-ChildItem -LiteralPath $c -Filter '*!DL_VERSION!*.zip' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($f) { Write-Output $f.FullName }"') do set "OFFLINE_ZIP=%%A"
+    for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$c = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\cache\sha256'; $f = Get-ChildItem -LiteralPath $c -Filter '*!DL_VERSION!*.zip' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($f) { Write-Output $f.FullName }"') do set "OFFLINE_ZIP=%%A"
     if not defined OFFLINE_ZIP (
         echo %cRED%[ ERROR  ]%cRESET% Offline Mode: Artifact for JDK !DL_VERSION! not found in local CAS cache.
+        call :RequireNetwork
         if "!CLI_COMMAND!"=="" pause
         set "JVM_EXIT_CODE=1"
         exit /b 1
@@ -3629,7 +3647,7 @@ for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRan
 set "CFG_PS1=%JVM_SECURE_TEMP%\jvm_cfg_!CFG_RND!.ps1"
 
 (
-    echo $ErrorActionPreference = 'SilentlyContinue'
+    echo $ErrorActionPreference = 'Stop'
     echo try {
     echo     $cfgPath = $env:CONFIG_JSON
     echo     $sub = $env:CFG_SUB
@@ -3654,31 +3672,36 @@ set "CFG_PS1=%JVM_SECURE_TEMP%\jvm_cfg_!CFG_RND!.ps1"
     echo         try {
     echo             $raw = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8 ^| ConvertFrom-Json
     echo             foreach ^($p in $raw.PSObject.Properties^) { $cfg[$p.Name] = $p.Value }
-    echo         } catch { }
+    echo         } catch { Write-Verbose $_.Exception.Message }
     echo     }
     echo     $cfgDir = [System.IO.Path]::GetDirectoryName^($cfgPath^)
     echo     if ^($cfgDir -and -not ^(Test-Path -LiteralPath $cfgDir^)^) { New-Item -ItemType Directory -Path $cfgDir -Force ^| Out-Null }
+    echo     $utf8NoBom = New-Object System.Text.UTF8Encoding^($false^)
     echo     if ^($sub -eq 'reset'^) {
     echo         $json = $defaults ^| ConvertTo-Json -Depth 4
-    echo         [System.IO.File]::WriteAllText^($cfgPath, $json, [System.Text.Encoding]::UTF8^)
+    echo         $stage = $cfgPath + '.stage.' + [Guid]::NewGuid^(^).ToString^('N'^) + '.tmp'
+    echo         [System.IO.File]::WriteAllText^($stage, $json, $utf8NoBom^)
+    echo         Move-Item -LiteralPath $stage -Destination $cfgPath -Force
     echo         Write-Output 'RESET_OK'
     echo         exit 0
     echo     }
     echo     if ^($sub -eq 'set'^) {
-    echo         if ^(-not $key -or -not $defaults.Contains^($key^)^) { Write-Output "INVALID_KEY"; exit 0 }
+    echo         if ^(-not $key -or -not ^($defaults.Keys -contains $key^)^) { Write-Output "INVALID_KEY"; exit 0 }
     echo         if ^($val -eq 'true'^) { $parsedVal = $true }
     echo         elseif ^($val -eq 'false'^) { $parsedVal = $false }
-    echo         elseif ^($val -match '^\d+$'^) { $parsedVal = [int]$val }
+    echo         elseif ^($val -match '^^\d+$'^) { $parsedVal = [int]$val }
     echo         else { $parsedVal = $val }
     echo         $cfg[$key] = $parsedVal
     echo         $json = $cfg ^| ConvertTo-Json -Depth 4
-    echo         [System.IO.File]::WriteAllText^($cfgPath, $json, [System.Text.Encoding]::UTF8^)
+    echo         $stage = $cfgPath + '.stage.' + [Guid]::NewGuid^(^).ToString^('N'^) + '.tmp'
+    echo         [System.IO.File]::WriteAllText^($stage, $json, $utf8NoBom^)
+    echo         Move-Item -LiteralPath $stage -Destination $cfgPath -Force
     echo         Write-Output "SET_OK"
     echo         exit 0
     echo     }
     echo     if ^($sub -eq 'get'^) {
     echo         if ^($key^) {
-    echo             if ^($cfg.Contains^($key^)^) { Write-Output ^("VAL|" + $cfg[$key]^) }
+    echo             if ^($defaults.Keys -contains $key^) { Write-Output ^("VAL|" + $cfg[$key]^) }
     echo             else { Write-Output "INVALID_KEY"; exit 0 }
     echo         } else {
     echo             foreach ^($k in $cfg.Keys^) { Write-Output ^("LIST|" + $k + "=" + $cfg[$k]^) }
@@ -3687,6 +3710,7 @@ set "CFG_PS1=%JVM_SECURE_TEMP%\jvm_cfg_!CFG_RND!.ps1"
     echo     }
     echo     foreach ^($k in $cfg.Keys^) { Write-Output ^("LIST|" + $k + "=" + $cfg[$k]^) }
     echo } catch {
+    echo     Write-Verbose $_.Exception.Message
     echo     exit 0
     echo }
 ) > "!CFG_PS1!"
@@ -3703,7 +3727,6 @@ for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypas
     )
 )
 if exist "!CFG_PS1!" del /f /q "!CFG_PS1!" >nul 2>&1
-echo DIAG_CFG_EXIT_CODE=[!CFG_EXIT_CODE!] 1>&2
 exit /b !CFG_EXIT_CODE!
 
 rem ============================================================
@@ -3943,7 +3966,7 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "PREV_HKCU_JH=%%B"
     "%REG_BIN%" delete "HKCU\Environment" /v JAVA_HOME /f >nul 2>&1
     
-    "%PS_BIN%" -NoProfile -Command "$target = $env:CURRENT_JDK_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($target)); $script = '$target = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); $juncBin = Join-Path $env:LOCALAPPDATA ''DiamTek\JVM\current\bin''; $purges = @(''C:\Program Files\Common Files\Oracle\Java\javapath'', ''C:\Program Files (x86)\Common Files\Oracle\Java\javapath'', ''C:\ProgramData\Oracle\Java\javapath'', $juncBin, $target + ''\bin''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd(''\'') -and $_.TrimEnd(''\'') -ne ''%%JAVA_HOME%%\bin'' }) -join '';''; $finalPath = ''%%JAVA_HOME%%\bin;'' + $clean; [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $target, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $finalPath -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; try { $proc = Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -PassThru -ArgumentList @('-NoProfile', '-EncodedCommand', $enc); try { if ($null -eq $proc -or $proc.ExitCode -ne 0) { exit 1 } } finally { if ($null -ne $proc) { $proc.Dispose() } } } catch { exit 1 }" 2>nul
+    "%PS_BIN%" -NoProfile -Command "$target = $env:CURRENT_JDK_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($target)); $script = '$target = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); $p = [Environment]::GetEnvironmentVariable(''Path'', ''Machine''); $juncBin = Join-Path $env:LOCALAPPDATA ''DiamTek\JVM\current\bin''; $purges = @(''C:\Program Files\Common Files\Oracle\Java\javapath'', ''C:\Program Files (x86)\Common Files\Oracle\Java\javapath'', ''C:\ProgramData\Oracle\Java\javapath'', $juncBin, $target + ''\bin''); if ($p) { $clean = ($p -split '';'' | Where-Object { $_ -and $purges -notcontains $_.TrimEnd(''\'') -and $_.TrimEnd(''\'') -ne ''%%JAVA_HOME%%\bin'' }) -join '';''; $finalPath = ''%%JAVA_HOME%%\bin;'' + $clean; [Environment]::SetEnvironmentVariable(''JAVA_HOME'', $target, ''Machine''); Set-ItemProperty -Path ''HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'' -Name ''Path'' -Value $finalPath -Type ExpandString }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; try { $p = Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -PassThru -ArgumentList @('-NoProfile', '-EncodedCommand', $enc); try { if ($null -eq $p -or $p.ExitCode -ne 0) { exit 1 } } finally { if ($null -ne $p) { $p.Dispose() } } } catch { exit 1 }" 2>nul
     if errorlevel 1 (
         echo %cRED%[ ERROR  ]%cRESET% Failed to update Machine JAVA_HOME and SYSTEM PATH ^(UAC declined or registry access denied^).
         if defined PREV_HKCU_JH (
@@ -4010,7 +4033,8 @@ if /i "%~1"=="nightly" (
 )
 echo %cRED%[ ERROR  ]%cRESET% Unknown channel '%~1'. Valid options are 'stable' or 'nightly'.
 set "JVM_EXIT_CODE=1"
-goto :eof
+set "CMD_EXIT_CODE=1"
+exit /b 1
 
 rem ============================================================
 rem CLEAR JAVA ENVIRONMENT
@@ -4900,7 +4924,7 @@ if "!UPDATE_RESULT!"=="UP_TO_DATE" (
 if "%FLAG_SECURITY_UPDATE%"=="1" (
     set "IS_SEC_PATCH=0"
     if defined REMOTE_VER (
-        for /f "delims=" %%A in ('"%PS_BIN%" -NoProfile -Command "$v = $env:REMOTE_VER; if ($v -match '8u\d*[13579]$' -or $v -match '\.\d+\.[13579]+(?:[\+-]|$)') { Write-Output '1' } else { Write-Output '0' }"') do set "IS_SEC_PATCH=%%A"
+        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "$v = $env:REMOTE_VER; if ($v -match '8u\d*[13579]$' -or $v -match '\.\d+\.[13579]+(?:[\+-]|$)') { Write-Output '1' } else { Write-Output '0' }"') do set "IS_SEC_PATCH=%%A"
     )
     if "!IS_SEC_PATCH!"=="0" (
         echo %cBLUE%[  INFO  ]%cRESET% Candidate !REMOTE_VER! is a standard maintenance build, not an explicit CVE security update.
@@ -5271,7 +5295,7 @@ if errorlevel 1 (
     pause >nul
     exit /b 1
 ) else (
-    "%PS_BIN%" -NoProfile -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Env { [DllImport(\"user32.dll\", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult); }'; $res = [IntPtr]::Zero; [Env]::SendMessageTimeout([IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res) | Out-Null"
+    "%PS_BIN%" -NoProfile -Command "$null = Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Env { [DllImport(\"user32.dll\", SetLastError=true, CharSet=CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult); }'; $res = [IntPtr]::Zero; [void][Env]::SendMessageTimeout([IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$res)"
     echo %cGREEN%[   OK   ]%cRESET% User PATH successfully updated.
 )
 
@@ -7294,9 +7318,14 @@ set "RAW_SDK_VER=!RAW_SDK_VER:"=!"
 set "RAW_SDK_VER=!RAW_SDK_VER:;=!"
 for /f "tokens=1 delims=# " %%C in ("!RAW_SDK_VER!") do set "RAW_SDK_VER=%%C"
 if not defined RAW_SDK_VER exit /b 1
+
+rem Reject reserved words
+if /i "!RAW_SDK_VER!"=="current" exit /b 1
+
 set "CLI_VENDOR="
 set "CLI_TARGET="
 for /f "tokens=1,2 delims=-" %%V in ("!RAW_SDK_VER!") do (
+    if /i "%%V"=="current" exit /b 1
     for /f "tokens=1,2 delims=." %%M in ("%%V") do (
         if "%%M"=="1" (
             if not "%%N"=="" ( set "CLI_TARGET=%%N" ) else ( set "CLI_TARGET=%%M" )
@@ -7318,6 +7347,7 @@ for /f "tokens=1,2 delims=-" %%V in ("!RAW_SDK_VER!") do (
         exit /b 1
     )
     if not "%%W"=="" (
+        if /i "%%W"=="current" exit /b 1
         call :ValidateStrictIdentifier "%%W"
         if errorlevel 1 (
             set "CLI_TARGET="
@@ -7540,6 +7570,19 @@ if "%FLAG_LOCK_DIFF%"=="1" (
 if "%FLAG_LOCK_UPDATE%"=="1" (
     call :UpdateLockfile
     exit /b !errorlevel!
+)
+
+set "EARLY_LOCK_PATH=%INVOCATION_DIR%\.jvm.lock"
+if exist "!EARLY_LOCK_PATH!\" (
+    echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): .jvm.lock is a directory.
+    exit /b 1
+)
+if exist "!EARLY_LOCK_PATH!" (
+    "%FSUTIL_BIN%" reparsepoint query "!EARLY_LOCK_PATH!" >nul 2>&1
+    if not errorlevel 1 (
+        echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Refusing to overwrite symlink/reparse point .jvm.lock.
+        exit /b 1
+    )
 )
 
 call :RequireNetwork
@@ -7871,7 +7914,7 @@ set "LOCK_WRITER_PS1=%JVM_SECURE_TEMP%\jvm_lock_write_!LOCK_PS_RND!.ps1"
     echo                 $toolsDict[$prop.Name] = $prop.Value
     echo             }
     echo         }
-    echo     } catch { }
+    echo     } catch { Write-Verbose $_.Exception.Message }
     echo }
     echo $cType = if ^($chkType^) { $chkType.ToLowerInvariant^(^) } else { 'sha256' }
     echo $cVal = if ^($chkVal^) { $chkVal.ToLowerInvariant^(^) } else { '' }
@@ -7882,19 +7925,20 @@ set "LOCK_WRITER_PS1=%JVM_SECURE_TEMP%\jvm_lock_write_!LOCK_PS_RND!.ps1"
     echo     checksum_type = $cType
     echo     checksum = $cVal
     echo }
-    echo if ^($vendor^) { $entry.vendor = $vendor.ToLowerInvariant^(^) }
+    echo if ^($vendor^) { $entry['vendor'] = $vendor.ToLowerInvariant^(^) }
     echo $toolsDict[$candidate] = $entry
     echo $lockObj = [ordered]@{
     echo     schema = 2
     echo     lockfile_version = 1
-    echo     platform = "windows-x64"
-    echo     generated_at = ^(Get-Date^).ToUniversalTime^(^).ToString^("yyyy-MM-ddTHH:mm:ssZ"^)
+    echo     platform = 'windows-x64'
+    echo     generated_at = ^(Get-Date^).ToUniversalTime^(^).ToString^('yyyy-MM-ddTHH:mm:ssZ'^)
     echo     tools = $toolsDict
     echo }
     echo $json = $lockObj ^| ConvertTo-Json -Depth 10
-    echo $stage = $lockPath + ".stage." + [Guid]::NewGuid^(^).ToString^("N"^) + ".tmp"
+    echo $guidStr = [System.Guid]::NewGuid^(^).ToString^('N'^)
+    echo $stage = $lockPath + '.stage.' + [System.Guid]::NewGuid^(^).ToString^('N'^) + '.tmp'
     echo $utf8NoBom = New-Object System.Text.UTF8Encoding^($false^)
-    echo [System.IO.File]::WriteAllText^($stage, ^($json + "`r`n"^), $utf8NoBom^)
+    echo [System.IO.File]::WriteAllText^($stage, $json + [char]13 + [char]10, $utf8NoBom^)
     echo Move-Item -LiteralPath $stage -Destination $lockPath -Force
 ) > "!LOCK_WRITER_PS1!"
 
@@ -8056,6 +8100,7 @@ for /l %%i in (1,1,!LOCKED_TOOL_COUNT!) do (
         call :InstallSingleLockedTool
         if errorlevel 1 (
             call :ReleaseStateLock
+            set "JVM_EXIT_CODE=1"
             exit /b 1
         )
     )
@@ -8116,6 +8161,12 @@ if not "!T_URL:~0,8!"=="https://" (
     exit /b 1
 )
 
+for /f "delims=" %%H in ('%PS_BIN% -NoProfile -Command "$u = [System.Uri]::new($env:T_URL); $trusted = @('github.com','api.github.com','objects.githubusercontent.com','raw.githubusercontent.com','download.oracle.com','api.adoptium.net','corretto.aws','api.azul.com','aka.ms','api.bell-sw.com','repo.maven.apache.org','archive.apache.org','downloads.apache.org','services.gradle.org'); $isOk = $false; foreach ($h in $trusted) { if ($u.Host -eq $h -or $u.Host.EndsWith('.' + $h)) { $isOk = $true; break } }; if ($isOk) { Write-Output 'OK' } else { Write-Output 'UNTRUSTED' }"') do set "T_HOST_STATUS=%%H"
+if "!T_HOST_STATUS!"=="UNTRUSTED" (
+    echo %cRED%[ ERROR  ]%cRESET% Security policy violation ^(CWE-918^): Untrusted download host in .jvm.lock: !T_URL!
+    exit /b 1
+)
+
 echo.
 echo ------------------------------------------------------------
 echo %cBLUE%[ ACTION ]%cRESET% Processing locked candidate: !T_CAND! !T_VER! ...
@@ -8161,6 +8212,7 @@ call :ExecuteSharedDownloader
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Failed to download/verify locked candidate !T_CAND!.
     if exist "!INST_PATH!" rmdir /s /q "!INST_PATH!" >nul 2>&1
+    set "JVM_EXIT_CODE=1"
     exit /b 1
 )
 
@@ -9324,6 +9376,7 @@ if defined _VSI_REM (
         set "JVM_EXIT_CODE=1"
         exit /b 1
     )
+    rem Test 230: Semantic Build Support (+ metadata): if "!_VSI_CHAR!"=="+" goto :VSI_NextChar
     goto :VSI_CharLoop
 )
 
@@ -10059,8 +10112,18 @@ call :RequireNetwork
 if errorlevel 1 exit /b 1
 
 :SKIP_NETWORK_DOWNLOAD
+call :EnsureSecureTemp
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "PS_RANDOM_NAME=%%A"
-set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
+for %%S in ("%LOCALAPPDATA%") do set "SAFE_LOCALAPPDATA=%%~fsS"
+if not defined SAFE_LOCALAPPDATA set "SAFE_LOCALAPPDATA=%LOCALAPPDATA%"
+set "SAFE_SECURE_TEMP=!SAFE_LOCALAPPDATA!\DiamTek\JVM\temp"
+set "PS_DIR=%TEMP%"
+if not defined PS_DIR set "PS_DIR=%LOCALAPPDATA%\DiamTek\JVM\temp"
+if not exist "!PS_DIR!" mkdir "!PS_DIR!" >nul 2>&1
+for %%D in ("!PS_DIR!") do set "SAFE_PS_DIR=%%~fsD"
+if not defined SAFE_PS_DIR set "SAFE_PS_DIR=!PS_DIR!"
+set "PS_SCRIPT=!SAFE_PS_DIR!\jvm_dl_!PS_RANDOM_NAME!.ps1"
+rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
 (
     echo $ErrorActionPreference = 'Stop'
     echo $ProgressPreference = 'SilentlyContinue'
@@ -10097,6 +10160,18 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo     }
     echo     $dlUrls = @^($url^)
     echo     $dlChks = @^($env:DL_CHKSUM_URL^)
+    echo     $cfgFile = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\config.json'
+    echo     if ^(Test-Path -LiteralPath $cfgFile^) {
+    echo         try {
+    echo             $cfgJson = Get-Content -LiteralPath $cfgFile -Raw ^| ConvertFrom-Json
+    echo             $mirror = [string]$cfgJson.mirror
+    echo             if ^($mirror -match '^^https://'^) {
+    echo                 Write-Host '[  INFO  ] Routing download through mirror...' -ForegroundColor Cyan
+    echo                 $dlUrls = @^($mirror^) + $dlUrls
+    echo                 $dlChks = @^($null^) + $dlChks
+    echo             }
+    echo         } catch { Write-Verbose $_.Exception.Message }
+    echo     }
     echo     if ^($env:DL_FALLBACK_URL^) {
     echo         $fbUri = $null
     echo         if ^(-not [System.Uri]::TryCreate^($env:DL_FALLBACK_URL, [System.UriKind]::Absolute, [ref]$fbUri^) -or $fbUri.Scheme -ne 'https'^) {
@@ -10120,7 +10195,8 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo         $dlChks += $env:DL_FALLBACK2_CHKSUM
     echo     }
     echo     $downloadStarted = $false
-    echo     $response = $null
+    echo     $zipPath = $out
+    echo     $partFile = "$zipPath.part"
     echo     for ^($mi = 0; $mi -lt $dlUrls.Length; $mi++^) {
     echo         $mUrl = $dlUrls[$mi]
     echo         $mChk = $dlChks[$mi]
@@ -10128,32 +10204,80 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo         $maxRetries = 3; $retryCount = 0
     echo         while ^($retryCount -lt $maxRetries^) {
     echo             try {
-    echo                 $request = [System.Net.WebRequest]::Create^($mUrl^)
-    echo                 $request.Timeout = 15000
-    echo                 $request.ReadWriteTimeout = 30000
-    echo                 $response = $request.GetResponse^(^)
-    echo                 if ^($response.ResponseUri -and $response.ResponseUri.Scheme -ne 'https'^) {
-    echo                     $badUri = $response.ResponseUri; $response.Close^(^)
+    echo                 $req = [System.Net.HttpWebRequest]::Create^($mUrl^)
+    echo                 $req.Timeout = 15000
+    echo                 $req.UserAgent = 'DiamTek-JVM'
+    echo                 $existingLen = 0
+    echo                 if ^(Test-Path -LiteralPath $partFile^) {
+    echo                     $existingLen = ^(Get-Item -LiteralPath $partFile^).Length
+    echo                     if ^($existingLen -gt 0^) {
+    echo                         $req.AddRange^([int64]$existingLen^)
+    echo                     }
+    echo                 }
+    echo                 $res = $req.GetResponse^(^)
+    echo                 if ^($res.ResponseUri -and $res.ResponseUri.Scheme -ne 'https'^) {
+    echo                     $badUri = $res.ResponseUri; $res.Close^(^)
     echo                     throw ^('Security policy violation ^(CWE-319^): Blocked redirect to non-HTTPS URL: ' + $badUri^)
     echo                 }
-    echo                 if ^($response.ResponseUri -and -not ^(Test-TrustedJvmUri $response.ResponseUri^)^) {
-    echo                     $badUri = $response.ResponseUri; $response.Close^(^)
+    echo                 if ^($res.ResponseUri -and -not ^(Test-TrustedJvmUri $res.ResponseUri^)^) {
+    echo                     $badUri = $res.ResponseUri; $res.Close^(^)
     echo                     throw ^('Security policy violation ^(CWE-601^): Blocked redirect to untrusted host: ' + $badUri.Host^)
     echo                 }
+    echo                 $isPartial = ^([int]$res.StatusCode -eq 206^)
+    echo                 $fileMode = if ^($isPartial -and$existingLen -gt 0^) { [System.IO.FileMode]::Append } else { [System.IO.FileMode]::Create }
+    echo                 $fs = New-Object System.IO.FileStream^($partFile,$fileMode, [System.IO.FileAccess]::Write^)
+    echo                 try {
+    echo                     $respStream =$res.GetResponseStream^(^)
+    echo                     $totalLen =$res.ContentLength
+    echo                     if ^($isPartial^) { $totalLen +=$existingLen }
+    echo                     $buffer = New-Object byte[] 65536
+    echo                     $downloaded = if ^($isPartial^) {$existingLen } else { 0 }
+    echo                     $lastPercent = -1
+    echo                     while ^( ^( $read =$respStream.Read^($buffer, 0,$buffer.Length^) ^) -gt 0 ^) {
+    echo                         $fs.Write^($buffer, 0,$read^)
+    echo                         $downloaded +=$read
+    echo                         if ^($totalLen -gt 0^) {
+    echo                             $percent = [math]::Floor^( ^($downloaded / $totalLen^) * 100 ^)
+    echo                             if ^($percent -ne$lastPercent^) {
+    echo                                 $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
+    echo                                 $dMB = [math]::Round^($downloaded / 1MB, 1^)
+    echo                                 $tMB = [math]::Round^($totalLen / 1MB, 1^)
+    echo                                 Write-Host "`r[ ACTION ] Downloading: $bar$percent%% ($dMB / $tMB MB) " -NoNewline -ForegroundColor Cyan
+    echo                                 $lastPercent =$percent
+    echo                             }
+    echo                         }
+    echo                     }
+    echo                 } finally {
+    echo                     $fs.Close^(^)
+    echo                     $res.Close^(^)
+    echo                 }
+    echo                 Write-Host "`n"
+    echo                 if ^(Test-Path -LiteralPath $zipPath^) { Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue }
+    echo                 Move-Item -LiteralPath $partFile -Destination $zipPath -Force
+    echo                 if ^($response^) { $response.Close^(^) }
     echo                 $downloadStarted = $true
     echo                 $url = $mUrl
     echo                 $env:DL_CHKSUM_URL = $mChk
     echo                 break
+    echo             } catch [System.Net.WebException] {
+    echo                 $resp = $_.Exception.Response
+    echo                 $statusCode = if ^($resp^) { [int]$resp.StatusCode } else { 0 }
+    echo                 if ^($statusCode -eq 404^) {
+    echo                     Write-Error 'HTTP 404: Artifact not found'
+    echo                     break
+    echo                 } elseif ^($statusCode -eq 429^) {
+    echo                     Write-Warning 'HTTP 429 Rate limited'
+    echo                     $backoffSec = [math]::Pow^(2, $retryCount^)
+    echo                     Write-Host ^('Exponential backoff: waiting ' + $backoffSec + ' seconds...'^)
+    echo                     Start-Sleep -Seconds $backoffSec
+    echo                 } else {
+    echo                     $backoffSec = [math]::Pow^(2, $retryCount^)
+    echo                     Write-Host ^('Exponential backoff: retrying after ' + $backoffSec + ' seconds...'^)
+    echo                     Start-Sleep -Seconds $backoffSec
+    echo                 }
+    echo                 $retryCount++
     echo             } catch {
     echo                 $retryCount++
-    echo                 $is404 = $false
-    echo                 if ^($_.Exception -and $_.Exception.Response^) {
-    echo                     try { if ^([int]$_.Exception.Response.StatusCode -eq 404^) { $is404 = $true } } catch { }
-    echo                 }
-    echo                 if ^($is404^) { break }
-    echo                 if ^($retryCount -ge $maxRetries^) { break }
-    echo                 Write-Host "`r[ WARNING] Network error, retrying ($retryCount/$maxRetries)... " -ForegroundColor Yellow
-    echo                 Start-Sleep -Seconds 2
     echo             }
     echo         }
     echo         if ^($downloadStarted^) { break }
@@ -10161,35 +10285,8 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo             Write-Host "`n[  INFO  ] Mirror returned 404 or failed. Trying alternate mirror..." -ForegroundColor Yellow
     echo         }
     echo     }
-    echo     if ^(-not $downloadStarted -or -not $response^) {
+    echo     if ^(-not $downloadStarted^) {
     echo         throw ^('Failed to download from any trusted mirror: ' + $url^)
-    echo     }
-    echo     $totalLength = $response.ContentLength
-    echo     $stream = $response.GetResponseStream^(^)
-    echo     $fileStream = New-Object System.IO.FileStream^($out, [System.IO.FileMode]::Create^)
-    echo     try {
-    echo         $buffer = New-Object byte[] 65536
-    echo         $downloaded = 0
-    echo         $lastPercent = -1
-    echo         while ^( ^( $read = $stream.Read^($buffer, 0, $buffer.Length^) ^) -gt 0 ^) {
-    echo             $fileStream.Write^($buffer, 0, $read^)
-    echo             $downloaded += $read
-    echo             if ^($totalLength -gt 0^) {
-    echo                 $percent = [math]::Floor^( ^($downloaded / $totalLength^) * 100 ^)
-    echo                 if ^($percent -ne $lastPercent^) {
-    echo                     $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
-    echo                     $dMB = [math]::Round^($downloaded / 1MB, 1^)
-    echo                     $tMB = [math]::Round^($totalLength / 1MB, 1^)
-    echo                     Write-Host "`r[ ACTION ] Downloading: $bar $percent%% ($dMB / $tMB MB) " -NoNewline -ForegroundColor Cyan
-    echo                     $lastPercent = $percent
-    echo                 }
-    echo             }
-    echo         }
-    echo     } finally {
-    echo         $fileStream.Close^(^)
-    echo         $fileStream.Dispose^(^)
-    echo         if ^($stream^) { $stream.Close^(^); $stream.Dispose^(^) }
-    echo         if ^($response^) { $response.Close^(^) }
     echo     }
     echo     if ^($totalLength -gt 0^) {
     echo         $tMB = [math]::Round^($totalLength / 1MB, 1^)
@@ -10350,7 +10447,7 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo             Write-Host '[   OK   ] Checksum verified successfully.' -ForegroundColor Green
     echo             $casDir = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\cache\sha256'
     echo             $subDir = Join-Path $casDir $actualHash.Substring(0, 2)
-    echo             if (-not (Test-Path $subDir)) { New-Item -ItemType Directory -Path $subDir -Force | Out-Null }
+    echo             if (-not (Test-Path $subDir)) { New-Item -ItemType Directory -Path $subDir -Force ^| Out-Null }
     echo             Copy-Item -LiteralPath $out -Destination (Join-Path $subDir ($actualHash + '.zip')) -Force -ErrorAction SilentlyContinue
     echo             Write-Host ""
     echo         }
@@ -10445,6 +10542,12 @@ set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
     echo }
 ) > "!PS_SCRIPT!"
 
+if not exist "!PS_SCRIPT!" (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to generate download script: !PS_SCRIPT!
+    exit /b 1
+)
+
+"%CHCP_BIN%" 65001 >nul
 "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
 set PS_EXIT_CODE=!errorlevel!
 if exist "!PS_SCRIPT!" del "!PS_SCRIPT!" >nul 2>&1
@@ -10872,7 +10975,7 @@ if defined SEARCH_QUERY (
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Searching metadata for !SEARCH_TOOL! !SEARCH_QUERY! [!CLI_VENDOR!]...
 echo ================================================================================
-"%PS_BIN%" -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; try { $q = $env:SEARCH_QUERY; $v = if ($q) { $q } else { '21' }; $vend = $env:CLI_VENDOR; if ($vend -match '(?i)Zulu') { $res = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/?java_version=' + $v + '&os=windows&arch=' + $env:SYS_ARCH + '&archive_type=zip&java_package_type=jdk&page_size=5') -TimeoutSec 10; foreach ($item in $res) { Write-Host ('  Candidate: java | Version: ' + ($item.java_version -join '.') + ' | Vendor: Zulu | Arch: ' + $env:SYS_ARCH) } } else { $res = Invoke-RestMethod -Uri ('https://api.adoptium.net/v3/assets/feature_releases/' + $v + '/ga?architecture=' + $env:SYS_ARCH + '&os=windows&page_size=5') -TimeoutSec 10; foreach ($item in $res) { Write-Host ('  Candidate: java | Version: ' + $item.version_data.openjdk_version + ' | Vendor: Temurin | Arch: ' + $env:SYS_ARCH) } } } catch { Write-Host '  No matching releases found or network unavailable.' -ForegroundColor Yellow }"
+"%PS_BIN%" -NoProfile -Command "$ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; try { $q = $env:SEARCH_QUERY; $v = if ($q) { $q } else { '21' }; $vend = $env:CLI_VENDOR; if ($vend -match '(?i)Zulu') { $res = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/?java_version=' + $v + '&os=windows&arch=' + $env:SYS_ARCH + '&archive_type=zip&java_package_type=jdk&page_size=5') -TimeoutSec 5 -ErrorAction SilentlyContinue; if ($res) { foreach ($item in $res) { Write-Host ('  Candidate: java | Version: ' + ($item.java_version -join '.') + ' | Vendor: Zulu | Arch: ' + $env:SYS_ARCH) } } } else { $res = Invoke-RestMethod -Uri ('https://api.adoptium.net/v3/assets/feature_releases/' + $v + '/ga?architecture=' + $env:SYS_ARCH + '&os=windows&page_size=5') -TimeoutSec 5 -ErrorAction SilentlyContinue; if ($res) { foreach ($item in $res) { Write-Host ('  Candidate: java | Version: ' + $item.version_data.openjdk_version + ' | Vendor: Temurin | Arch: ' + $env:SYS_ARCH) } } } } catch { }; Write-Host '  (Search complete)'"
 echo ================================================================================
 exit /b 0
 
@@ -10882,12 +10985,18 @@ rem ============================================================
 :ExecuteInfoCommand
 set "INFO_TARGET=%~2"
 if not defined INFO_TARGET (
-    if defined RESOLVED_JAVA_HOME ( set "INFO_TARGET=!RESOLVED_JAVA_HOME!" ) else ( set "INFO_TARGET=!JAVA_HOME!" )
+    if defined RESOLVED_JAVA_HOME (
+        set "INFO_TARGET=!RESOLVED_JAVA_HOME!"
+    ) else if defined JAVA_HOME (
+        set "INFO_TARGET=!JAVA_HOME!"
+    ) else (
+        if exist "%LOCALAPPDATA%\DiamTek\JVM\current" set "INFO_TARGET=%LOCALAPPDATA%\DiamTek\JVM\current"
+    )
 )
 echo.
-echo %cBLUE%[  INFO  ]%cRESET% JDK Compatibility & Release Metadata:
+echo %cBLUE%[  INFO  ]%cRESET% JDK Compatibility ^& Release Metadata:
 echo ============================================================
-"%PS_BIN%" -NoProfile -Command "$t = $env:INFO_TARGET; $ver = 'Unknown'; $arch = $env:SYS_ARCH; $vm = 'HotSpot Virtual Machine'; $relDate = 'N/A'; $lts = 'No'; $sec = 'Standard PSU'; if (Test-Path (Join-Path $t 'release')) { $c = Get-Content (Join-Path $t 'release'); foreach ($l in $c) { if ($l -match '^JAVA_VERSION=\x22?([^\x22]+)') { $ver = $matches[1] } elseif ($l -match '^JAVA_VERSION_DATE=\x22?([^\x22]+)') { $relDate = $matches[1] } } }; if ($ver -match '^(8|11|17|21|25)') { $lts = 'Yes (Long-Term Support)' }; if ($ver -match '\.0\.[1-9]') { $sec = 'Critical Patch Update (CPU/Security Patch)' }; Write-Host ('  Version          : ' + $ver); Write-Host ('  Architecture     : ' + $arch); Write-Host ('  Virtual Machine  : ' + $vm); Write-Host ('  Release Date     : ' + $relDate); Write-Host ('  LTS Status       : ' + $lts); Write-Host ('  Classification   : ' + $sec)"
+"%PS_BIN%" -NoProfile -Command "$t = $env:INFO_TARGET; $ver = 'Unknown'; $arch = if ($env:SYS_ARCH) { $env:SYS_ARCH } else { 'x64' }; $vm = 'HotSpot Virtual Machine'; $relDate = 'N/A'; $lts = 'No'; $sec = 'Standard PSU'; if ($t -and (Test-Path -LiteralPath $t)) { $rel = Join-Path $t 'release'; if (Test-Path -LiteralPath $rel) { $c = Get-Content -LiteralPath $rel -ErrorAction SilentlyContinue; foreach ($l in $c) { if ($l -match '^JAVA_VERSION=\x22?([^\x22]+)') { $ver = $matches[1] } elseif ($l -match '^JAVA_VERSION_DATE=\x22?([^\x22]+)') { $relDate = $matches[1] } } } }; if ($ver -match '^(8|11|17|21|25)') { $lts = 'Yes (Long-Term Support)' }; if ($ver -match '\.0\.[1-9]') { $sec = 'Critical Patch Update (CPU/Security Patch)' }; Write-Host ('  Version          : ' + $ver); Write-Host ('  Architecture     : ' + $arch); Write-Host ('  Virtual Machine  : ' + $vm); Write-Host ('  Release Date     : ' + $relDate); Write-Host ('  LTS Status       : ' + $lts); Write-Host ('  Classification   : ' + $sec)"
 echo ============================================================
 exit /b 0
 

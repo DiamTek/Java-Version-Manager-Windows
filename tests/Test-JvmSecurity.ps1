@@ -3835,7 +3835,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 "@
         [System.IO.File]::WriteAllText((Join-Path $tamperDir ".jvm.lock"), $tamperedJson, (New-Object System.Text.UTF8Encoding($false)))
         $outTamper = & cmd.exe /c "cd /d `"$tamperDir`" & call `"$JvmBat`" install --locked maven" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must abort with exit code 1 on checksum mismatch"
+        Assert-Equals $LASTEXITCODE 1 "jvm install --locked must abort with exit code 1 on checksum mismatch"
         Assert-Contains $outTamper "Checksum mismatch" "Output must identify checksum mismatch"
         Assert-False (Test-Path "$env:LOCALAPPDATA\DiamTek\JVM\candidates\maven\3.9.7") "Tampered candidate must not be installed"
     }
@@ -3865,7 +3865,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
         # Verify ascent from deep nested folder
         $outNested = & cmd.exe /c "cd /d `"$nestedSub`" & call `"$JvmBat`" install --locked maven" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm install --locked must discover .jvm.lock in ancestor directory"
+        Assert-Equals $LASTEXITCODE 0 "jvm install --locked must discover .jvm.lock in ancestor directory"
         Assert-Contains $outNested "Using lockfile:" "Must report resolved parent lockfile path"
 
         # Security check: .jvm.lock is a directory (CWE-59)
@@ -3920,7 +3920,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 "@
         [System.IO.File]::WriteAllText((Join-Path $ssrfDir ".jvm.lock"), $untrustedHostLock, (New-Object System.Text.UTF8Encoding($false)))
         $outSsrf = & cmd.exe /c "cd /d `"$ssrfDir`" & call `"$JvmBat`" install --locked maven" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must abort with exit code 1 when URL host is untrusted"
+        Assert-Equals $LASTEXITCODE 1 "jvm install --locked must abort with exit code 1 when URL host is untrusted"
         Assert-Contains $outSsrf "CWE-918" "Output must indicate CWE-918 untrusted host violation"
     }
 
