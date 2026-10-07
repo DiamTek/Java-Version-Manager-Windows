@@ -131,7 +131,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261007.147"
+set "JVM_BUILD=20261007.148"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -1787,6 +1787,13 @@ if !JDK_COUNT! GTR 1 (
             )
         )
     )
+)
+
+if "!FLAG_LOCKED!"=="1" (
+    call :ExecuteLockedInstall
+    set "CMD_EXIT_CODE=!errorlevel!"
+    if "!CMD_EXIT_CODE!" NEQ "0" set "CMD_EXIT_CODE=1"
+    goto :CLI_DONE
 )
 
 if /i not "!TARGET_CANDIDATE!"=="java" (
@@ -7968,25 +7975,7 @@ exit /b 0
 call :AcquireStateLock
 if errorlevel 1 exit /b 1
 
-for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "LOCK_FIND_RND=%%A"
-set "LOCK_FIND_PS1=%JVM_SECURE_TEMP%\jvm_lock_find_!LOCK_FIND_RND!.ps1"
-(
-    echo $dir = $env:INVOCATION_DIR
-    echo while ^($dir^) {
-    echo     $c = Join-Path $dir '.jvm.lock'
-    echo     if ^(Test-Path -LiteralPath $c^) {
-    echo         Write-Output $c
-    echo         break
-    echo     }
-    echo     $p = Split-Path -Path $dir -Parent
-    echo     if ^(-not $p -or $p -eq $dir^) { break }
-    echo     $dir = $p
-    echo }
-) > "!LOCK_FIND_PS1!"
-for /f "delims=" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!LOCK_FIND_PS1!"') do (
-    set "RESOLVED_LOCK_FILE=%%A"
-)
-if exist "!LOCK_FIND_PS1!" del /f /q "!LOCK_FIND_PS1!" >nul 2>&1
+call :ResolveLockfilePath
 
 if not defined RESOLVED_LOCK_FILE (
     echo %cRED%[ ERROR  ]%cRESET% No .jvm.lock found in the current directory or parent directories.
