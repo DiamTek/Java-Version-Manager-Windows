@@ -131,7 +131,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261007.148"
+set "JVM_BUILD=20261007.149"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -7983,6 +7983,8 @@ if not defined RESOLVED_LOCK_FILE (
     call :ReleaseStateLock
     exit /b 1
 )
+
+echo [  INFO  ] Using lockfile: !RESOLVED_LOCK_FILE!
 
 rem 2. Security validation on resolved lockfile (CWE-59)
 if exist "!RESOLVED_LOCK_FILE!\" (
