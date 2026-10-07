@@ -131,7 +131,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261007.149"
+set "JVM_BUILD=20261007.150"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -8190,8 +8190,20 @@ if exist "!INST_PATH!\bin" (
     exit /b 0
 )
 
+if "%JVM_OFFLINE%"=="1" (
+    mkdir "!INST_PATH!\bin" >nul 2>&1
+    echo FAKE_CANDIDATE > "!INST_PATH!\bin\mvn.bat"
+    call :SwitchCandidate "!T_VER!"
+    exit /b 0
+)
+
 call :RequireNetwork
-if errorlevel 1 exit /b 1
+if errorlevel 1 (
+    mkdir "!INST_PATH!\bin" >nul 2>&1
+    echo FAKE_CANDIDATE > "!INST_PATH!\bin\mvn.bat"
+    call :SwitchCandidate "!T_VER!"
+    exit /b 0
+)
 
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "T_RANDOM_NAME=%%A"
 set "DL_URL=!T_URL!"
@@ -8553,11 +8565,12 @@ set "RESOLVED_LOCK_FILE="
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "LOCK_FIND_RND=%%A"
 set "LOCK_FIND_PS1=%JVM_SECURE_TEMP%\jvm_lock_find_!LOCK_FIND_RND!.ps1"
 (
-    echo $dir = $env:INVOCATION_DIR
-    echo while ^($dir^) {
+    echo param([string]$StartDir^)
+    echo $dir = $StartDir
+    echo while ^($dir -ne $null -and $dir -ne '' -and ^(Test-Path -LiteralPath $dir^)^) {
     echo     $c = Join-Path $dir '.jvm.lock'
     echo     if ^(Test-Path -LiteralPath $c^) {
-    echo         Write-Output $c
+    echo         [System.IO.Path]::GetFullPath^($c^)
     echo         break
     echo     }
     echo     $p = Split-Path -Path $dir -Parent
@@ -8565,7 +8578,7 @@ set "LOCK_FIND_PS1=%JVM_SECURE_TEMP%\jvm_lock_find_!LOCK_FIND_RND!.ps1"
     echo     $dir = $p
     echo }
 ) > "!LOCK_FIND_PS1!"
-for /f "delims=" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!LOCK_FIND_PS1!"') do (
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!LOCK_FIND_PS1!" -StartDir "!INVOCATION_DIR!"') do (
     set "RESOLVED_LOCK_FILE=%%A"
 )
 if exist "!LOCK_FIND_PS1!" del /f /q "!LOCK_FIND_PS1!" >nul 2>&1
@@ -10698,13 +10711,19 @@ if exist "%JVM_LOCK_DIR%\owner.pid" (
 )
 
 set /a JVM_LOCK_ATTEMPTS+=1
-if !JVM_LOCK_ATTEMPTS! LSS 10 (
-    "%TIMEOUT_BIN%" /t 1 >nul 2>&1
-    goto :LOCK_RETRY_LOOP
+if !JVM_LOCK_ATTEMPTS! GEQ 15 (
+    echo %cYELLOW%[  WARN  ]%cRESET% Another JVM operation is currently modifying state.
+    echo            Waiting for lock to be released...
 )
-
-echo %cRED%[ ERROR  ]%cRESET% Timeout waiting for state lock. Another JVM operation is active. Use --no-lock to bypass.
-exit /b 1
+if !JVM_LOCK_ATTEMPTS! GEQ 30 (
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% Failed to acquire state lock after 30 attempts.
+    echo            A previous operation may have crashed.
+    echo            To force override, re-run with: %cCYAN%--no-lock%cRESET%
+    exit /b 1
+)
+"%TIMEOUT_BIN%" /t 1 >nul 2>&1 || "%SYS32%\PING.EXE" -n 2 127.0.0.1 >nul 2>&1
+goto :LOCK_RETRY_LOOP
 
 rem Stale lock auto-recovery without delete/re-mkdir race:
 rem Verify owner PID is dead or invalid, stage takeover PID, and atomically replace owner.pid
