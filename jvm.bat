@@ -10129,15 +10129,7 @@ if errorlevel 1 exit /b 1
 :SKIP_NETWORK_DOWNLOAD
 call :EnsureSecureTemp
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "PS_RANDOM_NAME=%%A"
-for %%S in ("%LOCALAPPDATA%") do set "SAFE_LOCALAPPDATA=%%~fsS"
-if not defined SAFE_LOCALAPPDATA set "SAFE_LOCALAPPDATA=%LOCALAPPDATA%"
-set "SAFE_SECURE_TEMP=!SAFE_LOCALAPPDATA!\DiamTek\JVM\temp"
-set "PS_DIR=%TEMP%"
-if not defined PS_DIR set "PS_DIR=%LOCALAPPDATA%\DiamTek\JVM\temp"
-if not exist "!PS_DIR!" mkdir "!PS_DIR!" >nul 2>&1
-for %%D in ("!PS_DIR!") do set "SAFE_PS_DIR=%%~fsD"
-if not defined SAFE_PS_DIR set "SAFE_PS_DIR=!PS_DIR!"
-set "PS_SCRIPT=!SAFE_PS_DIR!\jvm_dl_!PS_RANDOM_NAME!.ps1"
+set "PS_SCRIPT=%JVM_SECURE_TEMP%\jvm_dl_!PS_RANDOM_NAME!.ps1"
 rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
 (
     echo $ErrorActionPreference = 'Stop'
@@ -10709,7 +10701,7 @@ if exist "%JVM_LOCK_DIR%\owner.pid" (
     )
     if defined LC_PID (
         set "STALE_LOCK=0"
-        for /f "delims=" %%R in ('%PS_BIN% -NoProfile -Command "$ErrorActionPreference='Stop'; try { $p = Get-Process -Id $env:LC_PID -ErrorAction Stop; if ($p.StartTime.ToUniversalTime().Ticks.ToString() -eq '$env:LC_TKS') { '0' } else { '1' } } catch { '1' }" 2^>nul') do set "STALE_LOCK=%%R"
+        for /f "delims=" %%R in ('%PS_BIN% -NoProfile -Command "$ErrorActionPreference='Stop'; try { $p = Get-Process -Id $env:LC_PID -ErrorAction Stop; if ($p.StartTime.ToUniversalTime().Ticks.ToString() -eq $env:LC_TKS) { '0' } else { '1' } } catch { '1' }" 2^>nul') do set "STALE_LOCK=%%R"
         if "!STALE_LOCK!"=="1" (
             echo %cYELLOW%[ WARNING]%cRESET% Stale state lock detected from dead or recycled PID !LC_PID!. Reclaiming...
             rmdir /s /q "%JVM_LOCK_DIR%" >nul 2>&1

@@ -3842,6 +3842,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
     # Test 204: jvm install --locked parent directory traversal and reparse point / directory rejection (CWE-59 / CWE-22)
     Run-TestCase "Manifest" "jvm install --locked parent directory traversal and reparse point / directory rejection (CWE-59 / CWE-22)" {
+        $env:LOCALAPPDATA = $FakeLocalAppData
         $parentDir = Join-Path $SandboxRoot "LockParentTest"
         $nestedSub = Join-Path $parentDir "sub1\sub2\sub3"
         New-Item -ItemType Directory -Path $nestedSub -Force | Out-Null
