@@ -3866,7 +3866,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
         # Verify ascent from deep nested folder
         $outNested = & cmd.exe /c "cd /d `"$nestedSub`" & call `"$JvmBat`" install --locked maven" 2>&1 | Out-String
-        Assert-Equals $LASTEXITCODE 0 "jvm install --locked must discover .jvm.lock in ancestor directory`n$outNested"
+        Assert-Equals $LASTEXITCODE 0 "jvm install --locked must discover .jvm.lock in ancestor directory"
         Assert-Contains $outNested "Using lockfile:" "Must report resolved parent lockfile path"
 
         # Security check: .jvm.lock is a directory (CWE-59)
