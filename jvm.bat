@@ -131,7 +131,7 @@ if not defined ORIG_CP set "ORIG_CP=437"
 set "INVOCATION_DIR=%cd%"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261006.146"
+set "JVM_BUILD=20261007.147"
 
 rem Generate ESC character for ANSI color codes
 for /F "delims=#" %%a in ('"prompt #$E# & echo on & for %%b in (1) do rem"') do set "ESC=%%a"
@@ -1043,6 +1043,13 @@ if defined CLI_COMMAND (
         exit /b !FAST_EXIT!
     )
 )
+if "!FLAG_LOCKED!"=="1" (
+    call :ExecuteLockedInstall
+    set "FAST_EXIT=!errorlevel!"
+    if "!FAST_EXIT!" NEQ "0" set "FAST_EXIT=1"
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b !FAST_EXIT!
+)
 if /i not "!TARGET_CANDIDATE!"=="java" (
     if defined CLI_COMMAND (
         call :RouteEcosystemCandidate
@@ -1056,13 +1063,6 @@ if /i not "!TARGET_CANDIDATE!"=="java" (
         if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
         exit /b !FAST_EXIT!
     )
-)
-if "!FLAG_LOCKED!"=="1" if not defined CLI_COMMAND (
-    call :ExecuteLockedInstall
-    set "FAST_EXIT=!errorlevel!"
-    if "!FAST_EXIT!" NEQ "0" set "FAST_EXIT=1"
-    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
-    exit /b !FAST_EXIT!
 )
 if defined CLI_TARGET (
     set "SKIP_HEADER=1"
@@ -8070,8 +8070,11 @@ if !LOCKED_TOOL_COUNT! EQU 0 (
 
 rem 3. Process each locked tool
 set "FILTER_TOOL="
-if defined CLI_TARGET if /i not "!CLI_TARGET!"=="SKIP_JAVA" set "FILTER_TOOL=!CLI_TARGET!"
-if /i not "!TARGET_CANDIDATE!"=="java" set "FILTER_TOOL=!TARGET_CANDIDATE!"
+if /i not "!TARGET_CANDIDATE!"=="java" (
+    set "FILTER_TOOL=!TARGET_CANDIDATE!"
+) else if defined CLI_TARGET (
+    if /i not "!CLI_TARGET!"=="SKIP_JAVA" set "FILTER_TOOL=!CLI_TARGET!"
+)
 if defined FILTER_TOOL (
     call :ValidateStrictIdentifier "!FILTER_TOOL!" FILTER_TOOL
     if errorlevel 1 (
@@ -8556,8 +8559,8 @@ exit /b 0
 
 :ResolveLockfilePath
 set "RESOLVED_LOCK_FILE="
-for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "RLF_RND=%%A"
-set "RLF_PS1=%JVM_SECURE_TEMP%\jvm_rlf_!RLF_RND!.ps1"
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "LOCK_FIND_RND=%%A"
+set "LOCK_FIND_PS1=%JVM_SECURE_TEMP%\jvm_lock_find_!LOCK_FIND_RND!.ps1"
 (
     echo $dir = $env:INVOCATION_DIR
     echo while ^($dir^) {
@@ -8570,11 +8573,11 @@ set "RLF_PS1=%JVM_SECURE_TEMP%\jvm_rlf_!RLF_RND!.ps1"
     echo     if ^(-not $p -or $p -eq $dir^) { break }
     echo     $dir = $p
     echo }
-) > "!RLF_PS1!"
-for /f "delims=" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!RLF_PS1!"') do (
+) > "!LOCK_FIND_PS1!"
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!LOCK_FIND_PS1!"') do (
     set "RESOLVED_LOCK_FILE=%%A"
 )
-if exist "!RLF_PS1!" del /f /q "!RLF_PS1!" >nul 2>&1
+if exist "!LOCK_FIND_PS1!" del /f /q "!LOCK_FIND_PS1!" >nul 2>&1
 exit /b 0
 
 rem ============================================================
