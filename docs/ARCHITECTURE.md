@@ -30,7 +30,7 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [Project Toolchain Parser (.jvm.toml / .jvmrc)](#project-toolchain-parser-jvmtoml--jvmrc)
 - [CMD & PowerShell Transparent Directory Switching Hooks](#cmd--powershell-transparent-directory-switching-hooks)
 - [Content-Addressed Storage & Resilient Transport Engine](#content-addressed-storage--resilient-transport-engine)
-- [Automated Adversarial Test Architecture (233 Tests, 40 CWEs)](#automated-adversarial-test-architecture-233-tests-40-cwes)
+- [Automated Adversarial Test Architecture (238 Tests, 40 CWEs)](#automated-adversarial-test-architecture-238-tests-40-cwes)
 
 ---
 
@@ -676,7 +676,20 @@ flowchart TD
 ### 3. Zero Silent Catches & Sanitized Diagnostics (`CWE-209` / `CWE-390`)
 - **PowerShell AST Zero-Silent-Catch Enforcement:** An automated AST test (`Test 157`) parses all 9 `.ps1` scripts across the repository and verifies **0 empty `catch {}` blocks**. Every exception handler either performs compensation logic or emits structured diagnostics (`Write-Verbose` / `[ WARN ]`).
 - **Path & Stack-Trace Redaction (`CWE-209`):** Error output is normalized to single-line diagnostics with stripped newlines, and sensitive filesystem paths (`%LOCALAPPDATA%`, `%USERPROFILE%`) are redacted from user-visible warnings.
-- **CLI Exit Code Propagation (`CWE-252` / `CWE-754` / `CWE-755`):** Subcommands (`clean`, `which`, `doctor`, `open`, `exec`, `hook`, `clear`, `channel`, `pin`) pass non-zero exit codes through `:CLI_DONE` across `setlocal` boundaries, ensuring scripts and CI/CD pipelines reliably detect failures.
+- **Deterministic Semantic Exit Codes (`CWE-252` / `CWE-754` / `CWE-755`):** Subcommands strictly propagate standardized semantic process exit codes across batch scope boundaries (`exit /b !FINAL_RET!`), enabling robust programmatic handling in CI/CD pipelines and orchestrators:
+  - `0`: Operation succeeded cleanly.
+  - `1`: Unspecified generic failure.
+  - `2`: Invalid CLI argument or malformed syntax.
+  - `3`: Requested target, JDK, or candidate tool not found.
+  - `4`: Network transport, timeout, or DNS failure.
+  - `5`: Checksum, hash mismatch, or signature verification failure.
+  - `6`: Permission denied or missing elevation.
+  - `7`: Mutex state lock (`state.lock`) acquisition timeout.
+  - `8`: Network operation blocked by `--offline` policy.
+  - `9`: Configuration or lockfile schema validation error.
+  - `10`: Atomic transaction aborted with successful state rollback.
+- **Contextual Actionable Errors Subsystem:** All runtime error emissions are unified under `:EmitContextualError`, decomposing failures into four discrete properties: Title, Reason, State Impact statement (verifying whether filesystem/registry state was altered), and concrete CLI Remediation steps. When `--json` is supplied, errors are automatically serialized into RFC-compliant JSON objects.
+- **Dry-Run Simulation Architecture (`--dry-run`):** Mutating subcommands (`uninstall`, `clean`, `clear`, `update --all`, `self-update`, `doctor --fix`) support full dry-run simulation, resolving targets, verifying preconditions, and logging intended modifications without executing filesystem or registry alterations.
 
 ### 4. Transactional Installations & Crash-Safe State Machine (`jvm transaction`)
 Every download, extraction, and activation is coordinated through an atomic JSON transaction journal (`%LOCALAPPDATA%\DiamTek\JVM\transactions`):
@@ -714,14 +727,14 @@ Projects can specify toolchains across Java and ecosystem candidates using stand
 
 ---
 
-<a id="automated-adversarial-test-architecture-233-tests-40-cwes"></a>
-## Automated Adversarial Test Architecture (233 Tests, 40 CWEs)
+<a id="automated-adversarial-test-architecture-238-tests-40-cwes"></a>
+## Automated Adversarial Test Architecture (238 Tests, 40 CWEs)
 
-The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **233 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **238 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
 
 | Suite | Category Focus | Test Count | Status |
 | :--- | :--- | :---: | :---: |
-| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF, TOML Metacharacters) | 84 / 84 | **PASS** |
+| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF, TOML Metacharacters) | 89 / 89 | **PASS** |
 | **Suite 2** | Registry & Env Boundaries (ValueKind preservation, UAC elevation, Config Engine, Env Diff) | 8 / 8 | **PASS** |
 | **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery, Doctor Self-Healing) | 18 / 18 | **PASS** |
 | **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, .jvm.lock, CAS Layout, Cache CLI, Ownership Tracking) | 67 / 67 | **PASS** |
@@ -731,7 +744,7 @@ The security, integrity, and operational resilience of DiamTek JVM are verified 
 | **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 6 / 6 | **PASS** |
 | **Suite 9** | Supply Chain (`JVM_SKIP_CHECKSUM` rejection, Verification checklists) | 2 / 2 | **PASS** |
 | **Suite 10** | Atomic Operations (Transactional journaling, Process kill tests, Pre-state junction recovery) | 3 / 3 | **PASS** |
-| **Total** | **Comprehensive Full-System Security Suite** | **233 / 233** | **`10.0 / 10.0`** |
+| **Total** | **Comprehensive Full-System Security Suite** | **238 / 238** | **`10.0 / 10.0`** |
 
 ---
 

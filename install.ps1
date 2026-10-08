@@ -940,7 +940,9 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
             '--offline', '--json', '--no-lock', '--locked', '-l',
             '--check', '--diff', '--update', '--fix', '--dry-run',
-            '--channel', '--nightly', '--stable', '--security', '--bundle', '--mirror',
+            '--quiet', '-q', '--verbose',
+            '--channel', '-c', '--nightly', '--stable', '--security', '--bundle', '--mirror',
+            '--java', '--maven', '--gradle', '--kotlin', '--scala', '--groovy', '--ant', '--sbt', '--jbang', '--quarkus', '--spring', '--micronaut', '--mn',
             '--version', '-v', '--help', '-h'
         )
 

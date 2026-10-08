@@ -38,7 +38,7 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **Pre-Change Safety** | None (overwrites shell files) | **Automated Registry Backups** (exports `.reg` to `%LOCALAPPDATA%\DiamTek\JVM\backups\`) |
 | **User Interface** | CLI Only (Manual typing) | **Interactive TUI** & Headless CLI |
 | **Archive Extraction** | Requires external `zip` / `tar` binaries | **Native `.NET System.IO.Compression`** |
-| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **233-Test Adversarial Suite (`40 MITRE CWEs`), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
+| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **238-Test Adversarial Suite (`40 MITRE CWEs`), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
 | **Provenance & Authenticity** | None | **`jvm verify [ver|all]`** (6-tier cryptographic & signature audit) |
 | **Installation Atomicity** | Basic unzips | **`jvm transaction`** (Atomic journaling & rollback engine) |
 | **CPU Architecture** | Manual configuration | **Native x64 / ARM64 Auto-Detection** |

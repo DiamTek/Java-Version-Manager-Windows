@@ -132,6 +132,10 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm self-update` | Tool | Automatically downloads and atomic-swaps `jvm.bat` to the latest release. |
 | `jvm self-uninstall` | System | Triggers deep UAC-elevated system uninstaller (`uninstall.ps1`, `jvm uninstall-self`). |
 | `jvm <command> --offline` | Flag | Air-gapped / offline execution mode: strictly blocks network calls and executes local commands safely. |
+| `jvm <command> --dry-run` | Flag | Simulates mutating operations (`uninstall`, `clean`, `clear`, `update --all`, `self-update`, `doctor --fix`) without modifying filesystem or registry. |
+| `jvm <command> --quiet` (or `-q`) | Flag | Suppresses decorative headers, banners, and progress telemetry for clean scripting. |
+| `jvm <command> --verbose` | Flag | Emits verbose diagnostic output, subshell telemetry, and network resolution logs. |
+| `jvm auto-switch` (or `--auto-switch`) | Hook / Shell | Triggers directory-level auto-switch evaluation for `.java-version`, `.sdkmanrc`, and `.jvm.toml`. |
 | `jvm <command> --json` | Flag | Outputs structured machine-readable JSON (`jvm current --json`, `jvm which --json`, `jvm list --json`). |
 | `jvm <command> --no-lock` | Flag | Bypasses atomic mutex state lock acquisition (`state.lock`) in emergency recovery (UNSAFE for concurrent operations). |
 | `jvm <command> --no-color` | Flag | Suppresses ANSI color codes for clean redirection and CI/CD logs (also honors `NO_COLOR` env). |
@@ -152,7 +156,7 @@ When you install or activate the PowerShell profile hook (`jvm hook` or via `ins
 
 | Input Context | Tab Behavior | Autocompleted Values |
 |---------------|--------------|----------------------|
-| `jvm <Tab>` / `jvm.bat <Tab>` / `.\jvm.bat <Tab>` | Subcommands, candidates, & global flags | `list`, `ls`, `install`, `uninstall`, `rm`, `use`, `pin`, `current`, `doctor`, `clean`, `channel`, `lock`, `config`, `project`, `cache`, `search`, `compare`, `list-remote`, `java`, `maven`, `gradle`, etc. |
+| `jvm <Tab>` / `jvm.bat <Tab>` / `.\jvm.bat <Tab>` | Subcommands, candidates, & global flags | `list`, `ls`, `install`, `uninstall`, `rm`, `use`, `pin`, `current`, `doctor`, `clean`, `channel`, `lock`, `config`, `project`, `cache`, `search`, `compare`, `list-remote`, `auto-switch`, `java`, `maven`, `gradle`, etc. |
 | `jvm channel <Tab>` / `jvm --channel <Tab>` | Delivery update channel targets | `stable`, `nightly` |
 | `jvm open <Tab>` | Known filesystem navigation targets | `home`, `dir`, `bin`, `config`, `cache`, `downloads`, `backup`, `backups`, `links` |
 | `jvm hook <Tab>` | Profile hook lifecycle management actions | `install`, `status`, `check`, `remove`, `uninstall` |
@@ -160,7 +164,7 @@ When you install or activate the PowerShell profile hook (`jvm hook` or via `ins
 | `jvm use <Tab>` | Dynamically discovered installed versions | Scans `%LOCALAPPDATA%\JavaVersionManager\links` and `%USERPROFILE%\.jdks` in real-time |
 | `jvm pin <Tab>` | Dynamically discovered installed versions | Autocompletes installed JDK version tags for `.java-version` creation |
 | `jvm uninstall <Tab>` | Installed JDKs and candidates | Autocompletes installed version tags for targeted uninstallation |
-| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--offline`, `--json`, `--no-lock`, `--locked`, `-l`, `--check`, `--diff`, `--update`, `--fix`, `--dry-run`, `--channel`, `--nightly`, `--stable`, `--security`, `--bundle`, `--mirror`, `--version`, `--help` |
+| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--offline`, `--json`, `--no-lock`, `--locked`, `-l`, `--check`, `--diff`, `--update`, `--fix`, `--dry-run`, `--quiet`, `-q`, `--verbose`, `--auto-switch`, `--channel`, `--nightly`, `--stable`, `--security`, `--bundle`, `--mirror`, `--version`, `--help` |
 
 ### Interactive Tab Session Examples
 
@@ -1291,6 +1295,71 @@ Bypasses the concurrency mutex lock (`%LOCALAPPDATA%\DiamTek\JVM\state.lock`) du
 jvm clean --no-lock
 ```
 
+### 4. Dry-Run Simulation Mode (`--dry-run`)
+Executes mutating commands in read-only simulation mode. Inspects resolution targets, checks files, and reports the actions that would be executed without touching the filesystem, directory junctions, or registry:
+```powershell
+# Preview candidate uninstallation without removing files:
+jvm uninstall 21 --vendor adoptium --dry-run
+jvm uninstall maven 3.9.9 --dry-run
+
+# Preview cache and temporary artifact purging:
+jvm clean --dry-run
+
+# Preview environment variable clearing:
+jvm clear --dry-run
+
+# Preview batch updates across all runtimes:
+jvm update --all --dry-run
+
+# Preview diagnostic self-healing repairs:
+jvm doctor --fix --dry-run
+```
+
+### 5. Quiet / Silent Automation Mode (`--quiet` / `-q`)
+Designed for non-interactive scripts and CI runners. Suppresses decorative ASCII banners, welcome headers, and progress spinners. Essential status information, errors, and process exit codes are cleanly emitted:
+```powershell
+# Quietly activate a JDK version:
+jvm 21 -q
+
+# Quietly query path or list:
+jvm which java --quiet
+```
+
+### 6. Verbose Diagnostics Mode (`--verbose`)
+Enables comprehensive telemetry and diagnostic logging across the engine. Emits download URLs, HTTP request headers, range resume offsets, SHA-256 verification stages, subshell environment deltas, and timing phases:
+```powershell
+jvm install 21 --vendor adoptium --verbose
+jvm verify 21 --verbose
+```
+
+### 7. Contextual Actionable Errors Subsystem
+Every error emitted by DiamTek JVM follows a standardized, 4-part actionable template designed to eliminate guesswork:
+- **Title (`[ ERROR ]`)**: Clear description of what failed.
+- **Reason (`[ REASON ]`)**: Technical root cause explaining why the failure occurred.
+- **State Impact (`[ STATE ]`)**: Explicit confirmation of filesystem and environment impact (e.g., *"No files were modified. Active candidate environment remains untouched."*).
+- **Remediation (`[ REMEDY ]`)**: Concrete, actionable CLI commands to resolve the issue.
+
+```text
+[ ERROR  ] Candidate 'maven' version '4.0.0-alpha' is not installed!
+[ REASON ] The candidate folder could not be located in %LOCALAPPDATA%\DiamTek\JVM\candidates\maven\4.0.0-alpha.
+[ STATE  ] No files were modified. Active candidate environment remains untouched.
+[ REMEDY ] Run 'jvm list maven' to view installed versions, or run 'jvm install maven 4.0.0-alpha' to install it.
+```
+
+When `--json` is supplied, errors are automatically serialized into structured JSON:
+```json
+{
+  "status": "error",
+  "code": 3,
+  "error": {
+    "title": "Candidate 'maven' version '4.0.0-alpha' is not installed!",
+    "reason": "The candidate folder could not be located in %LOCALAPPDATA%\\DiamTek\\JVM\\candidates\\maven\\4.0.0-alpha.",
+    "state": "No files were modified. Active candidate environment remains untouched.",
+    "remedy": "Run 'jvm list maven' to view installed versions, or run 'jvm install maven 4.0.0-alpha' to install it."
+  }
+}
+```
+
 <a id="common-workflow-recipes"></a>
 ## 💡 Common Developer Workflow Recipes
 
@@ -1405,11 +1474,23 @@ Write-Output "Resolved JAVA_HOME to: $JavaHome"
 ```
 
 ### Checking Process Exit Codes in Automation Scripts
-All DiamTek JVM subcommands (`clean`, `which`, `doctor`, `open`, `exec`, `hook`, `clear`, `channel`, `pin`, `install`, `uninstall`, `use`) strictly propagate deterministic exit codes across batch scope boundaries (`CWE-252` / `CWE-754`):
-- `0`: Operation succeeded cleanly.
-- `1`: Operation aborted, target not found, syntax error, or validation failure.
-- `1602`: Operation canceled by user.
-- `1603`: Fatal system error.
+All DiamTek JVM subcommands strictly propagate deterministic, standardized semantic exit codes across batch scope boundaries (`CWE-252` / `CWE-754` / `CWE-755`), enabling robust error detection in CI/CD pipelines, DevOps orchestration, and wrapper scripts:
+
+| Exit Code | Classification | Technical Meaning | Typical Context & Cause |
+|:---------:|----------------|-------------------|--------------------------|
+| `0` | **Success** | Clean completion | Operation completed successfully with zero errors. |
+| `1` | **Generic Failure** | General error | Unhandled system exception, generic failure, or interactive prompt abort. |
+| `2` | **Bad Syntax / Arguments** | Invalid CLI invocation | Unrecognized subcommand, invalid flag combination, or malformed syntax. |
+| `3` | **Target Not Found** | Missing runtime or tool | Requested JDK version, candidate tool, or target path is not installed or found. |
+| `4` | **Network / Download Failure** | Remote transport error | Network unreachable, DNS failure, HTTP 404/5xx, or transfer timeout. |
+| `5` | **Integrity / Checksum Failure** | Cryptographic verification failed | SHA-256 hash mismatch, corrupt payload, or Authenticode signature failure. |
+| `6` | **Permission / Privilege Failure** | Access denied | Insufficient permissions or missing Administrator elevation for HKLM operations. |
+| `7` | **State Lock Timeout** | Mutex lock contention | Mutual exclusion lock (`state.lock`) acquisition timed out after maximum retry window. |
+| `8` | **Offline Mode Restriction** | Network policy violation | Network-dependent operation blocked because `--offline` mode is active. |
+| `9` | **Configuration Error** | Malformed settings | Schema or parsing validation failure in `config.json`, `.jvm.lock`, or `.jvm.toml`. |
+| `10` | **Rollback Occurred** | Transaction compensation | Atomic transaction aborted mid-operation and all staged changes were safely rolled back. |
+| `1602` | **User Canceled** | Operation canceled by user | Windows Installer (MSI) wizard was canceled by the user. |
+| `1603` | **Fatal System Error** | Windows Installer fatal error | MSI engine encountered an unrecoverable system or file-lock error. |
 
 **PowerShell Automation:**
 ```powershell

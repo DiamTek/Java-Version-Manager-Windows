@@ -17,11 +17,15 @@ Thank you for using Java Version Manager! We want to ensure you have the best po
 Before opening a support ticket, check this rapid decision tree for the most common operational scenarios:
 
 ### 0. "Check my entire system health automatically" (`jvm doctor`)
-- **Action:** Run the automated 7-point health check in any terminal:
+- **Action:** Run the automated 7-point diagnostic health check in any terminal:
   ```powershell
   jvm doctor
+  # Or run automated self-healing repairs directly:
+  jvm doctor --fix
+  # Or preview pending repairs safely without mutating state:
+  jvm doctor --fix --dry-run
   ```
-- **What it does:** Automatically audits `%LOCALAPPDATA%` storage permissions, junction target validity, User/Machine registry synchronization, `where.exe java` PATH precedence, rogue Oracle `javapath` shadowing, and PowerShell `$PROFILE` hooks. If any conflicts exist, `jvm doctor` identifies the exact root cause and outputs direct remediation steps.
+- **What it does:** Automatically audits `%LOCALAPPDATA%` storage permissions, junction target validity, User/Machine registry synchronization, `where.exe java` PATH precedence, rogue Oracle `javapath` shadowing, and PowerShell `$PROFILE` hooks. If any conflicts exist, `jvm doctor` identifies the exact root cause and outputs 4-part actionable remediation steps (`Title`, `Reason:`, `State:`, `Remediation:`). Running `jvm doctor --fix` automatically repairs broken junctions, purges legacy PATH shadows, and cleans up orphaned links.
 - **Exit Codes:**
   - `0`: All diagnostic checks passed cleanly with zero conflicts.
   - `1`: One or more warnings or misconfigurations detected (remediation instructions provided in output).
@@ -70,6 +74,11 @@ Before opening a support ticket, check this rapid decision tree for the most com
     ```powershell
     jvm link "D:\OfflineStore\jdk-21.0.2" jdk-21-offline
     ```
+  - **Offline Cache Bundling (`.jvmcache`):** Export central CAS cache store on a connected machine and import on air-gapped workstations:
+    ```powershell
+    jvm cache export --bundle "D:\bundles\jdk-cache.jvmcache"
+    jvm cache import "D:\bundles\jdk-cache.jvmcache"
+    ```
   - **Enforce Fail-Closed Offline Mode (`--offline`):** If operating on a disconnected machine or strict offline policy, pass `--offline` to execute local queries without network latency or timeout attempts:
     ```powershell
     jvm current --offline
@@ -108,6 +117,22 @@ Before opening a support ticket, check this rapid decision tree for the most com
     jvm clean --no-lock
     ```
 
+### 7. "Need to audit lockfiles, verify signatures, or recover interrupted transactions"
+- **Lockfile Integrity & Drift:** Audit `.jvm.lock` manifest schema, platform support, and configuration drift:
+  ```powershell
+  jvm lock --check
+  jvm lock --diff
+  ```
+- **Cryptographic Provenance Verification:** Audit local binary signatures, HTTPS origins, and SHA-256 digests:
+  ```powershell
+  jvm verify
+  ```
+- **Interrupted Transaction Recovery:** View transaction logs or roll back an aborted installation safely:
+  ```powershell
+  jvm transaction show
+  jvm transaction rollback <id>
+  ```
+
 ---
 
 ## ⚡ Troubleshooting Quick-Reference Table
@@ -124,10 +149,13 @@ Before opening a support ticket, check this rapid decision tree for the most com
 | Air-gapped workstation or strict offline policy | Network access blocked by corporate perimeter | `jvm doctor --offline` | Pass `--offline` to execute local commands without network timeouts |
 | Concurrency timeout / state lock error | Another process crashed while holding `state.lock` | `jvm doctor` | JVM auto-recovers dead PIDs; use `--no-lock` for emergency bypass |
 | Command `jvm` not recognized in new terminal | JVM directory missing from User PATH | `where.exe jvm` | Settings (`3`) → Option 1 (`Install to User PATH`) |
-| Directory junction broken or points to missing JDK | JDK was manually deleted from disk | `jvm doctor` | `jvm link` (to inspect) or `jvm <version>` (to re-point) |
+| Directory junction broken or points to missing JDK | JDK was manually deleted from disk | `jvm doctor` | `jvm doctor --fix` or `jvm <version>` |
+| Stale configuration file (`config.json`) | Invalid or corrupted configuration settings | `jvm config get` | `jvm config reset` |
+| Environmental delta / registry divergence | Session environment differs from registry baseline | `jvm env --diff` | `jvm <version> --session` or `jvm <version>` |
+| Interrupted / aborted installation state | Installation halted mid-flight before completion | `jvm transaction show` | `jvm transaction rollback <id>` |
 | Self-updater skips: "newer local build" | Local `JVM_BUILD` is newer than GitHub release or main branch | `jvm current` | Expected for local dev builds; use `jvm self-update --force` to override |
 | Want to switch between Stable and Nightly | Channel configuration set to alternative channel | `jvm channel` | `jvm channel stable` or `jvm channel nightly` |
-| System environment uncertain / multiple conflicts | General configuration drift | `jvm doctor` | Follow remediation output in `jvm doctor` |
+| System environment uncertain / multiple conflicts | General configuration drift | `jvm doctor` | `jvm doctor --fix` or follow remediation output |
 
 ---
 
@@ -139,16 +167,19 @@ When opening a support request or asking for assistance on Discord, running thes
 # 1. Automated all-in-one system health audit:
 jvm doctor
 
-# 2. Active JVM environment and configuration dashboard:
+# 2. Active JVM environment and configuration dashboard (add --verbose for full tracing or --json for raw data):
 jvm current
 
-# 3. Exact executable binary resolved by JVM:
+# 3. Environment diff inspection against persistent registry baselines:
+jvm env --diff
+
+# 4. Exact executable binary resolved by JVM:
 jvm which
 
-# 4. All java.exe binaries discovered in active PATH order:
+# 5. All java.exe binaries discovered in active PATH order:
 where.exe java
 
-# 5. Environment PATH entries filtered for Java/JVM:
+# 6. Environment PATH entries filtered for Java/JVM:
 ($env:Path -split ';') | Where-Object { $_ -match 'Java|JVM|jdk|Oracle' }
 ```
 

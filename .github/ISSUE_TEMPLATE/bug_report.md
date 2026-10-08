@@ -10,7 +10,7 @@ assignees: ''
 
 Please ensure you have checked the following to help us diagnose the issue quickly:
 - [ ] I have reviewed the [FAQ](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/docs/FAQ.md) and [Troubleshooting Guide](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/docs/INSTALLATION.md#troubleshooting--windows-security).
-- [ ] I ran `jvm doctor` to check for broken junctions, permission faults, and rogue PATH shadowing.
+- [ ] I ran `jvm doctor` (or `jvm doctor --fix`) to check for and repair broken junctions, permission faults, and rogue PATH shadowing.
 - [ ] I verified that this is not **PATH Shadowing** (run `where.exe java` to see if a rogue Oracle or Chocolatey path is overriding JVM).
 - [ ] If reporting a failed or corrupted download/extraction, I tried running `jvm clean` to purge stale caches.
 - [ ] If reporting an environment override, I tried running `jvm clear` followed by re-activating my version (`jvm <version>`).
@@ -41,7 +41,7 @@ A clear and concise description of what you expected to happen.
 
 Please provide as much information about your environment as possible:
 
-- **JVM Version & Build**: `[Run 'jvm version' or 'jvm.bat --version', e.g., 1.0.2, Build 20261007.152]`
+- **JVM Version & Build**: `[Run 'jvm version' or 'jvm.bat --version', e.g., 1.0.2, Build 20261008.153]`
 - **Update Channel**: `[Run 'jvm channel', e.g., Stable or Nightly]`
 - **OS Version & Build**: `[e.g., Windows 11 24H2 / 23H2 (Build 22631.3007), Windows 10 22H2]`
 - **CPU Architecture**: `[e.g., x64, ARM64]`
@@ -71,7 +71,15 @@ To accelerate resolution, please paste the output of the following commands:
 </details>
 
 <details>
-<summary><b>3. <code>jvm channel</code> (Active Update Channel)</b></summary>
+<summary><b>3. <code>jvm env --diff</code> (Environment Delta Inspection)</b></summary>
+
+```text
+[Paste output of 'jvm env --diff' here]
+```
+</details>
+
+<details>
+<summary><b>4. <code>jvm channel</code> (Active Update Channel)</b></summary>
 
 ```text
 [Paste output of 'jvm channel' here]
@@ -79,7 +87,7 @@ To accelerate resolution, please paste the output of the following commands:
 </details>
 
 <details>
-<summary><b>4. <code>jvm which</code> (Resolved Binary)</b></summary>
+<summary><b>5. <code>jvm which</code> (Resolved Binary)</b></summary>
 
 ```text
 [Paste output of 'jvm which' here]
@@ -87,7 +95,7 @@ To accelerate resolution, please paste the output of the following commands:
 </details>
 
 <details>
-<summary><b>5. <code>where.exe java</code> (Path Precedence)</b></summary>
+<summary><b>6. <code>where.exe java</code> (Path Precedence)</b></summary>
 
 ```text
 [Paste output of 'where.exe java' here]
@@ -95,7 +103,7 @@ To accelerate resolution, please paste the output of the following commands:
 </details>
 
 <details>
-<summary><b>6. Active Session PATH (optional)</b></summary>
+<summary><b>7. Active Session PATH (optional)</b></summary>
 
 ```powershell
 # In PowerShell:

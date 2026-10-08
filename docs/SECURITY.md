@@ -171,8 +171,8 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
   - **Zero Silent `catch {}` Swallowing & Path Redaction (`CWE-209` / `CWE-390`):** PowerShell AST analysis enforces **0 empty `catch {}` blocks across all 9 repository PowerShell scripts** (`Test 157`). All error handlers log structured single-line warnings via `Write-Verbose` or `[ WARN ]`, stripping raw stack traces and redacting sensitive user profile paths (`%LOCALAPPDATA%`, `%USERPROFILE%`).
   - **Strict Exit Code Propagation (`CWE-252` / `CWE-754` / `CWE-755`):** All CLI subcommands (`doctor`, `which`, `open`, `exec`, `hook`, `clear`, `channel`, `pin`) route through `:CLI_DONE` with `endlocal & set "CMD_EXIT_CODE=%CMD_EXIT_CODE%" & exit /b %CMD_EXIT_CODE%`, propagating non-zero codes across batch scope boundaries. All 6 elevated UAC handoffs (`Start-Process -Verb RunAs`) specify `-PassThru`, dispose child process handles, and propagate `$p.ExitCode`.
 
-### 12. Automated 233-Test Security Suite & 40-CWE Coverage Matrix (`tests/Test-JvmSecurity.ps1`)
-Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1`, which executes **233 automated adversarial test cases across 10 defensive suites** with a 100% pass rate (`233 / 233 PASS`) and outputs a numerically sorted **40-CWE Coverage Summary**:
+### 12. Automated 238-Test Security Suite & 40-CWE Coverage Matrix (`tests/Test-JvmSecurity.ps1`)
+Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1`, which executes **238 automated adversarial test cases across 10 defensive suites** with a 100% pass rate (`238 / 238 PASS`) and outputs a numerically sorted **40-CWE Coverage Summary**:
 
 | CWE ID | Vulnerability Class | Tests Verified | Status |
 |:---|:---|:---:|:---:|
@@ -188,9 +188,9 @@ Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1
 | **`CWE-94`** | Batch `set /a` Arithmetic Expression & Variable Assignment Evaluation Defense (`:ShowDynamicMenu` `JAVA_VERSION` numeric guard) | **1 / 1** | **PASS** |
 | **`CWE-155`** | Wildcard Expansion Injection (`*`, `?`) | **2 / 2** | **PASS** |
 | **`CWE-184`** | Incomplete List-Based Input Sanitization (Clean working tree enforcement in `bump-version.ps1` & manifest validation) | **1 / 1** | **PASS** |
-| **`CWE-209`** | Error Message Stack-Trace & Sensitive User Path Suppression | **4 / 4** | **PASS** |
+| **`CWE-209`** | Error Message Stack-Trace, Contextual Actionable Errors, Sensitive User Path Suppression & Universal CLI Logging (`--quiet`, `--verbose`) | **7 / 7** | **PASS** |
 | **`CWE-250`** | Privilege Boundary Isolation (Base64 UTF-16LE `-EncodedCommand` AST immunity & `persist-credentials: false` in GitHub Actions) | **2 / 2** | **PASS** |
-| **`CWE-252`** | Unchecked Return Value & Process Exit Code Propagation | **12 / 12** | **PASS** |
+| **`CWE-252`** | Unchecked Return Value, Semantic Exit Codes (0-10) & Process Exit Code Propagation | **13 / 13** | **PASS** |
 | **`CWE-276`** | Strict Directory DACL & Reparse Isolation (`%JVM_SECURE_TEMP%`, `Initialize-SecureDirectory` fail-closed enforcement) | **2 / 2** | **PASS** |
 | **`CWE-295`** | TLS 1.2 / 1.3 Cryptographic Protocol Enforcement (`:ExecuteSharedDownloader`, `:SelfUpdate`, `:CheckUpdateStatus`) | **2 / 2** | **PASS** |
 | **`CWE-319`** | Strict `https://` URI Scheme & Redirect Enforcement (`:ExecuteSharedDownloader`, `chocolateyInstall.ps1`, `.jvm.lock` non-HTTPS rejection, enterprise download mirror URL validation) | **4 / 4** | **PASS** |
@@ -207,7 +207,7 @@ Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1
 | **`CWE-427`** | Uncontrolled `PATH` Search-Order Hijack Immunity & Canonical `%LOCALAPPDATA%\DiamTek\JVM\bin` Registration | **2 / 2** | **PASS** |
 | **`CWE-428`** | Quoted `System32` `UninstallString` / `QuietUninstallString` & Pinned Shortcut `TargetPath` | **1 / 1** | **PASS** |
 | **`CWE-459`** | Failure-Path Handle Disposal (`finally`), Temporary Artifact & Stream Cleanup | **12 / 12** | **PASS** |
-| **`CWE-460`** | Exception Cleanup & Atomic State Rollback (`PREV_JUNCTION_TARGET`, `.old`, `.jvm_bak_`, `$batBackup`, `jvm transaction` rollback) | **12 / 12** | **PASS** |
+| **`CWE-460`** | Exception Cleanup, Atomic State Rollback (`PREV_JUNCTION_TARGET`, `.old`, `.jvm_bak_`, `$batBackup`, `jvm transaction` rollback) & Universal `--dry-run` Simulation | **13 / 13** | **PASS** |
 | **`CWE-494`** | Supply Chain, Package Manifest, Fail-Closed Nightly Git Blob SHA-1, `Invoke-TrustedGitHubDownload`, `jvm install --locked` Checksum Verification, explicit `--skip-checksum` warning flag & CI gating | **19 / 19** | **PASS** |
 | **`CWE-532`** | Sensitive Registry Backup (`%LOCALAPPDATA%\DiamTek\JVM\backups`) DACL & Reparse Isolation | **1 / 1** | **PASS** |
 | **`CWE-601`** | Open Redirect Host Verification (`ResponseUri` validation on payload, `Get-TrustedChecksumText`, `:ResolveLatestEcosystemCandidate`, & `:CheckUpdateStatus`) | **4 / 4** | **PASS** |
@@ -221,13 +221,13 @@ Every commit and release is continuously verified by `tests/Test-JvmSecurity.ps1
 ### 13. Security & Error Management Audit Scorecard (`10.0 / 10.0`)
 
 | Audit Area | Subsystem Scope | CWE Classes Covered | Pass 4 Verification Status | Score |
-| :--- | :--- | :--- | :--- | :---: |
+| :--- | :--- | :--- | :--- | :--- | :---: |
 | **Core Batch Engine & Junctions** | `jvm.bat` (`CURRENT_SYMLINK`, `:SwitchCandidate`, `:UpdateSystemPath`, `:InstallGlobalCommand`, `:BackupRegistry`) | `CWE-59`, `CWE-252`, `CWE-459`, `CWE-460`, `CWE-754` | Verified atomic rollback on switch failures with emergency alert, local NTFS volume UNC advisories, verified exit-code propagation, and quarantined registry backups. | **10.0 / 10.0** |
 | **Downloader, APIs & Elevation** | `jvm.bat` (`:ExecuteSharedDownloader`, `:VerifyDownloadedScript`, `:SelfUpdate`, `:Run_API_Query`, UAC handoffs) | `CWE-209`, `CWE-252`, `CWE-459`, `CWE-460`, `CWE-755` | Verified deterministic `try / finally` disposal on `HttpWebResponse`, `StreamReader`, `SHA1`, and process elevation handles (`Start-Process -PassThru`). | **10.0 / 10.0** |
 | **Installers & Uninstallers** | `install.ps1` & `uninstall.ps1` | `CWE-73`, `CWE-209`, `CWE-252`, `CWE-276`, `CWE-367`, `CWE-390`, `CWE-459`, `CWE-460`, `CWE-494`, `CWE-674`, `CWE-754`, `CWE-755` | Verified atomic `$batBackup` rollback, fail-closed Nightly Git-blob SHA-1 verification, fail-closed `Initialize-SecureDirectory` DACL enforcement, partial download purging, COM apartment release, safe shortcut validation, early `ConstrainedLanguageMode` fail-closed policy, fail-closed invalid `-SourceDir` abort, and cyclic junction immunity (`Remove-DirectorySafely`). | **10.0 / 10.0** |
 | **Packaging & Build Pipelines** | `packages/msi/build-msi.ps1`, `packages/msi/test-msi.ps1`, `packages/choco/build-choco.ps1`, `scripts/bump-version.ps1` | `CWE-184`, `CWE-209`, `CWE-252`, `CWE-390`, `CWE-459`, `CWE-460`, `CWE-611`, `CWE-754` | Verified zero empty `catch {}` blocks via AST, emergency `msiexec /x` rollback, manifest rollback, clean git tree enforcement, and XXE prohibition. | **10.0 / 10.0** |
 | **Concurrency & State Synchronization** | `jvm.bat` (`:AcquireStateLock`, `:ReleaseStateLock`, `:WriteConfigFile`, `:EmitSessionEnv`, `%JVM_SECURE_TEMP%`) | `CWE-330`, `CWE-362`, `CWE-367`, `CWE-377`, `CWE-400` | Verified cross-process mutual exclusion (`state.lock`), atomic staged configuration replacement (`.stage.!_CFG_RND!.tmp` + `move /y`), CSPRNG random file naming, and per-user ACL lockdown. | **10.0 / 10.0** |
-| **Adversarial Test Suite** | `tests/Test-JvmSecurity.ps1` | All 40 MITRE CWE Classes | 233/233 tests passing (`0` failures) with runtime error injection, cyclic directory junction fuzzing, live process tree kill recovery, CAS cache verification, and automatic environment state preservation. | **10.0 / 10.0** |
+| **Adversarial Test Suite** | `tests/Test-JvmSecurity.ps1` | All 40 MITRE CWE Classes | 238/238 tests passing (`0` failures) with runtime error injection, cyclic directory junction fuzzing, live process tree kill recovery, CAS cache verification, and automatic environment state preservation. | **10.0 / 10.0** |
 | **Overall Posture** | **Complete Repository Ecosystem** | **40 MITRE CWE Classes** | **Zero unhandled failure paths, zero leaked handles, zero silent catches, zero cyclic recursion hazards.** | **`10.0 / 10.0`** |
 
 ---

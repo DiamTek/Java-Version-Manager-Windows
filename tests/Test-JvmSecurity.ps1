@@ -4316,7 +4316,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         $proc = $null
         try {
             $env:LOCALAPPDATA = $txnSandbox
-            $proc = Start-Process -FilePath "cmd.exe" -ArgumentList @('/d', '/c', "call `"$JvmBat`" install maven latest -y") -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $txnSandbox "out.txt")
+            $proc = Start-Process -FilePath "cmd.exe" -ArgumentList @('/d', '/c', "set `"JVM_TEST_HOLD_AFTER_TRANSACTION=1`" && call `"$JvmBat`" install maven latest -y") -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $txnSandbox "out.txt")
 
             # Poll for the transaction journal to be created and IN_PROGRESS
             $txnDir = Join-Path $txnSandbox "DiamTek\JVM\transactions"
@@ -4650,6 +4650,67 @@ version = "3.9.11"
         Assert-Contains $uninstRaw 'ownership.json' "uninstall.ps1 must inspect ownership.json"
         Assert-Contains $uninstRaw 'Skipping variable ''$v'' as it is not owned by DiamTek JVM' "uninstall.ps1 must preserve unowned variables"
         Assert-Contains $batRaw ':TrackOwnership' "jvm.bat must implement :TrackOwnership helper"
+    }
+
+    # Test 234: Universal --dry-run simulation flag across mutating subcommands (CWE-460)
+    Run-TestCase "Adversarial" "Universal --dry-run simulation flag across mutating subcommands (CWE-460)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw 'if "!FLAG_DRY_RUN!"=="1"' "jvm.bat must implement dry-run guard branches"
+        Assert-Contains $batRaw 'FLAG_DRY_RUN=1' "jvm.bat must parse --dry-run flag"
+
+        $outDry = & cmd.exe /c "call `"$JvmBat`" clean --dry-run" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm clean --dry-run must exit cleanly"
+        Assert-Contains $outDry "[ DRY-RUN ]" "clean --dry-run must output [ DRY-RUN ] simulation banner"
+    }
+
+    # Test 235: Universal --quiet and -q flag suppresses decorative headers and banners (CWE-209)
+    Run-TestCase "Adversarial" "Universal --quiet and -q flag suppresses decorative headers and banners (CWE-209)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw 'FLAG_QUIET=1' "jvm.bat must parse --quiet and -q flags"
+        Assert-Contains $batRaw 'SILENT_MODE=1' "jvm.bat must activate SILENT_MODE under quiet flag"
+
+        $outQuiet = & cmd.exe /c "call `"$JvmBat`" list -q" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm list -q must execute cleanly"
+    }
+
+    # Test 236: Universal --verbose flag diagnostics and network tracing (CWE-209)
+    Run-TestCase "Adversarial" "Universal --verbose flag diagnostics and network tracing (CWE-209)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw 'FLAG_VERBOSE=1' "jvm.bat must parse --verbose flag"
+        Assert-Contains $batRaw 'FLAG_VERBOSE' "jvm.bat must reference FLAG_VERBOSE diagnostics"
+
+        $outDoctor = & cmd.exe /c "call `"$JvmBat`" doctor --verbose" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm doctor --verbose must execute cleanly"
+    }
+
+    # Test 237: Standardized Semantic Exit Codes 0-10 across batch boundaries (CWE-252)
+    Run-TestCase "Adversarial" "Standardized Semantic Exit Codes 0-10 across batch boundaries (CWE-252)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw 'exit /b !FINAL_RET!' "jvm.bat must propagate FINAL_RET at batch exit boundary"
+        Assert-Contains $batRaw 'set "JVM_EXIT_CODE=3"' "jvm.bat must assign semantic exit code 3 for missing target"
+
+        $outVer = & cmd.exe /c "call `"$JvmBat`" --version" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm --version must succeed with semantic exit code 0"
+
+        $outMissing = & cmd.exe /c "call `"$JvmBat`" use 99999999" 2>&1 | Out-String
+        Assert-Equals 3 $LASTEXITCODE "jvm use missing target must exit with semantic code 3"
+    }
+
+    # Test 238: Contextual Actionable Errors subsystem 4-part structure and JSON serialization (CWE-209)
+    Run-TestCase "Adversarial" "Contextual Actionable Errors subsystem 4-part structure and JSON serialization (CWE-209)" {
+        $batRaw = Get-Content -LiteralPath $JvmBat -Raw
+        Assert-Contains $batRaw ':EmitContextualError' "jvm.bat must declare :EmitContextualError subroutine"
+
+        $outErr = & cmd.exe /c "call `"$JvmBat`" use 99999999" 2>&1 | Out-String
+        Assert-Equals 3 $LASTEXITCODE "jvm use missing target must return exit code 3"
+        Assert-Contains $outErr "Reason:" "Contextual error must emit Reason line"
+        Assert-Contains $outErr "State:" "Contextual error must emit State line"
+        Assert-Contains $outErr "Remediation:" "Contextual error must emit Remediation line"
+
+        $outJsonErr = & cmd.exe /c "call `"$JvmBat`" use 99999999 --json" 2>&1 | Out-String
+        Assert-Equals 3 $LASTEXITCODE "Contextual error in --json mode must preserve exit code 3"
+        Assert-Contains $outJsonErr '"error":' "Contextual error --json must emit JSON error field"
+        Assert-Contains $outJsonErr '"remediation":' "Contextual error --json must emit JSON remediation field"
     }
 
 } finally {
