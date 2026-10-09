@@ -24,6 +24,8 @@ Before opening a support ticket, check this rapid decision tree for the most com
   jvm doctor --fix
   # Or preview pending repairs safely without mutating state:
   jvm doctor --fix --dry-run
+  # Or generate an automated diagnostic issue bundle for GitHub issues:
+  jvm doctor --report
   ```
 - **What it does:** Automatically audits `%LOCALAPPDATA%` storage permissions, junction target validity, User/Machine registry synchronization, `where.exe java` PATH precedence, rogue Oracle `javapath` shadowing, and PowerShell `$PROFILE` hooks. If any conflicts exist, `jvm doctor` identifies the exact root cause and outputs 4-part actionable remediation steps (`Title`, `Reason:`, `State:`, `Remediation:`). Running `jvm doctor --fix` automatically repairs broken junctions, purges legacy PATH shadows, and cleans up orphaned links.
 - **Exit Codes:**
@@ -155,19 +157,35 @@ Before opening a support ticket, check this rapid decision tree for the most com
 | Interrupted / aborted installation state | Installation halted mid-flight before completion | `jvm transaction show` | `jvm transaction rollback <id>` |
 | Self-updater skips: "newer local build" | Local `JVM_BUILD` is newer than GitHub release or main branch | `jvm current` | Expected for local dev builds; use `jvm self-update --force` to override |
 | Want to switch between Stable and Nightly | Channel configuration set to alternative channel | `jvm channel` | `jvm channel stable` or `jvm channel nightly` |
+| Self-update regression / unexpected bug | Latest update caused unexpected behavior | `jvm self-update --history` | `jvm self-update --rollback` |
+| Build fails due to Gradle/Java mismatch | Older Gradle wrapper paired with newer JDK | `jvm run build` | Switch JDK (`jvm 17` or `jvm 21`) or upgrade wrapper |
+| Cache disk bloat | Accumulation of candidate packages in CAS | `jvm cache stats` | `jvm cache dedupe` or `jvm cache clean` |
 | System environment uncertain / multiple conflicts | General configuration drift | `jvm doctor` | `jvm doctor --fix` or follow remediation output |
 
 ---
 
 ## 📋 Standard Diagnostic Bundle
 
-When opening a support request or asking for assistance on Discord, running these diagnostic commands and attaching their output will accelerate resolution by 10x:
+When opening a support request or asking for assistance on Discord or GitHub, generating a pre-packaged support bundle will accelerate resolution by 10x:
 
 ```powershell
+# Option A: Comprehensive Support Bundle (Recommended for GitHub Issues & Discord)
+jvm support
+# -> Generates: jvm-support-bundle.zip containing doctor audit, environment report, and config
+
+# Option B: Automated GitHub Issue Bundle
+jvm doctor --report
+# -> Generates: jvm-issue-bundle.zip
+
+# Option C: Sanitized Text Report
+jvm report
+# -> Generates: jvm-report.txt (secrets, tokens, and usernames automatically redacted)
+
+# Option D: Manual Command Telemetry
 # 1. Automated all-in-one system health audit:
 jvm doctor
 
-# 2. Active JVM environment and configuration dashboard (add --verbose for full tracing or --json for raw data):
+# 2. Active JVM environment and configuration dashboard:
 jvm current
 
 # 3. Environment diff inspection against persistent registry baselines:
@@ -178,9 +196,6 @@ jvm which
 
 # 5. All java.exe binaries discovered in active PATH order:
 where.exe java
-
-# 6. Environment PATH entries filtered for Java/JVM:
-($env:Path -split ';') | Where-Object { $_ -match 'Java|JVM|jdk|Oracle' }
 ```
 
 ---

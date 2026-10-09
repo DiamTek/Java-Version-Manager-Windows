@@ -929,7 +929,8 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
             'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
             'link', 'unlink', 'version', 'help', 'channel', 'lock', 'verify', 'transaction', 'txn',
-            'config', 'project', 'cache', 'search', 'compare', 'list-remote'
+            'config', 'project', 'cache', 'search', 'compare', 'list-remote',
+            'why', 'explain', 'welcome', 'tutorial', 'report', 'support', 'vendor'
         )
         $candidates = @('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn')
         $vendors = @('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9', 'sapmachine', 'sap', 'mandrel', 'redhat-mandrel', 'dragonwell', 'alibaba', 'kona', 'tencent')
@@ -942,6 +943,7 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             '--check', '--diff', '--update', '--fix', '--dry-run',
             '--quiet', '-q', '--verbose',
             '--channel', '-c', '--nightly', '--stable', '--security', '--bundle', '--mirror',
+            '--short', '--numeric', '--bin', '--stats', '--rollback', '--history', '--report',
             '--java', '--maven', '--gradle', '--kotlin', '--scala', '--groovy', '--ant', '--sbt', '--jbang', '--quarkus', '--spring', '--micronaut', '--mn',
             '--version', '-v', '--help', '-h'
         )
@@ -1063,9 +1065,22 @@ try {
     Remove-ReparsePointOrFail -FilePath $cmdHookPath
     $cmdHookContent = @'
 @echo off
+if not defined CMDCMDLINE exit /b 0
+set "_JVM_SYS32=%SystemRoot%\System32"
+if not exist "%_JVM_SYS32%" set "_JVM_SYS32=%WINDIR%\System32"
+
+if exist "%_JVM_SYS32%\find.exe" (
+    echo %CMDCMDLINE% | "%_JVM_SYS32%\find.exe" /i " /c " >nul && exit /b 0
+    echo %CMDCMDLINE% | "%_JVM_SYS32%\find.exe" /i " /c\"" >nul && exit /b 0
+)
+
 if defined __JVM_CMD_HOOK_ACTIVE exit /b 0
 set "__JVM_CMD_HOOK_ACTIVE=1"
-doskey cd=call "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat" --session-cd $*
+
+if exist "%_JVM_SYS32%\doskey.exe" (
+    "%_JVM_SYS32%\doskey.exe" cd=call "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat" --session-cd $* >nul 2>&1
+)
+set "_JVM_SYS32="
 '@
     [System.IO.File]::WriteAllText($cmdHookPath, ($cmdHookContent -replace "`r?`n", "`r`n"), $utf8NoBom)
     $cmdRegPath = "HKCU:\Software\Microsoft\Command Processor"

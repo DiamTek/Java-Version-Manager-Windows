@@ -38,17 +38,25 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **Pre-Change Safety** | None (overwrites shell files) | **Automated Registry Backups** (exports `.reg` to `%LOCALAPPDATA%\DiamTek\JVM\backups\`) |
 | **User Interface** | CLI Only (Manual typing) | **Interactive TUI** & Headless CLI |
 | **Archive Extraction** | Requires external `zip` / `tar` binaries | **Native `.NET System.IO.Compression`** |
-| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **238-Test Adversarial Suite (`40 MITRE CWEs`), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
+| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **263-Test Adversarial Suite (`40 MITRE CWEs`), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
 | **Provenance & Authenticity** | None | **`jvm verify [ver|all]`** (6-tier cryptographic & signature audit) |
 | **Installation Atomicity** | Basic unzips | **`jvm transaction`** (Atomic journaling & rollback engine) |
 | **CPU Architecture** | Manual configuration | **Native x64 / ARM64 Auto-Detection** |
 | **Bulk Maintenance** | Manual, tool-by-tool | **1-Click Bulk Updater** (`jvm update --all`) |
 | **Self-Updater & Channels** | Single-channel script pull (`sdk selfupdate`) | **Dual Channels (🟢 Stable / 🟣 Nightly)** with SHA-256 integrity, ahead-of-remote block & rate-limit fallback |
+| **Engine History & Rollback** | None (manual re-install) | **`jvm self-update --history` & `--rollback`** (integrity-verified rollback engine) |
 | **OS Conflict Handling**| Passive | **Active Phantom-Path Scrubbing** |
 | **Status & Binary Inspection**| `sdk current` (POSIX shell string) | **`jvm current` & `jvm which`** (Full status card + binary resolver) |
+| **Script-Friendly Single Values**| None (verbose strings) | **`jvm current --short|--numeric|--bin` & `jvm vendor`** (zero-regex widgets for Starship, prompt statuslines, & CI) |
+| **Environment Resolution Explainer**| None (guesswork) | **`jvm why`** (7-tier precedence decision tree tracing active runtime) |
+| **Candidate Deep Inspection**| None | **`jvm explain <candidate>`** (7-layer identity, storage, junction, DACL, lock & CAS audit) |
+| **Contextual Build Runner** | None (manual toggling) | **`jvm run <task>`** (automatic `mvnw`/`gradlew` detection & execution) |
+| **Toolchain Conflict Detection** | None (silent build failures) | **Proactive conflict scanner** in `jvm run` (flags Gradle wrapper & Maven compiler target mismatches) |
+| **Sanitized Diagnostic Bundles**| None (manual copy-paste) | **`jvm report`, `jvm doctor --report` & `jvm support`** (automated secret redaction & `.zip` bundles) |
+| **CAS Telemetry & Deduplication**| `sdk flush` (basic temp deletion) | **`jvm cache stats` & `jvm cache dedupe`** (SHA-256 CAS metrics & disk reclamation) |
 | **Cache & Slate Cleaning**| `sdk flush` (basic temp deletion) | **`jvm clean` & `jvm clear`** (Deep cache purge & registry slate wipe) |
 | **Ephemeral Subshell Runner** | None (must switch shell and restore) | **`jvm exec <ver> [--] <cmd>` / `jvm run`** (zero global changes, accurate exit codes) |
-| **Diagnostic Health Audit** | None | **`jvm doctor`** (7-point deep conflict, junction, & shadowing analysis) |
+| **Diagnostic Health Audit** | None | **`jvm doctor`** (7-point deep conflict, junction, & shadowing analysis with automated `--fix` self-healing) |
 | **Project Pinning CLI** | Manual `.sdkmanrc` editing | **`jvm pin [ver]` / `jvm local`** (instant lock writing & display) |
 | **Migration Muscle Memory**| `sdk use` / `sdk default` | **`jvm use` / `jvm default`** (1:1 transparent compatible aliases) |
 | **File Explorer Jump** | Manual path navigation | **`jvm open [candidate]` / `jvm home`** (Instant GUI explorer jump) |
@@ -234,6 +242,19 @@ DiamTek JVM cleanly decouples these two maintenance workflows:
 ## 🛡️ Zero-Risk Backups & 100% Offline Execution
 * **Pre-Change Safety:** Unlike POSIX shell scripts that directly overwrite `.bashrc` or `.zshrc`, DiamTek JVM automatically creates a timestamped `.reg` backup in `%LOCALAPPDATA%\DiamTek\JVM\backups\` before making destructive registry modifications or clearing paths. If you ever need to roll back, simply double-click the `.reg` file to restore your previous environment state.
 * **Zero-Ping Local Switching:** SDKMAN! can occasionally lag or stall on poor network connections when running version queries against remote servers. DiamTek JVM executes local version switches 100% offline with zero network latency, making it completely reliable in air-gapped corporate environments, remote locations, and on planes.
+
+---
+
+## 🧠 Observability, Toolchain Automation & Diagnostic Telemetry vs SDKMAN!
+
+Beyond candidate installation, DiamTek JVM provides systems engineering, observability, and toolchain automation capabilities with zero SDKMAN! equivalent:
+
+* **Deterministic Resolution Graph (`jvm why`):** In SDKMAN!, when an unexpected Java version runs, developers must guess whether `.sdkmanrc`, an active shell session, or a global default is responsible. `jvm why` traverses a 7-tier precedence tree and prints the authoritative reason and location in plain text or `--json`.
+* **Deep Candidate Auditing (`jvm explain <candidate>`):** While SDKMAN! only shows candidate paths, `jvm explain` inspects 7 operational layers: candidate identity, filesystem layout, NTFS junction status, environment variables, Windows DACL permissions (`CWE-276`), lockfile status, and Content-Addressed Storage (CAS) SHA-256 digests.
+* **Proactive Toolchain Conflict Detection (`jvm run <task>`):** SDKMAN! leaves build tool execution to the developer, leading to cryptic build errors when a modern JDK runs against an obsolete Gradle wrapper. `jvm run` automatically detects project build descriptors (`mvnw`, `gradlew`, `pom.xml`, `build.gradle`) and proactively warns developers if a Gradle wrapper (`< 8.5` on Java 21+, `< 9.0` on Java 25+) or Maven compiler target is mismatched with the active JDK.
+* **Secret-Redacted Diagnostic Incident Bundles (`jvm report` & `jvm doctor --report`):** Troubleshooting on SDKMAN! requires manually copying terminal logs. DiamTek JVM generates sanitized diagnostic text reports (`jvm report` -> `jvm-report.txt`) and comprehensive ZIP incident bundles (`jvm doctor --report` -> `jvm-issue-bundle.zip`) with automatic redaction of usernames, tokens, and credentials (`CWE-209` / `CWE-532`).
+* **Content-Addressed Storage Telemetry & Deduplication (`jvm cache stats` & `jvm cache dedupe`):** SDKMAN! only provides `sdk flush` for temporary folder clearing. DiamTek JVM indexes all downloads into a cryptographic CAS structure (`cache\sha256\`), tracks inventory footprint with `jvm cache stats`, and dedupes redundant candidate binaries via `jvm cache dedupe`.
+* **Executable Version History & Integrity Rollback (`jvm self-update --history` & `--rollback`):** SDKMAN! only supports forward updates (`sdk selfupdate`). DiamTek JVM tracks an immutable history of previous engine builds and enables instant one-command rollback with fail-closed EOF marker verification (`rem END OF SCRIPT`).
 
 ---
 

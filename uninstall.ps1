@@ -617,10 +617,25 @@ Get-ChildItem -LiteralPath $env:TEMP -Filter "diamtek_uninstall_*" -File -Force 
 
 Write-Host "[   OK   ] Windows uninstall registration removed." -ForegroundColor Green
 
-# Remove CMD AutoRun hook file if present
+# Remove CMD AutoRun hook file and Registry entry if present
 $cmdHookFile = Join-Path $localAppData "DiamTek\JVM\bin\cmd_hook.cmd"
 if (Test-Path -LiteralPath $cmdHookFile) {
     Remove-Item -LiteralPath $cmdHookFile -Force -ErrorAction SilentlyContinue
+}
+try {
+    $cmdRegPath = "HKCU:\Software\Microsoft\Command Processor"
+    $currentAutoRun = (Get-ItemProperty -Path $cmdRegPath -Name "AutoRun" -ErrorAction SilentlyContinue).AutoRun
+    if ($currentAutoRun -and $currentAutoRun -match '(?i)cmd_hook\.cmd') {
+        $cleanedAutoRun = ($currentAutoRun -replace '(?i)(&?\s*"[^"]*cmd_hook\.cmd"\s*&?|&?\s*\S*cmd_hook\.cmd\S*\s*&?)', '').Trim(' &')
+        if ([string]::IsNullOrWhiteSpace($cleanedAutoRun)) {
+            Remove-ItemProperty -Path $cmdRegPath -Name "AutoRun" -Force -ErrorAction SilentlyContinue
+        } else {
+            Set-ItemProperty -Path $cmdRegPath -Name "AutoRun" -Value $cleanedAutoRun -Type String -Force
+        }
+        Write-Host "[   OK   ] Cleaned Command Processor AutoRun hook." -ForegroundColor Green
+    }
+} catch {
+    Write-Verbose "AutoRun cleanup skipped: $($_.Exception.Message)"
 }
 
 # Remove config.json if present

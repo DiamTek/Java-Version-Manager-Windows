@@ -43,6 +43,14 @@ This document outlines every command, flag override, and semantic route availabl
 - [Explorer Directory Navigation (jvm open / jvm home)](#explorer-directory-navigation)
 - [PowerShell Profile Hook (jvm hook)](#powershell-profile-hook)
 - [Machine-Readable JSON & Offline Modes (--json / --offline)](#machine-readable-json--offline-modes)
+- [Environment Resolution Graph (jvm why)](#environment-resolution-graph)
+- [Deep Candidate Analysis (jvm explain)](#deep-candidate-analysis)
+- [Guided Onboarding & Tutorial (jvm welcome / jvm tutorial)](#guided-onboarding--tutorial)
+- [Smart Contextual Execution & Toolchain Conflict Detection (jvm run)](#smart-contextual-execution)
+- [Script-Friendly Single Values (--short / --numeric / --bin / jvm vendor)](#script-friendly-single-values)
+- [Cache Telemetry & Deduplication (jvm cache stats / dedupe)](#cache-telemetry--deduplication)
+- [Diagnostic Environment Report & Support Bundles (jvm report / support / doctor --report)](#diagnostic-environment-report--support-bundles)
+- [Self-Update History & Rollback (jvm self-update --history / --rollback)](#self-update-history--rollback)
 - [Common Workflow Recipes](#common-workflow-recipes)
 - [CI/CD Automation Recipes](#cicd-integration-recipes)
 
@@ -103,13 +111,13 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm update <version>` | Machine | Checks for and applies vendor patches to a specific installed JDK (e.g., `jvm update 21`). |
 | `jvm update <version> --security` | Machine | Restricts automatic patch updates strictly to explicit CVE security releases. |
 | `jvm update --all [--vendor <name>]` | Machine | Silently checks and patches all installed JDKs and tools to latest releases. |
-| `jvm cache [list/size/clean/prune]` | Maintenance | Inspects inventory, measures byte volume, or purges CAS artifact store (`cache\sha256\`). |
+| `jvm cache [list/size/stats/dedupe/clean/prune]` | Maintenance | Inspects inventory, telemetry (`stats`), de-duplicates blobs (`dedupe`), or purges CAS store. |
 | `jvm cache export [--bundle <path>]` | Bundling | Bundles central artifact cache into an offline `.jvmcache` zip container. |
-| `jvm cache import <bundle-path>` | Bundling | Extracts and validates offline cache bundle into the local CAS hierarchy. |
-| `jvm search <candidate> [query]` | Remote | Queries upstream vendor release catalogs (e.g., `jvm search java 25 --vendor zulu`). |
+| `jvm cache import <bundle-path>` | Bundling | Safely extracts and validates offline cache bundle into CAS (Zip Slip & SHA-256 verified). |
+| `jvm search [candidate] <query>` | Remote | Queries upstream vendor release catalogs (e.g., `jvm search 21`, `jvm search gradle 8`, `--json`). |
 | `jvm list-remote [candidate]` | Remote | Displays available remote releases with exact vendor build tags and LTS designations. |
 | `jvm info [version]` | Inspection | Outputs architecture, VM type, release date, LTS status, and CVE security classification. |
-| `jvm compare <v1> <v2>` | Inspection | Reports major JDK release differences, JEP additions, and deprecations between two versions. |
+| `jvm compare <v1> <v2>` | Inspection | Compares release differences, multi-LTS milestone JEP chains (8->11->17->21->25), and bytecode specs. |
 | `jvm uninstall` | Interactive | Opens interactive JDK uninstaller selection list (marks `[ACTIVE]` runtime, includes Cancel option; supports `--vendor` filter; aliases: `jvm rm`, `jvm remove`). |
 | `jvm uninstall <version> [--vendor <name>]` | Machine | Uninstalls a specific installed JDK (aliases: `jvm rm <version>`, `jvm remove <version>`). |
 | `jvm uninstall <tool> [version]` | User | Uninstalls an ecosystem tool (auto-detects single installed version, or prompts with interactive menu if multiple). |
@@ -117,7 +125,7 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm current` | Inspection | Displays comprehensive status card: active JDK, mode, junction target, and tools (aliases: `jvm status`, `jvm info`, `jvm whoami`, `jvm env`). |
 | `jvm which [candidate]` | Inspection | Prints absolute filesystem path to active `java.exe` or ecosystem binary (alias: `jvm path`). |
 | `jvm doctor` | Diagnostic | Deep system health audit: permissions, junctions, registry sync, PATH shadowing, and hooks (alias: `jvm check`). |
-| `jvm hook [install/remove]` | Shell | Manage PowerShell profile auto-sync wrapper hook (`install`, `setup`, `status`, `check`, `remove`). |
+| `jvm hook [install/remove/status]` | Shell | Manage PowerShell profile auto-sync wrapper hook (`install`, `setup`, `status`, `check`, `remove`). |
 | `jvm open [candidate]` | Navigation | Opens active candidate, JDK, or storage root in Windows File Explorer (alias: `jvm home`). |
 | `jvm clean` | Maintenance | Safely purges temporary download caches and extraction artifacts to reclaim disk space (alias: `jvm prune`). |
 | `jvm clear` | System | Purges `JAVA_HOME` and cleanly removes JVM directory junctions from PATH. |
@@ -125,6 +133,21 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm config [get/set/reset]` | User | Unified configuration engine managing persistent global defaults (`config.json`). |
 | `jvm env [--diff]` | Inspection | Displays active environment or inspects shell delta against persistent registry baselines. |
 | `jvm doctor [--fix] [--dry-run]` | Diagnostic | Deep diagnostic health audit with automated self-healing repairs for orphaned junctions and shadowed paths. |
+| `jvm doctor --report` | Diagnostic | Automatically runs pre-flight audit and packages report, logs, and configs into `jvm-issue-bundle.zip`. |
+| `jvm why` | Inspection | Explains active Java resolution via 7-tier decision graph (`SESSION`, `.java-version`, `.jvm.toml`, lockfile, config, junction, system PATH). |
+| `jvm explain <candidate>` | Inspection | Deep 7-layer architectural inspection of candidate runtime (type, storage, junction, env bindings, DACL, lockfile, CAS provenance). |
+| `jvm welcome` (or `jvm tutorial`) | Guided | Runs built-in interactive tour through architecture, workflows, candidate management, and security guarantees. |
+| `jvm run <task> [args...]` | Contextual | Smart contextual execution: detects build system (`mvnw`, `gradlew`, Maven, Gradle) and audits toolchain version compatibility before dispatching task. |
+| `jvm vendor [--short]` | Inspection | Displays active JDK vendor distribution name (passing `--short` emits lowercase identifier, e.g. `adoptium`). |
+| `jvm current --short` | Scripting | Emits bare version string (e.g. `21.0.2` or `21`) without headers or ANSI styling for shell prompts and CI scripts. |
+| `jvm current --numeric` | Scripting | Emits raw integer major version number (e.g. `21`) for build matrices. |
+| `jvm current --bin` | Scripting | Emits absolute filesystem path to active `java.exe` binary. |
+| `jvm cache stats` (or `--stats`) | Maintenance | Displays Content-Addressed Storage telemetry table: blob counts, disk footprints, and retention policies. |
+| `jvm cache dedupe` | Maintenance | Scans CAS artifact store for duplicate binaries and reclaims redundant storage space. |
+| `jvm report` | Diagnostic | Generates a comprehensive, redacted diagnostic environment report (`jvm-report.txt`). |
+| `jvm support` | Support | Generates a complete diagnostic support bundle (`jvm-support-bundle.zip`) for troubleshooting. |
+| `jvm self-update --history` | Tool | Displays history table of all stored backup versions of `jvm.bat` with timestamps and paths. |
+| `jvm self-update --rollback` | Tool | Atomically restores the previous working version of `jvm.bat` from backup with integrity verification. |
 | `jvm link [path] [name]` | Custom | Registers an external custom JDK (or lists all registered links with target paths if run without arguments). |
 | `jvm unlink <name>` | Custom | Unregisters a custom linked JDK from the manager. |
 | `jvm version` | Tool | Displays current JVM version, build number, and checks GitHub for updates (`--version`, `-v`). |
@@ -156,7 +179,7 @@ When you install or activate the PowerShell profile hook (`jvm hook` or via `ins
 
 | Input Context | Tab Behavior | Autocompleted Values |
 |---------------|--------------|----------------------|
-| `jvm <Tab>` / `jvm.bat <Tab>` / `.\jvm.bat <Tab>` | Subcommands, candidates, & global flags | `list`, `ls`, `install`, `uninstall`, `rm`, `use`, `pin`, `current`, `doctor`, `clean`, `channel`, `lock`, `config`, `project`, `cache`, `search`, `compare`, `list-remote`, `auto-switch`, `java`, `maven`, `gradle`, etc. |
+| `jvm <Tab>` / `jvm.bat <Tab>` / `.\jvm.bat <Tab>` | Subcommands, candidates, & global flags | `list`, `ls`, `install`, `uninstall`, `rm`, `use`, `pin`, `current`, `doctor`, `clean`, `channel`, `lock`, `config`, `project`, `cache`, `search`, `compare`, `list-remote`, `why`, `explain`, `welcome`, `tutorial`, `run`, `vendor`, `report`, `support`, `auto-switch`, `java`, `maven`, `gradle`, etc. |
 | `jvm channel <Tab>` / `jvm --channel <Tab>` | Delivery update channel targets | `stable`, `nightly` |
 | `jvm open <Tab>` | Known filesystem navigation targets | `home`, `dir`, `bin`, `config`, `cache`, `downloads`, `backup`, `backups`, `links` |
 | `jvm hook <Tab>` | Profile hook lifecycle management actions | `install`, `status`, `check`, `remove`, `uninstall` |
@@ -164,7 +187,7 @@ When you install or activate the PowerShell profile hook (`jvm hook` or via `ins
 | `jvm use <Tab>` | Dynamically discovered installed versions | Scans `%LOCALAPPDATA%\JavaVersionManager\links` and `%USERPROFILE%\.jdks` in real-time |
 | `jvm pin <Tab>` | Dynamically discovered installed versions | Autocompletes installed JDK version tags for `.java-version` creation |
 | `jvm uninstall <Tab>` | Installed JDKs and candidates | Autocompletes installed version tags for targeted uninstallation |
-| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--offline`, `--json`, `--no-lock`, `--locked`, `-l`, `--check`, `--diff`, `--update`, `--fix`, `--dry-run`, `--quiet`, `-q`, `--verbose`, `--auto-switch`, `--channel`, `--nightly`, `--stable`, `--security`, `--bundle`, `--mirror`, `--version`, `--help` |
+| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--offline`, `--json`, `--no-lock`, `--locked`, `-l`, `--check`, `--diff`, `--update`, `--fix`, `--dry-run`, `--quiet`, `-q`, `--verbose`, `--auto-switch`, `--channel`, `--nightly`, `--stable`, `--security`, `--bundle`, `--mirror`, `--version`, `--help`, `--short`, `--numeric`, `--bin`, `--stats`, `--rollback`, `--history`, `--report` |
 
 ### Interactive Tab Session Examples
 
@@ -700,6 +723,10 @@ jvm txn show
 
 # Rollback an aborted or interrupted transaction
 jvm transaction rollback <transaction-id>
+# Aliases:
+# jvm txn rollback <transaction-id>
+# jvm rollback <transaction-id>
+# jvm rb <transaction-id>
 ```
 
 - **Pre-State Capture:** Journals capture `staged_path`, `target_path`, `backup_path`, `junction_path`, and `prev_junction` prior to any disk mutation.
@@ -1028,6 +1055,12 @@ jvm cache list
 # Measure total cache size on disk
 jvm cache size
 
+# View detailed cache telemetry and storage policy compliance
+jvm cache stats
+
+# Identify and de-duplicate redundant download blobs
+jvm cache dedupe
+
 # Prune unreferenced cache blobs older than 30 days
 jvm cache prune
 
@@ -1041,6 +1074,12 @@ jvm cache export --bundle .\build-cache.jvmcache
 jvm cache import .\build-cache.jvmcache
 ```
 
+When importing cache bundles (`jvm cache import`), JVM enforces rigorous security verification:
+- **Zip Slip & Path Traversal Containment (`CWE-22`):** Validates entry destinations to ensure all files remain strictly bounded within the target cache directory.
+- **Reparse Point Rejection (`CWE-59`):** Rejects symlinks and directory junctions within the bundle and ensures target locations are physical directories.
+- **CAS Cryptographic Validation (`CWE-494`):** Re-computes and verifies SHA-256 hashes of all payloads destined for the `sha256/` content-addressed store.
+- **Concurrency & Fail-Safe Rollback (`CWE-362` / `CWE-460`):** Coordinates across processes via `state.lock` with atomic rollback and cleanup if extraction fails or is aborted.
+
 When operating with `--offline`, `jvm install <version> --offline` bypasses remote network calls and provisions runtimes directly from this CAS repository.
 
 ---
@@ -1051,11 +1090,21 @@ When operating with `--offline`, `jvm install <version> --offline` bypasses remo
 Query upstream vendor distribution repositories without opening a web browser:
 
 ```powershell
-# Search for JDK 25 across Adoptium releases
+# Shorthand version search (defaults candidate to java)
+jvm search 21
+
+# Search across Adoptium releases
 jvm search java 25
 
-# Query specific vendors
+# Query specific vendors (adoptium, zulu, sapmachine)
 jvm search java 21 --vendor zulu
+
+# Search ecosystem tool candidate releases
+jvm search gradle 8
+jvm search maven 3.9
+
+# Emit machine-readable JSON for scripting and automation
+jvm search java 21 --json
 
 # List remote releases with exact build tags and LTS markers
 jvm list-remote java
@@ -1075,12 +1124,15 @@ Inspect release metadata and evaluate feature deltas between major Java platform
 jvm info
 jvm info 21
 
-# Compare feature sets and JEP differences between releases
+# Compare feature sets and JEP differences between adjacent releases
 jvm compare 17 21
 jvm compare 21 25
+
+# Chained multi-LTS milestone comparison across major platform leaps
+jvm compare 8 21
 ```
 
-`jvm info` displays architecture, Virtual Machine implementation, release date, LTS status, and security patch classification. `jvm compare` outputs a structured comparison highlighting introduced JEPs, API enhancements, and finalized language features.
+`jvm info` displays architecture, Virtual Machine implementation, release date, LTS status, and security patch classification. `jvm compare` outputs a structured comparison highlighting introduced JEPs, API enhancements, finalized language features, chained multi-LTS milestone progressions (`8 -> 11 -> 17 -> 21 -> 25`), and Java classfile format bytecode specifications (e.g., classfile versions 52 through 69).
 
 ---
 
@@ -1359,6 +1411,210 @@ When `--json` is supplied, errors are automatically serialized into structured J
   }
 }
 ```
+
+<a id="environment-resolution-graph"></a>
+## 🧭 Environment Resolution Graph (`jvm why`)
+
+Ever wonder why a specific Java runtime is active in your terminal? `jvm why` inspects the entire 7-tier precedence hierarchy in real-time, pinpointing the exact origin and rule that selected the active JDK:
+
+```cmd
+jvm why
+```
+
+### Precedence Resolution Hierarchy
+1. **Tier 1 (CLI / Session Override):** Ephemeral environment variable override in the active shell session (`.jvm_session_target_*`).
+2. **Tier 2 (Directory `.java-version`):** Nearest parent directory containing a `.java-version` specification.
+3. **Tier 3 (Directory `.sdkmanrc`):** Nearest parent directory containing a `.sdkmanrc` SDKMAN! configuration file.
+4. **Tier 4 (Project `.jvm.toml` / `.jvmrc`):** Nearest root project descriptor specifying JDK requirements.
+5. **Tier 5 (Reproducible `.jvm.lock`):** Cryptographic lockfile pinning candidate, vendor, and checksum.
+6. **Tier 6 (Global Config / Junction):** User default selection configured in `config.json` or active NTFS junction link (`%LOCALAPPDATA%\DiamTek\JVM\current`).
+7. **Tier 7 (System PATH Fallback):** Legacy registry or global Windows `PATH` fallback.
+
+```text
+================================================================================
+ JVM Environment Resolution Explainer (7-Tier Graph)
+================================================================================
+ Active Java Version: 21.0.2 (Adoptium)
+ Active Binary:        C:\Users\username\AppData\Local\DiamTek\JVM\current\bin\java.exe
+ Mode:                 Symlink Junction Mode
+
+ Precedence Hierarchy Check:
+   [MATCH] Tier 2: Directory .java-version file detected in C:\Projects\my-app (pin: 21)
+   [SKIP ] Tier 1: Ephemeral subshell session override (not set)
+   [PASS ] Tier 3: Directory .sdkmanrc file
+   [PASS ] Tier 4: Project .jvm.toml configuration
+   [PASS ] Tier 5: Project .jvm.lock manifest
+   [PASS ] Tier 6: User global default (config.json)
+   [PASS ] Tier 7: System PATH fallback
+================================================================================
+ Resolution Reason: Directory level .java-version pinned version '21' took precedence.
+```
+
+---
+
+<a id="deep-candidate-analysis"></a>
+## 🔬 Deep Candidate Analysis (`jvm explain`)
+
+Perform deep 7-layer architectural inspection across any installed candidate runtime or ecosystem tool:
+
+```powershell
+jvm explain java
+jvm explain maven
+jvm explain gradle
+```
+
+### 7-Layer Architectural Inspection
+1. **Layer 1 - Candidate Identity:** Candidate name, runtime classification, and candidate type.
+2. **Layer 2 - Storage Hierarchy:** On-disk storage location and installed version count.
+3. **Layer 3 - Junction Link Status:** Reparse point target path and link integrity status.
+4. **Layer 4 - Shell Bindings:** Associated environment variables (`JAVA_HOME`, `M2_HOME`, `GRADLE_HOME`) and resolved binary paths.
+5. **Layer 5 - Security DACL Integrity:** NT Authority, System, Administrator, and User Access Control List (DACL) verification (`CWE-276`).
+6. **Layer 6 - Lockfile & Manifest Status:** Current directory `.jvm.lock` and `.jvm.toml` presence.
+7. **Layer 7 - Provenance & Checksum Record:** Verified Content-Addressed Storage (CAS) artifact digests in `%LOCALAPPDATA%\DiamTek\JVM\cache\sha256\`.
+
+---
+
+<a id="guided-onboarding--tutorial"></a>
+## 🎓 Guided Onboarding & Interactive Tutorial (`jvm welcome` / `jvm tutorial`)
+
+New to DiamTek JVM or setting up a developer workstation? Launch the built-in interactive tutorial and onboarding guide:
+
+```cmd
+jvm welcome
+# Or:
+jvm tutorial
+```
+
+The guided tour walks developers through:
+1. **Architecture & Modes:** Explains Symlink Junction Mode (UAC-Free) vs. Legacy Registry Mode.
+2. **Essential Commands:** Quick switches (`jvm 21`), directory pins (`jvm pin 21`), and ecosystem tools (`jvm install maven`).
+3. **Security Standards:** Cryptographic Authenticode validation, SHA-256 CAS deduplication, and privilege isolation.
+4. **Directory Transparency:** Exact paths where binaries, links, caches, and configuration are persisted.
+
+*Note: On fresh installations, the onboarding banner appears automatically until the environment is initialized (`.initialized`).*
+
+---
+
+<a id="smart-contextual-execution"></a>
+## ⚡ Smart Contextual Execution & Toolchain Conflict Detection (`jvm run`)
+
+Streamline your build tasks without remembering which wrapper script or build tool is configured in the current project:
+
+```cmd
+jvm run build
+jvm run test
+jvm run compile
+```
+
+### Contextual Runner Dispatch Matrix
+`jvm run` inspects the project directory and dispatches execution through the optimal tool:
+- **`mvnw.cmd` / `mvnw.bat`:** If Maven Wrapper is present, delegates to wrapper with arguments.
+- **`gradlew.bat` / `gradlew.cmd`:** If Gradle Wrapper is present, delegates to wrapper.
+- **`pom.xml`:** If Apache Maven descriptor is found, invokes installed `mvn`.
+- **`build.gradle` / `build.gradle.kts`:** If Gradle buildscript is found, invokes installed `gradle`.
+- **Custom / Raw Commands:** If none match, directly invokes the command in the active JVM environment.
+
+### Proactive Toolchain Conflict Detection
+Before dispatching builds, `jvm run` audits your toolchain for version incompatibilities:
+- **Gradle Wrapper vs. Java Matrix:** Warns if an older Gradle wrapper (e.g. `< 8.5`) is executed against Java 21+, or `< 9.0` against Java 25+.
+- **Maven Compiler Target Audit:** Inspects `pom.xml` for `<maven.compiler.target>` or `<java.version>` and alerts you if the target version exceeds the active Java runtime.
+
+---
+
+<a id="script-friendly-single-values"></a>
+## 🏎️ Script-Friendly Single Values (`--short`, `--numeric`, `--bin`, `jvm vendor`)
+
+Integrate DiamTek JVM directly into starship prompt widgets, PowerShell profile statuslines, bash/zsh prompts, and CI/CD matrix generators without complex regex parsing:
+
+```powershell
+# 1. Concise version string (e.g., '21.0.2' or '21')
+jvm current --short
+
+# 2. Raw integer major version number (e.g., '21')
+jvm current --numeric
+
+# 3. Absolute path to active java.exe binary
+jvm current --bin
+
+# 4. Active vendor distribution name (e.g., 'Adoptium' or 'adoptium')
+jvm vendor
+jvm vendor --short
+```
+
+**Prompt Statusline Integration Example (PowerShell `$PROFILE`):**
+```powershell
+function prompt {
+    $ver = jvm current --short
+    $vendor = jvm vendor --short
+    "[$vendor $ver] PS $pwd> "
+}
+```
+
+---
+
+<a id="cache-telemetry--deduplication"></a>
+## 📊 Cache Telemetry & Deduplication (`jvm cache stats` & `jvm cache dedupe`)
+
+Gain full visibility into your local Content-Addressed Storage (CAS) footprint and eliminate duplicate JDK binaries across candidate installations:
+
+```powershell
+# Detailed CAS storage telemetry table
+jvm cache stats
+# Or:
+jvm cache --stats
+
+# Content-addressed duplicate scanner & space reclamation
+jvm cache dedupe
+```
+
+`jvm cache stats` outputs a clean aligned table itemizing blob count, disk usage, and retention policies across SHA-256 artifacts, JDK archives, Maven, Gradle, and Kotlin tool distributions. `jvm cache dedupe` computes cryptographic hashes across cached artifacts, identifying identical files and optimizing storage.
+
+---
+
+<a id="diagnostic-environment-report--support-bundles"></a>
+## 🩺 Diagnostic Environment Report & Support Bundles (`jvm report`, `jvm doctor --report`, `jvm support`)
+
+When troubleshooting complex workstation issues or submitting bug reports on GitHub, generate complete, sanitized diagnostic packages with a single command:
+
+```powershell
+# 1. Generate sanitized, redacted plain text diagnostic report
+jvm report
+# -> Outputs: jvm-report.txt (usernames, tokens, and secrets automatically redacted)
+
+# 2. Run doctor audit and generate complete issue bundle
+jvm doctor --report
+# -> Outputs: jvm-issue-bundle.zip containing report, configs, and ownership manifests
+
+# 3. Comprehensive support bundle generator
+jvm support
+# -> Outputs: jvm-support-bundle.zip with doctor telemetry, environment report, and config
+```
+
+### Security & Privacy Protections
+All diagnostic report generators enforce strict information redaction (`CWE-209` / `CWE-532`):
+- User account paths (`%USERNAME%`) in `PATH` are replaced with `[REDACTED_USER]`.
+- Sensitive environment variables containing tokens, passwords, keys, or secret credentials are wiped from output manifests.
+
+---
+
+<a id="self-update-history--rollback"></a>
+## ⏪ Self-Update History & Rollback (`jvm self-update --history` & `--rollback`)
+
+Update with total peace of mind. Every time `jvm self-update` updates the core executable, the previous version is backed up with timestamped metadata:
+
+```powershell
+# 1. View all historical engine updates and backups
+jvm self-update --history
+
+# 2. Roll back immediately to the previous working build
+jvm self-update --rollback
+```
+
+### Rollback Guarantees
+- **Integrity Pre-Verification:** Before rolling back, `jvm self-update --rollback` validates the backup file for EOF markers (`rem END OF SCRIPT`) to prevent restoring truncated or corrupt binaries.
+- **Single-Step Recovery:** Automatically restores `%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat` from the most recent valid backup.
+
+---
 
 <a id="common-workflow-recipes"></a>
 ## 💡 Common Developer Workflow Recipes

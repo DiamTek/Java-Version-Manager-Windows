@@ -30,7 +30,8 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [Project Toolchain Parser (.jvm.toml / .jvmrc)](#project-toolchain-parser-jvmtoml--jvmrc)
 - [CMD & PowerShell Transparent Directory Switching Hooks](#cmd--powershell-transparent-directory-switching-hooks)
 - [Content-Addressed Storage & Resilient Transport Engine](#content-addressed-storage--resilient-transport-engine)
-- [Automated Adversarial Test Architecture (238 Tests, 40 CWEs)](#automated-adversarial-test-architecture-238-tests-40-cwes)
+- [Environment Resolution, Toolchain & Diagnostic Subsystems](#environment-resolution-toolchain--diagnostic-subsystems)
+- [Automated Adversarial Test Architecture (263 Tests, 40 CWEs)](#automated-adversarial-test-architecture-263-tests-40-cwes)
 
 ---
 
@@ -722,19 +723,70 @@ Projects can specify toolchains across Java and ecosystem candidates using stand
 <a id="content-addressed-storage--resilient-transport-engine"></a>
 ### Content-Addressed Storage & Resilient Transport Engine
 - **Content-Addressed Storage Layout (`cache\sha256\`):** Downloads are indexed by cryptographic digests inside `%LOCALAPPDATA%\DiamTek\JVM\cache\sha256\<hash-prefix>\<hash>.zip`. Installations inspect the local store prior to engaging the network, enabling true air-gapped provisioning via `jvm install <version> --offline`.
+- **Offline Cache Bundling & Import Security (`jvm cache export` / `import`):** Bundles the central CAS hierarchy into an offline transport container (`.jvmcache`). On import, enforces multi-tier security verification: entry-by-entry Zip Slip path containment (`CWE-22`), destination reparse point rejection (`CWE-59`), Content-Addressed Storage SHA-256 integrity verification (`CWE-494`), concurrency mutex locking (`CWE-362`), and atomic rollback on failure (`CWE-460`).
 - **Resumable Range Downloads & Smart Backoff:** Downloads stage into `.part` files using HTTP `Range` headers (`AddRange([int64]$existingLen)`) and evaluate `HTTP 206 Partial Content`. Network faults discriminate status codes: `HTTP 429` triggers exponential backoff (1s, 2s, 4s, 8s), `5xx` and DNS errors engage retry with jitter, `HTTP 404` aborts immediately, and checksum failures halt execution without redownloading.
 - **Variable Ownership Tracking (`ownership.json`):** Tracks variables and PATH tokens modified by DiamTek JVM inside `%LOCALAPPDATA%\DiamTek\JVM\ownership.json`. During teardown, `uninstall.ps1` cross-references this manifest to preserve user-defined variables and unowned system PATH entries.
 
 ---
 
-<a id="automated-adversarial-test-architecture-238-tests-40-cwes"></a>
-## Automated Adversarial Test Architecture (238 Tests, 40 CWEs)
+<a id="environment-resolution-toolchain--diagnostic-subsystems"></a>
+### Environment Resolution, Toolchain & Diagnostic Subsystems
 
-The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **238 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
+#### 1. 7-Tier Precedence Resolution Graph Engine (`jvm why`)
+To provide deterministic visibility into runtime selection across nested project structures and shell sessions, the engine evaluates environment precedence across 7 strictly ordered tiers:
+1. **Tier 1 (CLI / Ephemeral Session):** Temporary session overrides stored in `%LOCALAPPDATA%\DiamTek\JVM\temp\.jvm_session_target_*`.
+2. **Tier 2 (Directory `.java-version`):** Nearest directory-level `.java-version` pin discovered by upward directory traversal.
+3. **Tier 3 (Directory `.sdkmanrc`):** Standard SDKMAN! configuration translated into native candidate/version mappings.
+4. **Tier 4 (Project `.jvm.toml` / `.jvmrc`):** Project toolchain configuration defining required runtimes.
+5. **Tier 5 (Reproducible `.jvm.lock`):** Cryptographic manifest pinning candidate, vendor, URL, and SHA-256 hash.
+6. **Tier 6 (User Configuration / Junction Link):** Default runtime defined in `config.json` or target of active junction link (`%LOCALAPPDATA%\DiamTek\JVM\current`).
+7. **Tier 7 (System PATH Fallback):** Machine-level or inherited Windows `PATH` fallback.
+
+#### 2. 7-Layer Deep Candidate Analysis (`jvm explain <candidate>`)
+Audits any installed candidate across 7 technical layers:
+- **Layer 1 - Candidate Identity:** Candidate taxonomy (Java Core SDK vs Ecosystem Build Tool).
+- **Layer 2 - Storage Hierarchy:** Physical directory paths and multi-version inventory.
+- **Layer 3 - Junction Link Status:** Reparse point integrity, target destination, and linkage state.
+- **Layer 4 - Environment Bindings:** Active environment variables (`JAVA_HOME`, `M2_HOME`, etc.) and resolved binary path via `where.exe`.
+- **Layer 5 - Security DACL Integrity:** NT Authority\SYSTEM, Builtin\Administrators, and User-restricted access permissions (`CWE-276`).
+- **Layer 6 - Lockfile Status:** Presence and compliance of local `.jvm.lock` and `.jvm.toml`.
+- **Layer 7 - Provenance & Checksum Record:** Verified Content-Addressed Storage (CAS) digests in `cache\sha256\`.
+
+#### 3. Smart Contextual Execution & Toolchain Conflict Matrix (`jvm run`)
+Inspects active directory build descriptors and transparently delegates tasks:
+- **Wrapper Priority:** Dispatches via `mvnw.cmd` / `mvnw.bat` or `gradlew.bat` / `gradlew.cmd` if present.
+- **Direct Build Tools:** Dispatches to `mvn` or `gradle` if `pom.xml` or `build.gradle` / `build.gradle.kts` are found.
+- **Toolchain Conflict Scanner:** Proactively checks Gradle wrapper versions against active Java version (flagging `< 8.5` on Java 21+, `< 9.0` on Java 25+) and scans `pom.xml` compiler target versions against the active runtime.
+
+#### 4. CAS Telemetry & Deduplication Engine (`jvm cache stats` & `jvm cache dedupe`)
+Monitors Content-Addressed Storage layout across `sha256/`, `jdk/`, `maven/`, `gradle/`, and `kotlin/` categories, calculating item counts and megabyte footprint. Deduplication performs SHA-256 hashing across cached blobs and candidate trees to identify redundant payloads and calculate reclaimable disk space.
+
+#### 5. Sanitized Diagnostic Reporting & Support Bundler (`jvm report`, `jvm doctor --report`, `jvm support`)
+Generates comprehensive troubleshooting artifacts while enforcing strict secret redaction (`CWE-209` / `CWE-532`):
+- Strips username path segments (`%USERNAME%` -> `[REDACTED_USER]`).
+- Omits passwords, auth tokens, and credential variables from dumps.
+- Assembles standalone ZIP archives (`jvm-issue-bundle.zip`, `jvm-support-bundle.zip`) containing system info, doctor health audits, configs, and ownership manifests.
+
+#### 6. Self-Update History & Integrity-Verified Rollback (`jvm self-update --history` & `--rollback`)
+Maintains an immutable archive of previous `jvm.bat` releases in `%LOCALAPPDATA%\DiamTek\JVM\backups\`. Before applying rollback, verifies target backup files for end-of-file validation markers (`rem END OF SCRIPT`), preventing partial or corrupt rollbacks (`CWE-494`).
+
+#### 7. Remote Search & Cross-Catalog Discovery Engine (`jvm search`)
+Queries upstream metadata catalogs (Adoptium, Azul Zulu, SAP SapMachine, Gradle, Maven) without requiring browser access. Supports candidate tool routing, shorthand version queries (`jvm search 21`), and structured JSON output (`--json`) for automation.
+
+#### 8. Semantic Release Comparison Engine (`jvm compare`)
+Evaluates platform differences between JDK releases. Features automated multi-LTS milestone JEP chaining (`8 -> 11 -> 17 -> 21 -> 25`) to detail cumulative language features, VM enhancements, and deprecations across LTS generations, alongside Java classfile format bytecode baseline matrices.
+
+---
+
+<a id="automated-adversarial-test-architecture-257-tests-40-cwes"></a>
+<a id="automated-adversarial-test-architecture-263-tests-40-cwes"></a>
+## Automated Adversarial Test Architecture (263 Tests, 40 CWEs)
+
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **263 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
 
 | Suite | Category Focus | Test Count | Status |
 | :--- | :--- | :---: | :---: |
-| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF, TOML Metacharacters) | 89 / 89 | **PASS** |
+| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF, TOML Metacharacters, Diagnostic Telemetry & Explainer Engines, Cache Import & Rollback Resilience) | 114 / 114 | **PASS** |
 | **Suite 2** | Registry & Env Boundaries (ValueKind preservation, UAC elevation, Config Engine, Env Diff) | 8 / 8 | **PASS** |
 | **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery, Doctor Self-Healing) | 18 / 18 | **PASS** |
 | **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, .jvm.lock, CAS Layout, Cache CLI, Ownership Tracking) | 67 / 67 | **PASS** |
@@ -744,7 +796,7 @@ The security, integrity, and operational resilience of DiamTek JVM are verified 
 | **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 6 / 6 | **PASS** |
 | **Suite 9** | Supply Chain (`JVM_SKIP_CHECKSUM` rejection, Verification checklists) | 2 / 2 | **PASS** |
 | **Suite 10** | Atomic Operations (Transactional journaling, Process kill tests, Pre-state junction recovery) | 3 / 3 | **PASS** |
-| **Total** | **Comprehensive Full-System Security Suite** | **238 / 238** | **`10.0 / 10.0`** |
+| **Total** | **Comprehensive Full-System Security Suite** | **263 / 263** | **`10.0 / 10.0`** |
 
 ---
 
