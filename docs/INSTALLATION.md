@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
 
 </div>
 
@@ -124,6 +124,9 @@ If you download `install.ps1` or download the repository `.zip` to install local
    .\install.ps1
    # Or with explicit execution policy bypass:
    powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+
+   # Or for offline installation from a pre-packaged distro:
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Offline -DistroDir .\jvm-offline-distro
    ```
 
 <a id="package-managers"></a>
@@ -217,20 +220,28 @@ Deploying inside corporate enterprise perimeters with deep packet inspection (Zs
 
 ### 📦 Air-Gapped & Offline Corporate Environments
 For secure air-gapped workstations or offline development networks with zero external internet connectivity:
-1. **Cache Export & Bundling on Bastion Host:** On an internet-connected build station, bundle the central Content-Addressed Storage cache into a portable bundle:
+1. **Self-Contained Offline Distro Creation (Connected Host):** On an internet-connected build station, generate a standalone offline distribution containing `jvm.bat`, build tools, pre-cached runtimes, and SHA-256 integrity digests:
+   ```powershell
+   jvm distro create --out .\jvm-offline-distro
+   ```
+2. **Zero-Network Distro Provisioning (Air-Gapped Host):** Transfer the directory and install JVM without any outbound network calls:
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Offline -DistroDir .\jvm-offline-distro
+   ```
+3. **Cache Export & Bundling on Bastion Host:** Alternatively, export the central Content-Addressed Storage cache into a portable bundle:
    ```powershell
    jvm cache export --bundle .\build-cache.jvmcache
    ```
-2. **Offline Ingestion:** Transfer and ingest the package directly into the target workstation's Content-Addressed cache:
+4. **Offline Ingestion:** Transfer and ingest the package directly into the target workstation's Content-Addressed cache:
    ```powershell
    jvm cache import .\build-cache.jvmcache
    ```
-3. **Zero-Network Installation:** Execute true air-gapped installations with 0 outbound network requests:
+5. **Zero-Network Runtime Installation:** Execute true air-gapped installations with 0 outbound network requests:
    ```powershell
    jvm install 21 --offline
    jvm install maven 3.9.9 --offline
    ```
-4. **Standalone Pre-Extracted Runtimes:** Alternatively, extract pre-packaged runtimes into `C:\Program Files\Java\` and bind them via `jvm link <path> <name>`.
+6. **Standalone Pre-Extracted Runtimes:** Alternatively, extract pre-packaged runtimes into `C:\Program Files\Java\` and bind them via `jvm link <path> <name>`.
 
 <a id="building-the-msi-from-source"></a>
 ## Building the MSI from Source
@@ -272,7 +283,7 @@ The resulting single-file installers are placed directly into `packages\msi\` (o
 DiamTek JVM provides two automated test suites to verify system integrity and security:
 
 #### 1. Adversarial Security & Error-Injection Suite (`tests/Test-JvmSecurity.ps1`)
-An enterprise-grade test harness executing **263 automated test cases across 10 defensive suites** covering **40 MITRE CWE classes** (`CWE-20` through `CWE-918`) with a verified **10.0 / 10.0** scorecard:
+An enterprise-grade test harness executing **323 automated test cases across 16 defensive suites** covering **41 MITRE CWE classes** (`CWE-20` through `CWE-918`, including `CWE-798`) with a verified **10.0 / 10.0** scorecard:
 ```powershell
 # Run using modern PowerShell 7+ (Recommended):
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1

@@ -21,7 +21,9 @@ param(
     [string]$TargetDir,
     [string]$Branch,
     [string]$Channel = "Stable",
-    [switch]$SkipIntegrity
+    [switch]$SkipIntegrity,
+    [switch]$Offline,
+    [string]$DistroDir
 )
 
 if (-not $PSBoundParameters.ContainsKey('Channel') -and $env:JVM_CHANNEL) {
@@ -165,6 +167,29 @@ if ($TargetDir -and (Test-HasReparsePointInLineage $TargetDir)) {
 }
 $normTarget = if ($TargetDir -and (Test-Path -LiteralPath $TargetDir)) { (Resolve-Path -LiteralPath $TargetDir).Path } else { $null }
 
+if ($DistroDir) {
+    if (Test-HasReparsePointInLineage $DistroDir) {
+        Write-Host ""
+        Write-Host "[ ERROR  ] Security violation (CWE-59): DistroDir cannot be or traverse a reparse point: $DistroDir" -ForegroundColor Red
+        exit 1
+    }
+    if (-not (Test-Path -LiteralPath $DistroDir)) {
+        Write-Host ""
+        Write-Host "[ ERROR  ] Specified DistroDir does not exist: $DistroDir" -ForegroundColor Red
+        exit 1
+    }
+    $DistroDir = (Resolve-Path -LiteralPath $DistroDir).Path
+    $Offline = $true
+}
+
+$offlineSourceDir = if ($DistroDir) { $DistroDir } elseif ($PSScriptRoot -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot "jvm.bat"))) { $PSScriptRoot } else { $null }
+
+if ($Offline -and (-not $offlineSourceDir -or -not (Test-Path -LiteralPath (Join-Path $offlineSourceDir "jvm.bat")))) {
+    Write-Host ""
+    Write-Host "[ ERROR  ] Offline mode specified, but no local jvm.bat found in DistroDir or script directory." -ForegroundColor Red
+    exit 1
+}
+
 if ($normTarget) {
     $installDir = $normTarget
 } else {
@@ -177,64 +202,68 @@ Initialize-SecureDirectory -DirPath $repoRoot -RestrictDacl:$isDefaultAppDataRoo
 Initialize-SecureDirectory -DirPath $installDir -RestrictDacl:$isDefaultAppDataRoot
 $batPath = Join-Path $installDir "jvm.bat"
 
-Update-Progress -Percent 15 -Activity "Resolving latest release from GitHub..."
-$rawBranch = if ($Branch) { $Branch } else { "" }
-if (-not $rawBranch) {
-    if ($Channel -ne "Nightly") {
-        $apiRes = $null; $sr = $null
-        try {
-            $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/latest")
-            $apiReq.UserAgent = "DiamTek-JVM"
-            $apiReq.Timeout = 3000
-            $apiRes = $apiReq.GetResponse()
-            $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
-            $json = $sr.ReadToEnd()
-            if ($json -match '"tag_name":\s*"([^"]+)"') {
-                $rawBranch = $matches[1]
-            }
-        } catch {
-            Write-Verbose "GitHub API release lookup failed: $($_.Exception.Message)"
-        } finally {
-            if ($null -ne $sr) { $sr.Close(); $sr.Dispose() }
-            if ($null -ne $apiRes) { $apiRes.Close() }
-        }
-        if (-not $rawBranch) {
-            $redirRes = $null
+if ($Offline) {
+    $rawBranch = "offline"
+} else {
+    Update-Progress -Percent 15 -Activity "Resolving latest release from GitHub..."
+    $rawBranch = if ($Branch) { $Branch } else { "" }
+    if (-not $rawBranch) {
+        if ($Channel -ne "Nightly") {
+            $apiRes = $null; $sr = $null
             try {
-                $redirReq = [Net.HttpWebRequest]::Create("https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest")
-                $redirReq.AllowAutoRedirect = $false
-                $redirReq.UserAgent = "DiamTek-JVM"
-                $redirReq.Timeout = 4000
-                $redirRes = $redirReq.GetResponse()
-                $loc = $redirRes.GetResponseHeader("Location")
-                if ($loc -and $loc -match '/releases/tag/([^/]+)$') {
+                $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/releases/latest")
+                $apiReq.UserAgent = "DiamTek-JVM"
+                $apiReq.Timeout = 3000
+                $apiRes = $apiReq.GetResponse()
+                $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
+                $json = $sr.ReadToEnd()
+                if ($json -match '"tag_name":\s*"([^"]+)"') {
                     $rawBranch = $matches[1]
                 }
             } catch {
-                Write-Verbose "GitHub redirect tag lookup failed: $($_.Exception.Message)"
+                Write-Verbose "GitHub API release lookup failed: $($_.Exception.Message)"
             } finally {
-                if ($null -ne $redirRes) { $redirRes.Close() }
+                if ($null -ne $sr) { $sr.Close(); $sr.Dispose() }
+                if ($null -ne $apiRes) { $apiRes.Close() }
+            }
+            if (-not $rawBranch) {
+                $redirRes = $null
+                try {
+                    $redirReq = [Net.HttpWebRequest]::Create("https://github.com/DiamTek/Java-Version-Manager-Windows/releases/latest")
+                    $redirReq.AllowAutoRedirect = $false
+                    $redirReq.UserAgent = "DiamTek-JVM"
+                    $redirReq.Timeout = 4000
+                    $redirRes = $redirReq.GetResponse()
+                    $loc = $redirRes.GetResponseHeader("Location")
+                    if ($loc -and $loc -match '/releases/tag/([^/]+)$') {
+                        $rawBranch = $matches[1]
+                    }
+                } catch {
+                    Write-Verbose "GitHub redirect tag lookup failed: $($_.Exception.Message)"
+                } finally {
+                    if ($null -ne $redirRes) { $redirRes.Close() }
+                }
             }
         }
-    }
-    if (-not $rawBranch) {
-        $apiRes = $null; $sr = $null
-        try {
-            $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main")
-            $apiReq.UserAgent = "DiamTek-JVM"
-            $apiReq.Timeout = 3000
-            $apiRes = $apiReq.GetResponse()
-            $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
-            $json = $sr.ReadToEnd()
-            if ($json -match '"sha":\s*"([0-9a-f]{40})"') {
-                $rawBranch = $matches[1]
+        if (-not $rawBranch) {
+            $apiRes = $null; $sr = $null
+            try {
+                $apiReq = [Net.HttpWebRequest]::Create("https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/commits/main")
+                $apiReq.UserAgent = "DiamTek-JVM"
+                $apiReq.Timeout = 3000
+                $apiRes = $apiReq.GetResponse()
+                $sr = New-Object System.IO.StreamReader($apiRes.GetResponseStream())
+                $json = $sr.ReadToEnd()
+                if ($json -match '"sha":\s*"([0-9a-f]{40})"') {
+                    $rawBranch = $matches[1]
+                }
+            } catch {
+                $rawBranch = "HEAD"
+                Write-Verbose "Falling back to HEAD branch ref: $($_.Exception.Message)"
+            } finally {
+                if ($null -ne $sr) { $sr.Close(); $sr.Dispose() }
+                if ($null -ne $apiRes) { $apiRes.Close() }
             }
-        } catch {
-            $rawBranch = "HEAD"
-            Write-Verbose "Falling back to HEAD branch ref: $($_.Exception.Message)"
-        } finally {
-            if ($null -ne $sr) { $sr.Close(); $sr.Dispose() }
-            if ($null -ne $apiRes) { $apiRes.Close() }
         }
     }
 }
@@ -244,7 +273,9 @@ $noCacheHeaders = @{ 'Cache-Control' = 'no-cache'; 'Pragma' = 'no-cache' }
 $url = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$rawBranch/jvm.bat?t=$cacheBuster"
 
 Update-Progress -Percent 35 -Activity "Fetching core JVM engine..."
-if (-not $Update -and $PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "jvm.bat"))) {
+if ($Offline) {
+    $content = [System.IO.File]::ReadAllText((Join-Path $offlineSourceDir "jvm.bat"))
+} elseif (-not $Update -and $PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "jvm.bat"))) {
     $content = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot "jvm.bat"))
 } else {
     $content = $null
@@ -301,7 +332,29 @@ if (-not $content -or $content.Length -eq 0 -or $content -notmatch "rem END OF S
 
 # Fetch SHA256SUMS.txt if on Stable channel / tagged release
 $shaHashMap = @{}
-if ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
+if ($Offline) {
+    $offlineSums = if ($offlineSourceDir) { Join-Path $offlineSourceDir "SHA256SUMS.txt" } else { $null }
+    $offlineManifest = if ($offlineSourceDir) { Join-Path $offlineSourceDir "distro-manifest.json" } else { $null }
+    if ($offlineSums -and (Test-Path -LiteralPath $offlineSums)) {
+        try {
+            $shaText = [System.IO.File]::ReadAllText($offlineSums)
+            foreach ($sLine in ($shaText -split "`r?`n")) {
+                if ($sLine -match '^([0-9a-fA-F]{64})\s+[\*]?(.+)$') {
+                    $shaHashMap[$matches[2].Trim()] = $matches[1].ToLower()
+                }
+            }
+        } catch { Write-Verbose "Offline SHA256SUMS parsing failed: $($_.Exception.Message)" }
+    } elseif ($offlineManifest -and (Test-Path -LiteralPath $offlineManifest)) {
+        try {
+            $manJson = Get-Content -LiteralPath $offlineManifest -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($manJson.files) {
+                foreach ($fProp in $manJson.files.PSObject.Properties) {
+                    $shaHashMap[$fProp.Name] = [string]$fProp.Value.ToLower()
+                }
+            }
+        } catch { Write-Verbose "Offline distro manifest parsing failed: $($_.Exception.Message)" }
+    }
+} elseif ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
     try {
         $shaText = $null
         try {
@@ -449,6 +502,8 @@ try {
             Remove-Item -LiteralPath $stageBat -Force -ErrorAction SilentlyContinue
             exit 1
         }
+    } elseif ($Offline) {
+        Write-Verbose "Offline installation: Proceeding with local jvm.bat payload."
     } elseif ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
         Write-Host ""
         Write-Host "[ ERROR  ] Cryptographic integrity manifest (SHA256SUMS.txt) required for official release $rawBranch on Stable channel." -ForegroundColor Red
@@ -530,13 +585,23 @@ try {
         $destDir = Split-Path $destFile -Parent
         Initialize-SecureDirectory -DirPath $destDir -RestrictDacl:$isDefaultAppDataRoot
         Remove-ReparsePointOrFail -FilePath $destFile
-        $localSource = if ($PSScriptRoot) { Join-Path $PSScriptRoot ($cf -replace '/', '\') } else { $null }
-        if (-not $Update -and $localSource -and (Test-Path -LiteralPath $localSource)) {
+        $localSource = if ($offlineSourceDir) {
+            Join-Path $offlineSourceDir ($cf -replace '/', '\')
+        } elseif ($PSScriptRoot) {
+            Join-Path $PSScriptRoot ($cf -replace '/', '\')
+        } else { $null }
+        if ((-not $Update -or $Offline) -and $localSource -and (Test-Path -LiteralPath $localSource)) {
             Copy-Item -LiteralPath $localSource -Destination $destFile -Force
             if ((Split-Path $destFile -Leaf) -eq "uninstall.ps1") {
                 $uninstShaFile = "$destFile.sha256"
                 Remove-ReparsePointOrFail -FilePath $uninstShaFile
                 [System.IO.File]::WriteAllText($uninstShaFile, (Get-FileSha256 -Path $destFile), (New-Object System.Text.UTF8Encoding($false)))
+            }
+        } elseif ($Offline) {
+            if ((Split-Path $destFile -Leaf) -eq "uninstall.ps1" -and -not (Test-Path -LiteralPath $destFile)) {
+                Write-Host ""
+                Write-Host "[ ERROR  ] Offline installation missing uninstaller: $destFile" -ForegroundColor Red
+                exit 1
             }
         } else {
             $downloadSuccess = $false
@@ -647,7 +712,7 @@ if (-not (Test-Path -LiteralPath $configFile)) {
         default_vendor    = "adoptium"
         mode              = "symlink"
         channel           = if ($Channel -eq "Nightly") { "nightly" } else { "stable" }
-        auto_update_check = $true
+        auto_update_check = if ($Offline) { $false } else { $true }
         auto_switch       = $true
         color             = $true
         telemetry         = $false
@@ -655,8 +720,18 @@ if (-not (Test-Path -LiteralPath $configFile)) {
         retries           = 3
         timeout           = 15
         mirror            = ""
+        offline_mode      = [bool]$Offline
     } | ConvertTo-Json -Depth 4
     [System.IO.File]::WriteAllText($configFile, "$defaultCfg`r`n", (New-Object System.Text.UTF8Encoding($false)))
+} elseif ($Offline) {
+    try {
+        $cfgJson = Get-Content -LiteralPath $configFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        $cfgJson | Add-Member -NotePropertyName "offline_mode" -NotePropertyValue $true -Force
+        $cfgJson.auto_update_check = $false
+        [System.IO.File]::WriteAllText($configFile, ($cfgJson | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding($false)))
+    } catch {
+        Write-Verbose "Could not update offline_mode in existing config.json: $($_.Exception.Message)"
+    }
 }
 
 $cacheDir = Join-Path $repoRoot "cache"
@@ -665,6 +740,27 @@ Initialize-SecureDirectory -DirPath $cacheDir -RestrictDacl:$isDefaultAppDataRoo
 Initialize-SecureDirectory -DirPath $cacheShaDir -RestrictDacl:$isDefaultAppDataRoot
 foreach ($subCache in @('jdk', 'maven', 'gradle', 'kotlin')) {
     Initialize-SecureDirectory -DirPath (Join-Path $cacheDir $subCache) -RestrictDacl:$isDefaultAppDataRoot
+}
+
+if ($Offline -and $offlineSourceDir) {
+    $distroCache = Join-Path $offlineSourceDir "cache"
+    if ((Test-Path -LiteralPath $distroCache) -and -not (Test-HasReparsePointInLineage $distroCache)) {
+        Copy-Item -LiteralPath "$distroCache\*" -Destination $cacheDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $distroTools = Join-Path $offlineSourceDir "tools"
+    if ((Test-Path -LiteralPath $distroTools) -and -not (Test-HasReparsePointInLineage $distroTools)) {
+        $destInstalled = Join-Path $repoRoot "installed"
+        Initialize-SecureDirectory -DirPath $destInstalled -RestrictDacl:$isDefaultAppDataRoot
+        Copy-Item -LiteralPath "$distroTools\*" -Destination $destInstalled -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $distroPayloads = Join-Path $offlineSourceDir "payloads"
+    if ((Test-Path -LiteralPath $distroPayloads) -and -not (Test-HasReparsePointInLineage $distroPayloads)) {
+        $destBundled = Join-Path $repoRoot "bundled_jdks"
+        Initialize-SecureDirectory -DirPath $destBundled -RestrictDacl:$isDefaultAppDataRoot
+        if (Test-Path -LiteralPath (Join-Path $distroPayloads "java")) {
+            Copy-Item -LiteralPath (Join-Path $distroPayloads "java") -Destination (Join-Path $destBundled "offline-distro") -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 $ownershipFile = Join-Path $repoRoot "ownership.json"
@@ -930,12 +1026,14 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             'self-uninstall', 'open', 'home', 'exec', 'run', 'env', 'hook',
             'link', 'unlink', 'version', 'help', 'channel', 'lock', 'verify', 'transaction', 'txn',
             'config', 'project', 'cache', 'search', 'compare', 'list-remote',
-            'why', 'explain', 'welcome', 'tutorial', 'report', 'support', 'vendor'
+            'why', 'explain', 'welcome', 'tutorial', 'report', 'support', 'vendor',
+            'policy', 'freeze', 'thaw', 'aliases', 'ecosystem',
+            'profile', 'profiles', 'snapshot', 'snapshots', 'bundle', 'bundles', 'distro', 'distribution'
         )
         $candidates = @('java', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn')
         $vendors = @('adoptium', 'temurin', 'oracle', 'corretto', 'zulu', 'microsoft', 'graalvm', 'liberica', 'bellsoft', 'semeru', 'ibm', 'openj9', 'sapmachine', 'sap', 'mandrel', 'redhat-mandrel', 'dragonwell', 'alibaba', 'kona', 'tencent')
         $openTargets = @('home', 'dir', 'bin', 'config', 'cache', 'downloads', 'backup', 'backups', 'links', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn')
-        $hookTargets = @('install', 'status', 'check', 'remove', 'uninstall')
+        $hookTargets = @('install', 'status', 'check', 'remove', 'uninstall', 'cmd')
         $flags = @(
             '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
             '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
@@ -944,8 +1042,11 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             '--quiet', '-q', '--verbose',
             '--channel', '-c', '--nightly', '--stable', '--security', '--bundle', '--mirror',
             '--short', '--numeric', '--bin', '--stats', '--rollback', '--history', '--report',
+            '--freeze', '--thaw', '--sign', '--verify',
+            '--secret', '--key-file', '--include-payloads',
+            '--desc', '--out', '--distro-dir',
             '--java', '--maven', '--gradle', '--kotlin', '--scala', '--groovy', '--ant', '--sbt', '--jbang', '--quarkus', '--spring', '--micronaut', '--mn',
-            '--version', '-v', '--help', '-h'
+            '--timings', '--version', '-v', '--help', '-h'
         )
 
         $elements = @($commandAst.CommandElements | ForEach-Object { $_.Extent.Text })
@@ -961,6 +1062,22 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             $completions = $openTargets
         } elseif ($prev -in @('hook')) {
             $completions = $hookTargets
+        } elseif ($prev -in @('policy')) {
+            $completions = @('show', 'check')
+        } elseif ($prev -in @('aliases')) {
+            $completions = @('--install')
+        } elseif ($prev -in @('help')) {
+            $completions = $subcommands
+        } elseif ($prev -in @('profile', 'profiles')) {
+            $completions = @('create', 'use', 'activate', 'list', 'ls', 'show', 'clone', 'delete', 'rm')
+        } elseif ($prev -in @('snapshot', 'snapshots')) {
+            $completions = @('create', 'restore', 'list', 'ls', 'delete', 'rm')
+        } elseif ($prev -in @('bundle', 'bundles')) {
+            $completions = @('create', 'inspect', 'install', 'list', 'ls')
+        } elseif ($prev -in @('distro', 'distribution')) {
+            $completions = @('create')
+        } elseif ($prev -in @('lock')) {
+            $completions = @('check', 'diff', 'update', 'sign', 'verify', 'freeze', 'thaw')
         } elseif ($prev -in @('use', 'default', 'pin', 'local', 'uninstall', 'rm', 'remove', 'which', 'path')) {
             $installed = @()
             $linksDir = "$env:LOCALAPPDATA\JavaVersionManager\links"

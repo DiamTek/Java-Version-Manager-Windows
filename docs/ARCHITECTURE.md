@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
 
 </div>
 
@@ -31,7 +31,7 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [CMD & PowerShell Transparent Directory Switching Hooks](#cmd--powershell-transparent-directory-switching-hooks)
 - [Content-Addressed Storage & Resilient Transport Engine](#content-addressed-storage--resilient-transport-engine)
 - [Environment Resolution, Toolchain & Diagnostic Subsystems](#environment-resolution-toolchain--diagnostic-subsystems)
-- [Automated Adversarial Test Architecture (263 Tests, 40 CWEs)](#automated-adversarial-test-architecture-263-tests-40-cwes)
+- [Automated Adversarial Test Architecture (323 Tests, 41 CWEs)](#automated-adversarial-test-architecture-323-tests-41-cwes)
 
 ---
 
@@ -776,27 +776,39 @@ Queries upstream metadata catalogs (Adoptium, Azul Zulu, SAP SapMachine, Gradle,
 #### 8. Semantic Release Comparison Engine (`jvm compare`)
 Evaluates platform differences between JDK releases. Features automated multi-LTS milestone JEP chaining (`8 -> 11 -> 17 -> 21 -> 25`) to detail cumulative language features, VM enhancements, and deprecations across LTS generations, alongside Java classfile format bytecode baseline matrices.
 
+#### 9. Next-Gen Portability & Toolchain Bundles Subsystem (`profiles`, `snapshots`, `bundles`, `distro`)
+Architected for enterprise environment portability and strict air-gapped deployments:
+- **Named Environment Profiles (`%LOCALAPPDATA%\DiamTek\JVM\profiles\`):** JSON state machines tracking multi-tool configurations (`work`, `ci`, `cloud-native`). Profile activation pre-validates target candidates and applies atomic multi-junction switching with fail-closed automatic rollback (`CWE-460`).
+- **Point-in-Time Toolchain Snapshots (`%LOCALAPPDATA%\DiamTek\JVM\snapshots\`):** Captures active JDK, ecosystem tools, environment variables, and `config.json` state into timestamped JSON snapshots with non-destructive `--dry-run` simulation, supporting both named identifiers and direct file paths (`<name|path>`). Restoration enforces strict transactional consistency: candidate directory junctions are switched first, and `config.json` is committed only upon 100% success, with dual pre-state rollback restoring all junctions and reverting `config.json` on failure (`CWE-460`).
+- **Portable Containers (`.jvmbundle`):** Self-contained zip containers exporting real toolchain binaries (`payloads/java`, `payloads/<candidate>`), `.jvm.lock` manifests, and structured `BUNDLE MANIFEST` table inspection. Enforces `0x50 0x4B` PK magic byte verification (`CWE-494`), CSPRNG staging, and canonical trailing-slash ZipSlip boundary containment (`CWE-22`).
+- **Air-Gapped Distros (`distro-manifest.json` & `install.ps1 -Offline`):** Generates standalone manager offline packages (`kit_type: "manager-offline-kit"`) verified by cryptographic SHA-256 manifests with optional pre-packaged runtime payloads (`--include-payloads`), alongside an offline installer mode provisioning JVM and pre-seeded caches with zero outbound network calls (`CWE-319`).
+
 ---
 
-<a id="automated-adversarial-test-architecture-257-tests-40-cwes"></a>
-<a id="automated-adversarial-test-architecture-263-tests-40-cwes"></a>
-## Automated Adversarial Test Architecture (263 Tests, 40 CWEs)
+<a id="automated-adversarial-test-architecture-323-tests-41-cwes"></a>
+## Automated Adversarial Test Architecture (323 Tests, 41 CWEs)
 
-The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **263 automated test cases across 10 defensive suites**, covering **40 MITRE CWE classes** with a verified **10.0 / 10.0** scorecard:
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **323 automated test cases across 16 defensive suites**, covering **41 MITRE CWE classes** (including `CWE-798`) with a verified **10.0 / 10.0** scorecard:
 
-| Suite | Category Focus | Test Count | Status |
-| :--- | :--- | :---: | :---: |
-| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF, TOML Metacharacters, Diagnostic Telemetry & Explainer Engines, Cache Import & Rollback Resilience) | 114 / 114 | **PASS** |
-| **Suite 2** | Registry & Env Boundaries (ValueKind preservation, UAC elevation, Config Engine, Env Diff) | 8 / 8 | **PASS** |
-| **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery, Doctor Self-Healing) | 18 / 18 | **PASS** |
-| **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, .jvm.lock, CAS Layout, Cache CLI, Ownership Tracking) | 67 / 67 | **PASS** |
-| **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification, PID timestamping) | 15 / 15 | **PASS** |
-| **Suite 6** | Corrupt Registry Recovery & PATH Resilience (De-bloat, length limits) | 14 / 14 | **PASS** |
-| **Suite 7** | Uninstallation Safety & Markers (Root markers, deferred cleanup) | 16 / 16 | **PASS** |
-| **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | 6 / 6 | **PASS** |
-| **Suite 9** | Supply Chain (`JVM_SKIP_CHECKSUM` rejection, Verification checklists) | 2 / 2 | **PASS** |
-| **Suite 10** | Atomic Operations (Transactional journaling, Process kill tests, Pre-state junction recovery) | 3 / 3 | **PASS** |
-| **Total** | **Comprehensive Full-System Security Suite** | **263 / 263** | **`10.0 / 10.0`** |
+| Suite | Category Focus | Status |
+| :--- | :--- | :---: |
+| **Suite 1** | Adversarial & Fuzzing Defense (Poison characters, ADS, Traversal, SSRF, TOML Metacharacters, Diagnostic Telemetry) | **PASS** |
+| **Suite 2** | Registry & Env Boundaries (ValueKind preservation, UAC elevation, Config Engine, Env Diff) | **PASS** |
+| **Suite 3** | Symlink & Junction Lifecycle (Reparse unbinding, auto-recovery, Doctor Self-Healing) | **PASS** |
+| **Suite 4** | Package Manifest Integrity & Lockfiles (WiX v4, Choco, Winget, .jvm.lock, CAS Layout, Cache CLI, Ownership) | **PASS** |
+| **Suite 5** | Concurrency & Reparse Resilience (Rapid switching, ACL verification, PID timestamping) | **PASS** |
+| **Suite 6** | Corrupt Registry Recovery & PATH Resilience (De-bloat, length limits) | **PASS** |
+| **Suite 7** | Uninstallation Safety & Markers (Root markers, deferred cleanup) | **PASS** |
+| **Suite 8** | Windows Terminal JSONC Parsing (Comment stripping, profile injection) | **PASS** |
+| **Suite 9** | Advanced Cache & Content-Addressed Storage (CAS Layout, Deduplication, Cache Bundling) | **PASS** |
+| **Suite 10** | Multi-Candidate Ecosystem Toolchains (Ecosystem candidates, SDKMAN translations, Version resolution) | **PASS** |
+| **Suite 11** | Transactional Recovery & Journal Logging (Crash-safe journals, Pre-state restoration, Rollback) | **PASS** |
+| **Suite 12** | Enterprise Networking & Machine Policy Enforcement (policy.toml, Corporate Proxy, Windows Cert Store) | **PASS** |
+| **Suite 13** | Advanced Lockfile Lifecycle, Freezing & Signatures (.jvm.lock v2, authentic archive checksums in freeze, 3-state signature verification, freeze, thaw, HMAC .jvm.lock.sig, managed secret enforcement & CWE-798 elimination) | **PASS** |
+| **Suite 14** | Unified Status, Ergonomics & Multi-Shell Cross-Compatibility (jvm status, Dynamic Completions, CMD Aliases) | **PASS** |
+| **Suite 15** | Adversarial Robustness, Fuzzing & Mutation Resilience (ADS streams, Fault injection, AST zero empty catch, Help cards, Timings, Universal JSON schema) | **PASS** |
+| **Suite 16** | Next-Gen Portability, Profiles, Snapshots & Toolchain Distros (Profiles lifecycle, Snapshots, transactional restore rollback, .jvmbundle ZipSlip/magic byte defense, Air-gapped distros, install.ps1 -Offline) | **PASS** |
+| **Total** | **Comprehensive Full-System Security Suite (323 / 323)** | **`10.0 / 10.0`** |
 
 ---
 

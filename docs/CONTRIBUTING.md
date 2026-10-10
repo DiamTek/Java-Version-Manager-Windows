@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
 
 </div>
 
@@ -57,7 +57,7 @@ All contributions are subject to two automated test suites before being merged i
 
 ### 1. Security, Error Management & Adversarial Test Suite (`tests/Test-JvmSecurity.ps1`)
 
-The repository includes an exhaustive **263-test automated adversarial security test suite** covering **40 MITRE CWE classes** with a verified **`10.0 / 10.0`** scorecard. This suite validates input sanitization, reparse point operations, atomic failure-path rollbacks, handle disposal, and exit code propagation:
+The repository includes an exhaustive **323-test automated adversarial security test suite across 16 suites** covering **41 MITRE CWE classes** (including `CWE-798`) with a verified **`10.0 / 10.0`** scorecard. This suite validates input sanitization, reparse point operations, atomic failure-path rollbacks, handle disposal, and exit code propagation:
 
 ```powershell
 # Run using modern PowerShell 7+ (Recommended):
@@ -147,6 +147,10 @@ The core `jvm.bat` engine is over 500 KB of mathematically optimized Windows Bat
 - **The Rule:** `jvm.bat` must run cleanly out-of-the-box on a fresh, clean install of Windows 10/11.
 - Never add external dependencies (`.dll`, standalone `.exe`, `curl.exe`, `tar.exe`, `unzip.exe`, or external `.ps1` files). All networking, extraction, and cryptographic hashing must rely solely on native Windows APIs and inline PowerShell bridging.
 
+### 6. Zero Empty Catch Blocks Enforcement (CWE-390)
+- **The Issue:** Silent exception swallowing via empty `catch {}` blocks masks runtime failures, prevents proper fallback/recovery, and violates security audit standards (CWE-390).
+- **The Rule:** Empty catch blocks are strictly prohibited across all `.ps1` scripts and inline PowerShell snippets in `jvm.bat`. All exception blocks must perform explicit handling or diagnostic logging (e.g., `catch { Write-Verbose $_.Exception.Message }`). An automated AST audit validates that the repository contains exactly 0 empty catch clauses.
+
 ---
 
 ## 🔄 Pull Request Workflow
@@ -166,7 +170,8 @@ We actively welcome contributions! Follow this workflow for a seamless review:
    - `docs: update Intune silent deployment switches`
    - `test: add synthetic validation case for ARM64 detection`
 4. **Run the Pre-Flight Checklist:**
-   - [ ] `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1` passes 263/263 tests (`0` failures).
+   - [ ] `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1` passes 323/323 tests (`0` failures across all 16 suites and 41 MITRE CWE classes).
+   - [ ] Verified zero empty catch blocks across all PowerShell files (`CWE-390`).
    - [ ] `cmd.exe /c "jvm.bat --version"` executes cleanly with exit code `0`.
    - [ ] Verified in standard **Command Prompt (`cmd.exe`)**.
    - [ ] Verified in **Windows PowerShell (5.1)** and **PowerShell (7+)**.

@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
 
 </div>
 
@@ -51,6 +51,10 @@ This document outlines every command, flag override, and semantic route availabl
 - [Cache Telemetry & Deduplication (jvm cache stats / dedupe)](#cache-telemetry--deduplication)
 - [Diagnostic Environment Report & Support Bundles (jvm report / support / doctor --report)](#diagnostic-environment-report--support-bundles)
 - [Self-Update History & Rollback (jvm self-update --history / --rollback)](#self-update-history--rollback)
+- [Named Environment Profiles (jvm profile)](#named-environment-profiles)
+- [Toolchain Snapshots (jvm snapshot)](#toolchain-snapshots)
+- [Portable Environment Bundles (jvm bundle)](#portable-environment-bundles)
+- [Zero-Network Air-Gapped Toolchain Distros (jvm distro & install.ps1 -Offline)](#zero-network-air-gapped-toolchain-distros)
 - [Common Workflow Recipes](#common-workflow-recipes)
 - [CI/CD Automation Recipes](#cicd-integration-recipes)
 
@@ -103,6 +107,14 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm lock --check` | Project | Audits `.jvm.lock` manifest for JSON schema integrity, platform support, and configuration drift. |
 | `jvm lock --diff` | Project | Compares `.jvm.lock` definitions against the active environment in a structured table. |
 | `jvm lock --update` | Project | Queries upstream vendor APIs to refresh checksums and metadata in `.jvm.lock`. |
+| `jvm freeze [--dry-run]` | Project | Hermetically resolves and locks all unpinned floating versions in `.jvm.lock` to immutable patch/build digests. |
+| `jvm thaw` | Project | Unpins exact coordinates in `.jvm.lock` back to floating major version ranges. |
+| `jvm lock --sign` | Project | Signs `.jvm.lock` with an HMAC-SHA256 secret (via `--secret <key>`, `--key-file <path>`, or `$env:JVM_LOCK_SECRET`) generating tamper-evident `.jvm.lock.sig` (`CWE-798` protected). |
+| `jvm lock --verify` | Project | Cryptographically verifies HMAC-SHA256 signature on `.jvm.lock.sig` against provided secret or key file. |
+| `jvm policy show` | Machine | Displays active enterprise policy configuration, source location, and restrictions (`--json`). |
+| `jvm policy check` | Machine | Validates local workspace compliance against machine-wide enterprise constraints (`policy.toml`). |
+| `jvm status` / `jvm ecosystem` | Project | Renders unified multi-toolchain status card for Java and all installed ecosystem tools (`--json`). |
+| `jvm aliases [--install]` | Shell | Displays or installs lightweight CMD DOSKEY macros (`j21`, `j17`, `juse`, `jstat`) for instant CMD switching. |
 | `jvm verify [version/all]` | Audit | Audits cryptographic provenance, HTTPS transport, host trust, SHA-256 digests, and Authenticode signatures (distinguishes verified, unavailable, and failed states). |
 | `jvm transaction show` | System | Displays atomic transaction log table with status flags (`COMMITTED`, `ROLLED_BACK`, `IN_PROGRESS`). |
 | `jvm transaction rollback <id>` | System | Atomically rolls back an interrupted installation, restoring pre-state directory junctions, target artifacts, and locks (`jvm txn rollback`). |
@@ -114,6 +126,11 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm cache [list/size/stats/dedupe/clean/prune]` | Maintenance | Inspects inventory, telemetry (`stats`), de-duplicates blobs (`dedupe`), or purges CAS store. |
 | `jvm cache export [--bundle <path>]` | Bundling | Bundles central artifact cache into an offline `.jvmcache` zip container. |
 | `jvm cache import <bundle-path>` | Bundling | Safely extracts and validates offline cache bundle into CAS (Zip Slip & SHA-256 verified). |
+| `jvm profile [create/use/list/show/clone/delete]` | Portability | Manages named environment profiles (`work`, `ci`, `cloud-native`) with atomic toolchain switching and rollback. |
+| `jvm snapshot [create/restore/list/delete]` | Portability | Captures or restores point-in-time states of active JDK, ecosystem tools, and `config.json` via identifier or path (`<name|path>`) with dry-run verification. |
+| `jvm bundle [create/inspect/install/list]` | Portability | Exports, inspects, and installs portable `.jvmbundle` containers packing real toolchain binaries, ecosystem tools, and lockfiles (ZipSlip protected). |
+| `jvm distro create [--out <dir>] [--include-payloads]` | Distribution | Builds standalone zero-network air-gapped distribution kits with cryptographic `distro-manifest.json` and optional runtime payloads. |
+| `install.ps1 -Offline [-DistroDir <dir>]` | Installer | Provisions JVM and pre-seeded toolchains offline without outbound network requests. |
 | `jvm search [candidate] <query>` | Remote | Queries upstream vendor release catalogs (e.g., `jvm search 21`, `jvm search gradle 8`, `--json`). |
 | `jvm list-remote [candidate]` | Remote | Displays available remote releases with exact vendor build tags and LTS designations. |
 | `jvm info [version]` | Inspection | Outputs architecture, VM type, release date, LTS status, and CVE security classification. |
@@ -1315,18 +1332,48 @@ jvm --help
 # Or: jvm help, jvm -h, jvm /?
 ```
 
+#### Dedicated Subcommand Help Cards
+Every subcommand features an isolated syntax card with descriptions, parameter grammar, flags (including `--timings`), and copy-paste ready examples:
+```powershell
+# Query subcommand help via topic argument:
+jvm help install
+jvm help doctor
+jvm help lock
+
+# Or query via universal parameter flags identically across all commands:
+jvm install --help
+jvm lock -h
+jvm doctor /?
+```
+
 ---
 
 <a id="machine-readable-json--offline-modes"></a>
 ## ⚙️ Machine-Readable JSON & Offline Modes
 
 ### 1. JSON Automation Contract (`--json`)
-Designed for IDE plugins, custom statusline generators, and orchestration tools. Emits pure JSON to `stdout` without decorative text:
+Designed for IDE plugins, custom statusline generators, and orchestration tools. Emits pure JSON to `stdout` without decorative text. All commands follow a universal, backwards-compatible envelope contract:
+
+```json
+{
+  "ok": true,
+  "command": "current",
+  "candidate": "java",
+  "resolved": "21.0.2",
+  "changed": false,
+  ...
+}
+```
+
 ```powershell
 jvm current --json
 jvm which java --json
 jvm list --json
 jvm doctor --json
+jvm lock check --json
+jvm lock diff --json
+jvm verify 21 --json
+jvm policy show --json
 ```
 
 ### 2. Offline & Air-Gapped Execution Mode (`--offline`)
@@ -1411,6 +1458,24 @@ When `--json` is supplied, errors are automatically serialized into structured J
   }
 }
 ```
+
+### 8. Execution Timing Breakdown (`--timings`)
+Exposes centisecond-precision, sub-millisecond execution phase metrics powered by 100% native Windows batch time arithmetic:
+
+```powershell
+# Display timing breakdown in human-readable console output:
+jvm --version --timings
+jvm list --timings
+jvm doctor --timings
+```
+
+Output format:
+```text
+[ TIMINGS ] parse: 0 ms | resolve: 10 ms | execute: 20 ms | total: 30 ms
+```
+
+* **Zero External Child Processes:** Timing calculations are executed completely inside native `cmd.exe` batch arithmetic with zero spawned PowerShell instances or external utility overhead.
+* **Isolated JSON Output:** When used together with `--json` (e.g. `jvm version --json --timings`), the timing telemetry string is written to `stderr` (`>&2`), ensuring `stdout` remains pure, valid, and immediately parseable JSON.
 
 <a id="environment-resolution-graph"></a>
 ## 🧭 Environment Resolution Graph (`jvm why`)
@@ -1616,6 +1681,144 @@ jvm self-update --rollback
 
 ---
 
+<a id="named-environment-profiles"></a>
+## 👥 Named Environment Profiles (jvm profile)
+
+Named Environment Profiles allow you to save, activate, inspect, clone, and delete comprehensive workstation toolchain environments (e.g. `work`, `legacy-java8`, `cloud-native`, `ci`). A profile bundles the active state across Java, Maven, Gradle, Kotlin, Scala, and associated JVM configuration.
+
+### Managing Profiles
+```powershell
+# 1. Create a named profile with an optional description
+jvm profile create work --desc "Primary Corporate Workstation Environment"
+
+# 2. List all available profiles (active profile highlighted with an asterisk)
+jvm profile list
+
+# 3. Inspect configuration details of a specific profile
+jvm profile show work
+
+# 4. Clone an existing profile into a new template
+jvm profile clone work work-dev
+
+# 5. Atomically activate a named profile
+jvm profile use work
+
+# 6. Simulate profile activation without making filesystem modifications
+jvm profile use work --dry-run
+
+# 7. Delete a profile
+jvm profile delete work-dev
+```
+
+### Profile Architecture & Guarantees
+- **Atomic Rollback (`CWE-460`):** When activating a profile, JVM validates all required candidates first. If a junction repoint fails mid-switch, JVM automatically rolls back all junctions to their pre-switch targets.
+- **Identifier Sanitization (`CWE-20` / `CWE-22`):** Profile names must be alphanumeric with hyphens/underscores. Directory traversals (`../`), slashes, and NTFS ADS colons (`:`) are strictly rejected.
+- **Reparse Point Defense (`CWE-59`):** Profile files in `%LOCALAPPDATA%\DiamTek\JVM\profiles\` and the active pointer `active.txt` are strictly guarded against symbolic links and reparse points.
+- **Universal JSON API:** All profile operations support `--json` for machine integration (`ok`, `command`, `candidate`, `resolved`, `changed`).
+
+---
+
+<a id="toolchain-snapshots"></a>
+## 📸 Toolchain Snapshots (jvm snapshot)
+
+Toolchain Snapshots provide lightweight, point-in-time state captures of your entire installed environment, including active JDK and ecosystem tool targets, `config.json` preferences, and environment variables.
+
+### Managing Snapshots
+```powershell
+# 1. Capture current environment into a timestamped snapshot
+jvm snapshot create milestone-2026-10
+
+# 2. List all available snapshots with timestamps and hostname metadata
+jvm snapshot list
+
+# 3. Restore a snapshot with atomic rollback safety (by name or file path)
+jvm snapshot restore milestone-2026-10
+jvm snapshot restore C:\Backups\milestone-2026-10.json
+
+# 4. Dry-run snapshot restoration to preview changes without modifying junctions
+jvm snapshot restore milestone-2026-10 --dry-run
+
+# 5. Delete an obsolete snapshot
+jvm snapshot delete milestone-2026-10
+```
+
+### Snapshot Guarantees
+- **State Capture & Config Restoration:** Stored in `%LOCALAPPDATA%\DiamTek\JVM\snapshots\<name>.json` (or any custom file path) with UTC timestamps, active tool versions, and system metadata. Restoration seamlessly restores `config.json` preferences alongside active JDK and ecosystem tool junctions.
+- **Direct File Path & Strict Identifier Support:** Supports either named snapshot IDs (alphanumeric with hyphens/underscores) or direct absolute/relative `.json` file paths (`<name|path>`), allowing snapshots to be committed to repositories or shared across storage volumes.
+- **Transactional Consistency & Atomic Rollback (`CWE-460`):** `--dry-run` validates all candidate directories exist before attempting restoration. During live restoration, all candidate toolchain junctions are switched first, and `config.json` is committed only after all junction repoints succeed. If any junction switch fails mid-flight, all switched junctions are atomically rolled back to their previous targets AND `config.json` is restored to its pre-restoration state (or deleted if previously absent), guaranteeing transactional consistency.
+- **Symlink Defense (`CWE-59`):** Rejects any snapshot files or directories that are symlinks or reparse points.
+
+---
+
+<a id="portable-environment-bundles"></a>
+## 📦 Portable Environment Bundles (jvm bundle)
+
+Portable Environment Bundles pack real toolchain binaries (active JDK runtime in `payloads/java` and installed ecosystem tools in `payloads/<candidate>`), companion `.jvm.lock` manifests, and cryptographic metadata into a single, self-contained `.jvmbundle` ZIP container for offline transfer between air-gapped workstations, labs, and CI agents.
+
+### Managing Bundles
+```powershell
+# 1. Export active environment into a portable bundle container with real binaries
+jvm bundle create C:\Export\team-toolchain.jvmbundle
+
+# 2. Inspect bundle manifest, candidate coordinates, and payload sizes without extracting
+jvm bundle inspect C:\Export\team-toolchain.jvmbundle
+
+# 3. Install bundle into local JVM store, provisioning binaries and updating active junctions
+jvm bundle install C:\Export\team-toolchain.jvmbundle
+
+# 4. List imported bundle archives
+jvm bundle list
+```
+
+### Bundle Security & Containment
+- **True Binary Payloads & Runtime Provisioning:** Packages real JDK binaries into `payloads/java` and ecosystem tools into `payloads/<candidate>`. Upon installation, payloads are safely extracted and provisioned into `%LOCALAPPDATA%\DiamTek\JVM\installed\`, active junctions are atomically updated, and `.jvm.lock` is applied to eliminate manual bootstrapping.
+- **Manifest Transparency:** `jvm bundle inspect` renders the structured `BUNDLE MANIFEST` table, detailing candidate inventory, vendor, target architecture, version coordinates, and extracted payload byte counts before installation.
+- **Magic Byte Validation (`CWE-494`):** Bundle inspection and installation verify the initial `0x50 0x4B` PK magic bytes prior to ZIP stream processing, rejecting spoofed or corrupted payloads.
+- **ZipSlip Containment (`CWE-22`):** Extraction paths enforce strict canonical boundaries with trailing slash validation, rejecting any entries containing `..`, `:`, or rooted paths.
+- **Atomic Extraction (`CWE-459`):** Bundles extract into an isolated CSPRNG temporary staging folder before moving verified payloads into `%LOCALAPPDATA%\DiamTek\JVM\installed\`.
+
+---
+
+<a id="zero-network-air-gapped-toolchain-distros"></a>
+## 🌐 Zero-Network Air-Gapped Toolchain Distros (jvm distro & install.ps1 -Offline)
+
+For secure enterprise factory floors, classrooms, and air-gapped defense networks with zero outbound Internet access, DiamTek JVM provides end-to-end air-gapped distribution generation and offline installation.
+
+Unlike portable runtime bundles (`jvm bundle`, which package specific developer environments), `jvm distro` packages the DiamTek JVM manager engine itself (`kit_type: "manager-offline-kit"`) into a standalone distribution kit with full cryptographic manifest verification and optional pre-packaged runtime payloads.
+
+### 1. Generating an Offline Distro Kit
+On an internet-connected workstation, generate a self-contained distribution package:
+```powershell
+# Create a manager air-gapped distribution kit in a directory
+jvm distro create --out C:\Distro\DiamTek-JVM-Kit
+
+# Optionally bundle active JDK and ecosystem tool runtime binaries into the distro kit
+jvm distro create --out C:\Distro\DiamTek-JVM-Kit --include-payloads
+```
+The resulting distro directory contains:
+- `jvm.bat` (core engine)
+- `install.ps1` (hardened offline installer)
+- `uninstall.ps1` (standalone uninstaller)
+- `README.md` & `LICENSE`
+- `assets/` (branding & application icons)
+- `distro-manifest.json` (cryptographic SHA-256 inventory of all included components, verified before installation)
+- `payloads/` (optional pre-packaged JDK and candidate binaries when created with `--include-payloads`)
+
+### 2. Performing an Air-Gapped Installation
+Copy the distro kit to your target air-gapped workstation and run the offline installer:
+```powershell
+# Install JVM completely offline from local distro
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Offline -DistroDir C:\Distro\DiamTek-JVM-Kit
+```
+
+### Offline Installer Guarantees
+- **Zero Outbound Calls (`CWE-319`):** Completely disables all GitHub API queries, HTTP redirects, and remote download routines.
+- **Cryptographic Manifest Verification (`CWE-354` / `CWE-494`):** Verifies all included files and scripts against `distro-manifest.json` using SHA-256 hashes before executing or staging files.
+- **Pre-Seeded Toolchain & Payload Ingestion:** Automatically copies pre-seeded caches (`cache/`), tool distributions (`tools/`), and runtime payloads (`payloads/java` -> `bundled_jdks/offline-distro`) directly into `%LOCALAPPDATA%\DiamTek\JVM\`.
+- **Default Offline Policy:** Sets `"offline_mode": true` and `"auto_update_check": false` in `%LOCALAPPDATA%\DiamTek\JVM\config.json`.
+
+---
+
 <a id="common-workflow-recipes"></a>
 ## 💡 Common Developer Workflow Recipes
 
@@ -1797,6 +2000,77 @@ In headless automation scripts or local development flows that traverse multiple
 jvm env
 ```
 This inspects the active directory tree and applies the pinned version to the current process without opening interactive dialogs or requiring administrator elevation.
+
+### Enterprise System Policy Mode (`jvm policy show` & `jvm policy check`)
+In managed corporate environments, administrators configure machine-wide governance rules in `%ProgramData%\DiamTek\JVM\policy.toml` or via `$env:JVM_POLICY_FILE`.
+
+```cmd
+# Display the active policy configuration, source location, and restrictions
+jvm policy show
+
+# Emit structured machine-readable policy status
+jvm policy show --json
+
+# Verify the local workspace against organizational constraints
+jvm policy check
+```
+For complete policy directives and TOML specifications, see [Enterprise Deployment Guide](ENTERPRISE.md).
+
+### Hermetic Freezing & Thawing (`jvm freeze` & `jvm thaw`)
+Manage build reproducibility between exploratory development and immutable release pipelines:
+
+```cmd
+# Freeze active project versions into exact, immutable patch and build coordinates in .jvm.lock
+jvm freeze
+
+# Thaw exact coordinates back to major version ranges for upgrade discovery
+jvm thaw
+```
+- `jvm freeze` resolves authentic upstream distribution archive URLs and trusted archive checksums (SHA-256 or SHA-512) directly from vendor APIs.
+- Existing lockfile metadata fields (`url`, `arch`, `checksum_type`, etc.) are preserved.
+- File-level hashing fallbacks (such as hashing `release` or `java.exe`) are strictly eliminated; `jvm freeze` fails closed without modifying `.jvm.lock` if authentic distribution coordinates cannot be resolved.
+For in-depth lockfile mechanics, see [Hermetic Locking Guide](LOCKING.md).
+
+### Cryptographic Lockfile Signatures (`jvm lock --sign`, `--verify`, `--check`)
+Protect CI/CD pipelines from unauthorized lockfile tampering:
+
+```cmd
+# Sign .jvm.lock using an enterprise HMAC key (generates .jvm.lock.sig)
+jvm lock --sign
+
+# Verify that .jvm.lock has not been altered or tampered with
+jvm lock --verify
+
+# Audit consistency and cryptographic signatures across workspace
+jvm lock --check
+```
+`jvm lock --check` distinguishes 3 distinct signature states:
+- **`verified`**: Valid HMAC-SHA256 signature verified against authorized key (`signature_verified: true`, Exit Code 0).
+- **`failed`**: Signature mismatch or tampering detected (`signature_verified: false`, Exit Code 1).
+- **`not_verified`**: Lockfile is unsigned or key is unavailable (`signature_verified: false`, warns cleanly without claiming verification passed).
+
+### Unified Multi-Tool Ecosystem Status Dashboard (`jvm status` / `jvm ecosystem`)
+Inspect all active toolchains in your current project or environment in a single unified view:
+
+```cmd
+# Render comprehensive status dashboard for Java, Maven, Gradle, Kotlin, Scala, etc.
+jvm status
+
+# Query active ecosystem state in JSON for CI status reporting
+jvm status --json
+```
+
+### Windows Command Prompt (`cmd.exe`) Ergonomics (`jvm aliases`)
+Generate lightweight DOSKEY macros for instant switching in CMD:
+
+```cmd
+# Display available DOSKEY macros (j21, j17, juse, jstat, etc.)
+jvm aliases
+
+# Export aliases to user profile for cmd.exe AutoRun integration
+jvm aliases > "%USERPROFILE%\.jvm_aliases.cmd"
+```
+For shell configuration recipes, see [Shell Ergonomics Guide](SHELLS.md).
 
 ---
 

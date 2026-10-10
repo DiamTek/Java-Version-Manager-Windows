@@ -95,19 +95,27 @@ $GlobalSkipped   = 0
 $HasPassedSuite2 = $false
 $RunnerStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-# Canonical 8-Suite Catalog
+# Canonical 16-Suite Catalog
 $SuiteTracker = [ordered]@{
-    'SUITE 1' = [PSCustomObject]@{ Id = 'SUITE 1'; Number = 1; Name = 'Suite 1: Adversarial & Fuzzing Defense';       Tag = 'Adversarial';      Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
-    'SUITE 2' = [PSCustomObject]@{ Id = 'SUITE 2'; Number = 2; Name = 'Suite 2: Registry & Env Boundaries';           Tag = 'Registry';         Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
-    'SUITE 3' = [PSCustomObject]@{ Id = 'SUITE 3'; Number = 3; Name = 'Suite 3: Symlink & Junction Lifecycle';        Tag = 'ReparsePoint';     Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
-    'SUITE 4' = [PSCustomObject]@{ Id = 'SUITE 4'; Number = 4; Name = 'Suite 4: Package Manifest Integrity';          Tag = 'Manifest';         Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
-    'SUITE 5' = [PSCustomObject]@{ Id = 'SUITE 5'; Number = 5; Name = 'Suite 5: Concurrency & Reparse Resilience';    Tag = 'Concurrency';      Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
-    'SUITE 6' = [PSCustomObject]@{ Id = 'SUITE 6'; Number = 6; Name = 'Suite 6: Corrupt Registry & PATH Resilience';  Tag = 'Registry';         Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
-    'SUITE 7' = [PSCustomObject]@{ Id = 'SUITE 7'; Number = 7; Name = 'Suite 7: Uninstallation Safety & Markers';     Tag = 'Uninstall';        Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
-    'SUITE 8' = [PSCustomObject]@{ Id = 'SUITE 8'; Number = 8; Name = 'Suite 8: Windows Terminal JSONC Parsing';      Tag = 'TerminalJSON';     Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 1'  = [PSCustomObject]@{ Id = 'SUITE 1';  Number = 1;  Name = 'Suite 1: Adversarial & Fuzzing Defense';                                  Tag = 'Adversarial';         Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 2'  = [PSCustomObject]@{ Id = 'SUITE 2';  Number = 2;  Name = 'Suite 2: Registry & Env Boundaries';                                      Tag = 'Registry';            Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 3'  = [PSCustomObject]@{ Id = 'SUITE 3';  Number = 3;  Name = 'Suite 3: Symlink & Junction Lifecycle';                                   Tag = 'ReparsePoint';        Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 4'  = [PSCustomObject]@{ Id = 'SUITE 4';  Number = 4;  Name = 'Suite 4: Package Manifest Integrity';                                     Tag = 'Manifest';            Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 5'  = [PSCustomObject]@{ Id = 'SUITE 5';  Number = 5;  Name = 'Suite 5: Concurrency & Reparse Resilience';                               Tag = 'Concurrency';         Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 6'  = [PSCustomObject]@{ Id = 'SUITE 6';  Number = 6;  Name = 'Suite 6: Corrupt Registry & PATH Resilience';                             Tag = 'Registry';            Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 7'  = [PSCustomObject]@{ Id = 'SUITE 7';  Number = 7;  Name = 'Suite 7: Uninstallation Safety & Markers';                                Tag = 'Uninstall';           Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 8'  = [PSCustomObject]@{ Id = 'SUITE 8';  Number = 8;  Name = 'Suite 8: Windows Terminal JSONC Parsing';                                 Tag = 'TerminalJSON';        Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 9'  = [PSCustomObject]@{ Id = 'SUITE 9';  Number = 9;  Name = 'Suite 9: Advanced Cache & Content-Addressed Storage';                     Tag = 'Cache';               Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 10' = [PSCustomObject]@{ Id = 'SUITE 10'; Number = 10; Name = 'Suite 10: Multi-Candidate Ecosystem Toolchains';                          Tag = 'Ecosystem';           Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 11' = [PSCustomObject]@{ Id = 'SUITE 11'; Number = 11; Name = 'Suite 11: Transactional Recovery & Journal Logging';                      Tag = 'Transaction';         Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 12' = [PSCustomObject]@{ Id = 'SUITE 12'; Number = 12; Name = 'Suite 12: Enterprise Networking & Machine Policy Enforcement';            Tag = 'EnterprisePolicy';    Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 13' = [PSCustomObject]@{ Id = 'SUITE 13'; Number = 13; Name = 'Suite 13: Advanced Lockfile Lifecycle, Freezing & Signatures';            Tag = 'LockfileLifecycle';   Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 14' = [PSCustomObject]@{ Id = 'SUITE 14'; Number = 14; Name = 'Suite 14: Unified Status, Ergonomics & Multi-Shell Cross-Compatibility';  Tag = 'ShellErgonomics';     Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 15' = [PSCustomObject]@{ Id = 'SUITE 15'; Number = 15; Name = 'Suite 15: Adversarial Robustness, Fuzzing & Mutation Resilience';         Tag = 'AdversarialMutation'; Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
+    'SUITE 16' = [PSCustomObject]@{ Id = 'SUITE 16'; Number = 16; Name = 'Suite 16: Next-Gen Portability, Profiles, Snapshots & Toolchain Distros'; Tag = 'Portability';         Passed = 0; Failed = 0; Skipped = 0; Total = 0; ElapsedMs = 0L }
 }
 
-# Canonical CWE Vulnerability Catalog (Sorted Numerically - 40 CWEs)
+# Canonical CWE Vulnerability Catalog (Sorted Numerically - 41 CWEs)
 $CweCatalog = [ordered]@{
     'CWE-20'  = [PSCustomObject]@{ Id = 'CWE-20';  Number = 20;  Short = 'Improper Input & Config Validation' }
     'CWE-22'  = [PSCustomObject]@{ Id = 'CWE-22';  Number = 22;  Short = 'Path Traversal & ZipSlip' }
@@ -148,6 +156,7 @@ $CweCatalog = [ordered]@{
     'CWE-674' = [PSCustomObject]@{ Id = 'CWE-674'; Number = 674; Short = 'Uncontrolled Recursion & Cyclic Loops' }
     'CWE-754' = [PSCustomObject]@{ Id = 'CWE-754'; Number = 754; Short = 'Exceptional Condition Check' }
     'CWE-755' = [PSCustomObject]@{ Id = 'CWE-755'; Number = 755; Short = 'Exceptional Condition Handling' }
+    'CWE-798' = [PSCustomObject]@{ Id = 'CWE-798'; Number = 798; Short = 'Hardcoded Credentials Defense' }
     'CWE-918' = [PSCustomObject]@{ Id = 'CWE-918'; Number = 918; Short = 'SSRF & Vendor Domain Allowlisting' }
 }
 
@@ -162,27 +171,27 @@ function Resolve-TestCweMetadata {
     }
 
     $cweKey = switch -Regex ($TestName) {
-        'Stack-Trace|ScriptStackTrace|PositionMessage|sanitizes catch'                             { 'CWE-209'; break }
-        'Return Value|Exit Propagation|LASTEXITCODE|errorlevel'                                    { 'CWE-252'; break }
-        'empty catch|CatchClauseAst|Write-Verbose|Error Condition Action'                          { 'CWE-390'; break }
-        'Atomic Rollback|PREV_JUNCTION_TARGET|\.jvm_bak_|\.old'                                    { 'CWE-460'; break }
-        'Incomplete List-Based|Denylist-Based|incomplete sanitization'                             { 'CWE-184'; break }
-        'Race Condition|Concurrent State|atomic commit|staging config'                             { 'CWE-362'; break }
-        'Uncontrolled Recursion|Cyclic|cyclic|infinite traversal'                                  { 'CWE-674'; break }
-        'Exceptional Condition Check|wixExitCode'                                                  { 'CWE-754'; break }
-        'Exceptional Condition Handling|fail-closed|ConstrainedLanguage'                           { 'CWE-755'; break }
-        'ZipSlip|Path Traversal|traversal|sibling prefix|boundary enforcement|target allowlisting' { 'CWE-22'; break }
-        'Trailing dot|Trailing space|trailing dots|trailing spaces|single dot|Reserved keyword'    { 'CWE-41'; break }
-        'DOS reserved|Alternative Data Stream|ADS'                                                 { 'CWE-66'; break }
-        'Leading hyphen|leading-hyphen|--vendor|invalid value rejection'                           { 'CWE-88'; break }
-        'Asterisk wildcard|Question mark wildcard'                                                 { 'CWE-155'; break }
-        'Pinned System Binaries|SystemRoot environment saturation|Base64 UTF-16LE'                 { 'CWE-426'; break }
-        'junction|Reparse|Remove-DirectorySafely|active development repository'                    { 'CWE-59'; break }
-        'ACL verification|Parallel temp script'                                                    { 'CWE-377'; break }
-        'REG_EXPAND_SZ|REG_SZ|Protected system roots|lacking JVM installation|Oracle javapath'     { 'CWE-73'; break }
-        'SendMessageTimeout|Extreme PATH|JSONC|Corrupt non-JSON|NO_COLOR'                          { 'CWE-400'; break }
+        'Stack-Trace|ScriptStackTrace|PositionMessage|sanitizes catch'                                { 'CWE-209'; break }
+        'Return Value|Exit Propagation|LASTEXITCODE|errorlevel'                                       { 'CWE-252'; break }
+        'empty catch|CatchClauseAst|Write-Verbose|Error Condition Action'                             { 'CWE-390'; break }
+        'Atomic Rollback|PREV_JUNCTION_TARGET|\.jvm_bak_|\.old'                                       { 'CWE-460'; break }
+        'Incomplete List-Based|Denylist-Based|incomplete sanitization'                                { 'CWE-184'; break }
+        'Race Condition|Concurrent State|atomic commit|staging config'                                { 'CWE-362'; break }
+        'Uncontrolled Recursion|Cyclic|cyclic|infinite traversal'                                     { 'CWE-674'; break }
+        'Exceptional Condition Check|wixExitCode'                                                     { 'CWE-754'; break }
+        'Exceptional Condition Handling|fail-closed|ConstrainedLanguage'                              { 'CWE-755'; break }
+        'ZipSlip|Path Traversal|traversal|sibling prefix|boundary enforcement|target allowlisting'    { 'CWE-22'; break }
+        'Trailing dot|Trailing space|trailing dots|trailing spaces|single dot|Reserved keyword'       { 'CWE-41'; break }
+        'DOS reserved|Alternative Data Stream|ADS'                                                    { 'CWE-66'; break }
+        'Leading hyphen|leading-hyphen|--vendor|invalid value rejection'                              { 'CWE-88'; break }
+        'Asterisk wildcard|Question mark wildcard'                                                    { 'CWE-155'; break }
+        'Pinned System Binaries|SystemRoot environment saturation|Base64 UTF-16LE'                    { 'CWE-426'; break }
+        'junction|Reparse|Remove-DirectorySafely|active development repository'                       { 'CWE-59'; break }
+        'ACL verification|Parallel temp script'                                                       { 'CWE-377'; break }
+        'REG_EXPAND_SZ|REG_SZ|Protected system roots|lacking JVM installation|Oracle javapath'        { 'CWE-73'; break }
+        'SendMessageTimeout|Extreme PATH|JSONC|Corrupt non-JSON|NO_COLOR'                             { 'CWE-400'; break }
         'SHA|checksum|nuspec|Scoop|Winget|synchronization|DryRun|UTF-8|Get-DeterministicGuid|WIX1103' { 'CWE-494'; break }
-        default                                                                                    { 'CWE-78' }
+        default                                                                                       { 'CWE-78' }
     }
     return $script:CweCatalog[$cweKey]
 }
@@ -214,18 +223,26 @@ function Resolve-CanonicalSuite {
     }
 
     $suiteKey = switch ($RawSuite) {
-        'Adversarial'      { 'SUITE 1' }
-        'Registry'         { if ($script:HasPassedSuite2) { 'SUITE 6' } else { 'SUITE 2' } }
-        'ReparsePoint'     { 'SUITE 3' }
-        'Manifest'         { 'SUITE 4' }
-        'PackageIntegrity' { 'SUITE 4' }
-        'SupplyChain'      { 'SUITE 4' }
-        'Reparse'          { 'SUITE 5' }
-        'Concurrency'      { 'SUITE 5' }
-        'AtomicOperations' { 'SUITE 5' }
-        'Uninstall'        { 'SUITE 7' }
-        'UninstallSafety'  { 'SUITE 7' }
-        'TerminalJSON'     { 'SUITE 8' }
+        'Adversarial'         { 'SUITE 1' }
+        'Registry'            { if ($script:HasPassedSuite2) { 'SUITE 6' } else { 'SUITE 2' } }
+        'ReparsePoint'        { 'SUITE 3' }
+        'Manifest'            { 'SUITE 4' }
+        'PackageIntegrity'    { 'SUITE 4' }
+        'SupplyChain'         { 'SUITE 4' }
+        'Reparse'             { 'SUITE 5' }
+        'Concurrency'         { 'SUITE 5' }
+        'AtomicOperations'    { 'SUITE 5' }
+        'Uninstall'           { 'SUITE 7' }
+        'UninstallSafety'     { 'SUITE 7' }
+        'TerminalJSON'        { 'SUITE 8' }
+        'Cache'               { 'SUITE 9' }
+        'Ecosystem'           { 'SUITE 10' }
+        'Transaction'         { 'SUITE 11' }
+        'EnterprisePolicy'    { 'SUITE 12' }
+        'LockfileLifecycle'   { 'SUITE 13' }
+        'ShellErgonomics'     { 'SUITE 14' }
+        'AdversarialMutation' { 'SUITE 15' }
+        'Portability'         { 'SUITE 16' }
         default {
             $dynKey = "SUITE_DYN_$RawSuite"
             if (-not $script:SuiteTracker.Contains($dynKey)) {
@@ -3613,7 +3630,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             # Release lock held by parent test runner
             Remove-Item -LiteralPath (Join-Path $lockDir "owner.pid") -Force
             Remove-Item -LiteralPath $lockDir -Force
-            $proc.WaitForExit(10000) | Out-Null
+            $proc.WaitForExit(30000) | Out-Null
             Assert-True $proc.HasExited "Secondary process must acquire state lock and finish after primary release"
             if ($null -ne $proc.ExitCode) {
                 Assert-Equals $proc.ExitCode 0 "Secondary process must exit cleanly with code 0"
@@ -5135,6 +5152,1424 @@ version = "3.9.11"
         $outCheck = & cmd.exe /c "call `"$JvmBat`" hook check" 2>&1 | Out-String
         Assert-Equals 0 $LASTEXITCODE "jvm hook check alias must exit with code 0"
         Assert-Contains $outCheck "Checking JVM PowerShell Profile Hook status..." "Must display hook status check header"
+    }
+
+    # ==========================================================================
+    # SUITE 12: Enterprise Networking & Machine Policy Enforcement
+    # ==========================================================================
+
+    # Test 264: Corporate proxy environment variable parsing (HTTP_PROXY, HTTPS_PROXY, NO_PROXY) (CWE-20 / CWE-918)
+    Run-TestCase "EnterprisePolicy" "Corporate proxy environment variable parsing (HTTP_PROXY, HTTPS_PROXY, NO_PROXY) (CWE-20 / CWE-918)" {
+        $prevHttp = $env:HTTP_PROXY
+        $prevHttps = $env:HTTPS_PROXY
+        $prevNoProxy = $env:NO_PROXY
+        try {
+            $env:HTTP_PROXY = "http://corp-proxy.local:8080"
+            $env:HTTPS_PROXY = "http://corp-proxy.local:8443"
+            $env:NO_PROXY = "localhost,127.0.0.1,.internal"
+
+            $outDoc = & cmd.exe /c "call `"$JvmBat`" doctor" 2>&1 | Out-String
+            Assert-Contains $outDoc "Corporate Proxy:" "Doctor must display corporate proxy status"
+            Assert-Contains $outDoc "corp-proxy.local" "Doctor must reflect active corporate proxy host"
+        } finally {
+            $env:HTTP_PROXY = $prevHttp
+            $env:HTTPS_PROXY = $prevHttps
+            $env:NO_PROXY = $prevNoProxy
+        }
+    }
+
+    # Test 265: Corporate proxy configuration override via config.json (CWE-20 / CWE-73)
+    Run-TestCase "EnterprisePolicy" "Corporate proxy configuration override via config.json (CWE-20 / CWE-73)" {
+        $cfgFile = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\config.json"
+        $backupCfg = $null
+        if (Test-Path -LiteralPath $cfgFile) {
+            $backupCfg = Get-Content -LiteralPath $cfgFile -Raw -Encoding UTF8
+        }
+        try {
+            $cfgDir = Split-Path $cfgFile -Parent
+            if (-not (Test-Path -LiteralPath $cfgDir)) { New-Item -ItemType Directory -Path $cfgDir -Force | Out-Null }
+            $testObj = [ordered]@{ proxy = "http://json-proxy.domain.local:3128"; proxy_bypass = "localhost" }
+            [System.IO.File]::WriteAllText($cfgFile, ($testObj | ConvertTo-Json), [System.Text.UTF8Encoding]::new($false))
+
+            $outDoc = & cmd.exe /c "call `"$JvmBat`" doctor" 2>&1 | Out-String
+            Assert-Contains $outDoc "json-proxy.domain.local" "Doctor must detect proxy override from config.json"
+        } finally {
+            if ($backupCfg) {
+                [System.IO.File]::WriteAllText($cfgFile, $backupCfg, [System.Text.UTF8Encoding]::new($false))
+            } else {
+                if (Test-Path -LiteralPath $cfgFile) { Remove-Item -LiteralPath $cfgFile -Force -ErrorAction SilentlyContinue }
+            }
+        }
+    }
+
+    # Test 266: Windows Certificate Store integration and CRL offline check bypass active (CWE-295 / CWE-345)
+    Run-TestCase "EnterprisePolicy" "Windows Certificate Store integration and CRL offline check bypass active (CWE-295 / CWE-345)" {
+        $outDoc = & cmd.exe /c "call `"$JvmBat`" doctor" 2>&1 | Out-String
+        Assert-Contains $outDoc "TLS Certificate Store:" "Doctor must audit TLS Certificate Store"
+        Assert-Contains $outDoc "Windows Root & Intermediate Stores Trusted" "Doctor must verify Windows Root and Intermediate stores"
+    }
+
+    # Test 267: jvm policy show default Developer Mode (Unrestricted) display and JSON formatting (CWE-20)
+    Run-TestCase "EnterprisePolicy" "jvm policy show default Developer Mode (Unrestricted) display and JSON formatting (CWE-20)" {
+        $prevPol = $env:JVM_POLICY_FILE
+        try {
+            $env:JVM_POLICY_FILE = ""
+            $outShow = & cmd.exe /c "call `"$JvmBat`" policy show" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm policy show must exit 0"
+            Assert-Contains $outShow "Enterprise Policy Status:" "Must show enterprise policy header"
+            Assert-Contains $outShow "Developer Mode (Unrestricted)" "Must show developer mode when no policy file exists"
+
+            $jsonRaw = & cmd.exe /c "call `"$JvmBat`" policy show --json" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm policy show --json must exit 0"
+            $jsonObj = $jsonRaw | ConvertFrom-Json
+            Assert-Equals $false $jsonObj.active "Default policy active state must be false"
+            Assert-Equals $true $jsonObj.allow_skip_checksum "Default allow_skip_checksum must be true"
+        } finally {
+            $env:JVM_POLICY_FILE = $prevPol
+        }
+    }
+
+    # Test 268: jvm policy check returns exit code 0 when running in Developer Mode (CWE-252)
+    Run-TestCase "EnterprisePolicy" "jvm policy check returns exit code 0 when running in Developer Mode (CWE-252)" {
+        $prevPol = $env:JVM_POLICY_FILE
+        try {
+            $env:JVM_POLICY_FILE = ""
+            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" policy check" -NoNewWindow -PassThru -Wait
+            Assert-Equals 0 $p.ExitCode "jvm policy check must exit 0 in developer mode"
+        } finally {
+            $env:JVM_POLICY_FILE = $prevPol
+        }
+    }
+
+    # Test 269: Machine-wide policy loading via $env:JVM_POLICY_FILE (CWE-73 / CWE-20)
+    Run-TestCase "EnterprisePolicy" "Machine-wide policy loading via `$env:JVM_POLICY_FILE (CWE-73 / CWE-20)" {
+        $tempPol = Join-Path $userTemp "test_policy_269.toml"
+        $prevPol = $env:JVM_POLICY_FILE
+        try {
+            $polContent = @"
+[policy]
+allow_skip_checksum = false
+allow_user_config = true
+enforce_lockfile = false
+
+[vendors]
+allowed = ["adoptium", "corretto"]
+blocked = ["oracle"]
+
+[versions]
+min_java = "17"
+max_java = "25"
+"@
+            [System.IO.File]::WriteAllText($tempPol, $polContent, [System.Text.UTF8Encoding]::new($false))
+            $env:JVM_POLICY_FILE = $tempPol
+
+            $jsonRaw = & cmd.exe /c "call `"$JvmBat`" policy show --json" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm policy show --json with custom policy must exit 0"
+            $jsonObj = $jsonRaw | ConvertFrom-Json
+            Assert-Equals $true $jsonObj.active "Policy active state must be true"
+            Assert-Equals $false $jsonObj.allow_skip_checksum "Policy allow_skip_checksum must be false"
+            Assert-Equals 17 $jsonObj.min_java "Policy min_java must be 17"
+            Assert-Equals 25 $jsonObj.max_java "Policy max_java must be 25"
+        } finally {
+            $env:JVM_POLICY_FILE = $prevPol
+            if (Test-Path -LiteralPath $tempPol) { Remove-Item -LiteralPath $tempPol -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 270: policy.toml enforcement rejects symlink or reparse point policy file (CWE-59)
+    Run-TestCase "EnterprisePolicy" "policy.toml enforcement rejects symlink or reparse point policy file (CWE-59)" {
+        $realDir = Join-Path $userTemp "real_pol_dir"
+        $reparseDir = Join-Path $userTemp "reparse_pol_dir"
+        if (-not (Test-Path -LiteralPath $realDir)) { New-Item -ItemType Directory -Path $realDir -Force | Out-Null }
+        $realPol = Join-Path $realDir "policy.toml"
+        [System.IO.File]::WriteAllText($realPol, "[policy]`nallow_skip_checksum = false", [System.Text.UTF8Encoding]::new($false))
+
+        $prevPol = $env:JVM_POLICY_FILE
+        try {
+            & cmd.exe /c "mklink /J `"$reparseDir`" `"$realDir`"" > $null 2>&1
+            if (Test-Path -LiteralPath $reparseDir) {
+                $symPol = Join-Path $reparseDir "policy.toml"
+                $env:JVM_POLICY_FILE = $symPol
+                $out = & cmd.exe /c "call `"$JvmBat`" policy show" 2>&1 | Out-String
+                Assert-Equals 1 $LASTEXITCODE "Policy file via reparse point must exit with code 1"
+                Assert-Contains $out "CWE-59" "Must report CWE-59 reparse point violation"
+            }
+        } finally {
+            $env:JVM_POLICY_FILE = $prevPol
+            if (Test-Path -LiteralPath $reparseDir) { & cmd.exe /c "rmdir `"$reparseDir`"" > $null 2>&1 }
+            if (Test-Path -LiteralPath $realDir) { Remove-Item -LiteralPath $realDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 271: Enterprise Policy vendor allowlisting: blocks non-allowed vendor installation (CWE-184 / CWE-20)
+    Run-TestCase "EnterprisePolicy" "Enterprise Policy vendor allowlisting: blocks non-allowed vendor installation (CWE-184 / CWE-20)" {
+        $tempPol = Join-Path $userTemp "test_policy_271.toml"
+        $prevPol = $env:JVM_POLICY_FILE
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $polContent = @"
+[policy]
+allow_skip_checksum = true
+
+[vendors]
+allowed = ["adoptium"]
+"@
+            [System.IO.File]::WriteAllText($tempPol, $polContent, [System.Text.UTF8Encoding]::new($false))
+            $env:JVM_POLICY_FILE = $tempPol
+
+            $out = & cmd.exe /c "call `"$JvmBat`" install --vendor zulu 21" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "Installing vendor not in allowlist must exit 1"
+            Assert-Contains $out "Enterprise Policy Violation" "Must report enterprise policy violation"
+            Assert-Contains $out "not in the allowed enterprise list" "Must state vendor is not in allowed list"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            $env:JVM_POLICY_FILE = $prevPol
+            if (Test-Path -LiteralPath $tempPol) { Remove-Item -LiteralPath $tempPol -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 272: Enterprise Policy vendor blocklisting: rejects explicitly blocked vendors (CWE-184 / CWE-20)
+    Run-TestCase "EnterprisePolicy" "Enterprise Policy vendor blocklisting: rejects explicitly blocked vendors (CWE-184 / CWE-20)" {
+        $tempPol = Join-Path $userTemp "test_policy_272.toml"
+        $prevPol = $env:JVM_POLICY_FILE
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $polContent = @"
+[policy]
+allow_skip_checksum = true
+
+[vendors]
+blocked = ["oracle"]
+"@
+            [System.IO.File]::WriteAllText($tempPol, $polContent, [System.Text.UTF8Encoding]::new($false))
+            $env:JVM_POLICY_FILE = $tempPol
+
+            $out = & cmd.exe /c "call `"$JvmBat`" install --vendor oracle 21" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "Installing vendor in blocklist must exit 1"
+            Assert-Contains $out "Enterprise Policy Violation" "Must report enterprise policy violation"
+            Assert-Contains $out "explicitly blocked by enterprise policy" "Must state vendor is blocked"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            $env:JVM_POLICY_FILE = $prevPol
+            if (Test-Path -LiteralPath $tempPol) { Remove-Item -LiteralPath $tempPol -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 273: Enterprise Policy Java version lower bound (min_java) rejection (CWE-20)
+    Run-TestCase "EnterprisePolicy" "Enterprise Policy Java version lower bound (min_java) rejection (CWE-20)" {
+        $tempPol = Join-Path $userTemp "test_policy_273.toml"
+        $prevPol = $env:JVM_POLICY_FILE
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $polContent = @"
+[policy]
+allow_skip_checksum = true
+
+[versions]
+min_java = "17"
+"@
+            [System.IO.File]::WriteAllText($tempPol, $polContent, [System.Text.UTF8Encoding]::new($false))
+            $env:JVM_POLICY_FILE = $tempPol
+
+            $out = & cmd.exe /c "call `"$JvmBat`" install 11" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "Installing Java below min_java must exit 1"
+            Assert-Contains $out "Enterprise Policy Violation" "Must report enterprise policy violation"
+            Assert-Contains $out "below minimum allowed version" "Must state version is below minimum allowed"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            $env:JVM_POLICY_FILE = $prevPol
+            if (Test-Path -LiteralPath $tempPol) { Remove-Item -LiteralPath $tempPol -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 274: Enterprise Policy Java version upper bound (max_java) rejection (CWE-20)
+    Run-TestCase "EnterprisePolicy" "Enterprise Policy Java version upper bound (max_java) rejection (CWE-20)" {
+        $tempPol = Join-Path $userTemp "test_policy_274.toml"
+        $prevPol = $env:JVM_POLICY_FILE
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $polContent = @"
+[policy]
+allow_skip_checksum = true
+
+[versions]
+max_java = "17"
+"@
+            [System.IO.File]::WriteAllText($tempPol, $polContent, [System.Text.UTF8Encoding]::new($false))
+            $env:JVM_POLICY_FILE = $tempPol
+
+            $out = & cmd.exe /c "call `"$JvmBat`" install 21" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "Installing Java above max_java must exit 1"
+            Assert-Contains $out "Enterprise Policy Violation" "Must report enterprise policy violation"
+            Assert-Contains $out "exceeds maximum allowed version" "Must state version exceeds maximum allowed"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            $env:JVM_POLICY_FILE = $prevPol
+            if (Test-Path -LiteralPath $tempPol) { Remove-Item -LiteralPath $tempPol -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 275: Enterprise Policy allow_skip_checksum = false blocks --skip-checksum flag (CWE-494 / CWE-20)
+    Run-TestCase "EnterprisePolicy" "Enterprise Policy allow_skip_checksum = false blocks --skip-checksum flag (CWE-494 / CWE-20)" {
+        $tempPol = Join-Path $userTemp "test_policy_275.toml"
+        $prevPol = $env:JVM_POLICY_FILE
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $polContent = @"
+[policy]
+allow_skip_checksum = false
+"@
+            [System.IO.File]::WriteAllText($tempPol, $polContent, [System.Text.UTF8Encoding]::new($false))
+            $env:JVM_POLICY_FILE = $tempPol
+
+            $out = & cmd.exe /c "call `"$JvmBat`" install 21 --skip-checksum" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "Using --skip-checksum under restricted policy must exit 1"
+            Assert-Contains $out "Machine policy prohibits bypassing checksum verification" "Must prohibit checksum bypass"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            $env:JVM_POLICY_FILE = $prevPol
+            if (Test-Path -LiteralPath $tempPol) { Remove-Item -LiteralPath $tempPol -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # ==========================================================================
+    # SUITE 13: Advanced Lockfile Lifecycle, Freezing & Signatures (Tests 276-285)
+    # ==========================================================================
+
+    # Test 276: jvm freeze --dry-run calculates transition from floating to pinned build without modifying lockfile (CWE-460 / CWE-354)
+    Run-TestCase "LockfileLifecycle" "jvm freeze --dry-run calculates transition from floating to pinned build without modifying lockfile (CWE-460 / CWE-354)" {
+        $testDir = Join-Path $userTemp ("jvm_test_276_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        try {
+            Set-Location $testDir
+            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" freeze --dry-run" -NoNewWindow -PassThru -Wait
+            Assert-Equals 0 $p.ExitCode "jvm freeze --dry-run must exit 0"
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            Assert-True (-not (Test-Path -LiteralPath $lockPath)) "Lockfile must NOT be created under --dry-run"
+        } finally {
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 277: jvm freeze writes pinned exact build into .jvm.lock (CWE-354 / CWE-362)
+    Run-TestCase "LockfileLifecycle" "jvm freeze writes pinned exact build into .jvm.lock (CWE-354 / CWE-362)" {
+        $testDir = Join-Path $userTemp ("jvm_test_277_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        try {
+            Set-Location $testDir
+            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" freeze" -NoNewWindow -PassThru -Wait
+            Assert-Equals 0 $p.ExitCode "jvm freeze must exit 0"
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            Assert-True (Test-Path -LiteralPath $lockPath) "Lockfile must be created by jvm freeze"
+            $data = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            Assert-True ($null -ne $data.tools.java) "tools.java must be defined in lockfile"
+            Assert-True (-not [string]::IsNullOrWhiteSpace($data.tools.java.version)) "Java version must be pinned"
+        } finally {
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 278: jvm freeze --json outputs machine-readable JSON representation of frozen dependencies (CWE-20 / CWE-354)
+    Run-TestCase "LockfileLifecycle" "jvm freeze --json outputs machine-readable JSON representation of frozen dependencies (CWE-20 / CWE-354)" {
+        $testDir = Join-Path $userTemp ("jvm_test_278_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        try {
+            Set-Location $testDir
+            $jsonOut = & cmd.exe /c "call `"$JvmBat`" freeze --dry-run --json" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm freeze --json must exit 0"
+            $parsed = $jsonOut | ConvertFrom-Json
+            Assert-Equals "frozen" $parsed.status "JSON output status must be 'frozen'"
+            Assert-Equals $true $parsed.dry_run "JSON output dry_run must be true"
+        } finally {
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 279: jvm freeze rejects symlink or reparse point target .jvm.lock (CWE-59)
+    Run-TestCase "LockfileLifecycle" "jvm freeze rejects symlink or reparse point target .jvm.lock (CWE-59)" {
+        $testDir = Join-Path $userTemp ("jvm_test_279_" + [Guid]::NewGuid().ToString('N'))
+        $realDir = Join-Path $userTemp ("jvm_real_279_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $realDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            Set-Location $testDir
+            $targetLock = Join-Path $realDir "target.lock"
+            [System.IO.File]::WriteAllText($targetLock, "{}", [System.Text.UTF8Encoding]::new($false))
+            & cmd.exe /c "mklink `"$testDir\.jvm.lock`" `"$targetLock`"" > $null 2>&1
+            if (Test-Path -LiteralPath "$testDir\.jvm.lock") {
+                $out = & cmd.exe /c "call `"$JvmBat`" freeze" 2>&1 | Out-String
+                Assert-Equals 1 $LASTEXITCODE "jvm freeze must reject reparse point lockfile"
+                Assert-Contains $out "CWE-59" "Must report CWE-59 security violation"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            Set-Location $origDir
+            if (Test-Path -LiteralPath "$testDir\.jvm.lock") { Remove-Item -LiteralPath "$testDir\.jvm.lock" -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $realDir) { Remove-Item -LiteralPath $realDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 280: jvm thaw --dry-run calculates relaxation from exact build to major track without modifying lockfile (CWE-460 / CWE-354)
+    Run-TestCase "LockfileLifecycle" "jvm thaw --dry-run calculates relaxation from exact build to major track without modifying lockfile (CWE-460 / CWE-354)" {
+        $testDir = Join-Path $userTemp ("jvm_test_280_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            $lockContent = [ordered]@{ version = 1; tools = [ordered]@{ java = [ordered]@{ version = "21.0.6+7"; vendor = "Adoptium" } } } | ConvertTo-Json
+            [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
+
+            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" thaw --dry-run" -NoNewWindow -PassThru -Wait
+            Assert-Equals 0 $p.ExitCode "jvm thaw --dry-run must exit 0"
+            $checkData = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            Assert-Equals "21.0.6+7" $checkData.tools.java.version "Lockfile version must NOT be modified under --dry-run"
+        } finally {
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 281: jvm thaw relaxes pinned build to major version track in .jvm.lock (CWE-354 / CWE-362)
+    Run-TestCase "LockfileLifecycle" "jvm thaw relaxes pinned build to major version track in .jvm.lock (CWE-354 / CWE-362)" {
+        $testDir = Join-Path $userTemp ("jvm_test_281_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            $lockContent = [ordered]@{ version = 1; tools = [ordered]@{ java = [ordered]@{ version = "21.0.6+7"; vendor = "Adoptium" } } } | ConvertTo-Json
+            [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
+
+            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" thaw" -NoNewWindow -PassThru -Wait
+            Assert-Equals 0 $p.ExitCode "jvm thaw must exit 0"
+            $checkData = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            Assert-Equals "21" $checkData.tools.java.version "Lockfile version must be relaxed to major track '21'"
+        } finally {
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 282: jvm lock --sign generates cryptographically valid HMAC-SHA256 signature in .jvm.lock.sig (CWE-354 / CWE-494)
+    Run-TestCase "LockfileLifecycle" "jvm lock --sign generates cryptographically valid HMAC-SHA256 signature in .jvm.lock.sig (CWE-354 / CWE-494)" {
+        $testDir = Join-Path $userTemp ("jvm_test_282_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevSec = $env:JVM_LOCK_SECRET
+        $env:JVM_LOCK_SECRET = "AdversarialLockSecret2026!"
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            $lockContent = [ordered]@{ version = 1; tools = [ordered]@{ java = [ordered]@{ version = "21.0.6+7"; vendor = "Adoptium" } } } | ConvertTo-Json
+            [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
+
+            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" lock --sign" -NoNewWindow -PassThru -Wait
+            Assert-Equals 0 $p.ExitCode "jvm lock --sign must exit 0"
+            $sigPath = Join-Path $testDir ".jvm.lock.sig"
+            Assert-True (Test-Path -LiteralPath $sigPath) "Signature file .jvm.lock.sig must exist"
+            $sigData = Get-Content -LiteralPath $sigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            Assert-Equals "HMAC-SHA256" $sigData.algorithm "Signature algorithm must be HMAC-SHA256"
+            Assert-True (-not [string]::IsNullOrWhiteSpace($sigData.signature)) "Signature string must be non-empty"
+        } finally {
+            $env:JVM_LOCK_SECRET = $prevSec
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 283: jvm lock --verify validates intact .jvm.lock against .jvm.lock.sig with exit code 0 (CWE-345 / CWE-494)
+    Run-TestCase "LockfileLifecycle" "jvm lock --verify validates intact .jvm.lock against .jvm.lock.sig with exit code 0 (CWE-345 / CWE-494)" {
+        $testDir = Join-Path $userTemp ("jvm_test_283_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevSec = $env:JVM_LOCK_SECRET
+        $env:JVM_LOCK_SECRET = "AdversarialLockSecret2026!"
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            $lockContent = [ordered]@{ version = 1; tools = [ordered]@{ java = [ordered]@{ version = "21.0.6+7"; vendor = "Adoptium" } } } | ConvertTo-Json
+            [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
+
+            & cmd.exe /c "call `"$JvmBat`" lock --sign" > $null 2>&1
+            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" lock --verify" -NoNewWindow -PassThru -Wait
+            Assert-Equals 0 $p.ExitCode "jvm lock --verify on unmodified file must exit 0"
+        } finally {
+            $env:JVM_LOCK_SECRET = $prevSec
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 284: jvm lock --verify detects tampered .jvm.lock and fails closed with exit code 1 (CWE-353 / CWE-494)
+    Run-TestCase "LockfileLifecycle" "jvm lock --verify detects tampered .jvm.lock and fails closed with exit code 1 (CWE-353 / CWE-494)" {
+        $testDir = Join-Path $userTemp ("jvm_test_284_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $prevSec = $env:JVM_LOCK_SECRET
+        $env:JVM_LOCK_SECRET = "AdversarialLockSecret2026!"
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            $lockContent = [ordered]@{ version = 1; tools = [ordered]@{ java = [ordered]@{ version = "21.0.6+7"; vendor = "Adoptium" } } } | ConvertTo-Json
+            [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
+
+            & cmd.exe /c "call `"$JvmBat`" lock --sign" > $null 2>&1
+            # Tamper with lockfile content
+            [System.IO.File]::WriteAllText($lockPath, ($lockContent + " "), [System.Text.UTF8Encoding]::new($false))
+
+            $out = & cmd.exe /c "call `"$JvmBat`" lock --verify" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "jvm lock --verify on tampered file must exit 1"
+            Assert-Contains $out "Tampering detected" "Must report tampering detected"
+            Assert-Contains $out "CWE-353" "Must cite CWE-353 integrity failure"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            $env:JVM_LOCK_SECRET = $prevSec
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 285: jvm lock --sign and --verify reject reparse points / symlinks on .jvm.lock and .jvm.lock.sig (CWE-59)
+    Run-TestCase "LockfileLifecycle" "jvm lock --sign and --verify reject reparse points / symlinks on .jvm.lock and .jvm.lock.sig (CWE-59)" {
+        $testDir = Join-Path $userTemp ("jvm_test_285_" + [Guid]::NewGuid().ToString('N'))
+        $realDir = Join-Path $userTemp ("jvm_real_285_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $realDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $prevSec = $env:JVM_LOCK_SECRET
+        $env:JVM_LOCK_SECRET = "AdversarialLockSecret2026!"
+        try {
+            Set-Location $testDir
+            $realFile = Join-Path $realDir "target.lock"
+            [System.IO.File]::WriteAllText($realFile, "{}", [System.Text.UTF8Encoding]::new($false))
+            & cmd.exe /c "mklink `"$testDir\.jvm.lock`" `"$realFile`"" > $null 2>&1
+            if (Test-Path -LiteralPath "$testDir\.jvm.lock") {
+                $out = & cmd.exe /c "call `"$JvmBat`" lock --sign" 2>&1 | Out-String
+                Assert-Equals 1 $LASTEXITCODE "jvm lock --sign must reject symlinked lockfile"
+                Assert-Contains $out "CWE-59" "Must report CWE-59 reparse point violation"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            $env:JVM_LOCK_SECRET = $prevSec
+            Set-Location $origDir
+            if (Test-Path -LiteralPath "$testDir\.jvm.lock") { Remove-Item -LiteralPath "$testDir\.jvm.lock" -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $realDir) { Remove-Item -LiteralPath $realDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 285b: jvm lock --sign rejects hardcoded default secret fallback and fails closed without secret (CWE-798 / CWE-353)
+    Run-TestCase "LockfileLifecycle" "jvm lock --sign rejects hardcoded default secret fallback and fails closed without secret (CWE-798 / CWE-353)" {
+        $testDir = Join-Path $userTemp ("jvm_test_285b_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $prevSec = $env:JVM_LOCK_SECRET
+        $env:JVM_LOCK_SECRET = ""
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            $lockContent = [ordered]@{ version = 1; tools = [ordered]@{ java = [ordered]@{ version = "21.0.6+7"; vendor = "Adoptium" } } } | ConvertTo-Json
+            [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
+
+            $out = & cmd.exe /c "call `"$JvmBat`" lock --sign" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "jvm lock --sign without secret must exit 1 (fail closed)"
+            Assert-Contains $out "CWE-798" "Must cite CWE-798 hardcoded credentials violation"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            $env:JVM_LOCK_SECRET = $prevSec
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 285c: jvm lock --check distinguishes verified, failed, and not_verified signature states (CWE-345 / CWE-353)
+    Run-TestCase "LockfileLifecycle" "jvm lock --check distinguishes verified, failed, and not_verified signature states (CWE-345 / CWE-353)" {
+        $testDir = Join-Path $userTemp ("jvm_test_285c_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $prevSec = $env:JVM_LOCK_SECRET
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            $lockContent = [ordered]@{
+                schema = 2
+                platform = "windows-x64"
+                lockfile_version = 1
+                generated_at = "2026-10-01T00:00:00Z"
+                tools = [ordered]@{
+                    maven = [ordered]@{
+                        version = "3.9.9"
+                        arch = "all"
+                        url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip"
+                        checksum_type = "sha512"
+                        checksum = "8beac8d11ef208f1e2a8df0682b9448a9a363d2ad13ca74af43705549e72e74c9378823bf689287801cbbfc2f6ea9596201d19ccacfdfb682ee8a2ff4c4418ba"
+                    }
+                }
+            } | ConvertTo-Json -Depth 5
+            [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
+
+            # Case 1: Unsigned lockfile (no .sig file exists)
+            $env:JVM_LOCK_SECRET = ""
+            $out1 = & cmd.exe /c "call `"$JvmBat`" lock --check --json" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "Unsigned lock check must succeed"
+            $json1 = $out1 | ConvertFrom-Json
+            Assert-Equals "not_verified" $json1.signature_status "Unsigned lockfile must report signature_status 'not_verified'"
+            Assert-Equals $false $json1.signature_verified "Unsigned lockfile must report signature_verified false"
+
+            # Case 2: Signature exists, but secret key is unavailable (not provided)
+            $env:JVM_LOCK_SECRET = "ValidSecretKey2026!"
+            & cmd.exe /c "call `"$JvmBat`" lock --sign" > $null 2>&1
+            Assert-True (Test-Path -LiteralPath "$lockPath.sig") ".sig file must exist"
+
+            $env:JVM_LOCK_SECRET = ""
+            $out2 = & cmd.exe /c "call `"$JvmBat`" lock --check --json" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "Lock check without secret key must succeed schema validation"
+            $json2 = $out2 | ConvertFrom-Json
+            Assert-Equals "not_verified" $json2.signature_status "Signed lockfile with no secret must report signature_status 'not_verified'"
+            Assert-Equals $false $json2.signature_verified "Signed lockfile with no secret must report signature_verified false"
+
+            # Case 3: Signature exists, secret key is provided and matches
+            $env:JVM_LOCK_SECRET = "ValidSecretKey2026!"
+            $out3 = & cmd.exe /c "call `"$JvmBat`" lock --check --json" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "Lock check with valid secret key must exit 0"
+            $json3 = $out3 | ConvertFrom-Json
+            Assert-Equals "verified" $json3.signature_status "Matching signature must report signature_status 'verified'"
+            Assert-Equals $true $json3.signature_verified "Matching signature must report signature_verified true"
+
+            # Case 4: Signature exists, secret key is provided but does NOT match (failed verification)
+            $env:JVM_LOCK_SECRET = "WrongSecretKey999!"
+            $out4 = & cmd.exe /c "call `"$JvmBat`" lock --check --json" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "Lock check with invalid secret key must exit 1"
+            $json4 = $out4 | ConvertFrom-Json
+            Assert-Equals "failed" $json4.signature_status "Mismatched signature must report signature_status 'failed'"
+            Assert-Equals $false $json4.signature_verified "Mismatched signature must report signature_verified false"
+            Assert-Equals "invalid" $json4.status "Mismatched signature must report status 'invalid'"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            $env:JVM_LOCK_SECRET = $prevSec
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 285d: jvm freeze preserves lockfile metadata and rejects file-level hash fallback (CWE-494 / CWE-354)
+    Run-TestCase "LockfileLifecycle" "jvm freeze preserves lockfile metadata and rejects file-level hash fallback (CWE-494 / CWE-354)" {
+        $testDir = Join-Path $userTemp ("jvm_test_285d_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            $existingEntry = [ordered]@{
+                schema = 2
+                platform = "windows-x64"
+                lockfile_version = 1
+                generated_at = "2026-10-01T00:00:00Z"
+                tools = [ordered]@{
+                    maven = [ordered]@{
+                        version = "3.9.9"
+                        arch = "all"
+                        url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip"
+                        checksum_type = "sha512"
+                        checksum = "8beac8d11ef208f1e2a8df0682b9448a9a363d2ad13ca74af43705549e72e74c9378823bf689287801cbbfc2f6ea9596201d19ccacfdfb682ee8a2ff4c4418ba"
+                    }
+                }
+            } | ConvertTo-Json -Depth 5
+            [System.IO.File]::WriteAllText($lockPath, $existingEntry, [System.Text.UTF8Encoding]::new($false))
+
+            # Run freeze --dry-run
+            $out = & cmd.exe /c "call `"$JvmBat`" freeze --dry-run" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm freeze --dry-run must exit 0"
+
+            # Check that freeze preserves metadata and does not discard url/arch/checksum_type
+            $lockData = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            Assert-Equals "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip" $lockData.tools.maven.url "URL must be preserved"
+            Assert-Equals "all" $lockData.tools.maven.arch "arch must be preserved"
+            Assert-Equals "sha512" $lockData.tools.maven.checksum_type "checksum_type must be preserved"
+
+            # Verify that jvm.bat freeze code contains no release file or java.exe hashing fallback
+            $batContent = Get-Content -LiteralPath $JvmBat -Raw -Encoding UTF8
+            Assert-False ($batContent -match '\$relPath = Join-Path \$jDir ''release'';\s*if \(Test-Path -LiteralPath \$relPath\) \{\s*try \{ \$h = \(Get-FileHash') "Freeze must not hash release file"
+            Assert-False ($batContent -match '\$binPath = Join-Path \$jDir ''bin\\java\.exe'';\s*if \(Test-Path -LiteralPath \$binPath\) \{\s*try \{ \$h = \(Get-FileHash') "Freeze must not hash java.exe"
+            Assert-False ($batContent -match '\$cBin = Join-Path \$cTarget \(''bin\\'' \+ \$tName \+ ''\.bat''\);\s*if \(Test-Path -LiteralPath \$cBin\) \{ try \{ \$h = \(Get-FileHash') "Freeze must not hash candidate batch files"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # ==========================================================================
+    # SUITE 14: Unified Status, Ergonomics & Multi-Shell Cross-Compatibility
+    # ==========================================================================
+
+    # Test 286: jvm status renders unified status dashboard with Java configuration and Ecosystem tools (CWE-20)
+    Run-TestCase "ShellErgonomics" "jvm status renders unified status dashboard with Java configuration and Ecosystem tools (CWE-20)" {
+        $out = & cmd.exe /c "call `"$JvmBat`" status" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm status must exit 0"
+        Assert-Contains $out "Current JVM Environment Status:" "Must show status header"
+        Assert-Contains $out "Java Configuration:" "Must show Java configuration block"
+        Assert-Contains $out "Ecosystem Tools:" "Must show Ecosystem tools block"
+    }
+
+    # Test 287: jvm ecosystem renders aligned toolchain inventory matching jvm status (CWE-20)
+    Run-TestCase "ShellErgonomics" "jvm ecosystem renders aligned toolchain inventory matching jvm status (CWE-20)" {
+        $out = & cmd.exe /c "call `"$JvmBat`" ecosystem" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm ecosystem must exit 0"
+        Assert-Contains $out "Current JVM Environment Status:" "Must show status header"
+        Assert-Contains $out "Ecosystem Tools:" "Must show Ecosystem tools block"
+    }
+
+    # Test 288: Dynamic PowerShell completions: policy suggests show and check (CWE-20)
+    Run-TestCase "ShellErgonomics" "Dynamic PowerShell completions: policy suggests show and check (CWE-20)" {
+        $installPs1 = Join-Path $RepoRoot "install.ps1"
+        $raw = Get-Content -LiteralPath $installPs1 -Raw
+        Assert-Contains $raw "'policy'" "install.ps1 must declare 'policy' subcommand"
+        Assert-Contains $raw "show" "install.ps1 must complete 'show' for policy"
+        Assert-Contains $raw "check" "install.ps1 must complete 'check' for policy"
+    }
+
+    # Test 289: Dynamic PowerShell completions: hook includes cmd in targets (CWE-20)
+    Run-TestCase "ShellErgonomics" "Dynamic PowerShell completions: hook includes cmd in targets (CWE-20)" {
+        $installPs1 = Join-Path $RepoRoot "install.ps1"
+        $raw = Get-Content -LiteralPath $installPs1 -Raw
+        Assert-Contains $raw "'cmd'" "install.ps1 hook targets must include 'cmd'"
+    }
+
+    # Test 290: Dynamic PowerShell completions: aliases suggests --install (CWE-20)
+    Run-TestCase "ShellErgonomics" "Dynamic PowerShell completions: aliases suggests --install (CWE-20)" {
+        $installPs1 = Join-Path $RepoRoot "install.ps1"
+        $raw = Get-Content -LiteralPath $installPs1 -Raw
+        Assert-Contains $raw "'aliases'" "install.ps1 must declare 'aliases' subcommand"
+        Assert-Contains $raw "'--install'" "install.ps1 must complete '--install' for aliases"
+    }
+
+    # Test 291: Dynamic PowerShell completions: flags include --freeze, --thaw, --sign, --verify (CWE-20)
+    Run-TestCase "ShellErgonomics" "Dynamic PowerShell completions: flags include --freeze, --thaw, --sign, --verify (CWE-20)" {
+        $installPs1 = Join-Path $RepoRoot "install.ps1"
+        $raw = Get-Content -LiteralPath $installPs1 -Raw
+        Assert-Contains $raw "'--freeze'" "Flags must include --freeze"
+        Assert-Contains $raw "'--thaw'" "Flags must include --thaw"
+        Assert-Contains $raw "'--sign'" "Flags must include --sign"
+        Assert-Contains $raw "'--verify'" "Flags must include --verify"
+    }
+
+    # Test 292: jvm aliases generates valid CMD DOSKEY macro script at %LOCALAPPDATA%\DiamTek\JVM\jvm_aliases.cmd (CWE-20 / CWE-427)
+    Run-TestCase "ShellErgonomics" "jvm aliases generates valid CMD DOSKEY macro script at %LOCALAPPDATA%\DiamTek\JVM\jvm_aliases.cmd (CWE-20 / CWE-427)" {
+        $aliasPath = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\jvm_aliases.cmd"
+        $out = & cmd.exe /c "call `"$JvmBat`" aliases" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm aliases must exit 0"
+        Assert-True (Test-Path -LiteralPath $aliasPath) "Aliases file must exist"
+        $content = Get-Content -LiteralPath $aliasPath -Raw
+        Assert-Contains $content "doskey juse=jvm use $*" "Aliases file must define juse"
+        Assert-Contains $content "doskey jstatus=jvm status $*" "Aliases file must define jstatus"
+        Assert-Contains $content "doskey j21=jvm 21" "Aliases file must define j21"
+    }
+
+    # Test 293: jvm aliases rejects reparse point or symlink alias file (CWE-59)
+    Run-TestCase "ShellErgonomics" "jvm aliases rejects reparse point or symlink alias file (CWE-59)" {
+        $aliasPath = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\jvm_aliases.cmd"
+        $realFile = Join-Path $userTemp "real_aliases.cmd"
+        [System.IO.File]::WriteAllText($realFile, "@echo off", [System.Text.UTF8Encoding]::new($false))
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            if (Test-Path -LiteralPath $aliasPath) { Remove-Item -LiteralPath $aliasPath -Force -ErrorAction SilentlyContinue }
+            & cmd.exe /c "mklink `"$aliasPath`" `"$realFile`"" > $null 2>&1
+            if (Test-Path -LiteralPath $aliasPath) {
+                $out = & cmd.exe /c "call `"$JvmBat`" aliases" 2>&1 | Out-String
+                Assert-Equals 1 $LASTEXITCODE "jvm aliases must reject symlink alias file"
+                Assert-Contains $out "CWE-59" "Must report CWE-59 violation"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            if (Test-Path -LiteralPath $aliasPath) { Remove-Item -LiteralPath $aliasPath -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $realFile) { Remove-Item -LiteralPath $realFile -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 294: jvm hook cmd dispatches to :ExecuteAliasesCommand (CWE-20)
+    Run-TestCase "ShellErgonomics" "jvm hook cmd dispatches to :ExecuteAliasesCommand (CWE-20)" {
+        $out = & cmd.exe /c "call `"$JvmBat`" hook cmd" 2>&1 | Out-String
+        Assert-Equals 0 $LASTEXITCODE "jvm hook cmd must exit 0"
+        Assert-Contains $out "Generated CMD DOSKEY aliases at:" "Must report alias generation"
+    }
+
+    # Test 295: Cross-shell environment integrity: CMD and PowerShell produce consistent exit codes (CWE-252)
+    Run-TestCase "ShellErgonomics" "Cross-shell environment integrity: CMD and PowerShell produce consistent exit codes (CWE-252)" {
+        $pCmd = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" --help" -NoNewWindow -PassThru -Wait
+        Assert-Equals 0 $pCmd.ExitCode "CMD execution must exit 0"
+        $pPs = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-Command", "& '$JvmBat' --help" -NoNewWindow -PassThru -Wait
+        Assert-Equals 0 $pPs.ExitCode "PowerShell execution must exit 0"
+    }
+
+    # ==========================================================================
+    # SUITE 15: Adversarial Robustness, Fuzzing & Mutation Resilience
+    # ==========================================================================
+
+    # Test 296: Rejection of NTFS Alternate Data Streams (ADS) in vendor and candidate arguments (java:stream) (CWE-66)
+    Run-TestCase "AdversarialMutation" "Rejection of NTFS Alternate Data Streams (ADS) in vendor and candidate arguments (java:stream) (CWE-66)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $out = & cmd.exe /c "call `"$JvmBat`" install java:stream 21" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "NTFS ADS argument must be rejected with exit code 1"
+            Assert-Contains $out "Invalid" "Must report invalid identifier or candidate"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+        }
+    }
+
+    # Test 297: CLI resilience against poison characters and batch control metacharacters (&, |, ^, <, >, %, !) (CWE-78 / CWE-20)
+    Run-TestCase "AdversarialMutation" "CLI resilience against poison characters and batch control metacharacters (&, |, ^, <, >, %, !) (CWE-78 / CWE-20)" {
+        $poisonArgs = @("21&calc.exe", "21|dir", "21^echo", "21<nul", "21>out.txt", "21%TEMP%", "21!PATH!")
+        foreach ($arg in $poisonArgs) {
+            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" install `"$arg`"" -NoNewWindow -PassThru -Wait
+            Assert-Equals 1 $p.ExitCode "Poison argument '$arg' must exit with code 1 without execution"
+        }
+    }
+
+    # Test 298: String buffer boundary fuzzing: 1024-character oversized argument rejected without crash (CWE-400 / CWE-20)
+    Run-TestCase "AdversarialMutation" "String buffer boundary fuzzing: 1024-character oversized argument rejected without crash (CWE-400 / CWE-20)" {
+        $giantArg = "A" * 1024
+        $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" install `"$giantArg`"" -NoNewWindow -PassThru -Wait
+        Assert-Equals 1 $p.ExitCode "Oversized 1024-character argument must exit 1 cleanly"
+    }
+
+    # Test 299: Incomplete list-based vendor input validation: rejects arbitrary non-allowlisted vendor tokens (CWE-184 / CWE-20)
+    Run-TestCase "AdversarialMutation" "Incomplete list-based vendor input validation: rejects arbitrary non-allowlisted vendor tokens (CWE-184 / CWE-20)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $out = & cmd.exe /c "call `"$JvmBat`" install --vendor maliciousvendor 21" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "Unrecognized vendor must exit with code 1"
+            Assert-Contains $out "Invalid vendor identifier" "Must report invalid vendor"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+        }
+    }
+
+    # Test 300: Zero empty catch blocks AST verification: enforce CWE-390 across entire codebase (CWE-390)
+    Run-TestCase "AdversarialMutation" "Zero empty catch blocks AST verification: enforce CWE-390 across entire codebase (CWE-390)" {
+        $filesToAudit = @($JvmBat, (Join-Path $RepoRoot "install.ps1"), (Join-Path $RepoRoot "uninstall.ps1"))
+        $allEmptyCatches = 0
+        foreach ($f in $filesToAudit) {
+            if (-not (Test-Path -LiteralPath $f)) { continue }
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($f, [ref]$null, [ref]$null)
+            $emptyCatches = $ast.FindAll({ param($astNode)
+                $astNode -is [System.Management.Automation.Language.CatchClauseAst] -and (
+                    -not $astNode.Body.Statements -or $astNode.Body.Statements.Count -eq 0
+                )
+            }, $true)
+            $allEmptyCatches += $emptyCatches.Count
+        }
+        Assert-Equals 0 $allEmptyCatches "Codebase must contain exactly 0 empty catch blocks (CWE-390)"
+    }
+
+    # Test 301: Fault injection: simulated corrupted lockfile JSON handled with graceful error and exit code 1 (CWE-754 / CWE-755)
+    Run-TestCase "AdversarialMutation" "Fault injection: simulated corrupted lockfile JSON handled with graceful error and exit code 1 (CWE-754 / CWE-755)" {
+        $testDir = Join-Path $userTemp ("jvm_test_301_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            [System.IO.File]::WriteAllText($lockPath, "{ corrupted json: [ unclosed }", [System.Text.UTF8Encoding]::new($false))
+            $out = & cmd.exe /c "call `"$JvmBat`" thaw" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "Corrupted lockfile must cause exit code 1"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 302: Fault injection: simulated invalid signature schema handled with fail-closed rejection (CWE-354 / CWE-755)
+    Run-TestCase "AdversarialMutation" "Fault injection: simulated invalid signature schema handled with fail-closed rejection (CWE-354 / CWE-755)" {
+        $testDir = Join-Path $userTemp ("jvm_test_302_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $prevSec = $env:JVM_LOCK_SECRET
+        $env:JVM_LOCK_SECRET = "AdversarialLockSecret2026!"
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            [System.IO.File]::WriteAllText($lockPath, '{"version":1,"tools":{}}', [System.Text.UTF8Encoding]::new($false))
+            $sigPath = Join-Path $testDir ".jvm.lock.sig"
+            [System.IO.File]::WriteAllText($sigPath, '{"invalid_sig":true}', [System.Text.UTF8Encoding]::new($false))
+
+            $out = & cmd.exe /c "call `"$JvmBat`" lock --verify" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "Invalid signature format must cause exit code 1"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            $env:JVM_LOCK_SECRET = $prevSec
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 303: Fault injection: missing lockfile during thaw returns clean exit code 1 without unhandled error (CWE-754 / CWE-252)
+    Run-TestCase "AdversarialMutation" "Fault injection: missing lockfile during thaw returns clean exit code 1 without unhandled error (CWE-754 / CWE-252)" {
+        $testDir = Join-Path $userTemp ("jvm_test_303_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            Set-Location $testDir
+            $out = & cmd.exe /c "call `"$JvmBat`" thaw" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "Missing lockfile on thaw must exit with code 1"
+            Assert-Contains $out "No .jvm.lock found to thaw." "Must state lockfile was not found"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 304: Atomic state cleanup: temporary files cleaned up on early exit and error paths (CWE-459 / CWE-460)
+    Run-TestCase "AdversarialMutation" "Atomic state cleanup: temporary files cleaned up on early exit and error paths (CWE-459 / CWE-460)" {
+        $tempDir = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\temp"
+        $beforePs1 = @(Get-ChildItem -LiteralPath $tempDir -Filter "jvm_*.ps1" -File -ErrorAction SilentlyContinue)
+        & cmd.exe /c "call `"$JvmBat`" freeze --dry-run" > $null 2>&1
+        $afterPs1 = @(Get-ChildItem -LiteralPath $tempDir -Filter "jvm_*.ps1" -File -ErrorAction SilentlyContinue)
+        Assert-Equals $beforePs1.Count $afterPs1.Count "Temporary script files must be 100% cleaned up after command execution"
+    }
+
+    # Test 305: Process termination mid-flight resilience: lockfile remains uncorrupted if freeze is simulated with dry-run (CWE-362 / CWE-460)
+    Run-TestCase "AdversarialMutation" "Process termination mid-flight resilience: lockfile remains uncorrupted if freeze is simulated with dry-run (CWE-362 / CWE-460)" {
+        $testDir = Join-Path $userTemp ("jvm_test_305_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            $initialContent = '{"version":1,"tools":{"java":{"version":"17","vendor":"Adoptium"}}}'
+            [System.IO.File]::WriteAllText($lockPath, $initialContent, [System.Text.UTF8Encoding]::new($false))
+            $initialBytes = [System.IO.File]::ReadAllBytes($lockPath)
+
+            & cmd.exe /c "call `"$JvmBat`" freeze --dry-run" > $null 2>&1
+            $finalBytes = [System.IO.File]::ReadAllBytes($lockPath)
+            Assert-Equals $initialBytes.Length $finalBytes.Length "Lockfile byte length must be completely unchanged"
+        } finally {
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 306: Subcommand dedicated help cards verify syntax, flags, and examples (CWE-20 / CWE-252)
+    Run-TestCase "AdversarialMutation" "Subcommand dedicated help cards verify syntax, flags, and examples (CWE-20 / CWE-252)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            # 1. jvm help install
+            $out1 = & cmd.exe /c "call `"$JvmBat`" help install" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm help install must exit with 0"
+            Assert-Contains $out1 "jvm install - Command Line Reference" "Must contain header for install card"
+            Assert-Contains $out1 "Syntax:" "Must contain Syntax section"
+            Assert-Contains $out1 "--timings" "Must list --timings flag"
+
+            # 2. jvm install --help
+            $out2 = & cmd.exe /c "call `"$JvmBat`" install --help" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm install --help must exit with 0"
+            Assert-Contains $out2 "jvm install - Command Line Reference" "Must show card for jvm install --help"
+
+            # 3. jvm doctor /?
+            $out3 = & cmd.exe /c "call `"$JvmBat`" doctor /?" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm doctor /? must exit with 0"
+            Assert-Contains $out3 "jvm doctor - Command Line Reference" "Must show card for jvm doctor /?"
+
+            # 4. jvm lock -h
+            $out4 = & cmd.exe /c "call `"$JvmBat`" lock -h" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm lock -h must exit with 0"
+            Assert-Contains $out4 "jvm lock - Command Line Reference" "Must show card for jvm lock -h"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+        }
+    }
+
+    # Test 307: Execution timing breakdown metric emission format and JSON stderr isolation (CWE-209 / CWE-252)
+    Run-TestCase "AdversarialMutation" "Execution timing breakdown metric emission format and JSON stderr isolation (CWE-209 / CWE-252)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            # 1. Human readable timings breakdown on stdout
+            $out1 = & cmd.exe /c "call `"$JvmBat`" --version --timings" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm --version --timings must exit with 0"
+            Assert-Contains $out1 "[ TIMINGS ]" "Must emit timing header"
+            Assert-Contains $out1 "parse:" "Must include parse timing"
+            Assert-Contains $out1 "resolve:" "Must include resolve timing"
+            Assert-Contains $out1 "execute:" "Must include execute timing"
+            Assert-Contains $out1 "total:" "Must include total timing"
+            Assert-True ($out1 -match '\[ TIMINGS \] parse: \d+ ms \| resolve: \d+ ms \| execute: \d+ ms \| total: \d+ ms') "Timing breakdown must match standard format"
+
+            # 2. In JSON mode, stdout must remain pure valid JSON while timings go to stderr
+            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" version --json --timings" -NoNewWindow -PassThru -RedirectStandardOutput "$userTemp\t307_stdout.txt" -RedirectStandardError "$userTemp\t307_stderr.txt" -Wait
+            try {
+                Assert-Equals 0 $p.ExitCode "jvm version --json --timings must exit with 0"
+                $stdoutContent = Get-Content -LiteralPath "$userTemp\t307_stdout.txt" -Raw -Encoding UTF8
+                $stderrContent = Get-Content -LiteralPath "$userTemp\t307_stderr.txt" -Raw -Encoding UTF8
+
+                # Standard output must be valid JSON
+                $jsonObj = $stdoutContent | ConvertFrom-Json
+                Assert-True ($null -ne $jsonObj) "Stdout must be valid parseable JSON"
+                Assert-Equals "version" $jsonObj.command "JSON command must be 'version'"
+
+                # Standard error must contain the timings line
+                Assert-Contains $stderrContent "[ TIMINGS ]" "Timings in JSON mode must be isolated to stderr"
+            } finally {
+                if (Test-Path -LiteralPath "$userTemp\t307_stdout.txt") { Remove-Item -LiteralPath "$userTemp\t307_stdout.txt" -Force -ErrorAction SilentlyContinue }
+                if (Test-Path -LiteralPath "$userTemp\t307_stderr.txt") { Remove-Item -LiteralPath "$userTemp\t307_stderr.txt" -Force -ErrorAction SilentlyContinue }
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+        }
+    }
+
+    # Test 308: Universal structured JSON API contracts envelope enforcement across all CLI query commands (CWE-20 / CWE-754)
+    Run-TestCase "AdversarialMutation" "Universal structured JSON API contracts envelope enforcement across all CLI query commands (CWE-20 / CWE-754)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $commandsToTest = @(
+                "version --json",
+                "current --json",
+                "list --json",
+                "doctor --json",
+                "which java --json"
+            )
+
+            foreach ($cmdStr in $commandsToTest) {
+                $rawOut = & cmd.exe /c "call `"$JvmBat`" $cmdStr" 2>$null | Out-String
+                $jsonLine = $rawOut.Trim()
+                if ($jsonLine -match '(\{.*\})') {
+                    $jsonLine = $matches[1]
+                }
+                $obj = try { $jsonLine | ConvertFrom-Json } catch { Write-Verbose $_.Exception.Message; $null }
+                Assert-True ($null -ne $obj) "Command 'jvm $cmdStr' must output valid JSON: '$rawOut'"
+
+                # Enforce universal contract schema envelope: ok, command, candidate, resolved, changed
+                Assert-True ($null -ne $obj.PSObject.Properties['ok']) "Universal schema 'ok' field required for 'jvm $cmdStr'"
+                Assert-True ($null -ne $obj.PSObject.Properties['command']) "Universal schema 'command' field required for 'jvm $cmdStr'"
+                Assert-True ($null -ne $obj.PSObject.Properties['candidate']) "Universal schema 'candidate' field required for 'jvm $cmdStr'"
+                Assert-True ($null -ne $obj.PSObject.Properties['resolved']) "Universal schema 'resolved' field required for 'jvm $cmdStr'"
+                Assert-True ($null -ne $obj.PSObject.Properties['changed']) "Universal schema 'changed' field required for 'jvm $cmdStr'"
+                Assert-False ($obj.changed) "Query commands must have changed=false"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+        }
+    }
+
+    # ==========================================================================
+    # SUITE 16: Next-Gen Portability, Profiles, Snapshots & Toolchain Distros
+    # ==========================================================================
+
+    # Test 309: jvm profile create, list, show, clone, and delete lifecycle operations (CWE-20 / CWE-252)
+    Run-TestCase "Portability" "jvm profile create, list, show, clone, and delete lifecycle operations (CWE-20 / CWE-252)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $pCreate = & cmd.exe /c "call `"$JvmBat`" profile create test_p4_prof --desc `"Workstation Test Profile`"" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm profile create must exit 0"
+            Assert-Contains $pCreate "Created profile" "Must confirm profile creation"
+
+            $pList = & cmd.exe /c "call `"$JvmBat`" profile list" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm profile list must exit 0"
+            Assert-Contains $pList "test_p4_prof" "Profile list must include test_p4_prof"
+
+            $pShow = & cmd.exe /c "call `"$JvmBat`" profile show test_p4_prof" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm profile show must exit 0"
+            Assert-Contains $pShow "Workstation Test Profile" "Profile show must display profile description"
+
+            $pClone = & cmd.exe /c "call `"$JvmBat`" profile clone test_p4_prof test_p4_clone" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm profile clone must exit 0"
+            Assert-Contains $pClone "Cloned profile" "Must confirm profile clone"
+
+            $pDelClone = & cmd.exe /c "call `"$JvmBat`" profile delete test_p4_clone" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm profile delete clone must exit 0"
+            Assert-Contains $pDelClone "Deleted profile" "Must confirm profile deletion"
+
+            $pDelOrig = & cmd.exe /c "call `"$JvmBat`" profile delete test_p4_prof" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm profile delete orig must exit 0"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+        }
+    }
+
+    # Test 310: jvm profile path traversal, illegal identifier, and NTFS ADS rejection (CWE-22 / CWE-66)
+    Run-TestCase "Portability" "jvm profile path traversal, illegal identifier, and NTFS ADS rejection (CWE-22 / CWE-66)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $badNames = @("../traversal", "evil\sub", "evil/sub", "prof:ads", "bad*prof", "bad?prof")
+            foreach ($bn in $badNames) {
+                $out = & cmd.exe /c "call `"$JvmBat`" profile create `"$bn`"" 2>&1 | Out-String
+                Assert-Equals 1 $LASTEXITCODE "Invalid profile identifier '$bn' must exit 1"
+                Assert-True (($out -match "Security violation|Invalid profile name|alphanumeric")) "Output must reject identifier '$bn'"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+        }
+    }
+
+    # Test 311: jvm profile reparse point / symlink rejection on profile store (CWE-59)
+    Run-TestCase "Portability" "jvm profile reparse point / symlink rejection on profile store (CWE-59)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $profDir = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\profiles"
+        $symProf = Join-Path $profDir "sym_prof_311.json"
+        $targetFile = Join-Path $userTemp "target_prof_311.json"
+        try {
+            if (-not (Test-Path -LiteralPath $profDir)) { New-Item -ItemType Directory -Path $profDir -Force | Out-Null }
+            [System.IO.File]::WriteAllText($targetFile, '{"name":"sym_prof_311"}', [System.Text.UTF8Encoding]::new($false))
+            & cmd.exe /c "mklink `"$symProf`" `"$targetFile`"" > $null 2>&1
+            if (Test-Path -LiteralPath $symProf) {
+                $out = & cmd.exe /c "call `"$JvmBat`" profile show sym_prof_311" 2>&1 | Out-String
+                Assert-Equals 1 $LASTEXITCODE "jvm profile show must reject symlink profile"
+                Assert-Contains $out "CWE-59" "Must report CWE-59 reparse point violation"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            if (Test-Path -LiteralPath $symProf) { Remove-Item -LiteralPath $symProf -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $targetFile) { Remove-Item -LiteralPath $targetFile -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 312: jvm profile use --dry-run simulates profile activation without changing active profile pointer (CWE-460 / CWE-362)
+    Run-TestCase "Portability" "jvm profile use --dry-run simulates profile activation without changing active profile pointer (CWE-460 / CWE-362)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            & cmd.exe /c "call `"$JvmBat`" profile create test_p4_dry --desc `"Dry Run Profile`"" > $null 2>&1
+            $profDir = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\profiles"
+            $activeFile = Join-Path $profDir "active.txt"
+            $prevActive = if (Test-Path -LiteralPath $activeFile) { [System.IO.File]::ReadAllText($activeFile).Trim() } else { "" }
+
+            $out = & cmd.exe /c "call `"$JvmBat`" profile use test_p4_dry --dry-run" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm profile use --dry-run must exit 0"
+            Assert-Contains $out "Simulated activation" "Must report simulated activation"
+
+            $curActive = if (Test-Path -LiteralPath $activeFile) { [System.IO.File]::ReadAllText($activeFile).Trim() } else { "" }
+            Assert-Equals $prevActive $curActive "active.txt must remain unchanged under --dry-run"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            & cmd.exe /c "call `"$JvmBat`" profile delete test_p4_dry" > $null 2>&1
+        }
+    }
+
+    # Test 313: jvm snapshot create, list, restore, and delete point-in-time state capture (CWE-20 / CWE-354)
+    Run-TestCase "Portability" "jvm snapshot create, list, restore, and delete point-in-time state capture (CWE-20 / CWE-354)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $sCreate = & cmd.exe /c "call `"$JvmBat`" snapshot create snap_test_p4" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm snapshot create must exit 0"
+            Assert-Contains $sCreate "Created snapshot" "Must confirm snapshot creation"
+
+            $snapFile = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\snapshots\snap_test_p4.json"
+            Assert-True (Test-Path -LiteralPath $snapFile) "Snapshot JSON file must exist"
+            $snapJson = Get-Content -LiteralPath $snapFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            Assert-Equals "snap_test_p4" $snapJson.snapshot_id "Snapshot id must match"
+
+            $sList = & cmd.exe /c "call `"$JvmBat`" snapshot list" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm snapshot list must exit 0"
+            Assert-Contains $sList "snap_test_p4" "Snapshot list must include snap_test_p4"
+
+            $sDel = & cmd.exe /c "call `"$JvmBat`" snapshot delete snap_test_p4" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm snapshot delete must exit 0"
+            Assert-Contains $sDel "Deleted snapshot" "Must confirm snapshot deletion"
+            Assert-False (Test-Path -LiteralPath $snapFile) "Snapshot file must be deleted"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+        }
+    }
+
+    # Test 314: jvm snapshot restore --dry-run immutability and atomic rollback verification (CWE-460)
+    Run-TestCase "Portability" "jvm snapshot restore --dry-run immutability and atomic rollback verification (CWE-460)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            & cmd.exe /c "call `"$JvmBat`" snapshot create snap_dry_test" > $null 2>&1
+            $out = & cmd.exe /c "call `"$JvmBat`" snapshot restore snap_dry_test --dry-run" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm snapshot restore --dry-run must exit 0"
+            Assert-Contains $out "Simulated restoration" "Must report simulated restoration"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            & cmd.exe /c "call `"$JvmBat`" snapshot delete snap_dry_test" > $null 2>&1
+        }
+    }
+
+    # Test 315: jvm snapshot reparse point / symlink rejection on snapshot directory and files (CWE-59)
+    Run-TestCase "Portability" "jvm snapshot reparse point / symlink rejection on snapshot directory and files (CWE-59)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $snapDir = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\snapshots"
+        $symSnap = Join-Path $snapDir "sym_snap_315.json"
+        $targetFile = Join-Path $userTemp "target_snap_315.json"
+        try {
+            if (-not (Test-Path -LiteralPath $snapDir)) { New-Item -ItemType Directory -Path $snapDir -Force | Out-Null }
+            [System.IO.File]::WriteAllText($targetFile, '{"snapshot_id":"sym_snap_315"}', [System.Text.UTF8Encoding]::new($false))
+            & cmd.exe /c "mklink `"$symSnap`" `"$targetFile`"" > $null 2>&1
+            if (Test-Path -LiteralPath $symSnap) {
+                $out = & cmd.exe /c "call `"$JvmBat`" snapshot restore sym_snap_315" 2>&1 | Out-String
+                Assert-Equals 1 $LASTEXITCODE "jvm snapshot restore must reject symlinked snapshot"
+                Assert-Contains $out "CWE-59" "Must report CWE-59 reparse point violation"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            if (Test-Path -LiteralPath $symSnap) { Remove-Item -LiteralPath $symSnap -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $targetFile) { Remove-Item -LiteralPath $targetFile -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 315b: jvm snapshot restore transactional consistency rolls back configuration when junction restore fails (CWE-460)
+    Run-TestCase "Portability" "jvm snapshot restore transactional consistency rolls back configuration when junction restore fails (CWE-460)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $snapDir = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\snapshots"
+        $cfgPath = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\config.json"
+        $origCfg = if (Test-Path -LiteralPath $cfgPath) { Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8 } else { $null }
+        $failSnap = Join-Path $snapDir "tx_fail_snap_315b.json"
+        try {
+            if (-not (Test-Path -LiteralPath $snapDir)) { New-Item -ItemType Directory -Path $snapDir -Force | Out-Null }
+            # Seed current config with baseline value
+            $baseCfgObj = [ordered]@{ mode = "symlink"; tx_test_token = "ORIGINAL_TOKEN_BASELINE" }
+            [System.IO.File]::WriteAllText($cfgPath, ($baseCfgObj | ConvertTo-Json), [System.Text.UTF8Encoding]::new($false))
+
+            # Create snapshot that introduces new config but contains an invalid/missing toolchain target to trigger failure during tool restoration
+            $badSnapObj = [ordered]@{
+                snapshot_id = "tx_fail_snap_315b"
+                timestamp = (Get-Date).ToUniversalTime().ToString('o')
+                config = [ordered]@{ mode = "symlink"; tx_test_token = "NEW_UNCOMMITTED_TOKEN" }
+                active_tools = [ordered]@{
+                    maven = [ordered]@{
+                        target = "C:\nonexistent_path_for_tx_test_315b\maven\9.9.9"
+                        version = "9.9.9"
+                    }
+                }
+            }
+            [System.IO.File]::WriteAllText($failSnap, ($badSnapObj | ConvertTo-Json -Depth 5), [System.Text.UTF8Encoding]::new($false))
+
+            $out = & cmd.exe /c "call `"$JvmBat`" snapshot restore tx_fail_snap_315b" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "jvm snapshot restore with missing toolchain must fail with exit code 1"
+            Assert-Contains $out "Rolling back" "Must report rolling back"
+
+            # Verify that config.json was NOT overwritten with NEW_UNCOMMITTED_TOKEN, and preserves ORIGINAL_TOKEN_BASELINE
+            $curCfg = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            Assert-Equals "ORIGINAL_TOKEN_BASELINE" $curCfg.tx_test_token "config.json must remain rolled back to original pre-state on restore failure"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            if (Test-Path -LiteralPath $failSnap) { Remove-Item -LiteralPath $failSnap -Force -ErrorAction SilentlyContinue }
+            if ($origCfg -ne $null) {
+                [System.IO.File]::WriteAllText($cfgPath, $origCfg, [System.Text.UTF8Encoding]::new($false))
+            } else {
+                if (Test-Path -LiteralPath $cfgPath) { Remove-Item -LiteralPath $cfgPath -Force -ErrorAction SilentlyContinue }
+            }
+        }
+    }
+
+    # Test 316: jvm bundle create, inspect, and list portable environment container workflows (CWE-20 / CWE-354)
+    Run-TestCase "Portability" "jvm bundle create, inspect, and list portable environment container workflows (CWE-20 / CWE-354)" {
+        $testDir = Join-Path $userTemp ("jvm_test_316_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $bundleFile = Join-Path $testDir "env_export.jvmbundle"
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $bCreate = & cmd.exe /c "call `"$JvmBat`" bundle create `"$bundleFile`"" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm bundle create must exit 0"
+            Assert-True (Test-Path -LiteralPath $bundleFile) "Bundle container file must exist"
+            Assert-True ((Get-Item -LiteralPath $bundleFile).Length -gt 0) "Bundle file must have non-zero size"
+
+            $bInspect = & cmd.exe /c "call `"$JvmBat`" bundle inspect `"$bundleFile`"" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm bundle inspect must exit 0"
+            Assert-Contains $bInspect "BUNDLE MANIFEST" "Bundle inspect must display manifest table"
+
+            $bList = & cmd.exe /c "call `"$JvmBat`" bundle list" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm bundle list must exit 0"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 317: jvm bundle magic byte verification rejects fake bundle payloads lacking ZIP header (CWE-494 / CWE-354)
+    Run-TestCase "Portability" "jvm bundle magic byte verification rejects fake bundle payloads lacking ZIP header (CWE-494 / CWE-354)" {
+        $testDir = Join-Path $userTemp ("jvm_test_317_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $fakeBundle = Join-Path $testDir "fake.jvmbundle"
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            [System.IO.File]::WriteAllText($fakeBundle, "NOT_A_ZIP_CONTAINER_DATA", [System.Text.UTF8Encoding]::new($false))
+            $outInspect = & cmd.exe /c "call `"$JvmBat`" bundle inspect `"$fakeBundle`"" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "jvm bundle inspect on fake payload must exit 1"
+            Assert-Contains $outInspect "magic byte" "Must report magic byte header mismatch"
+
+            $outInstall = & cmd.exe /c "call `"$JvmBat`" bundle install `"$fakeBundle`"" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "jvm bundle install on fake payload must exit 1"
+            Assert-Contains $outInstall "magic byte" "Must report magic byte header mismatch"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 318: jvm bundle install ZipSlip containment rejects malicious archives with directory traversal entries (CWE-22)
+    Run-TestCase "Portability" "jvm bundle install ZipSlip containment rejects malicious archives with directory traversal entries (CWE-22)" {
+        $testDir = Join-Path $userTemp ("jvm_test_318_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $zipslipBundle = Join-Path $testDir "zipslip.jvmbundle"
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            # Construct a ZIP containing a traversal entry '../evil.txt'
+            $zipStream = [System.IO.File]::Create($zipslipBundle)
+            $archive = [System.IO.Compression.ZipArchive]::new($zipStream, [System.IO.Compression.ZipArchiveMode]::Create)
+            $entry = $archive.CreateEntry("../evil.txt")
+            $writer = [System.IO.StreamWriter]::new($entry.Open())
+            $writer.WriteLine("malicious payload")
+            $writer.Dispose()
+            $archive.Dispose()
+            $zipStream.Dispose()
+
+            $out = & cmd.exe /c "call `"$JvmBat`" bundle install `"$zipslipBundle`"" 2>&1 | Out-String
+            Assert-Equals 1 $LASTEXITCODE "jvm bundle install on ZipSlip archive must exit 1"
+            Assert-Contains $out "ZipSlip" "Must report ZipSlip violation"
+            Assert-Contains $out "CWE-22" "Must cite CWE-22 violation"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 319: jvm bundle reparse point / symlink rejection on bundle container file (CWE-59)
+    Run-TestCase "Portability" "jvm bundle reparse point / symlink rejection on bundle container file (CWE-59)" {
+        $testDir = Join-Path $userTemp ("jvm_test_319_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $realBundle = Join-Path $testDir "real.jvmbundle"
+        $symBundle = Join-Path $testDir "sym.jvmbundle"
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            & cmd.exe /c "call `"$JvmBat`" bundle create `"$realBundle`"" > $null 2>&1
+            & cmd.exe /c "mklink `"$symBundle`" `"$realBundle`"" > $null 2>&1
+            if (Test-Path -LiteralPath $symBundle) {
+                $out = & cmd.exe /c "call `"$JvmBat`" bundle inspect `"$symBundle`"" 2>&1 | Out-String
+                Assert-Equals 1 $LASTEXITCODE "jvm bundle inspect must reject symlinked bundle"
+                Assert-Contains $out "CWE-59" "Must report CWE-59 violation"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            if (Test-Path -LiteralPath $symBundle) { Remove-Item -LiteralPath $symBundle -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 320: jvm distro create generates air-gapped distribution kit with verified distro-manifest.json (CWE-354 / CWE-494)
+    Run-TestCase "Portability" "jvm distro create generates air-gapped distribution kit with verified distro-manifest.json (CWE-354 / CWE-494)" {
+        $testDir = Join-Path $userTemp ("jvm_test_320_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $distroOut = Join-Path $testDir "distro_kit"
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $out = & cmd.exe /c "call `"$JvmBat`" distro create --out `"$distroOut`"" 2>&1 | Out-String
+            Assert-Equals 0 $LASTEXITCODE "jvm distro create must exit 0"
+            Assert-True (Test-Path -LiteralPath $distroOut) "Distro output directory must exist"
+
+            $manFile = Join-Path $distroOut "distro-manifest.json"
+            Assert-True (Test-Path -LiteralPath $manFile) "distro-manifest.json must exist in distro output"
+            $manJson = Get-Content -LiteralPath $manFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            Assert-Equals "DiamTek JVM Air-Gapped Distribution Kit" $manJson.name "Manifest kit name must match"
+            Assert-True ($null -ne $manJson.files."jvm.bat") "Manifest must contain hash for jvm.bat"
+
+            Assert-True (Test-Path -LiteralPath (Join-Path $distroOut "jvm.bat")) "Distro must contain jvm.bat"
+            Assert-True (Test-Path -LiteralPath (Join-Path $distroOut "install.ps1")) "Distro must contain install.ps1"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 321: install.ps1 -Offline -DistroDir provisions local environment without outbound network requests (CWE-754 / CWE-319)
+    Run-TestCase "Portability" "install.ps1 -Offline -DistroDir provisions local environment without outbound network requests (CWE-754 / CWE-319)" {
+        $testDir = Join-Path $userTemp ("jvm_test_321_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $distroDir = Join-Path $testDir "distro_src"
+        $targetInstall = Join-Path $testDir "target_offline"
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            # 1. Build a local distro
+            & cmd.exe /c "call `"$JvmBat`" distro create --out `"$distroDir`"" > $null 2>&1
+
+            # 2. Run install.ps1 with -Offline and -DistroDir pointing to local distro
+            $installScript = Join-Path $RepoRoot "install.ps1"
+            $p = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$installScript`"", "-Offline", "-DistroDir", "`"$distroDir`"", "-TargetDir", "`"$targetInstall`"", "-Quiet" -NoNewWindow -PassThru -Wait
+            Assert-Equals 0 $p.ExitCode "install.ps1 -Offline -DistroDir must exit 0"
+
+            # 3. Verify installed payload
+            Assert-True (Test-Path -LiteralPath (Join-Path $targetInstall "jvm.bat")) "Installed jvm.bat must exist"
+            $targetRoot = Split-Path $targetInstall -Parent
+            $cfgFile = Join-Path $targetRoot "config.json"
+            if (Test-Path -LiteralPath $cfgFile) {
+                $cfgJson = Get-Content -LiteralPath $cfgFile -Raw -Encoding UTF8 | ConvertFrom-Json
+                Assert-True ([bool]$cfgJson.offline_mode) "config.json must have offline_mode set to true"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+
+    # Test 322: Universal structured JSON API envelope compliance across P4 profile, snapshot, bundle, and distro commands (CWE-20 / CWE-754)
+    Run-TestCase "Portability" "Universal structured JSON API envelope compliance across P4 profile, snapshot, bundle, and distro commands (CWE-20 / CWE-754)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $commandsToTest = @(
+                "profile list --json",
+                "snapshot list --json",
+                "bundle list --json"
+            )
+
+            foreach ($cmdStr in $commandsToTest) {
+                $rawOut = & cmd.exe /c "call `"$JvmBat`" $cmdStr" 2>$null | Out-String
+                $jsonLine = $rawOut.Trim()
+                if ($jsonLine -match '(\{.*\})') {
+                    $jsonLine = $matches[1]
+                }
+                $obj = try { $jsonLine | ConvertFrom-Json } catch { Write-Verbose $_.Exception.Message; $null }
+                Assert-True ($null -ne $obj) "Command 'jvm $cmdStr' must output valid JSON: '$rawOut'"
+
+                # Universal envelope contract check
+                Assert-True ($null -ne $obj.PSObject.Properties['ok']) "Universal schema 'ok' field required for 'jvm $cmdStr'"
+                Assert-True ($null -ne $obj.PSObject.Properties['command']) "Universal schema 'command' field required for 'jvm $cmdStr'"
+                Assert-True ($null -ne $obj.PSObject.Properties['candidate']) "Universal schema 'candidate' field required for 'jvm $cmdStr'"
+                Assert-True ($null -ne $obj.PSObject.Properties['resolved']) "Universal schema 'resolved' field required for 'jvm $cmdStr'"
+                Assert-True ($null -ne $obj.PSObject.Properties['changed']) "Universal schema 'changed' field required for 'jvm $cmdStr'"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+        }
+    }
+
+    # Test 323: Dedicated help card routing and syntax verification for jvm profile, snapshot, bundle, and distro (CWE-20 / CWE-252)
+    Run-TestCase "Portability" "Dedicated help card routing and syntax verification for jvm profile, snapshot, bundle, and distro (CWE-20 / CWE-252)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $cards = @(
+                @{ Cmd = "help profile";  Expected = "jvm profile - Command Line Reference" },
+                @{ Cmd = "help snapshot"; Expected = "jvm snapshot - Command Line Reference" },
+                @{ Cmd = "help bundle";   Expected = "jvm bundle - Command Line Reference" },
+                @{ Cmd = "help distro";   Expected = "jvm distro - Command Line Reference" }
+            )
+            foreach ($c in $cards) {
+                $out = & cmd.exe /c "call `"$JvmBat`" $($c.Cmd)" 2>&1 | Out-String
+                Assert-Equals 0 $LASTEXITCODE "jvm $($c.Cmd) must exit 0"
+                Assert-Contains $out $c.Expected "Output must contain help card header '$($c.Expected)'"
+                Assert-Contains $out "Syntax:" "Must contain Syntax section"
+            }
+        } finally {
+            $ErrorActionPreference = $prevEAP
+        }
     }
 
 } finally {

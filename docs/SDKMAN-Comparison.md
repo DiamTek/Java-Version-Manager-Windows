@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
 
 </div>
 
@@ -38,7 +38,11 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **Pre-Change Safety** | None (overwrites shell files) | **Automated Registry Backups** (exports `.reg` to `%LOCALAPPDATA%\DiamTek\JVM\backups\`) |
 | **User Interface** | CLI Only (Manual typing) | **Interactive TUI** & Headless CLI |
 | **Archive Extraction** | Requires external `zip` / `tar` binaries | **Native `.NET System.IO.Compression`** |
-| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **263-Test Adversarial Suite (`40 MITRE CWEs`), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
+| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **323-Test Adversarial Suite (`41 MITRE CWEs` across 16 Suites), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
+| **Multi-Tool Environment Profiles** | None (manual tool-by-tool switching) | **`jvm profile`** (Atomic multi-candidate switching, rollback on error `CWE-460`, and reparse point protection `CWE-59`) |
+| **State Snapshots & Rollback** | None | **`jvm snapshot`** (Point-in-time state capture into JSON manifests, validated restore, and `--dry-run` simulation) |
+| **Portable Toolchain Bundles** | None | **`jvm bundle`** (Standalone `.jvmbundle` archives with `0x50 0x4B` magic bytes & ZipSlip `CWE-22` containment) |
+| **Air-Gapped Toolchain Distros** | Incompatible without internet | **`jvm distro` & `install.ps1 -Offline`** (Cryptographic standalone distributions with zero network calls `CWE-319`) |
 | **Provenance & Authenticity** | None | **`jvm verify [ver|all]`** (6-tier cryptographic & signature audit) |
 | **Installation Atomicity** | Basic unzips | **`jvm transaction`** (Atomic journaling & rollback engine) |
 | **CPU Architecture** | Manual configuration | **Native x64 / ARM64 Auto-Detection** |
@@ -255,6 +259,17 @@ Beyond candidate installation, DiamTek JVM provides systems engineering, observa
 * **Secret-Redacted Diagnostic Incident Bundles (`jvm report` & `jvm doctor --report`):** Troubleshooting on SDKMAN! requires manually copying terminal logs. DiamTek JVM generates sanitized diagnostic text reports (`jvm report` -> `jvm-report.txt`) and comprehensive ZIP incident bundles (`jvm doctor --report` -> `jvm-issue-bundle.zip`) with automatic redaction of usernames, tokens, and credentials (`CWE-209` / `CWE-532`).
 * **Content-Addressed Storage Telemetry & Deduplication (`jvm cache stats` & `jvm cache dedupe`):** SDKMAN! only provides `sdk flush` for temporary folder clearing. DiamTek JVM indexes all downloads into a cryptographic CAS structure (`cache\sha256\`), tracks inventory footprint with `jvm cache stats`, and dedupes redundant candidate binaries via `jvm cache dedupe`.
 * **Executable Version History & Integrity Rollback (`jvm self-update --history` & `--rollback`):** SDKMAN! only supports forward updates (`sdk selfupdate`). DiamTek JVM tracks an immutable history of previous engine builds and enables instant one-command rollback with fail-closed EOF marker verification (`rem END OF SCRIPT`).
+
+---
+
+## 📦 Multi-Tool Profiles, Portable Bundles & Air-Gapped Distros vs SDKMAN!
+
+While SDKMAN! requires switching candidates one-by-one or relying solely on directory-level `.sdkmanrc` files, DiamTek JVM introduces enterprise portability primitives:
+
+* **Named Environment Profiles (`jvm profile`):** SDKMAN! offers no concept of multi-tool named profiles. With DiamTek JVM, teams can define named environments (e.g., `jvm profile create legacy-fintech`) that atomically switch `JAVA_HOME`, `MAVEN_HOME`, `GRADLE_HOME`, and `KOTLIN_HOME` in a single command, with automatic rollback on error (`CWE-460`).
+* **Toolchain Snapshots (`jvm snapshot`):** Point-in-time state capture allows developers to record their complete multi-tool environment configuration into portable JSON manifests and restore or preview them via `--dry-run`.
+* **Portable Environment Bundles (`jvm bundle`):** SDKMAN! cannot export installed runtimes to another machine. DiamTek JVM bundles active tools and project lockfiles into `.jvmbundle` packages hardened with `0x50 0x4B` magic byte checks and ZipSlip traversal prevention (`CWE-22`).
+* **Zero-Network Air-Gapped Distros (`jvm distro` & `install.ps1 -Offline`):** In secure financial, defense, or air-gapped environments where developer workstations cannot query the public internet, DiamTek JVM builds complete offline distributions with SHA-256 manifests (`distro-manifest.json`) and pre-seeded CAS caches, allowing 100% offline installation without network requests (`CWE-319`).
 
 ---
 
