@@ -5781,6 +5781,14 @@ allow_skip_checksum = false
                 lockfile_version = 1
                 generated_at = "2026-10-01T00:00:00Z"
                 tools = [ordered]@{
+                    java = [ordered]@{
+                        version = "21.0.6"
+                        vendor = "Eclipse Adoptium"
+                        arch = "windows-x64"
+                        url = "https://example.invalid/jdk.zip"
+                        checksum_type = "sha256"
+                        checksum = ("a" * 64)
+                    }
                     maven = [ordered]@{
                         version = "3.9.9"
                         arch = "all"
@@ -5792,9 +5800,21 @@ allow_skip_checksum = false
             } | ConvertTo-Json -Depth 5
             [System.IO.File]::WriteAllText($lockPath, $existingEntry, [System.Text.UTF8Encoding]::new($false))
 
+            # Supply a synthetic JDK and isolated state root. This keeps the dry-run deterministic
+            # and avoids contacting upstream APIs as part of a metadata-preservation test.
+            $prevLocalAppData = $env:LOCALAPPDATA
+            $prevJavaHome = $env:JAVA_HOME
+            $fakeLocalAppData = Join-Path $testDir "localappdata"
+            $fakeJavaHome = Join-Path $testDir "fake-jdk"
+            New-Item -ItemType Directory -Path $fakeLocalAppData, $fakeJavaHome -Force | Out-Null
+            $fakeRelease = "JAVA_VERSION=`"21.0.6`"`r`nIMPLEMENTOR=`"Eclipse Adoptium`"`r`n"
+            [System.IO.File]::WriteAllText((Join-Path $fakeJavaHome "release"), $fakeRelease, [System.Text.UTF8Encoding]::new($false))
+            $env:LOCALAPPDATA = $fakeLocalAppData
+            $env:JAVA_HOME = $fakeJavaHome
+
             # Run freeze --dry-run
-            $out = & cmd.exe /c "call `"$JvmBat`" freeze --dry-run" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm freeze --dry-run must exit 0"
+            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" freeze --dry-run" -NoNewWindow -PassThru -Wait
+            Assert-Equals 0 $p.ExitCode "jvm freeze --dry-run must exit 0"
 
             # Check that freeze preserves metadata and does not discard url/arch/checksum_type
             $lockData = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -5802,12 +5822,29 @@ allow_skip_checksum = false
             Assert-Equals "all" $lockData.tools.maven.arch "arch must be preserved"
             Assert-Equals "sha512" $lockData.tools.maven.checksum_type "checksum_type must be preserved"
 
-            # Verify that jvm.bat freeze code contains no release file or java.exe hashing fallback
+            # Verify the freeze implementation itself never substitutes locally computed hashes
+            # for publisher-provided archive checksums. Scope assertions to the command section;
+            # this avoids false passes caused by regex dot not matching newlines in the full file.
             $batContent = Get-Content -LiteralPath $JvmBat -Raw -Encoding UTF8
-            Assert-False ($batContent -match '\$relPath = Join-Path \$jDir ''release'';\s*if \(Test-Path -LiteralPath \$relPath\) \{\s*try \{ \$h = \(Get-FileHash') "Freeze must not hash release file"
-            Assert-False ($batContent -match '\$binPath = Join-Path \$jDir ''bin\\java\.exe'';\s*if \(Test-Path -LiteralPath \$binPath\) \{\s*try \{ \$h = \(Get-FileHash') "Freeze must not hash java.exe"
-            Assert-False ($batContent -match '\$cBin = Join-Path \$cTarget \(''bin\\'' \+ \$tName \+ ''\.bat''\);\s*if \(Test-Path -LiteralPath \$cBin\) \{ try \{ \$h = \(Get-FileHash') "Freeze must not hash candidate batch files"
+            $freezeMatch = [regex]::Match($batContent, '(?ms)^:ExecuteFreezeCommand\r?\n(?<body>.*?)(?=^:ExecuteThawCommand\s*$)')
+            Assert-True $freezeMatch.Success "Freeze command section must be extractable for security assertions"
+            $freezeCode = $freezeMatch.Groups['body'].Value
+            Assert-False ($freezeCode -match 'Get-FileHash') "Freeze must not compute local hashes and treat them as publisher checksums"
+            Assert-False ($freezeCode -match '(?is)Join-Path\s+\$appData\s+''DiamTek\\JVM\\cache''.{0,3000}?Get-FileHash') "Freeze must never trust a hash calculated from a cached ZIP"
+            Assert-Contains $freezeCode '$wantedCoreVersion' "Java freeze must compare the requested JDK core version to the upstream release"
+            Assert-Contains $freezeCode "vendorJava -notmatch '(?i)(Adoptium|Temurin)'" "Java freeze must not substitute Temurin for an unsupported vendor"
+            Assert-Contains $freezeCode '$vendorJava = ''Unknown''' "Java vendor detection must fail closed instead of assuming unidentified JDKs are Temurin"
+            Assert-Contains $freezeCode 'api.adoptium.net/v3/assets/version/' "Java freeze must query the exact upstream version range rather than only the latest ten releases"
+            Assert-Contains $freezeCode "'^1\.8\.0_(\d+)'" "Java freeze must normalize legacy Java 8 update versions before upstream resolution"
+            Assert-Contains $freezeCode '$itemCoreVersion -eq $wantedCoreVersion' "Java freeze must reject other upstream versions instead of selecting the first result"
+            Assert-Contains $freezeCode "'^[a-fA-F0-9]{64}$'" "Upstream Java checksum must be a full SHA-256 digest"
+            Assert-Contains $freezeCode "'^[a-fA-F0-9]{128}$'" "Candidate checksums may be accepted only as a full SHA-512 digest"
+            Assert-Contains $freezeCode '$expectedArchiveName' "Multi-entry checksum manifests must be matched to the requested archive filename"
+            Assert-Contains $freezeCode '$sumMatches.Count -eq 1' "A checksum manifest without a filename match must contain exactly one candidate digest"
+            Assert-False ($freezeCode -match 'spring-boot-cli-.*\.zip\.sha1.*type = ''sha1''') "Freeze must not create new SHA-1-only Spring CLI pins"
         } finally {
+            $env:LOCALAPPDATA = $prevLocalAppData
+            $env:JAVA_HOME = $prevJavaHome
             $ErrorActionPreference = $prevEAP
             Set-Location $origDir
             if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }

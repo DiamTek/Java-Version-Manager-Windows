@@ -56,7 +56,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261010.155"
+set "JVM_BUILD=20261013.156"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" set "HELP_TOPIC=%~2" & goto :EARLY_HELP
@@ -14436,7 +14436,7 @@ if exist "!TARGET_LOCK_PATH!" (
     "            if ($wj -and $wj.Source) { $jDir = Split-Path (Split-Path $wj.Source -Parent) -Parent };" ^
     "        };" ^
     "        $exactJava = $null;" ^
-    "        $vendorJava = 'Adoptium';" ^
+    "        $vendorJava = 'Unknown';" ^
     "        if ($jDir -and (Test-Path -LiteralPath (Join-Path $jDir 'release'))) {" ^
     "            foreach ($line in (Get-Content (Join-Path $jDir 'release') -ErrorAction SilentlyContinue)) {" ^
     "                if ($line -match '^JAVA_VERSION=\x22?([^\x22]+)\x22?') { $exactJava = $matches[1] };" ^
@@ -14461,42 +14461,42 @@ if exist "!TARGET_LOCK_PATH!" (
     "        if (-not $entry['arch']) { $entry['arch'] = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' } };" ^
     "        if (-not $entry['checksum_type']) { $entry['checksum_type'] = 'sha256' };" ^
     "        $hasValidUrl = ($entry['url'] -and [string]$entry['url'] -match '^https://');" ^
-    "        $hasValidChk = ($entry['checksum'] -and [string]$entry['checksum'] -match '^[a-fA-F0-9]{32,128}$' -and [string]$entry['checksum'] -ne $emptySha256);" ^
+    "        $hasValidChk = (($entry['checksum_type'] -ieq 'sha256' -and ([string]$entry['checksum']) -match '^[a-fA-F0-9]{64}$') -or ($entry['checksum_type'] -ieq 'sha512' -and ([string]$entry['checksum']) -match '^[a-fA-F0-9]{128}$')) -and ([string]$entry['checksum'] -ne $emptySha256);" ^
     "        $keepExisting = ($hasValidUrl -and $hasValidChk -and ($prevJava -eq $exactJava));" ^
     "        if (-not $keepExisting) {" ^
-    "            $resolvedUrl = if ($hasValidUrl -and ($prevJava -eq $exactJava)) { [string]$entry['url'] } else { $null };" ^
-    "            $resolvedChk = if ($hasValidChk -and ($prevJava -eq $exactJava)) { [string]$entry['checksum'].ToLower() } else { $null };" ^
-    "            if (-not $resolvedChk) {" ^
-    "                $casDir = Join-Path $appData 'DiamTek\JVM\cache';" ^
-    "                if (Test-Path -LiteralPath $casDir) {" ^
-    "                    foreach ($cf in (Get-ChildItem -LiteralPath $casDir -Filter ('*' + $exactJava + '*.zip') -File -ErrorAction SilentlyContinue)) {" ^
-    "                        if ($cf.Length -gt 0) { try { $h = (Get-FileHash -LiteralPath $cf.FullName -Algorithm SHA256).Hash.ToLower(); if ($h -ne $emptySha256) { $resolvedChk = $h; break } } catch { Write-Verbose $_.Exception.Message } };" ^
-    "                    };" ^
-    "                };" ^
-    "            };" ^
+    "            $resolvedUrl = $null;" ^
+    "            $resolvedChk = $null;" ^
     "            if (-not $resolvedUrl -or -not $resolvedChk) {" ^
     "                $targetArch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'aarch64' } else { 'x64' };" ^
-    "                $featVer = if ($exactJava -match '^1\.(\d+)') { $matches[1] } elseif ($exactJava -match '^(\d+)') { $matches[1] } else { $exactJava };" ^
+    "                if ($vendorJava -notmatch '(?i)(Adoptium|Temurin)') { throw ('Cannot freeze Java vendor ''' + $vendorJava + ''': no trusted upstream archive resolver is implemented for this vendor. Supply a verified URL and checksum in the lockfile or add a vendor-specific resolver.') };" ^
+    "                $wantedCoreVersion = ([string]$exactJava -split '\+')[0];" ^
+    "                if ($wantedCoreVersion -match '^1\.8\.0_(\d+)') { $wantedCoreVersion = '8.0.' + $matches[1] };" ^
+    "                if ($wantedCoreVersion -notmatch '^(\d+)\.(\d+)\.(\d+)$') { throw ('Cannot safely resolve exact Java release ''' + $exactJava + '''. Expected a numeric major.minor.patch version.') };" ^
+    "                $wantedVersionParts = $wantedCoreVersion -split '\.';" ^
+    "                $nextPatch = ([int]$wantedVersionParts[2]) + 1;" ^
+    "                $upperCoreVersion = $wantedVersionParts[0] + '.' + $wantedVersionParts[1] + '.' + $nextPatch;" ^
+    "                $versionRange = '[' + $wantedCoreVersion + ',' + $upperCoreVersion + ')';" ^
     "                try {" ^
     "                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288;" ^
-    "                    $apiUri = 'https://api.adoptium.net/v3/assets/feature_releases/' + $featVer + '/ga?architecture=' + $targetArch + '&os=windows&image_type=jdk&page_size=10';" ^
+    "                    $apiUri = 'https://api.adoptium.net/v3/assets/version/' + [uri]::EscapeDataString($versionRange) + '?architecture=' + $targetArch + [char]38 + 'os=windows' + [char]38 + 'image_type=jdk' + [char]38 + 'project=jdk' + [char]38 + 'release_type=ga';" ^
     "                    $res = Invoke-RestMethod -Uri $apiUri -TimeoutSec 6 -ErrorAction SilentlyContinue;" ^
     "                    if ($res) {" ^
     "                        foreach ($item in $res) {" ^
-    "                            $itemVer = if ($item.version_data.openjdk_version) { $item.version_data.openjdk_version } elseif ($item.version_data.semver) { $item.version_data.semver } else { '' };" ^
-    "                            if ($itemVer -eq $exactJava -or $itemVer.StartsWith($exactJava) -or $exactJava.StartsWith($itemVer) -or -not $resolvedUrl) {" ^
+    "                            $itemVer = if ($item.version_data.openjdk_version) { [string]$item.version_data.openjdk_version } elseif ($item.version_data.semver) { [string]$item.version_data.semver } else { '' };" ^
+    "                            $itemCoreVersion = ([string]$itemVer -split '\+')[0];" ^
+    "                            if ($itemCoreVersion -eq $wantedCoreVersion) {" ^
     "                                $pkg = if ($item.binaries) { $item.binaries[0].package } elseif ($item.binary) { $item.binary.package } else { $null };" ^
-    "                                if ($pkg -and $pkg.link -and $pkg.link.StartsWith('https://')) {" ^
-    "                                    if (-not $resolvedUrl) { $resolvedUrl = [string]$pkg.link };" ^
-    "                                    if ($pkg.checksum -and -not $resolvedChk) { $resolvedChk = [string]$pkg.checksum.ToLower() };" ^
-    "                                    if ($itemVer -eq $exactJava) { break };" ^
+    "                                if ($pkg -and ([string]$pkg.link) -match '^https://' -and ([string]$pkg.checksum) -match '^[a-fA-F0-9]{64}$') {" ^
+    "                                    $resolvedUrl = [string]$pkg.link;" ^
+    "                                    $resolvedChk = ([string]$pkg.checksum).ToLowerInvariant();" ^
+    "                                    break;" ^
     "                                };" ^
     "                            };" ^
     "                        };" ^
     "                    };" ^
     "                } catch { Write-Verbose $_.Exception.Message };" ^
     "            };" ^
-    "            if (-not $resolvedUrl -or -not ($resolvedUrl -match '^https://') -or -not $resolvedChk -or -not ($resolvedChk -match '^[a-fA-F0-9]{32,128}$') -or $resolvedChk -eq $emptySha256) {" ^
+    "            if (-not $resolvedUrl -or -not ($resolvedUrl -match '^https://') -or -not $resolvedChk -or -not ($resolvedChk -match '^[a-fA-F0-9]{64}$') -or $resolvedChk -eq $emptySha256) {" ^
     "                throw ('Cannot freeze ''java'': unable to resolve distribution archive download URL and trusted checksum for version ''' + $exactJava + '''. Please specify an explicit URL and checksum or ensure network access.');" ^
     "            };" ^
     "            $entry['url'] = $resolvedUrl;" ^
@@ -14521,7 +14521,7 @@ if exist "!TARGET_LOCK_PATH!" (
     "            if (-not $entry['arch']) { $entry['arch'] = 'all' };" ^
     "            if (-not $entry['checksum_type']) { $entry['checksum_type'] = 'sha256' };" ^
     "            $hasValidUrl = ($entry['url'] -and [string]$entry['url'] -match '^https://');" ^
-    "            $hasValidChk = ($entry['checksum'] -and [string]$entry['checksum'] -match '^[a-fA-F0-9]{32,128}$' -and [string]$entry['checksum'] -ne $emptySha256);" ^
+    "            $hasValidChk = (($entry['checksum_type'] -ieq 'sha256' -and ([string]$entry['checksum']) -match '^[a-fA-F0-9]{64}$') -or ($entry['checksum_type'] -ieq 'sha512' -and ([string]$entry['checksum']) -match '^[a-fA-F0-9]{128}$')) -and ([string]$entry['checksum'] -ne $emptySha256);" ^
     "            $keepExisting = ($hasValidUrl -and $hasValidChk -and ($prevVer -eq $exactVer));" ^
     "            if (-not $keepExisting) {" ^
     "                $candUrls = @{" ^
@@ -14534,12 +14534,12 @@ if exist "!TARGET_LOCK_PATH!" (
     "                    'sbt'       = @{ url = ('https://github.com/sbt/sbt/releases/download/v' + $exactVer + '/sbt-' + $exactVer + '.zip'); chkUrl = ('https://github.com/sbt/sbt/releases/download/v' + $exactVer + '/sbt-' + $exactVer + '.zip.sha256'); type = 'sha256' };" ^
     "                    'jbang'     = @{ url = ('https://github.com/jbangdev/jbang/releases/download/v' + $exactVer + '/jbang-' + $exactVer + '.zip'); chkUrl = ('https://github.com/jbangdev/jbang/releases/download/v' + $exactVer + '/jbang-' + $exactVer + '.zip.sha256'); type = 'sha256' };" ^
     "                    'quarkus'   = @{ url = ('https://github.com/quarkusio/quarkus/releases/download/' + $exactVer + '/quarkus-cli-' + $exactVer + '.zip'); chkUrl = ('https://github.com/quarkusio/quarkus/releases/download/' + $exactVer + '/checksums_sha256.txt'); type = 'sha256' };" ^
-    "                    'spring'    = @{ url = ('https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-cli/' + $exactVer + '/spring-boot-cli-' + $exactVer + '-bin.zip'); chkUrl = ('https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-cli/' + $exactVer + '/spring-boot-cli-' + $exactVer + '-bin.zip.sha1'); type = 'sha1' };" ^
+    "                    'spring'    = @{ url = ('https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-cli/' + $exactVer + '/spring-boot-cli-' + $exactVer + '-bin.zip'); chkUrl = ('https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-cli/' + $exactVer + '/spring-boot-cli-' + $exactVer + '-bin.zip.sha256'); type = 'sha256' };" ^
     "                    'micronaut' = @{ url = ('https://github.com/micronaut-projects/micronaut-starter/releases/download/v' + $exactVer + '/micronaut-cli-' + $exactVer + '.zip'); chkUrl = ('https://github.com/micronaut-projects/micronaut-starter/releases/download/v' + $exactVer + '/micronaut-cli-' + $exactVer + '.zip.sha256'); type = 'sha256' };" ^
     "                    'mn'        = @{ url = ('https://github.com/micronaut-projects/micronaut-starter/releases/download/v' + $exactVer + '/micronaut-cli-' + $exactVer + '.zip'); chkUrl = ('https://github.com/micronaut-projects/micronaut-starter/releases/download/v' + $exactVer + '/micronaut-cli-' + $exactVer + '.zip.sha256'); type = 'sha256' };" ^
     "                };" ^
-    "                $resolvedUrl = if ($hasValidUrl -and ($prevVer -eq $exactVer)) { [string]$entry['url'] } elseif ($candUrls.ContainsKey($tName)) { [string]$candUrls[$tName].url } else { $null };" ^
-    "                $resolvedChk = if ($hasValidChk -and ($prevVer -eq $exactVer)) { [string]$entry['checksum'].ToLower() } else { $null };" ^
+    "                $resolvedUrl = if ($candUrls.ContainsKey($tName)) { [string]$candUrls[$tName].url } else { $null };" ^
+    "                $resolvedChk = $null;" ^
     "                $chkType = if ($candUrls.ContainsKey($tName)) { [string]$candUrls[$tName].type } else { 'sha256' };" ^
     "                if (-not $resolvedChk -and $candUrls.ContainsKey($tName) -and $candUrls[$tName].chkUrl) {" ^
     "                    try {" ^
@@ -14551,18 +14551,22 @@ if exist "!TARGET_LOCK_PATH!" (
     "                        $sr = New-Object IO.StreamReader($resp.GetResponseStream());" ^
     "                        $txt = $sr.ReadToEnd();" ^
     "                        $sr.Close(); $resp.Close();" ^
-    "                        if ($txt -match '[0-9a-fA-F]{32,128}') { $resolvedChk = $matches[0].ToLower() };" ^
+    "                        $sumPattern = if ($chkType -eq 'sha512') { '(?<![0-9a-fA-F])([0-9a-fA-F]{128})(?![0-9a-fA-F])' } else { '(?<![0-9a-fA-F])([0-9a-fA-F]{64})(?![0-9a-fA-F])' };" ^
+    "                        $expectedArchiveName = [System.IO.Path]::GetFileName([string]$candUrls[$tName].url);" ^
+    "                        $resolvedSum = $null;" ^
+    "                        foreach ($sumLine in ($txt -split '\r?\n')) {" ^
+    "                            if ($sumLine -match ([regex]::Escape($expectedArchiveName)) -and $sumLine -match $sumPattern) { $resolvedSum = $matches[1]; break };" ^
+    "                        };" ^
+    "                        if ($resolvedSum) {" ^
+    "                            $resolvedChk = ([string]$resolvedSum).ToLowerInvariant();" ^
+    "                        } else {" ^
+    "                            $sumMatches = [regex]::Matches($txt, $sumPattern);" ^
+    "                            if ($sumMatches.Count -eq 1) { $resolvedChk = $sumMatches[0].Groups[1].Value.ToLowerInvariant() };" ^
+    "                        };" ^
     "                    } catch { Write-Verbose $_.Exception.Message };" ^
     "                };" ^
-    "                if (-not $resolvedChk) {" ^
-    "                    $casDir = Join-Path $appData 'DiamTek\JVM\cache';" ^
-    "                    if (Test-Path -LiteralPath $casDir) {" ^
-    "                        foreach ($cf in (Get-ChildItem -LiteralPath $casDir -Filter ('*' + $exactVer + '*.zip') -File -ErrorAction SilentlyContinue)) {" ^
-    "                            if ($cf.Length -gt 0) { try { $h = (Get-FileHash -LiteralPath $cf.FullName -Algorithm SHA256).Hash.ToLower(); if ($h -ne $emptySha256) { $resolvedChk = $h; $chkType = 'sha256'; break } } catch { Write-Verbose $_.Exception.Message } };" ^
-    "                        };" ^
-    "                    };" ^
-    "                };" ^
-    "                if (-not $resolvedUrl -or -not ($resolvedUrl -match '^https://') -or -not $resolvedChk -or -not ($resolvedChk -match '^[a-fA-F0-9]{32,128}$') -or $resolvedChk -eq $emptySha256) {" ^
+    "                $validResolvedChecksum = if ($chkType -eq 'sha512') { [string]$resolvedChk -match '^[a-fA-F0-9]{128}$' } else { [string]$resolvedChk -match '^[a-fA-F0-9]{64}$' };" ^
+    "                if (-not $resolvedUrl -or -not ($resolvedUrl -match '^https://') -or -not $validResolvedChecksum -or $resolvedChk -eq $emptySha256) {" ^
     "                    throw ('Cannot freeze ''' + $tName + ''': unable to resolve distribution archive download URL and trusted checksum for version ''' + $exactVer + '''.');" ^
     "                };" ^
     "                $entry['url'] = $resolvedUrl;" ^
