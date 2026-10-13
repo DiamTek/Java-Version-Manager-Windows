@@ -341,6 +341,9 @@ function Run-TestCase {
     $snapSkipChecksum = $env:SKIP_CHECKSUM
     $snapEAP          = $ErrorActionPreference
     $snapLocation     = (Get-Location).Path
+    $regEnvKeySnap    = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $false)
+    $snapRegUserPath  = try { if ($regEnvKeySnap) { $regEnvKeySnap.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } else { $null } } finally { if ($regEnvKeySnap) { $regEnvKeySnap.Close() } }
+    $snapRegJavaHome  = try { (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'JAVA_HOME' -ErrorAction SilentlyContinue).JAVA_HOME } catch { $null }
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
@@ -394,6 +397,20 @@ function Run-TestCase {
         $env:QUERY_PATH     = $snapQueryPath
         $env:SKIP_CHECKSUM  = $snapSkipChecksum
         $ErrorActionPreference = $snapEAP
+        if ($null -ne $snapRegUserPath) {
+            $regEnvKeyRest = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+            try {
+                $curRegPath = $regEnvKeyRest.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                if ($curRegPath -ne $snapRegUserPath) {
+                    $regEnvKeyRest.SetValue('Path', $snapRegUserPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
+                }
+            } finally {
+                if ($regEnvKeyRest) { $regEnvKeyRest.Close() }
+            }
+        }
+        if ($null -ne $snapRegJavaHome) {
+            Set-ItemProperty -Path 'HKCU:\Environment' -Name 'JAVA_HOME' -Value $snapRegJavaHome -Type String -ErrorAction SilentlyContinue
+        }
         if ($snapLocation -and (Test-Path -LiteralPath $snapLocation)) {
             Set-Location -LiteralPath $snapLocation
         }
@@ -461,7 +478,7 @@ New-Item -ItemType Directory -Path (Join-Path $FakeLocalAppData "DiamTek\JVM") -
 $FakeJdkDir = Join-Path $SandboxRoot "TargetJDK_21"
 New-Item -ItemType Directory -Path (Join-Path $FakeJdkDir "bin") -Force | Out-Null
 Set-Content -Path (Join-Path $FakeJdkDir "bin\java.exe") -Value "MZ_FAKE_JAVA_BINARY"
-Set-Content -Path (Join-Path $FakeJdkDir "release") -Value "JAVA_VERSION=21.0.2"
+Set-Content -Path (Join-Path $FakeJdkDir "release") -Value "JAVA_VERSION=21.0.2`r`nIMPLEMENTOR=`"Eclipse Adoptium`""
 Set-Content -Path (Join-Path $FakeJdkDir "canary.txt") -Value "CRITICAL_SENTINEL_DO_NOT_DELETE"
 
 Write-Host ""
@@ -5234,8 +5251,8 @@ version = "3.9.11"
         $prevPol = $env:JVM_POLICY_FILE
         try {
             $env:JVM_POLICY_FILE = ""
-            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" policy check" -NoNewWindow -PassThru -Wait
-            Assert-Equals 0 $p.ExitCode "jvm policy check must exit 0 in developer mode"
+            $null = & cmd.exe /c "call `"$JvmBat`" policy check" 2>&1
+            Assert-Equals 0 $LASTEXITCODE "jvm policy check must exit 0 in developer mode"
         } finally {
             $env:JVM_POLICY_FILE = $prevPol
         }
@@ -5574,7 +5591,7 @@ allow_skip_checksum = false
             [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
 
             $null = & cmd.exe /c "call `"$JvmBat`" lock --sign" 2>&1
-            Assert-Equals $LASTEXITCODE 0 "jvm lock --sign must exit 0"s
+            Assert-Equals $LASTEXITCODE 0 "jvm lock --sign must exit 0"
             $sigPath = Join-Path $testDir ".jvm.lock.sig"
             Assert-True (Test-Path -LiteralPath $sigPath) "Signature file .jvm.lock.sig must exist"
             $sigData = Get-Content -LiteralPath $sigPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -5813,8 +5830,8 @@ allow_skip_checksum = false
             $env:JAVA_HOME = $fakeJavaHome
 
             # Run freeze --dry-run
-            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" freeze --dry-run" -NoNewWindow -PassThru -Wait
-            Assert-Equals 0 $p.ExitCode "jvm freeze --dry-run must exit 0"
+            $null = & cmd.exe /c "call `"$JvmBat`" freeze --dry-run" 2>&1
+            Assert-Equals 0 $LASTEXITCODE "jvm freeze --dry-run must exit 0"
 
             # Check that freeze preserves metadata and does not discard url/arch/checksum_type
             $lockData = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -5948,10 +5965,10 @@ allow_skip_checksum = false
 
     # Test 295: Cross-shell environment integrity: CMD and PowerShell produce consistent exit codes (CWE-252)
     Run-TestCase "ShellErgonomics" "Cross-shell environment integrity: CMD and PowerShell produce consistent exit codes (CWE-252)" {
-        $pCmd = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" --help" -NoNewWindow -PassThru -Wait
-        Assert-Equals 0 $pCmd.ExitCode "CMD execution must exit 0"
-        $pPs = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-Command", "& '$JvmBat' --help" -NoNewWindow -PassThru -Wait
-        Assert-Equals 0 $pPs.ExitCode "PowerShell execution must exit 0"
+        $null = & cmd.exe /c "call `"$JvmBat`" --help" 2>&1
+        Assert-Equals 0 $LASTEXITCODE "CMD execution must exit 0"
+        $null = & powershell.exe -NoProfile -Command "& '$JvmBat' --help" 2>&1
+        Assert-Equals 0 $LASTEXITCODE "PowerShell execution must exit 0"
     }
 
     # ==========================================================================
@@ -5972,18 +5989,29 @@ allow_skip_checksum = false
 
     # Test 297: CLI resilience against poison characters and batch control metacharacters (&, |, ^, <, >, %, !) (CWE-78 / CWE-20)
     Run-TestCase "AdversarialMutation" "CLI resilience against poison characters and batch control metacharacters (&, |, ^, <, >, %, !) (CWE-78 / CWE-20)" {
-        $poisonArgs = @("21&calc.exe", "21|dir", "21^echo", "21<nul", "21>out.txt", "21%TEMP%", "21!PATH!")
-        foreach ($arg in $poisonArgs) {
-            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" install `"$arg`"" -NoNewWindow -PassThru -Wait
-            Assert-Equals 1 $p.ExitCode "Poison argument '$arg' must exit with code 1 without execution"
+        $testRunnerBat = Join-Path $SandboxRoot "test_poison_297.bat"
+        $poisonArgs = @("21&calc.exe", "21|dir", "21^^echo", "21<nul", "21>out.txt", "21%%TEMP%%", "21!PATH!")
+        try {
+            foreach ($arg in $poisonArgs) {
+                # Write an isolated runner batch file to pass literal raw characters without cmd.exe /c expanding or redirecting streams
+                $batContent = "@echo off`r`n@call `"$JvmBat`" install `"$arg`" >nul 2>&1`r`n@exit /b %errorlevel%`r`n"
+                [System.IO.File]::WriteAllText($testRunnerBat, $batContent, [System.Text.Encoding]::ASCII)
+
+                $null = & cmd.exe /c "`"$testRunnerBat`"" 2>&1
+                Assert-Equals 1 $LASTEXITCODE "Poison argument '$arg' must exit with code 1 without execution"
+            }
+        } finally {
+            if (Test-Path -LiteralPath $testRunnerBat) {
+                Remove-Item -LiteralPath $testRunnerBat -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 
     # Test 298: String buffer boundary fuzzing: 1024-character oversized argument rejected without crash (CWE-400 / CWE-20)
     Run-TestCase "AdversarialMutation" "String buffer boundary fuzzing: 1024-character oversized argument rejected without crash (CWE-400 / CWE-20)" {
         $giantArg = "A" * 1024
-        $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" install `"$giantArg`"" -NoNewWindow -PassThru -Wait
-        Assert-Equals 1 $p.ExitCode "Oversized 1024-character argument must exit 1 cleanly"
+        $null = & cmd.exe /c "call `"$JvmBat`" install `"$giantArg`"" 2>&1
+        Assert-Equals 1 $LASTEXITCODE "Oversized 1024-character argument must exit 1 cleanly"
     }
 
     # Test 299: Incomplete list-based vendor input validation: rejects arbitrary non-allowlisted vendor tokens (CWE-184 / CWE-20)
@@ -6079,11 +6107,24 @@ allow_skip_checksum = false
 
     # Test 304: Atomic state cleanup: temporary files cleaned up on early exit and error paths (CWE-459 / CWE-460)
     Run-TestCase "AdversarialMutation" "Atomic state cleanup: temporary files cleaned up on early exit and error paths (CWE-459 / CWE-460)" {
-        $tempDir = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\temp"
-        $beforePs1 = @(Get-ChildItem -LiteralPath $tempDir -Filter "jvm_*.ps1" -File -ErrorAction SilentlyContinue)
-        & cmd.exe /c "call `"$JvmBat`" freeze --dry-run" > $null 2>&1
-        $afterPs1 = @(Get-ChildItem -LiteralPath $tempDir -Filter "jvm_*.ps1" -File -ErrorAction SilentlyContinue)
-        Assert-Equals $beforePs1.Count $afterPs1.Count "Temporary script files must be 100% cleaned up after command execution"
+        $testDir = Join-Path $userTemp ("jvm_test_304_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        try {
+            Set-Location $testDir
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            $initialContent = '{"version":1,"tools":{"java":{"version":"21.0.2","vendor":"Eclipse Adoptium","arch":"windows-x64","url":"https://example.invalid/jdk.zip","checksum_type":"sha256","checksum":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}}'
+            [System.IO.File]::WriteAllText($lockPath, $initialContent, [System.Text.UTF8Encoding]::new($false))
+
+            $tempDir = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\temp"
+            $beforePs1 = @(Get-ChildItem -LiteralPath $tempDir -Filter "jvm_*.ps1" -File -ErrorAction SilentlyContinue)
+            & cmd.exe /c "set `"JAVA_HOME=$FakeJdkDir`" && call `"$JvmBat`" freeze --dry-run" > $null 2>&1
+            $afterPs1 = @(Get-ChildItem -LiteralPath $tempDir -Filter "jvm_*.ps1" -File -ErrorAction SilentlyContinue)
+            Assert-Equals $beforePs1.Count $afterPs1.Count "Temporary script files must be 100% cleaned up after command execution"
+        } finally {
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
+        }
     }
 
     # Test 305: Process termination mid-flight resilience: lockfile remains uncorrupted if freeze is simulated with dry-run (CWE-362 / CWE-460)
@@ -6094,11 +6135,11 @@ allow_skip_checksum = false
         try {
             Set-Location $testDir
             $lockPath = Join-Path $testDir ".jvm.lock"
-            $initialContent = '{"version":1,"tools":{"java":{"version":"17","vendor":"Adoptium"}}}'
+            $initialContent = '{"version":1,"tools":{"java":{"version":"21.0.2","vendor":"Eclipse Adoptium","arch":"windows-x64","url":"https://example.invalid/jdk.zip","checksum_type":"sha256","checksum":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}}'
             [System.IO.File]::WriteAllText($lockPath, $initialContent, [System.Text.UTF8Encoding]::new($false))
             $initialBytes = [System.IO.File]::ReadAllBytes($lockPath)
 
-            & cmd.exe /c "call `"$JvmBat`" freeze --dry-run" > $null 2>&1
+            & cmd.exe /c "set `"JAVA_HOME=$FakeJdkDir`" && call `"$JvmBat`" freeze --dry-run" > $null 2>&1
             $finalBytes = [System.IO.File]::ReadAllBytes($lockPath)
             Assert-Equals $initialBytes.Length $finalBytes.Length "Lockfile byte length must be completely unchanged"
         } finally {
@@ -6124,7 +6165,7 @@ allow_skip_checksum = false
             Assert-Contains $out2 "jvm install - Command Line Reference" "Must show card for jvm install --help"
 
             # 3. jvm doctor /?
-            $out3 = & cmd.exe /c "call `"$JvmBat`" doctor /?" 2>&1 | Out-String
+            $out3 = & cmd.exe /c "`"$JvmBat`" doctor /?" 2>&1 | Out-String
             Assert-Equals 0 $LASTEXITCODE "jvm doctor /? must exit with 0"
             Assert-Contains $out3 "jvm doctor - Command Line Reference" "Must show card for jvm doctor /?"
 
@@ -6410,23 +6451,34 @@ allow_skip_checksum = false
 
     # Test 316: jvm bundle create, inspect, and list portable environment container workflows (CWE-20 / CWE-354)
     Run-TestCase "Portability" "jvm bundle create, inspect, and list portable environment container workflows (CWE-20 / CWE-354)" {
+        Add-Type -AssemblyName System.IO.Compression
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
         $testDir = Join-Path $userTemp ("jvm_test_316_" + [Guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $testDir -Force | Out-Null
         $bundleFile = Join-Path $testDir "env_export.jvmbundle"
+        $origDir = (Get-Location).Path
         $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $prevLocalAppData = $env:LOCALAPPDATA
+        $prevJavaHome = $env:JAVA_HOME
         try {
+            $env:LOCALAPPDATA = $FakeLocalAppData
+            $env:JAVA_HOME = $FakeJdkDir
+            Set-Location $testDir
             $bCreate = & cmd.exe /c "call `"$JvmBat`" bundle create `"$bundleFile`"" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm bundle create must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm bundle create failed: $bCreate"
             Assert-True (Test-Path -LiteralPath $bundleFile) "Bundle container file must exist"
             Assert-True ((Get-Item -LiteralPath $bundleFile).Length -gt 0) "Bundle file must have non-zero size"
 
             $bInspect = & cmd.exe /c "call `"$JvmBat`" bundle inspect `"$bundleFile`"" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm bundle inspect must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm bundle inspect failed: $bInspect"
             Assert-Contains $bInspect "BUNDLE MANIFEST" "Bundle inspect must display manifest table"
 
             $bList = & cmd.exe /c "call `"$JvmBat`" bundle list" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm bundle list must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm bundle list failed: $bList"
         } finally {
+            $env:LOCALAPPDATA = $prevLocalAppData
+            $env:JAVA_HOME = $prevJavaHome
+            Set-Location $origDir
             $ErrorActionPreference = $prevEAP
             if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
         }
@@ -6455,6 +6507,8 @@ allow_skip_checksum = false
 
     # Test 318: jvm bundle install ZipSlip containment rejects malicious archives with directory traversal entries (CWE-22)
     Run-TestCase "Portability" "jvm bundle install ZipSlip containment rejects malicious archives with directory traversal entries (CWE-22)" {
+        Add-Type -AssemblyName System.IO.Compression
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
         $testDir = Join-Path $userTemp ("jvm_test_318_" + [Guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $testDir -Force | Out-Null
         $zipslipBundle = Join-Path $testDir "zipslip.jvmbundle"
@@ -6533,14 +6587,18 @@ allow_skip_checksum = false
         New-Item -ItemType Directory -Path $testDir -Force | Out-Null
         $distroDir = Join-Path $testDir "distro_src"
         $targetInstall = Join-Path $testDir "target_offline"
-        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        New-Item -ItemType Directory -Path $targetInstall -Force | Out-Null
+        $prevEAP = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $envKeySnap = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $false)
+        $origUserPathRaw = try { $envKeySnap.GetValue('Path',$null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } finally { if ($envKeySnap) {$envKeySnap.Close() } }
         try {
             # 1. Build a local distro
-            & cmd.exe /c "call `"$JvmBat`" distro create --out `"$distroDir`"" > $null 2>&1
+            $null = & cmd.exe /c "call `"$JvmBat`" distro create --out `"$distroDir`"" > $null 2>&1
 
             # 2. Run install.ps1 with -Offline and -DistroDir pointing to local distro
             $installScript = Join-Path $RepoRoot "install.ps1"
-            $p = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$installScript`"", "-Offline", "-DistroDir", "`"$distroDir`"", "-TargetDir", "`"$targetInstall`"", "-Quiet" -NoNewWindow -PassThru -Wait
+            $p = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$installScript`"", "-Offline", "-DistroDir", "`"$distroDir`"", "-TargetDir", "`"$targetInstall`"", "-Quiet" -NoNewWindow -PassThru -Wait -RedirectStandardOutput (Join-Path $testDir "install_out.log") -RedirectStandardError (Join-Path $testDir "install_err.log")
             Assert-Equals 0 $p.ExitCode "install.ps1 -Offline -DistroDir must exit 0"
 
             # 3. Verify installed payload
@@ -6552,6 +6610,10 @@ allow_skip_checksum = false
                 Assert-True ([bool]$cfgJson.offline_mode) "config.json must have offline_mode set to true"
             }
         } finally {
+            if ($null -ne $origUserPathRaw) {
+                $envKeyRestore = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment',$true)
+                try { $envKeyRestore.SetValue('Path',$origUserPathRaw, [Microsoft.Win32.RegistryValueKind]::ExpandString) } finally { if ($envKeyRestore) {$envKeyRestore.Close() } }
+            }
             $ErrorActionPreference = $prevEAP
             if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
         }
@@ -6559,7 +6621,8 @@ allow_skip_checksum = false
 
     # Test 322: Universal structured JSON API envelope compliance across P4 profile, snapshot, bundle, and distro commands (CWE-20 / CWE-754)
     Run-TestCase "Portability" "Universal structured JSON API envelope compliance across P4 profile, snapshot, bundle, and distro commands (CWE-20 / CWE-754)" {
-        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        $prevEAP = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
         try {
             $commandsToTest = @(
                 "profile list --json",

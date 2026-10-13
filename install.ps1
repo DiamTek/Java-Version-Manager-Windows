@@ -492,7 +492,7 @@ try {
     # Verify jvm.bat SHA256 integrity on the staged file
     $actualJvmHash = Get-FileSha256 -Path $stageBat
     if ($shaHashMap.ContainsKey("jvm.bat")) {
-        $expectedJvmHash = $shaHashMap["jvm.bat"]
+        $expectedJvmHash = $shaHashMap["jvm.bat"] -replace '^sha256:', ''
         if ($actualJvmHash -ne $expectedJvmHash) {
             Write-Host ""
             Write-Host "[ ERROR  ] Cryptographic integrity check failed for jvm.bat!" -ForegroundColor Red
@@ -634,7 +634,7 @@ try {
                     $verifiedCf = $true
                     if ($shaHashMap.ContainsKey($baseName)) {
                         $actualCfHash = Get-FileSha256 -Path $stageCf
-                        $expectedCfHash = $shaHashMap[$baseName]
+                        $expectedCfHash = $shaHashMap[$baseName] -replace '^sha256:', ''
                         if ($actualCfHash -ne $expectedCfHash) {
                             $verifiedCf = $false
                             Write-Host ""
