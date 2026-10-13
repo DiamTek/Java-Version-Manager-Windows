@@ -344,7 +344,7 @@ function Run-TestCase {
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        & $TestLogic
+        & { & $TestLogic } 6>$null | Out-Null
         $sw.Stop()
         $elapsed = $sw.ElapsedMilliseconds
         $script:GlobalPassed++
@@ -3207,7 +3207,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         foreach ($reqCwe in @('CWE-184', 'CWE-209', 'CWE-252', 'CWE-362', 'CWE-390', 'CWE-459', 'CWE-460', 'CWE-674', 'CWE-754', 'CWE-755')) {
             Assert-True ($script:CweCatalog.Contains($reqCwe)) "CweCatalog must track Error Management & Concurrency CWE '$reqCwe'"
         }
-        Assert-Equals 40 $script:CweCatalog.Count "CweCatalog must track all 40 CWE classes"
+        Assert-Equals $script:CweCatalog.Count 41 "CweCatalog must track all 41 CWE classes"
     }
 
     # Test 161: ShowDynamicMenu CLI subcommands (doctor, open, exec, hook, clean) and DO_PIN_WRITE propagate exit code 1 across setlocal boundaries (CWE-252 / CWE-754)
@@ -5443,8 +5443,8 @@ allow_skip_checksum = false
         $origDir = (Get-Location).Path
         try {
             Set-Location $testDir
-            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" freeze --dry-run" -NoNewWindow -PassThru -Wait
-            Assert-Equals 0 $p.ExitCode "jvm freeze --dry-run must exit 0"
+            $null = & cmd.exe /c "call `"$JvmBat`" freeze --dry-run" 2>&1
+            Assert-Equals $LASTEXITCODE 0 "jvm freeze --dry-run must exit 0"
             $lockPath = Join-Path $testDir ".jvm.lock"
             Assert-True (-not (Test-Path -LiteralPath $lockPath)) "Lockfile must NOT be created under --dry-run"
         } finally {
@@ -5460,8 +5460,8 @@ allow_skip_checksum = false
         $origDir = (Get-Location).Path
         try {
             Set-Location $testDir
-            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" freeze" -NoNewWindow -PassThru -Wait
-            Assert-Equals 0 $p.ExitCode "jvm freeze must exit 0"
+            $null = & cmd.exe /c "call `"$JvmBat`" freeze" 2>&1
+            Assert-Equals $LASTEXITCODE 0 "jvm freeze must exit 0"
             $lockPath = Join-Path $testDir ".jvm.lock"
             Assert-True (Test-Path -LiteralPath $lockPath) "Lockfile must be created by jvm freeze"
             $data = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -5529,8 +5529,8 @@ allow_skip_checksum = false
             $lockContent = [ordered]@{ version = 1; tools = [ordered]@{ java = [ordered]@{ version = "21.0.6+7"; vendor = "Adoptium" } } } | ConvertTo-Json
             [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
 
-            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" thaw --dry-run" -NoNewWindow -PassThru -Wait
-            Assert-Equals 0 $p.ExitCode "jvm thaw --dry-run must exit 0"
+            $null = & cmd.exe /c "call `"$JvmBat`" thaw --dry-run" 2>&1
+            Assert-Equals $LASTEXITCODE 0 "jvm thaw --dry-run must exit 0"
             $checkData = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
             Assert-Equals "21.0.6+7" $checkData.tools.java.version "Lockfile version must NOT be modified under --dry-run"
         } finally {
@@ -5550,8 +5550,8 @@ allow_skip_checksum = false
             $lockContent = [ordered]@{ version = 1; tools = [ordered]@{ java = [ordered]@{ version = "21.0.6+7"; vendor = "Adoptium" } } } | ConvertTo-Json
             [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
 
-            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" thaw" -NoNewWindow -PassThru -Wait
-            Assert-Equals 0 $p.ExitCode "jvm thaw must exit 0"
+            $null = & cmd.exe /c "call `"$JvmBat`" thaw" 2>&1
+            Assert-Equals $LASTEXITCODE 0 "jvm thaw must exit 0"
             $checkData = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
             Assert-Equals "21" $checkData.tools.java.version "Lockfile version must be relaxed to major track '21'"
         } finally {
@@ -5573,8 +5573,8 @@ allow_skip_checksum = false
             $lockContent = [ordered]@{ version = 1; tools = [ordered]@{ java = [ordered]@{ version = "21.0.6+7"; vendor = "Adoptium" } } } | ConvertTo-Json
             [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
 
-            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" lock --sign" -NoNewWindow -PassThru -Wait
-            Assert-Equals 0 $p.ExitCode "jvm lock --sign must exit 0"
+            $null = & cmd.exe /c "call `"$JvmBat`" lock --sign" 2>&1
+            Assert-Equals $LASTEXITCODE 0 "jvm lock --sign must exit 0"s
             $sigPath = Join-Path $testDir ".jvm.lock.sig"
             Assert-True (Test-Path -LiteralPath $sigPath) "Signature file .jvm.lock.sig must exist"
             $sigData = Get-Content -LiteralPath $sigPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -5601,8 +5601,8 @@ allow_skip_checksum = false
             [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
 
             & cmd.exe /c "call `"$JvmBat`" lock --sign" > $null 2>&1
-            $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "call `"$JvmBat`" lock --verify" -NoNewWindow -PassThru -Wait
-            Assert-Equals 0 $p.ExitCode "jvm lock --verify on unmodified file must exit 0"
+            $null = & cmd.exe /c "call `"$JvmBat`" lock --verify" 2>&1
+            Assert-Equals $LASTEXITCODE 0 "jvm lock --verify on unmodified file must exit 0"
         } finally {
             $env:JVM_LOCK_SECRET = $prevSec
             Set-Location $origDir

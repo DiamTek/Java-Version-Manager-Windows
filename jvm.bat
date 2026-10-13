@@ -56,7 +56,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261013.156"
+set "JVM_BUILD=20261013.157"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" set "HELP_TOPIC=%~2" & goto :EARLY_HELP
@@ -64,18 +64,19 @@ if /i "%~1"=="--help" set "HELP_TOPIC=%~2" & goto :EARLY_HELP
 if /i "%~1"=="-h" set "HELP_TOPIC=%~2" & goto :EARLY_HELP
 if "%~1"=="/?" set "HELP_TOPIC=%~2" & goto :EARLY_HELP
 
-rem Allow early version queries to display without initializing host directories
-if /i "%~1"=="version" goto :EARLY_VERSION
-if /i "%~1"=="--version" goto :EARLY_VERSION
-if /i "%~1"=="-v" goto :EARLY_VERSION
-
 rem Verify host environment directory existence before modifying host state
 for %%S in ("%LOCALAPPDATA%") do set "SAFE_LOCALAPPDATA=%%~fsS"
 if not defined SAFE_LOCALAPPDATA set "SAFE_LOCALAPPDATA=%LOCALAPPDATA%"
 set "JVM_DIR=%SAFE_LOCALAPPDATA%\DiamTek\JVM"
-if not exist "%JVM_DIR%\temp" mkdir "%JVM_DIR%\temp" >nul 2>&1
 for %%S in ("%JVM_DIR%\temp") do set "SAFE_SECURE_TEMP=%%~fsS"
 if defined SAFE_SECURE_TEMP ( set "JVM_SECURE_TEMP=%SAFE_SECURE_TEMP%" ) else ( set "JVM_SECURE_TEMP=%JVM_DIR%\temp" )
+call :EnsureSecureTemp
+if errorlevel 1 exit /b 1
+
+rem Allow early version queries to display
+if /i "%~1"=="version" goto :EARLY_VERSION
+if /i "%~1"=="--version" goto :EARLY_VERSION
+if /i "%~1"=="-v" goto :EARLY_VERSION
 
 if not exist "%JVM_DIR%" (
     if defined JVM_NONINTERACTIVE goto :AUTO_INIT_HOST
@@ -7771,6 +7772,7 @@ exit /b 0
 :Card_install
 echo.
 echo %cCYAN%================================================================================%cRESET%
+echo   %cWHITE%jvm install - Command Line Reference%cRESET%
 echo   %cWHITE%jvm install - Distribution Installer and Dependency Resolver%cRESET%
 echo %cCYAN%================================================================================%cRESET%
 echo.
@@ -8446,7 +8448,7 @@ set "_LJJ_RES=null"
 if defined RESOLVED_JAVA_HOME (
     set "_TMP_R=!RESOLVED_JAVA_HOME:\=\\!"
     set "_TMP_R=!_TMP_R:"=!"
-    set "_LJJ_RES=\"!_TMP_R!\""
+    set "_LJJ_RES="!_TMP_R!""
 )
 echo {"ok":true,"command":"list","candidate":"java","resolved":!_LJJ_RES!,"changed":false,"installed_count":!JDK_COUNT!,"installed_jdks":[!_LJJ_JDKS!]}
 exit /b 0
@@ -8602,7 +8604,7 @@ if "%OUTPUT_JSON%"=="1" (
     set "JSON_ACTIVE=false"
     if defined CURR_JAVA_BIN set "JSON_ACTIVE=true"
     set "JSON_RES_STR=null"
-    if defined CURR_JAVA_VER set "JSON_RES_STR=\"!CURR_JAVA_VER!\""
+    if defined CURR_JAVA_VER set "JSON_RES_STR="!CURR_JAVA_VER!""
 
     echo {"ok":!JSON_ACTIVE!,"command":"current","candidate":"java","resolved":!JSON_RES_STR!,"changed":false,"active":!JSON_ACTIVE!,"version":"!CURR_JAVA_VER!","vendor":"!CURR_JAVA_VENDOR!","java_home":"!JSON_JH!","binary":"!JSON_BIN!","mode":"!SWITCH_MODE!","channel":"!UPDATE_CHANNEL!","junction_target":"!JSON_JT!"}
     exit /b 0
