@@ -6270,7 +6270,7 @@ allow_skip_checksum = false
             )
 
             foreach ($cmdStr in $commandsToTest) {
-                $rawOut = & cmd.exe /c "call `"$JvmBat`" $cmdStr" 2>&1 | Out-Null  | Out-String
+                $rawOut = & cmd.exe /c "call `"$JvmBat`" $cmdStr" 2>&1 | Out-String
                 $jsonLine = $rawOut.Trim()
                 if ($jsonLine -match '(\{.*\})') {
                     $jsonLine = $matches[1]
@@ -6678,7 +6678,7 @@ allow_skip_checksum = false
             )
 
             foreach ($cmdStr in $commandsToTest) {
-                $rawOut = & cmd.exe /c "call `"$JvmBat`" $cmdStr" 2>&1 | Out-Null  | Out-String
+                $rawOut = & cmd.exe /c "call `"$JvmBat`" $cmdStr" 2>&1 | Out-String
                 $jsonLine = $rawOut.Trim()
                 if ($jsonLine -match '(\{.*\})') {
                     $jsonLine = $matches[1]
