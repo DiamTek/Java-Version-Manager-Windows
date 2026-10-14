@@ -205,9 +205,14 @@ $normJvmLocations = @($jvmLocations | ForEach-Object { $_.TrimEnd('\', '/') } | 
 
 function Test-IsJvmPath([string]$p) {
     if (-not $p) { return $false }
-    $cleanP = $p.Trim().TrimEnd('\', '/')
+    $expanded = [System.Environment]::ExpandEnvironmentVariables($p)
+    $cleanP = $expanded.Trim().TrimEnd('\', '/')
     foreach ($loc in $normJvmLocations) {
-        if ([string]::Equals($cleanP, $loc, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $expandedLoc = [System.Environment]::ExpandEnvironmentVariables($loc)
+        $cleanLoc = $expandedLoc.Trim().TrimEnd('\', '/')
+        if ([string]::Equals($cleanP, $cleanLoc, [System.StringComparison]::OrdinalIgnoreCase) -or
+            $cleanP.IndexOf("DiamTek\JVM", [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+            $cleanP.IndexOf("JavaVersionManager", [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
             return $true
         }
     }

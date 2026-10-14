@@ -57,7 +57,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261014.161"
+set "JVM_BUILD=20261014.162"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" set "HELP_TOPIC=%~2" & goto :EARLY_HELP
@@ -14108,7 +14108,7 @@ rem ============================================================
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Generating Diagnostic Issue Bundle ^(jvm-issue-bundle.zip^)...
 set "ISSUE_ZIP=%CD%\jvm-issue-bundle.zip"
-"%PS_BIN%" -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = $env:ISSUE_ZIP; $self = if ($env:SCRIPT_PATH -and (Test-Path -LiteralPath $env:SCRIPT_PATH)) { $env:SCRIPT_PATH } else { 'jvm.bat' }; $tmp = Join-Path $env:TEMP ('jvm_issue_' + [Guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $tmp -Force | Out-Null; & $self report > $null 2>&1; if (Test-Path 'jvm-report.txt') { Move-Item -LiteralPath 'jvm-report.txt' -Destination (Join-Path $tmp 'jvm-report.txt') -Force }; $cfg = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\config.json'; if (Test-Path -LiteralPath $cfg) { Copy-Item -LiteralPath $cfg -Destination (Join-Path $tmp 'config.json') -Force }; $own = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\ownership.json'; if (Test-Path -LiteralPath $own) { Copy-Item -LiteralPath $own -Destination (Join-Path $tmp 'ownership.json') -Force }; if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($tmp, $zip); Remove-Item -LiteralPath $tmp -Recurse -Force; Write-Host ('[   OK   ] Issue bundle generated: ' + $zip) -ForegroundColor Green; Write-Host '         Attach this file when submitting issues on GitHub.' -ForegroundColor Cyan"
+"%PS_BIN%" -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = $env:ISSUE_ZIP; $self = if ($env:SCRIPT_PATH -and (Test-Path -LiteralPath $env:SCRIPT_PATH)) { $env:SCRIPT_PATH } else { 'jvm.bat' }; $tmp = Join-Path $env:TEMP ('jvm_issue_' + [Guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $tmp -Force | Out-Null; & $self report 2>&1 | Out-Null; if (Test-Path 'jvm-report.txt') { Move-Item -LiteralPath 'jvm-report.txt' -Destination (Join-Path $tmp 'jvm-report.txt') -Force }; $cfg = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\config.json'; if (Test-Path -LiteralPath $cfg) { Copy-Item -LiteralPath $cfg -Destination (Join-Path $tmp 'config.json') -Force }; $own = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\ownership.json'; if (Test-Path -LiteralPath $own) { Copy-Item -LiteralPath $own -Destination (Join-Path $tmp 'ownership.json') -Force }; if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($tmp, $zip); Remove-Item -LiteralPath $tmp -Recurse -Force; Write-Host ('[   OK   ] Issue bundle generated: ' + $zip) -ForegroundColor Green; Write-Host '         Attach this file when submitting issues on GitHub.' -ForegroundColor Cyan"
 exit /b 0
 
 rem ============================================================
@@ -14118,7 +14118,7 @@ rem ============================================================
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Generating Complete Support Diagnostics Bundle...
 set "SUPP_ZIP=%CD%\jvm-support-bundle.zip"
-"%PS_BIN%" -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = $env:SUPP_ZIP; $self = if ($env:SCRIPT_PATH -and (Test-Path -LiteralPath $env:SCRIPT_PATH)) { $env:SCRIPT_PATH } else { 'jvm.bat' }; $tmp = Join-Path $env:TEMP ('jvm_support_' + [Guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $tmp -Force | Out-Null; & $self report > $null 2>&1; if (Test-Path 'jvm-report.txt') { Move-Item -LiteralPath 'jvm-report.txt' -Destination (Join-Path $tmp 'report.txt') -Force }; & $self doctor > (Join-Path $tmp 'doctor-output.txt') 2>&1; $cfg = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\config.json'; if (Test-Path -LiteralPath $cfg) { Copy-Item -LiteralPath $cfg -Destination (Join-Path $tmp 'config.json') -Force }; if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($tmp, $zip); Remove-Item -LiteralPath $tmp -Recurse -Force; Write-Host ('[   OK   ] Support bundle created: ' + $zip) -ForegroundColor Green"
+"%PS_BIN%" -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = $env:SUPP_ZIP; $self = if ($env:SCRIPT_PATH -and (Test-Path -LiteralPath $env:SCRIPT_PATH)) { $env:SCRIPT_PATH } else { 'jvm.bat' }; $tmp = Join-Path $env:TEMP ('jvm_support_' + [Guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $tmp -Force | Out-Null; & $self report 2>&1 | Out-Null; if (Test-Path 'jvm-report.txt') { Move-Item -LiteralPath 'jvm-report.txt' -Destination (Join-Path $tmp 'report.txt') -Force }; & $self doctor > (Join-Path $tmp 'doctor-output.txt') 2>&1; $cfg = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\config.json'; if (Test-Path -LiteralPath $cfg) { Copy-Item -LiteralPath $cfg -Destination (Join-Path $tmp 'config.json') -Force }; if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($tmp, $zip); Remove-Item -LiteralPath $tmp -Recurse -Force; Write-Host ('[   OK   ] Support bundle created: ' + $zip) -ForegroundColor Green"
 exit /b 0
 
 rem ============================================================
@@ -15178,7 +15178,7 @@ if errorlevel 1 exit /b 1
     "        try {" ^
     "            if (Test-Path -LiteralPath $jp) { [System.IO.Directory]::Delete($jp, $false) };" ^
     "            $pt = $rollbackMap[$jp];" ^
-    "            if ($pt -and (Test-Path -LiteralPath $pt)) { $null = & cmd.exe /c ('mklink /J \"' + $jp + '\" \"' + $pt + '\"') 2>$null };" ^
+    "            if ($pt -and (Test-Path -LiteralPath $pt)) { $null = & cmd.exe /c ('mklink /J \"' + $jp + '\" \"' + $pt + '\"') 2>nul };" ^
     "        } catch { Write-Verbose $_.Exception.Message }" ^
     "    };" ^
     "    exit 1;" ^
@@ -15433,7 +15433,7 @@ if errorlevel 1 exit /b 1
     "        try {" ^
     "            if (Test-Path -LiteralPath $jp) { [System.IO.Directory]::Delete($jp, $false) };" ^
     "            $pt = $rollbackMap[$jp];" ^
-    "            if ($pt -and (Test-Path -LiteralPath $pt)) { $null = & cmd.exe /c ('mklink /J \x22' + $jp + '\x22 \x22' + $pt + '\x22') 2>$null };" ^
+    "            if ($pt -and (Test-Path -LiteralPath $pt)) { $null = & cmd.exe /c ('mklink /J \x22' + $jp + '\x22 \x22' + $pt + '\x22') 2>nul };" ^
     "        } catch { Write-Verbose $_.Exception.Message }" ^
     "    };" ^
     "    if ($cfgWritten) {" ^

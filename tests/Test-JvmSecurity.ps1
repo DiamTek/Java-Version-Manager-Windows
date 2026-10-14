@@ -452,6 +452,14 @@ function Invoke-RegisteredTestSuites {
                 if ($null -ne $snapRegJavaHome) {
                     Set-ItemProperty -Path 'HKCU:\Environment' -Name 'JAVA_HOME' -Value $snapRegJavaHome -Type String -ErrorAction SilentlyContinue
                 }
+                foreach ($candDir in @((Get-Location).Path, $snapLocation, $RepoRoot, $ScriptDir)) {
+                    if ($candDir) {
+                        $literalNullFile = Join-Path $candDir '$null'
+                        if (Test-Path -LiteralPath $literalNullFile) {
+                            Remove-Item -LiteralPath $literalNullFile -Force -ErrorAction SilentlyContinue
+                        }
+                    }
+                }
                 if ($snapLocation -and (Test-Path -LiteralPath $snapLocation)) {
                     Set-Location -LiteralPath $snapLocation
                 }
@@ -530,13 +538,11 @@ Write-Host "$cCyan$cBold              DiamTek JVM Automated Security & Adversari
 Write-Host "$cCyan$cBold====================================================================================$cReset"
 Write-Host "  Repository: $RepoRoot"
 Write-Host "  Sandbox   : $SandboxRoot"
-Write-Host ""
 
 try {
     # ==========================================================================
     # SUITE 1: Adversarial Inputs & Fuzzing Defense
     # ==========================================================================
-    Write-Host "$cBold[SUITE 1] Adversarial Inputs & Fuzzing Defense$cReset"
 
     Run-TestCase "Adversarial" "Path Traversal in 'jvm link' with '..'" {
         $out = & cmd.exe /c "call `"$JvmBat`" link `"$FakeJdkDir`" ../evil_link" 2>&1 | Out-String
@@ -962,8 +968,6 @@ $($vsiMatch.Groups[1].Value)
     # ==========================================================================
     # SUITE 2: Registry & Environment Variable Boundary & Elevation Tests
     # ==========================================================================
-    Write-Host ""
-    Write-Host "$cBold[SUITE 2] Registry & Environment Variable Boundary Tests$cReset"
 
     Run-TestCase "Registry" "User PATH REG_EXPAND_SZ preservation during installation" {
         # Verify that setting User PATH via registry preserves ExpandString kind
@@ -1072,8 +1076,6 @@ $($vsiMatch.Groups[1].Value)
     # ==========================================================================
     # SUITE 3: Symlink & Directory Junction Non-Destructive Lifecycle
     # ==========================================================================
-    Write-Host ""
-    Write-Host "$cBold[SUITE 3] Symlink & Directory Junction Non-Destructive Lifecycle$cReset"
 
     Run-TestCase "ReparsePoint" "Directory junction unbinding does NOT traverse into target JDK" {
         # Setup: Junction pointing to FakeJdkDir
@@ -1095,7 +1097,7 @@ $($vsiMatch.Groups[1].Value)
             try {
                 [System.IO.Directory]::Delete($item.FullName, $false)
             } catch {
-                & cmd.exe /c "rmdir /q `"$($item.FullName)`"" 2>$null
+                & cmd.exe /c "rmdir /q `"$($item.FullName)`"" 2>&1 | Out-Null 
             }
         }
         
@@ -1144,8 +1146,6 @@ $($vsiMatch.Groups[1].Value)
     # ==========================================================================
     # SUITE 4: Package Manager Manifest Schema Integrity & Dry-Run Guarantees
     # ==========================================================================
-    Write-Host ""
-    Write-Host "$cBold[SUITE 4] Package Manager Manifest Schema Integrity & Dry-Run Guarantees$cReset"
 
     Run-TestCase "Manifest" "Cross-package version synchronization parity" {
         # 1. Read jvm.bat
@@ -1336,8 +1336,6 @@ $($vsiMatch.Groups[1].Value)
     # ==========================================================================
     # SUITE 5: Concurrency & Reparse Point Non-Destructive Resilience
     # ==========================================================================
-    Write-Host ""
-    Write-Host "$cBold[SUITE 5] Concurrency & Reparse Point Non-Destructive Resilience$cReset"
 
     Run-TestCase "Reparse" "Broken junction auto-recovery without if-exist deadlock" {
         $linkDir = Join-Path $SandboxRoot "BrokenJuncLink"
@@ -1349,7 +1347,7 @@ $($vsiMatch.Groups[1].Value)
         Set-Content -Path (Join-Path $target2 "bin\java.exe") -Value "FAKE_JAVA"
         
         # Create junction to target1
-        & cmd.exe /c "mklink /J `"$linkDir`" `"$target1`"" >$null 2>&1
+        & cmd.exe /c "mklink /J `"$linkDir`" `"$target1`"" 2>&1 | Out-Null 
         Assert-True (Test-Path -LiteralPath $linkDir) "Initial junction must exist"
         
         # Now delete target1 to turn the junction into a broken dangling junction
@@ -1359,10 +1357,10 @@ $($vsiMatch.Groups[1].Value)
         Assert-False (Test-Path -LiteralPath "$linkDir\canary.txt") "Broken junction child cannot resolve"
         
         # Now call rmdir on the broken junction directly without if-exist:
-        & cmd.exe /c "rmdir `"$linkDir`"" >$null 2>&1
+        & cmd.exe /c "rmdir `"$linkDir`"" 2>&1 | Out-Null 
         
         # Recreate junction to target2
-        & cmd.exe /c "mklink /J `"$linkDir`" `"$target2`"" >$null 2>&1
+        & cmd.exe /c "mklink /J `"$linkDir`" `"$target2`"" 2>&1 | Out-Null 
         Assert-True ($LASTEXITCODE -eq 0) "Junction creation must succeed without deadlock"
         Assert-True (Test-Path -LiteralPath "$linkDir\bin\java.exe") "Re-linked junction must resolve to new target"
     }
@@ -1377,11 +1375,11 @@ $($vsiMatch.Groups[1].Value)
         Set-Content -Path (Join-Path $nodeB "marker.txt") -Value "NODE_B"
         
         for ($i = 0; $i -lt 5; $i++) {
-            & cmd.exe /c "rmdir `"$juncSwitchDir`" >nul 2>&1 & mklink /J `"$juncSwitchDir`" `"$nodeA`" >nul 2>&1"
+            & cmd.exe /c "rmdir `"$juncSwitchDir`" >nul 2>&1 & mklink /J `"$juncSwitchDir`" `"$nodeA`"" 2>&1 | Out-Null
             $mA = Get-Content (Join-Path $juncSwitchDir "marker.txt") -Raw
             Assert-Contains $mA "NODE_A" "Junction switch to A must be immediate"
             
-            & cmd.exe /c "rmdir `"$juncSwitchDir`" >nul 2>&1 & mklink /J `"$juncSwitchDir`" `"$nodeB`" >nul 2>&1"
+            & cmd.exe /c "rmdir `"$juncSwitchDir`" >nul 2>&1 & mklink /J `"$juncSwitchDir`" `"$nodeB`"" 2>&1 | Out-Null
             $mB = Get-Content (Join-Path $juncSwitchDir "marker.txt") -Raw
             Assert-Contains $mB "NODE_B" "Junction switch to B must be immediate"
         }
@@ -1422,8 +1420,6 @@ $($vsiMatch.Groups[1].Value)
     # ==========================================================================
     # SUITE 6: Corrupt Registry Recovery & PATH Resilience
     # ==========================================================================
-    Write-Host ""
-    Write-Host "$cBold[SUITE 6] Corrupt Registry Recovery & PATH Resilience$cReset"
 
     Run-TestCase "Registry" "Registry helper preserves REG_SZ vs REG_EXPAND_SZ correctly" {
         $testRegKey = "HKCU:\Environment"
@@ -1585,8 +1581,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
     # ==========================================================================
     # SUITE 7: Uninstallation Safety & Marker Verification
     # ==========================================================================
-    Write-Host ""
-    Write-Host "$cBold[SUITE 7] Uninstallation Safety & Marker Verification$cReset"
 
     Run-TestCase "Uninstall" "Remove-DirectorySafely unbinds junctions without deleting target contents" {
         $realTarget = Join-Path $SandboxRoot "HostJDK_Protected"
@@ -1597,7 +1591,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         $containerDir = Join-Path $SandboxRoot "JvmStateDir"
         New-Item -ItemType Directory -Path (Join-Path $containerDir "links") -Force | Out-Null
         $juncLink = Join-Path $containerDir "links\jdk-21"
-        & cmd.exe /c "mklink /J `"$juncLink`" `"$realTarget`"" >$null 2>&1
+        & cmd.exe /c "mklink /J `"$juncLink`" `"$realTarget`"" 2>&1 | Out-Null 
         Assert-True (Test-Path -LiteralPath $juncLink) "Junction link must exist"
         
         # Run Remove-DirectorySafely logic on containerDir
@@ -1605,7 +1599,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint
         } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object {
             if ($_.PSIsContainer) {
-                try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { & cmd.exe /c "rmdir /q `"$($_.FullName)`"" 2>$null }
+                try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { & cmd.exe /c "rmdir /q `"$($_.FullName)`"" 2>&1 | Out-Null  }
             } else {
                 Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
             }
@@ -1686,8 +1680,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
     # ==========================================================================
     # SUITE 8: Windows Terminal JSONC Configuration Parsing
     # ==========================================================================
-    Write-Host ""
-    Write-Host "$cBold[SUITE 8] Windows Terminal JSONC Configuration Parsing$cReset"
 
     Run-TestCase "TerminalJSON" "Strip block comments /* ... */ from JSONC" {
         $rawJsonc = @"
@@ -1755,10 +1747,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
     }
 
     # ==========================================================================
-    # DEEP JVM.BAT CORE ENGINE AUDIT TESTS (+22 Tests -> 100 Total)
+    # DEEP JVM.BAT CORE ENGINE AUDIT TESTS
     # ==========================================================================
-    Write-Host ""
-    Write-Host "$cBold[JVM.BAT CORE AUDIT] Deep Engine, Crypto, Config & Privilege Verification$cReset"
 
     # 79. CWE-426: Runtime CWD Trojan Binary Planting Defense
     Run-TestCase "Adversarial" "Pinned System Binaries runtime CWD Trojan binary planting immunity (CWE-426)" {
@@ -1856,7 +1846,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         } finally {
             $env:LOCALAPPDATA = $origLocalAppData
             if (Test-Path -LiteralPath $secTemp) {
-                & cmd.exe /c "rmdir `"$secTemp`"" >$null 2>&1
+                & cmd.exe /c "rmdir `"$secTemp`"" 2>&1 | Out-Null 
             }
         }
     }
@@ -1939,7 +1929,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Set-Content -LiteralPath $sentinelFile -Value "IMMUTABLE_EXTERNAL_CONTENT"
 
         $dotJavaVersionPath = Join-Path $pinTestDir ".java-version"
-        & cmd.exe /c "mklink /J `"$dotJavaVersionPath`" `"$externalTargetDir`"" >$null 2>&1
+        & cmd.exe /c "mklink /J `"$dotJavaVersionPath`" `"$externalTargetDir`"" 2>&1 | Out-Null 
 
         Push-Location $pinTestDir
         try {
@@ -1947,7 +1937,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             $outReparse = & cmd.exe /c "call `"$JvmBat`" pin 21" 2>&1 | Out-String
             $exitReparse = $LASTEXITCODE
 
-            & cmd.exe /c "rmdir `"$dotJavaVersionPath`"" >$null 2>&1
+            & cmd.exe /c "rmdir `"$dotJavaVersionPath`"" 2>&1 | Out-Null 
             $outCurrent = & cmd.exe /c "call `"$JvmBat`" pin current" 2>&1 | Out-String
             $exitCurrent = $LASTEXITCODE
             $ErrorActionPreference = $prevEAP
@@ -1958,7 +1948,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             Assert-PathNotExists $dotJavaVersionPath ".java-version must not be created for reserved keyword 'current'"
         } finally {
             if (Test-Path -LiteralPath $dotJavaVersionPath) {
-                & cmd.exe /c "rmdir `"$dotJavaVersionPath`"" >$null 2>&1
+                & cmd.exe /c "rmdir `"$dotJavaVersionPath`"" 2>&1 | Out-Null 
             }
             Pop-Location
         }
@@ -1980,8 +1970,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
         $dlJunc = Join-Path $downloadsDir "junction_trap"
         $nestedJunc = Join-Path $tempExtractDir "nested_junction_trap"
-        & cmd.exe /c "mklink /J `"$dlJunc`" `"$protectedHostDir`"" >$null 2>&1
-        & cmd.exe /c "mklink /J `"$nestedJunc`" `"$protectedHostDir`"" >$null 2>&1
+        & cmd.exe /c "mklink /J `"$dlJunc`" `"$protectedHostDir`"" 2>&1 | Out-Null 
+        & cmd.exe /c "mklink /J `"$nestedJunc`" `"$protectedHostDir`"" 2>&1 | Out-Null 
 
         try {
             $env:LOCALAPPDATA = $isolatedAppData
@@ -2760,7 +2750,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Set-Content -LiteralPath $canaryFile -Value "MUST_SURVIVE_CANDIDATE_UNINSTALL"
 
         $nestedJunc = Join-Path $candDir "nested_junc"
-        & cmd.exe /c "mklink /J `"$nestedJunc`" `"$protectedTarget`"" >$null 2>&1
+        & cmd.exe /c "mklink /J `"$nestedJunc`" `"$protectedTarget`"" 2>&1 | Out-Null 
 
         try {
             $env:LOCALAPPDATA = $candSandbox
@@ -2846,7 +2836,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Set-Content -LiteralPath (Join-Path $validJdkDir "bin\java.exe") -Value "MZ_FAKE"
 
         # Pre-plant links as a junction to externalTarget
-        & cmd.exe /c "mklink /J `"$linksPath`" `"$externalTarget`"" >$null 2>&1
+        & cmd.exe /c "mklink /J `"$linksPath`" `"$externalTarget`"" 2>&1 | Out-Null 
 
         try {
             $env:LOCALAPPDATA = $linkSandbox
@@ -2861,7 +2851,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
             # Remove the pre-planted junction and verify that a valid Windows JDK path containing commas & spaces succeeds and auto-sanitizes the default alias
             $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-            & cmd.exe /c "if exist `"$linksPath`" rmdir `"$linksPath`" >nul 2>&1"
+            & cmd.exe /c "if exist `"$linksPath`" rmdir `"$linksPath`"" 2>&1 | Out-Null
             $outCommaLink = & cmd.exe /c "call `"$JvmBat`" link `"$validJdkDir`"" 2>&1 | Out-String
             $commaLinkExit = $LASTEXITCODE
             $outSemiLink = & cmd.exe /c "call `"$JvmBat`" link `"$validJdkDir;evil`"" 2>&1 | Out-String
@@ -2873,9 +2863,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             Assert-True ($semiLinkExit -ne 0) "jvm link must still reject JDK paths containing semicolon ';' PATH delimiters"
         } finally {
             $prevEAP2 = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-            & cmd.exe /c "if exist `"$linksPath`" rmdir `"$linksPath`" >nul 2>&1"
+            & cmd.exe /c "if exist `"$linksPath`" rmdir `"$linksPath`"" 2>&1 | Out-Null
             $createdJunc = Join-Path $linkSandbox 'JavaVersionManager\links\Valid--Custom--Jdk-21'
-            & cmd.exe /c "if exist `"$createdJunc`" rmdir `"$createdJunc`" >nul 2>&1"
+            & cmd.exe /c "if exist `"$createdJunc`" rmdir `"$createdJunc`"" 2>&1 | Out-Null
             $ErrorActionPreference = $prevEAP2
             $env:LOCALAPPDATA = $origLocalAppData
         }
@@ -2915,7 +2905,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         New-Item -ItemType Directory -Path $protectedDir -Force | Out-Null
 
         # Pre-plant channel.txt as a directory junction
-        & cmd.exe /c "mklink /J `"$channelPath`" `"$protectedDir`"" >$null 2>&1
+        & cmd.exe /c "mklink /J `"$channelPath`" `"$protectedDir`"" 2>&1 | Out-Null 
 
         try {
             $env:LOCALAPPDATA = $cfgSandbox
@@ -2927,7 +2917,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             Assert-True ($chanExit -ne 0) "jvm channel must fail closed when channel.txt is a directory or reparse point"
             Assert-Contains $outChan "Security violation (CWE-59)" "jvm channel must emit CWE-59 security violation when channel.txt is a reparse point/directory"
         } finally {
-            & cmd.exe /c "rmdir `"$channelPath`"" >$null 2>&1
+            & cmd.exe /c "rmdir `"$channelPath`"" 2>&1 | Out-Null 
             $env:LOCALAPPDATA = $origLocalAppData
         }
     }
@@ -3130,16 +3120,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         $curJunction = Join-Path $rbSandbox "current"
         New-Item -ItemType Directory -Path "$jdkV1\bin" -Force | Out-Null
         Set-Content -LiteralPath "$jdkV1\bin\java.exe" -Value "MZ" -Encoding Ascii
-        & cmd.exe /c "mklink /J `"$curJunction`" `"$jdkV1`" >nul 2>&1"
+        & cmd.exe /c "mklink /J `"$curJunction`" `"$jdkV1`"" 2>&1 | Out-Null
         Assert-True (Test-Path -LiteralPath "$curJunction\bin\java.exe") "Initial current junction must point to jdk-17"
 
         # Simulate failed switch to missing target with PREV_JUNCTION_TARGET rollback
         $prevTarget = (Get-Item -LiteralPath $curJunction -Force).Target
         if ($prevTarget -is [array]) { $prevTarget = $prevTarget[0] }
-        & cmd.exe /c "rmdir `"$curJunction`" >nul 2>&1"
+        & cmd.exe /c "rmdir `"$curJunction`"" 2>&1 | Out-Null
         $missingTarget = Join-Path $rbSandbox "jdk-missing-target"
         if (-not (Test-Path -LiteralPath "$missingTarget\bin\java.exe")) {
-            & cmd.exe /c "mklink /J `"$curJunction`" `"$prevTarget`" >nul 2>&1"
+            & cmd.exe /c "mklink /J `"$curJunction`" `"$prevTarget`"" 2>&1 | Out-Null
         }
         Assert-True (Test-Path -LiteralPath "$curJunction\bin\java.exe") "Rollback must restore previous current junction target when new target verification fails"
     }
@@ -3473,7 +3463,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         New-Item -ItemType Directory -Path $subDir -Force | Out-Null
 
         # Create a cyclic directory junction pointing back to parent (subDir -> cycleSandbox)
-        & cmd.exe /c "mklink /J `"$loopJunction`" `"$cycleSandbox`"" >$null 2>&1
+        & cmd.exe /c "mklink /J `"$loopJunction`" `"$cycleSandbox`"" 2>&1 | Out-Null 
 
         $uninstRaw = Get-Content -LiteralPath (Join-Path $RepoRoot "uninstall.ps1") -Raw
         Assert-Contains $uninstRaw "Unbind all child reparse points (bottom-up) without recursing into reparse points (CWE-674 / CWE-59)" "uninstall.ps1 must document non-recursive queue pattern in Remove-DirectorySafely"
@@ -4111,7 +4101,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             Assert-Equals 1 $LASTEXITCODE "jvm lock must refuse to overwrite junction .jvm.lock"
             Assert-Contains $outLock "CWE-59" "Output must report CWE-59 security violation on lock write"
         } finally {
-            & cmd.exe /c "rmdir `"$juncLock`"" 2>$null
+            & cmd.exe /c "rmdir `"$juncLock`"" 2>&1 | Out-Null 
         }
     }
 
@@ -4503,7 +4493,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             New-Item -ItemType Directory -Path $newTarget -Force | Out-Null
 
             # Setup the environment as if it crashed AFTER junction switch but BEFORE commit
-            & cmd.exe /c "mklink /J `"$juncPath`" `"$newTarget`"" > $null 2>&1
+            & cmd.exe /c "mklink /J `"$juncPath`" `"$newTarget`"" 2>&1 | Out-Null 
 
             $testTxnId = "JVM-TXN-CRASH99999"
             $txnObj = [ordered]@{
@@ -4642,7 +4632,7 @@ version = "3.9.11"
         
         # Create orphaned/broken junction
         New-Item -ItemType Directory -Path $missingTarget -Force | Out-Null
-        & cmd.exe /c "mklink /J `"$curJunc`" `"$missingTarget`" >nul 2>&1"
+        & cmd.exe /c "mklink /J `"$curJunc`" `"$missingTarget`"" 2>&1 | Out-Null
         Remove-Item -LiteralPath $missingTarget -Force -Recurse
 
         try {
@@ -5346,7 +5336,7 @@ max_java = "25"
 
         $prevPol = $env:JVM_POLICY_FILE
         try {
-            & cmd.exe /c "mklink /J `"$reparseDir`" `"$realDir`"" > $null 2>&1
+            & cmd.exe /c "mklink /J `"$reparseDir`" `"$realDir`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath $reparseDir) {
                 $symPol = Join-Path $reparseDir "policy.toml"
                 $env:JVM_POLICY_FILE = $symPol
@@ -5356,7 +5346,7 @@ max_java = "25"
             }
         } finally {
             $env:JVM_POLICY_FILE = $prevPol
-            if (Test-Path -LiteralPath $reparseDir) { & cmd.exe /c "rmdir `"$reparseDir`"" > $null 2>&1 }
+            if (Test-Path -LiteralPath $reparseDir) { & cmd.exe /c "rmdir `"$reparseDir`"" 2>&1 | Out-Null  }
             if (Test-Path -LiteralPath $realDir) { Remove-Item -LiteralPath $realDir -Recurse -Force -ErrorAction SilentlyContinue }
         }
     }
@@ -5501,13 +5491,16 @@ allow_skip_checksum = false
         $testDir = Join-Path $userTemp ("jvm_test_276_" + [Guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $testDir -Force | Out-Null
         $origDir = (Get-Location).Path
+        $prevJavaHome = $env:JAVA_HOME
         try {
             Set-Location $testDir
+            $env:JAVA_HOME = $FakeJdkDir
             $null = & cmd.exe /c "call `"$JvmBat`" freeze --dry-run" 2>&1
             Assert-Equals $LASTEXITCODE 0 "jvm freeze --dry-run must exit 0"
             $lockPath = Join-Path $testDir ".jvm.lock"
             Assert-True (-not (Test-Path -LiteralPath $lockPath)) "Lockfile must NOT be created under --dry-run"
         } finally {
+            $env:JAVA_HOME = $prevJavaHome
             Set-Location $origDir
             if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
         }
@@ -5518,8 +5511,10 @@ allow_skip_checksum = false
         $testDir = Join-Path $userTemp ("jvm_test_277_" + [Guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $testDir -Force | Out-Null
         $origDir = (Get-Location).Path
+        $prevJavaHome = $env:JAVA_HOME
         try {
             Set-Location $testDir
+            $env:JAVA_HOME = $FakeJdkDir
             $null = & cmd.exe /c "call `"$JvmBat`" freeze" 2>&1
             Assert-Equals $LASTEXITCODE 0 "jvm freeze must exit 0"
             $lockPath = Join-Path $testDir ".jvm.lock"
@@ -5528,6 +5523,7 @@ allow_skip_checksum = false
             Assert-True ($null -ne $data.tools.java) "tools.java must be defined in lockfile"
             Assert-True (-not [string]::IsNullOrWhiteSpace($data.tools.java.version)) "Java version must be pinned"
         } finally {
+            $env:JAVA_HOME = $prevJavaHome
             Set-Location $origDir
             if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
         }
@@ -5538,14 +5534,17 @@ allow_skip_checksum = false
         $testDir = Join-Path $userTemp ("jvm_test_278_" + [Guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $testDir -Force | Out-Null
         $origDir = (Get-Location).Path
+        $prevJavaHome = $env:JAVA_HOME
         try {
             Set-Location $testDir
+            $env:JAVA_HOME = $FakeJdkDir
             $jsonOut = & cmd.exe /c "call `"$JvmBat`" freeze --dry-run --json" 2>&1 | Out-String
             Assert-Equals 0 $LASTEXITCODE "jvm freeze --json must exit 0"
             $parsed = $jsonOut | ConvertFrom-Json
             Assert-Equals "frozen" $parsed.status "JSON output status must be 'frozen'"
             Assert-Equals $true $parsed.dry_run "JSON output dry_run must be true"
         } finally {
+            $env:JAVA_HOME = $prevJavaHome
             Set-Location $origDir
             if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
         }
@@ -5563,7 +5562,7 @@ allow_skip_checksum = false
             Set-Location $testDir
             $targetLock = Join-Path $realDir "target.lock"
             [System.IO.File]::WriteAllText($targetLock, "{}", [System.Text.UTF8Encoding]::new($false))
-            & cmd.exe /c "mklink `"$testDir\.jvm.lock`" `"$targetLock`"" > $null 2>&1
+            & cmd.exe /c "mklink `"$testDir\.jvm.lock`" `"$targetLock`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath "$testDir\.jvm.lock") {
                 $out = & cmd.exe /c "call `"$JvmBat`" freeze" 2>&1 | Out-String
                 Assert-Equals 1 $LASTEXITCODE "jvm freeze must reject reparse point lockfile"
@@ -5660,7 +5659,7 @@ allow_skip_checksum = false
             $lockContent = [ordered]@{ version = 1; tools = [ordered]@{ java = [ordered]@{ version = "21.0.6+7"; vendor = "Adoptium" } } } | ConvertTo-Json
             [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
 
-            & cmd.exe /c "call `"$JvmBat`" lock --sign" > $null 2>&1
+            & cmd.exe /c "call `"$JvmBat`" lock --sign" 2>&1 | Out-Null 
             $null = & cmd.exe /c "call `"$JvmBat`" lock --verify" 2>&1
             Assert-Equals $LASTEXITCODE 0 "jvm lock --verify on unmodified file must exit 0"
         } finally {
@@ -5684,7 +5683,7 @@ allow_skip_checksum = false
             $lockContent = [ordered]@{ version = 1; tools = [ordered]@{ java = [ordered]@{ version = "21.0.6+7"; vendor = "Adoptium" } } } | ConvertTo-Json
             [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
 
-            & cmd.exe /c "call `"$JvmBat`" lock --sign" > $null 2>&1
+            & cmd.exe /c "call `"$JvmBat`" lock --sign" 2>&1 | Out-Null 
             # Tamper with lockfile content
             [System.IO.File]::WriteAllText($lockPath, ($lockContent + " "), [System.Text.UTF8Encoding]::new($false))
 
@@ -5714,7 +5713,7 @@ allow_skip_checksum = false
             Set-Location $testDir
             $realFile = Join-Path $realDir "target.lock"
             [System.IO.File]::WriteAllText($realFile, "{}", [System.Text.UTF8Encoding]::new($false))
-            & cmd.exe /c "mklink `"$testDir\.jvm.lock`" `"$realFile`"" > $null 2>&1
+            & cmd.exe /c "mklink `"$testDir\.jvm.lock`" `"$realFile`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath "$testDir\.jvm.lock") {
                 $out = & cmd.exe /c "call `"$JvmBat`" lock --sign" 2>&1 | Out-String
                 Assert-Equals 1 $LASTEXITCODE "jvm lock --sign must reject symlinked lockfile"
@@ -5792,7 +5791,7 @@ allow_skip_checksum = false
 
             # Case 2: Signature exists, but secret key is unavailable (not provided)
             $env:JVM_LOCK_SECRET = "ValidSecretKey2026!"
-            & cmd.exe /c "call `"$JvmBat`" lock --sign" > $null 2>&1
+            & cmd.exe /c "call `"$JvmBat`" lock --sign" 2>&1 | Out-Null 
             Assert-True (Test-Path -LiteralPath "$lockPath.sig") ".sig file must exist"
 
             $env:JVM_LOCK_SECRET = ""
@@ -5986,7 +5985,7 @@ allow_skip_checksum = false
         $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
         try {
             if (Test-Path -LiteralPath $aliasPath) { Remove-Item -LiteralPath $aliasPath -Force -ErrorAction SilentlyContinue }
-            & cmd.exe /c "mklink `"$aliasPath`" `"$realFile`"" > $null 2>&1
+            & cmd.exe /c "mklink `"$aliasPath`" `"$realFile`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath $aliasPath) {
                 $out = & cmd.exe /c "call `"$JvmBat`" aliases" 2>&1 | Out-String
                 Assert-Equals 1 $LASTEXITCODE "jvm aliases must reject symlink alias file"
@@ -6161,7 +6160,7 @@ allow_skip_checksum = false
 
             $tempDir = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\temp"
             $beforePs1 = @(Get-ChildItem -LiteralPath $tempDir -Filter "jvm_*.ps1" -File -ErrorAction SilentlyContinue)
-            & cmd.exe /c "set `"JAVA_HOME=$FakeJdkDir`" && call `"$JvmBat`" freeze --dry-run" > $null 2>&1
+            & cmd.exe /c "set `"JAVA_HOME=$FakeJdkDir`" && call `"$JvmBat`" freeze --dry-run" 2>&1 | Out-Null 
             $afterPs1 = @(Get-ChildItem -LiteralPath $tempDir -Filter "jvm_*.ps1" -File -ErrorAction SilentlyContinue)
             Assert-Equals $beforePs1.Count $afterPs1.Count "Temporary script files must be 100% cleaned up after command execution"
         } finally {
@@ -6182,7 +6181,7 @@ allow_skip_checksum = false
             [System.IO.File]::WriteAllText($lockPath, $initialContent, [System.Text.UTF8Encoding]::new($false))
             $initialBytes = [System.IO.File]::ReadAllBytes($lockPath)
 
-            & cmd.exe /c "set `"JAVA_HOME=$FakeJdkDir`" && call `"$JvmBat`" freeze --dry-run" > $null 2>&1
+            & cmd.exe /c "set `"JAVA_HOME=$FakeJdkDir`" && call `"$JvmBat`" freeze --dry-run" 2>&1 | Out-Null 
             $finalBytes = [System.IO.File]::ReadAllBytes($lockPath)
             Assert-Equals $initialBytes.Length $finalBytes.Length "Lockfile byte length must be completely unchanged"
         } finally {
@@ -6271,7 +6270,7 @@ allow_skip_checksum = false
             )
 
             foreach ($cmdStr in $commandsToTest) {
-                $rawOut = & cmd.exe /c "call `"$JvmBat`" $cmdStr" 2>$null | Out-String
+                $rawOut = & cmd.exe /c "call `"$JvmBat`" $cmdStr" 2>&1 | Out-Null  | Out-String
                 $jsonLine = $rawOut.Trim()
                 if ($jsonLine -match '(\{.*\})') {
                     $jsonLine = $matches[1]
@@ -6351,7 +6350,7 @@ allow_skip_checksum = false
         try {
             if (-not (Test-Path -LiteralPath $profDir)) { New-Item -ItemType Directory -Path $profDir -Force | Out-Null }
             [System.IO.File]::WriteAllText($targetFile, '{"name":"sym_prof_311"}', [System.Text.UTF8Encoding]::new($false))
-            & cmd.exe /c "mklink `"$symProf`" `"$targetFile`"" > $null 2>&1
+            & cmd.exe /c "mklink `"$symProf`" `"$targetFile`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath $symProf) {
                 $out = & cmd.exe /c "call `"$JvmBat`" profile show sym_prof_311" 2>&1 | Out-String
                 Assert-Equals 1 $LASTEXITCODE "jvm profile show must reject symlink profile"
@@ -6368,7 +6367,7 @@ allow_skip_checksum = false
     Run-TestCase "Portability" "jvm profile use --dry-run simulates profile activation without changing active profile pointer (CWE-460 / CWE-362)" {
         $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
         try {
-            & cmd.exe /c "call `"$JvmBat`" profile create test_p4_dry --desc `"Dry Run Profile`"" > $null 2>&1
+            & cmd.exe /c "call `"$JvmBat`" profile create test_p4_dry --desc `"Dry Run Profile`"" 2>&1 | Out-Null 
             $profDir = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\profiles"
             $activeFile = Join-Path $profDir "active.txt"
             $prevActive = if (Test-Path -LiteralPath $activeFile) { [System.IO.File]::ReadAllText($activeFile).Trim() } else { "" }
@@ -6381,7 +6380,7 @@ allow_skip_checksum = false
             Assert-Equals $prevActive $curActive "active.txt must remain unchanged under --dry-run"
         } finally {
             $ErrorActionPreference = $prevEAP
-            & cmd.exe /c "call `"$JvmBat`" profile delete test_p4_dry" > $null 2>&1
+            & cmd.exe /c "call `"$JvmBat`" profile delete test_p4_dry" 2>&1 | Out-Null 
         }
     }
 
@@ -6415,13 +6414,13 @@ allow_skip_checksum = false
     Run-TestCase "Portability" "jvm snapshot restore --dry-run immutability and atomic rollback verification (CWE-460)" {
         $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
         try {
-            & cmd.exe /c "call `"$JvmBat`" snapshot create snap_dry_test" > $null 2>&1
+            & cmd.exe /c "call `"$JvmBat`" snapshot create snap_dry_test" 2>&1 | Out-Null 
             $out = & cmd.exe /c "call `"$JvmBat`" snapshot restore snap_dry_test --dry-run" 2>&1 | Out-String
             Assert-Equals 0 $LASTEXITCODE "jvm snapshot restore --dry-run must exit 0"
             Assert-Contains $out "Simulated restoration" "Must report simulated restoration"
         } finally {
             $ErrorActionPreference = $prevEAP
-            & cmd.exe /c "call `"$JvmBat`" snapshot delete snap_dry_test" > $null 2>&1
+            & cmd.exe /c "call `"$JvmBat`" snapshot delete snap_dry_test" 2>&1 | Out-Null 
         }
     }
 
@@ -6434,7 +6433,7 @@ allow_skip_checksum = false
         try {
             if (-not (Test-Path -LiteralPath $snapDir)) { New-Item -ItemType Directory -Path $snapDir -Force | Out-Null }
             [System.IO.File]::WriteAllText($targetFile, '{"snapshot_id":"sym_snap_315"}', [System.Text.UTF8Encoding]::new($false))
-            & cmd.exe /c "mklink `"$symSnap`" `"$targetFile`"" > $null 2>&1
+            & cmd.exe /c "mklink `"$symSnap`" `"$targetFile`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath $symSnap) {
                 $out = & cmd.exe /c "call `"$JvmBat`" snapshot restore sym_snap_315" 2>&1 | Out-String
                 Assert-Equals 1 $LASTEXITCODE "jvm snapshot restore must reject symlinked snapshot"
@@ -6585,8 +6584,8 @@ allow_skip_checksum = false
         $symBundle = Join-Path $testDir "sym.jvmbundle"
         $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
         try {
-            & cmd.exe /c "call `"$JvmBat`" bundle create `"$realBundle`"" > $null 2>&1
-            & cmd.exe /c "mklink `"$symBundle`" `"$realBundle`"" > $null 2>&1
+            & cmd.exe /c "call `"$JvmBat`" bundle create `"$realBundle`"" 2>&1 | Out-Null 
+            & cmd.exe /c "mklink `"$symBundle`" `"$realBundle`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath $symBundle) {
                 $out = & cmd.exe /c "call `"$JvmBat`" bundle inspect `"$symBundle`"" 2>&1 | Out-String
                 Assert-Equals 1 $LASTEXITCODE "jvm bundle inspect must reject symlinked bundle"
@@ -6637,7 +6636,7 @@ allow_skip_checksum = false
         $origUserPathRaw = try { $envKeySnap.GetValue('Path',$null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } finally { if ($envKeySnap) {$envKeySnap.Close() } }
         try {
             # 1. Build a local distro
-            $null = & cmd.exe /c "call `"$JvmBat`" distro create --out `"$distroDir`"" > $null 2>&1
+            $null = & cmd.exe /c "call `"$JvmBat`" distro create --out `"$distroDir`"" 2>&1 | Out-Null 
             Assert-Equals $LASTEXITCODE 0 "Prerequisite jvm distro create must exit 0"
 
             # 2. Run install.ps1 with -Offline and -DistroDir pointing to local distro
@@ -6679,7 +6678,7 @@ allow_skip_checksum = false
             )
 
             foreach ($cmdStr in $commandsToTest) {
-                $rawOut = & cmd.exe /c "call `"$JvmBat`" $cmdStr" 2>$null | Out-String
+                $rawOut = & cmd.exe /c "call `"$JvmBat`" $cmdStr" 2>&1 | Out-Null  | Out-String
                 $jsonLine = $rawOut.Trim()
                 if ($jsonLine -match '(\{.*\})') {
                     $jsonLine = $matches[1]
@@ -6747,7 +6746,7 @@ allow_skip_checksum = false
         }
         $reparseList | Sort-Object -Property { $_.FullName.Length } -Descending | ForEach-Object {
             if ($_.PSIsContainer) {
-                try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { & cmd.exe /c "rmdir /q `"$($_.FullName)`"" 2>$null }
+                try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { & cmd.exe /c "rmdir /q `"$($_.FullName)`"" 2>&1 | Out-Null  }
             } else {
                 Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
             }

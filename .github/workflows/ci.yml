@@ -81,7 +81,8 @@ jobs:
       - name: Run Integration Test Suite (x64)
         shell: pwsh
         run: |
-          .\packages\msi\test-msi.ps1
+          $ver = if ((Get-Content "jvm.bat" -Raw) -match 'set "JVM_VERSION=([^"]+)"') { $Matches[1].Trim() } else { "1.0.1" }
+          .\packages\msi\test-msi.ps1 -MsiPath "packages/msi/jvm-windows-$ver-x64.msi"
 
       - name: Verify Chocolatey Package Build
         shell: pwsh

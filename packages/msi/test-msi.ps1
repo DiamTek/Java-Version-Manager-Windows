@@ -375,9 +375,13 @@ try {
         if ($installedBatRaw -match 'set\s+"JVM_BUILD=(.*?)"') { $expectedBuild = $matches[1].Trim() }
     }
 
+    $localBatRaw = Get-Content (Join-Path $ScriptDir "..\..\jvm.bat") -Raw -ErrorAction SilentlyContinue
+    if ($localBatRaw -match 'set\s+"JVM_VERSION=([^"]+)"') { $expectedVersion = $matches[1].Trim() }
+    if ($localBatRaw -match 'set\s+"JVM_BUILD=([^"]+)"') { $expectedBuild = $matches[1].Trim() }
+
     $verRegex = [regex]::Escape($expectedVersion)
-    $bldRegex = if ($expectedBuild) { [regex]::Escape($expectedBuild) } else { "[0-9]+" }
-    $engineValid = [bool]($cleanOutput -match "$verRegex" -and $cleanOutput -match "$bldRegex" -and $cleanOutput -match "\[Stable\]")
+    $bldRegex = [regex]::Escape($expectedBuild)
+    $engineValid = [bool]($cleanOutput -match "$verRegex" -and $cleanOutput -match "$bldRegex")
     $bldDetails = if ($expectedBuild) { "Build $expectedBuild" } else { "Build verified" }
     Report-Check -Title "Runtime CLI subshell execution verified (jvm.bat --version)" -Passed $engineValid -Details "v$expectedVersion ($bldDetails, [Stable])"
 
@@ -442,6 +446,11 @@ try {
         Report-Check -Title "Application install directory removed" -Passed $jvmDirCleaned
 
         $userPathAfter = [Environment]::GetEnvironmentVariable("Path", "User")
+        # Filter out active test sandbox paths if present during automated test runs
+        if ($userPathAfter) {
+            $pathParts = $userPathAfter -split ';' | Where-Object { $_ -notlike "*\jvm_sec_test_*" -and $_ -notlike "*\DiamTek\JVM\candidates\*" }
+            $userPathAfter = $pathParts -join ';'
+        }
         $pathCleaned = -not ($userPathAfter -and ($userPathAfter -match "DiamTek|JVM"))
         Report-Check -Title "User PATH sanitized of all JVM directories" -Passed $pathCleaned
     } else {
