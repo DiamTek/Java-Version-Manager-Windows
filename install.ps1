@@ -91,11 +91,6 @@ function Update-Progress {
 
 function Get-FileSha256 {
     param([string]$Path)
-    if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
-        try {
-            return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLower()
-        } catch { Write-Verbose "Get-FileHash fallback triggered: $($_.Exception.Message)" }
-    }
     $sha256 = $null
     $stream = $null
     try {
@@ -107,6 +102,15 @@ function Get-FileSha256 {
         if ($null -ne $stream) { $stream.Close(); $stream.Dispose() }
         if ($null -ne $sha256) { $sha256.Dispose() }
     }
+}
+
+function Normalize-PathEntry([string]$p) {
+    if (-not $p) { return "" }
+    $clean = $p.Trim().Trim('`"').Trim("'").Trim()
+    if ($clean.Length -gt 3) {
+        return $clean.TrimEnd('\', '/')
+    }
+    return $clean
 }
 
 function Test-HasReparsePointInLineage([string]$TargetPath) {
@@ -160,14 +164,26 @@ function Initialize-SecureDirectory([string]$DirPath, [switch]$RestrictDacl) {
 # 1. Determine destination directory
 Update-Progress -Percent 5 -Activity "Initializing environment..."
 
-if ($TargetDir -and (Test-HasReparsePointInLineage $TargetDir)) {
-    Write-Host ""
-    Write-Host "[ ERROR  ] Security violation (CWE-59): TargetDir cannot be or traverse a reparse point: $TargetDir" -ForegroundColor Red
-    exit 1
+if ($TargetDir) {
+    if ($TargetDir -match '\.\.') {
+        Write-Host ""
+        Write-Host "[ ERROR  ] Security violation (CWE-22): TargetDir cannot contain '..' traversal sequences: $TargetDir" -ForegroundColor Red
+        exit 1
+    }
+    if (Test-HasReparsePointInLineage $TargetDir) {
+        Write-Host ""
+        Write-Host "[ ERROR  ] Security violation (CWE-59): TargetDir cannot be or traverse a reparse point: $TargetDir" -ForegroundColor Red
+        exit 1
+    }
 }
-$normTarget = if ($TargetDir -and (Test-Path -LiteralPath $TargetDir)) { (Resolve-Path -LiteralPath $TargetDir).Path } else { $null }
+$normTarget = if ($TargetDir) { [System.IO.Path]::GetFullPath($TargetDir) } else { $null }
 
 if ($DistroDir) {
+    if ($DistroDir -match '\.\.') {
+        Write-Host ""
+        Write-Host "[ ERROR  ] Security violation (CWE-22): DistroDir cannot contain '..' traversal sequences: $DistroDir" -ForegroundColor Red
+        exit 1
+    }
     if (Test-HasReparsePointInLineage $DistroDir) {
         Write-Host ""
         Write-Host "[ ERROR  ] Security violation (CWE-59): DistroDir cannot be or traverse a reparse point: $DistroDir" -ForegroundColor Red
@@ -274,7 +290,13 @@ $url = "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/$
 
 Update-Progress -Percent 35 -Activity "Fetching core JVM engine..."
 if ($Offline) {
-    $content = [System.IO.File]::ReadAllText((Join-Path $offlineSourceDir "jvm.bat"))
+    $offlineBatFile = Join-Path $offlineSourceDir "jvm.bat"
+    if (Test-HasReparsePointInLineage $offlineBatFile) {
+        Write-Host ""
+        Write-Host "[ ERROR  ] Security violation (CWE-59): Offline source jvm.bat is a reparse point." -ForegroundColor Red
+        exit 1
+    }
+    $content = [System.IO.File]::ReadAllText($offlineBatFile)
 } elseif (-not $Update -and $PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "jvm.bat"))) {
     $content = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot "jvm.bat"))
 } else {
@@ -336,6 +358,11 @@ if ($Offline) {
     $offlineSums = if ($offlineSourceDir) { Join-Path $offlineSourceDir "SHA256SUMS.txt" } else { $null }
     $offlineManifest = if ($offlineSourceDir) { Join-Path $offlineSourceDir "distro-manifest.json" } else { $null }
     if ($offlineSums -and (Test-Path -LiteralPath $offlineSums)) {
+        if (Test-HasReparsePointInLineage $offlineSums) {
+            Write-Host ""
+            Write-Host "[ ERROR  ] Security violation (CWE-59): Offline SHA256SUMS.txt is a reparse point." -ForegroundColor Red
+            exit 1
+        }
         try {
             $shaText = [System.IO.File]::ReadAllText($offlineSums)
             foreach ($sLine in ($shaText -split "`r?`n")) {
@@ -343,8 +370,17 @@ if ($Offline) {
                     $shaHashMap[$matches[2].Trim()] = $matches[1].ToLower()
                 }
             }
-        } catch { Write-Verbose "Offline SHA256SUMS parsing failed: $($_.Exception.Message)" }
+        } catch {
+            Write-Host ""
+            Write-Host "[ ERROR  ] Security violation (CWE-354): Failed to parse offline SHA256SUMS.txt: $($_.Exception.Message)" -ForegroundColor Red
+            exit 1
+        }
     } elseif ($offlineManifest -and (Test-Path -LiteralPath $offlineManifest)) {
+        if (Test-HasReparsePointInLineage $offlineManifest) {
+            Write-Host ""
+            Write-Host "[ ERROR  ] Security violation (CWE-59): Offline distro-manifest.json is a reparse point." -ForegroundColor Red
+            exit 1
+        }
         try {
             $manJson = Get-Content -LiteralPath $offlineManifest -Raw -Encoding UTF8 | ConvertFrom-Json
             if ($manJson.files) {
@@ -352,7 +388,15 @@ if ($Offline) {
                     $shaHashMap[$fProp.Name] = [string]$fProp.Value.ToLower()
                 }
             }
-        } catch { Write-Verbose "Offline distro manifest parsing failed: $($_.Exception.Message)" }
+        } catch {
+            Write-Host ""
+            Write-Host "[ ERROR  ] Security violation (CWE-354): Malformed offline distro-manifest.json: $($_.Exception.Message)" -ForegroundColor Red
+            exit 1
+        }
+    } elseif ($DistroDir -and (-not $SkipIntegrity)) {
+        Write-Host ""
+        Write-Host "[ ERROR  ] Security violation (CWE-494): DistroDir is missing distro-manifest.json and SHA256SUMS.txt." -ForegroundColor Red
+        exit 1
     }
 } elseif ($Channel -ne "Nightly" -and $rawBranch -match '^v?[0-9]') {
     try {
@@ -591,8 +635,23 @@ try {
             Join-Path $PSScriptRoot ($cf -replace '/', '\')
         } else { $null }
         if ((-not $Update -or $Offline) -and $localSource -and (Test-Path -LiteralPath $localSource)) {
+            if (Test-HasReparsePointInLineage $localSource) {
+                Write-Host ""
+                Write-Host "[ ERROR  ] Security violation (CWE-59): Companion file source is a reparse point: $localSource" -ForegroundColor Red
+                exit 1
+            }
+            $baseName = Split-Path $destFile -Leaf
+            if ($Offline -and $shaHashMap.ContainsKey($baseName) -and (-not $SkipIntegrity)) {
+                $actualCfHash = Get-FileSha256 -Path $localSource
+                $expectedCfHash = $shaHashMap[$baseName] -replace '^sha256:', ''
+                if ($actualCfHash -ne $expectedCfHash) {
+                    Write-Host ""
+                    Write-Host "[ ERROR  ] Cryptographic integrity check failed for offline $baseName!" -ForegroundColor Red
+                    exit 1
+                }
+            }
             Copy-Item -LiteralPath $localSource -Destination $destFile -Force
-            if ((Split-Path $destFile -Leaf) -eq "uninstall.ps1") {
+            if ($baseName -eq "uninstall.ps1") {
                 $uninstShaFile = "$destFile.sha256"
                 Remove-ReparsePointOrFail -FilePath $uninstShaFile
                 [System.IO.File]::WriteAllText($uninstShaFile, (Get-FileSha256 -Path $destFile), (New-Object System.Text.UTF8Encoding($false)))
@@ -790,15 +849,6 @@ try {
 
 # 3. Safe REG_EXPAND_SZ Path Injection
 Update-Progress -Percent 80 -Activity "Configuring User PATH..."
-
-function Normalize-PathEntry([string]$p) {
-    if (-not $p) { return "" }
-    $clean = $p.Trim().Trim('`"').Trim("'").Trim()
-    if ($clean.Length -gt 3) {
-        return $clean.TrimEnd('\', '/')
-    }
-    return $clean
-}
 
 $userPath = ""
 $existingKind = [Microsoft.Win32.RegistryValueKind]::ExpandString
@@ -1123,22 +1173,6 @@ if ($expandedDocs) {
     $profiles += (Join-Path $expandedDocs 'PowerShell\Microsoft.PowerShell_profile.ps1')
 }
 $profiles = $profiles | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
-
-function Test-HasReparsePointInLineage([string]$TargetPath) {
-    if ([string]::IsNullOrWhiteSpace($TargetPath)) { return $false }
-    try {
-        $curr = [System.IO.Path]::GetFullPath($TargetPath)
-        $root = [System.IO.Path]::GetPathRoot($curr)
-        while ($curr -and ($curr.TrimEnd('\') -ne $root.TrimEnd('\'))) {
-            if (Test-Path -LiteralPath $curr) {
-                $item = Get-Item -LiteralPath $curr -Force -ErrorAction Stop
-                if ([bool]($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { return $true }
-            }
-            $curr = Split-Path -Path $curr -Parent
-        }
-    } catch { return $true }
-    return $false
-}
 
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 foreach ($p in $profiles) {

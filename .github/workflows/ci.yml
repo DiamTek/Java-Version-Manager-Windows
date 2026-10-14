@@ -12,11 +12,15 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  POWERSHELL_TELEMETRY_OPTOUT: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
 
 jobs:
   build-and-test:
-    name: Build & Test MSI Packages
+    name: Build & Test MSI Packages (PowerShell 7)
     runs-on: windows-latest
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -51,7 +55,7 @@ jobs:
           }
           Write-Host "All markdown relative documentation links verified successfully."
 
-      - name: Run Automated Security & Adversarial Test Suite
+      - name: Run Automated Security & Adversarial Test Suite (PowerShell 7)
         shell: pwsh
         run: |
           .\tests\Test-JvmSecurity.ps1 -Detailed
@@ -90,3 +94,21 @@ jobs:
           name: msi-packages-ci
           path: packages/msi/jvm-windows-*.msi
           if-no-files-found: error
+          retention-days: 7
+
+  test-windows-powershell:
+    name: Security & Adversarial Test Suite (Windows PowerShell 5.1)
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run Automated Security & Adversarial Test Suite (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          .\tests\Test-JvmSecurity.ps1 -Detailed

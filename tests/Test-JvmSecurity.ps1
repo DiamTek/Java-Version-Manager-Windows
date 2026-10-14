@@ -6570,7 +6570,7 @@ allow_skip_checksum = false
             $manFile = Join-Path $distroOut "distro-manifest.json"
             Assert-True (Test-Path -LiteralPath $manFile) "distro-manifest.json must exist in distro output"
             $manJson = Get-Content -LiteralPath $manFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            Assert-Equals "DiamTek JVM Air-Gapped Distribution Kit" $manJson.name "Manifest kit name must match"
+            Assert-Equals $manJson.name "DiamTek JVM Air-Gapped Distribution Kit" "Manifest kit name must match"
             Assert-True ($null -ne $manJson.files."jvm.bat") "Manifest must contain hash for jvm.bat"
 
             Assert-True (Test-Path -LiteralPath (Join-Path $distroOut "jvm.bat")) "Distro must contain jvm.bat"
@@ -6595,11 +6595,16 @@ allow_skip_checksum = false
         try {
             # 1. Build a local distro
             $null = & cmd.exe /c "call `"$JvmBat`" distro create --out `"$distroDir`"" > $null 2>&1
+            Assert-Equals $LASTEXITCODE 0 "Prerequisite jvm distro create must exit 0"
 
             # 2. Run install.ps1 with -Offline and -DistroDir pointing to local distro
             $installScript = Join-Path $RepoRoot "install.ps1"
             $p = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$installScript`"", "-Offline", "-DistroDir", "`"$distroDir`"", "-TargetDir", "`"$targetInstall`"", "-Quiet" -NoNewWindow -PassThru -Wait -RedirectStandardOutput (Join-Path $testDir "install_out.log") -RedirectStandardError (Join-Path $testDir "install_err.log")
-            Assert-Equals $p.ExitCode 0 "install.ps1 -Offline -DistroDir must exit 0"
+            try {
+                Assert-Equals $p.ExitCode 0 "install.ps1 -Offline -DistroDir must exit 0"
+            } finally {
+                if ($null -ne $p) {$p.Dispose() }
+            }
 
             # 3. Verify installed payload
             Assert-True (Test-Path -LiteralPath (Join-Path $targetInstall "jvm.bat")) "Installed jvm.bat must exist"

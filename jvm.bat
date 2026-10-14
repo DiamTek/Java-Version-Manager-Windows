@@ -26,6 +26,7 @@ if not exist "%SystemRoot%\System32\cmd.exe" for %%W in ("%SYS32%\..") do set "S
 
 set "CMD_BIN=%SYS32%\cmd.exe"
 set "PS_BIN=%SYS32%\WindowsPowerShell\v1.0\powershell.exe"
+set "PSModulePath=%ProgramFiles%\WindowsPowerShell\Modules;%SYS32%\WindowsPowerShell\v1.0\Modules"
 set "FIND_BIN=%SYS32%\find.exe"
 set "FINDSTR_BIN=%SYS32%\findstr.exe"
 set "REG_BIN=%SYS32%\reg.exe"
@@ -56,7 +57,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261013.158"
+set "JVM_BUILD=20261014.159"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" set "HELP_TOPIC=%~2" & goto :EARLY_HELP
@@ -15911,12 +15912,19 @@ if "!FLAG_DRY_RUN!"=="1" (
     "    $filesToCopy = @('jvm.bat', 'install.ps1', 'uninstall.ps1', 'README.md', 'LICENSE');" ^
     "    $fileHashes = [ordered]@{};" ^
     "    $copied = 0;" ^
+    "    $fullOutCheck = [System.IO.Path]::GetFullPath($outPath);" ^
+    "    if (Test-Path -LiteralPath $fullOutCheck) {" ^
+    "        $outItem = Get-Item -LiteralPath $fullOutCheck -Force -ErrorAction Stop;" ^
+    "        if ($outItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw 'Security violation (CWE-59): Output target cannot be a reparse point or symlink.' };" ^
+    "    };" ^
     "    foreach ($f in $filesToCopy) {" ^
     "        $src = Join-Path $repoRoot $f;" ^
     "        if (Test-Path -LiteralPath $src) {" ^
+    "            $srcItem = Get-Item -LiteralPath $src -Force -ErrorAction Stop;" ^
+    "            if ($srcItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw ('Security violation (CWE-59): Source file is a reparse point: ' + $f) };" ^
     "            $destFile = Join-Path $stageDir $f;" ^
     "            Copy-Item -LiteralPath $src -Destination $destFile -Force;" ^
-    "            $hashBytes = (Get-FileHash -LiteralPath $destFile -Algorithm SHA256).Hash.ToLower();" ^
+    "            $sha = [System.Security.Cryptography.SHA256]::Create(); $fs = [System.IO.File]::OpenRead($destFile); $hashBytes = try { ([System.BitConverter]::ToString($sha.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $fs.Dispose(); $sha.Dispose() };" ^
     "            $fileHashes[$f] = ('sha256:' + $hashBytes);" ^
     "            $copied++;" ^
     "        };" ^

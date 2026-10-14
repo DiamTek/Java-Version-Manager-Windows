@@ -12,17 +12,23 @@ on:
         default: '1.0.1'
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  POWERSHELL_TELEMETRY_OPTOUT: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
 
 jobs:
   build-attest-release:
     name: Build, Attest & Release
     runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
 
     steps:
       - name: Checkout repository
@@ -31,10 +37,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Run Automated Security & Adversarial Test Suite
+      - name: Run Automated Security & Adversarial Test Suite (PowerShell 7)
         shell: pwsh
         run: |
           .\tests\Test-JvmSecurity.ps1 -Detailed
+
+      - name: Run Cross-Shell Compatibility Verification (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          .\tests\Test-JvmSecurity.ps1 -Suite Registry
+          .\tests\Test-JvmSecurity.ps1 -Suite ShellErgonomics
+          .\tests\Test-JvmSecurity.ps1 -Suite Portability
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@87b7050bc53ea08284295505d98d2aa94301e852 # v4.2.0
@@ -129,8 +142,8 @@ jobs:
         run: |
           $ver = $env:RELEASE_VERSION
           $zipName = "packages/msi/jvm-windows-$ver-portable.zip"
-          $itemsToCompress = @("jvm.bat", "assets", "LICENSE", "README.md", "uninstall.ps1", "install.ps1") | Where-Object { Test-Path $_ }
-          Compress-Archive -Path $itemsToCompress -DestinationPath $zipName -Force
+          $itemsToCompress = @("jvm.bat", "assets", "LICENSE", "README.md", "uninstall.ps1", "install.ps1") | Where-Object { Test-Path -LiteralPath $_ }
+          Compress-Archive -LiteralPath $itemsToCompress -DestinationPath $zipName -Force
           Write-Host "Created portable archive: $zipName"
 
       - name: Stage Release Artifacts
@@ -142,23 +155,39 @@ jobs:
           Copy-Item "packages\choco\jvm-windows.*.nupkg" -Destination "dist\" -Force
           
           # Safely copy only the files that actually exist to prevent step crashes
-          @("jvm.bat", "install.ps1", "uninstall.ps1", "README.md", "LICENSE") | Where-Object { Test-Path $_ } | ForEach-Object {
-              Copy-Item $_ -Destination "dist\" -Force
+          @("jvm.bat", "install.ps1", "uninstall.ps1", "README.md", "LICENSE") | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object {
+              Copy-Item -LiteralPath $_ -Destination "dist\" -Force
           }
           
           Write-Host "Staged release artifacts in dist/:"
-          Get-ChildItem dist | ForEach-Object { Write-Host "  $($_.Name) ($([math]::Round($_.Length / 1KB, 1)) KB)" -ForegroundColor Cyan }
+          Get-ChildItem -LiteralPath "dist" | ForEach-Object {
+              if ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                  throw "Security violation (CWE-59): Staged release artifact '$($_.Name)' is a reparse point."
+              }
+              Write-Host "  $($_.Name) ($([math]::Round($_.Length / 1KB, 1)) KB)" -ForegroundColor Cyan
+          }
 
       - name: Generate Checksums (SHA256SUMS.txt)
         shell: pwsh
         run: |
-          $distFiles = Get-ChildItem -Path "dist" -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
-          $checksumLines = foreach ($item in $distFiles) {
-              $hash = (Get-FileHash -Path $item.FullName -Algorithm SHA256).Hash.ToLower()
-              Write-Host "$hash  $($item.Name)"
-              "$hash  $($item.Name)"
+          $distFiles = Get-ChildItem -LiteralPath "dist" -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
+          $sha256 = [System.Security.Cryptography.SHA256]::Create()
+          try {
+              $checksumLines = foreach ($item in $distFiles) {
+                  $fs = [System.IO.File]::OpenRead($item.FullName)
+                  try {
+                      $hash = ([System.BitConverter]::ToString($sha256.ComputeHash($fs)) -replace '-', '').ToLower()
+                  } finally {
+                      $fs.Close()
+                      $fs.Dispose()
+                  }
+                  Write-Host "$hash  $($item.Name)"
+                  "$hash  $($item.Name)"
+              }
+              [System.IO.File]::WriteAllLines((Join-Path (Resolve-Path -LiteralPath "dist").Path "SHA256SUMS.txt"), $checksumLines, [System.Text.UTF8Encoding]::new($false))
+          } finally {
+              $sha256.Dispose()
           }
-          $checksumLines | Out-File -FilePath "dist\SHA256SUMS.txt" -Encoding utf8
 
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2 # v2.2.3
