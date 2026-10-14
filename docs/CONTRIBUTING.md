@@ -57,7 +57,7 @@ All contributions are subject to two automated test suites before being merged i
 
 ### 1. Security, Error Management & Adversarial Test Suite (`tests/Test-JvmSecurity.ps1`)
 
-The repository includes an exhaustive **327-test automated adversarial security test suite across 16 suites** covering **41 MITRE CWE classes** (including `CWE-798`) with a verified **`10.0 / 10.0`** scorecard. This suite validates input sanitization, reparse point operations, atomic failure-path rollbacks, handle disposal, and exit code propagation:
+The repository includes an exhaustive **327-test automated adversarial security test suite across 16 suites** covering **41 MITRE CWE classes** (including `CWE-798`) with a verified **`10.0 / 10.0`** scorecard. **Our automated GitHub Actions CI pipeline continuously validates all 327 tests concurrently across both native Windows PowerShell 5.1 and modern PowerShell 7+ (Core)** to guarantee full cross-version compatibility. This suite validates input sanitization, reparse point operations, atomic failure-path rollbacks, handle disposal, and exit code propagation:
 
 ```powershell
 # Run using modern PowerShell 7+ (Recommended):

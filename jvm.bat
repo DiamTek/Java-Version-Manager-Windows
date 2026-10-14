@@ -57,7 +57,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261014.160"
+set "JVM_BUILD=20261014.161"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" set "HELP_TOPIC=%~2" & goto :EARLY_HELP

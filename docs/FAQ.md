@@ -1388,7 +1388,7 @@ The installer:
 
 <a id="how-can-i-run-the-automated-security-test-suite-locally"></a>
 ### How can I run the automated security test suite locally?
-DiamTek JVM includes an enterprise-grade automated security and adversarial fuzzing test suite located at `tests/Test-JvmSecurity.ps1`. This suite validates all defensive boundaries, input sanitization routines, reparse point operations, and manifest schemas against real adversarial payloads.
+DiamTek JVM includes an enterprise-grade automated security and adversarial fuzzing test suite located at `tests/Test-JvmSecurity.ps1`. **Our automated GitHub Actions CI pipeline continuously validates all 327 tests concurrently across both native Windows PowerShell 5.1 and modern PowerShell 7+ (Core)** to guarantee full cross-version compatibility. This suite validates all defensive boundaries, input sanitization routines, reparse point operations, and manifest schemas against real adversarial payloads.
 
 #### 1. Running the Test Suite
 The security test suite can be run from either modern PowerShell 7+ (`pwsh`) or native Windows PowerShell 5.1:

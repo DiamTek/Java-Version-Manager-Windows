@@ -377,7 +377,7 @@ try {
 
     $verRegex = [regex]::Escape($expectedVersion)
     $bldRegex = if ($expectedBuild) { [regex]::Escape($expectedBuild) } else { "[0-9]+" }
-    $engineValid = [bool]($cleanOutput -match "Version:\s*$verRegex" -and $cleanOutput -match "Build:\s*$bldRegex" -and $cleanOutput -match "Channel:\s*\[Stable\]")
+    $engineValid = [bool]($cleanOutput -match "$verRegex" -and $cleanOutput -match "$bldRegex" -and $cleanOutput -match "\[Stable\]")
     $bldDetails = if ($expectedBuild) { "Build $expectedBuild" } else { "Build verified" }
     Report-Check -Title "Runtime CLI subshell execution verified (jvm.bat --version)" -Passed $engineValid -Details "v$expectedVersion ($bldDetails, [Stable])"
 

@@ -283,7 +283,7 @@ The resulting single-file installers are placed directly into `packages\msi\` (o
 DiamTek JVM provides two automated test suites to verify system integrity and security:
 
 #### 1. Adversarial Security & Error-Injection Suite (`tests/Test-JvmSecurity.ps1`)
-An enterprise-grade test harness executing **327 automated test cases across 16 defensive suites** covering **41 MITRE CWE classes** (`CWE-20` through `CWE-918`, including `CWE-798`) with a verified **10.0 / 10.0** scorecard:
+An enterprise-grade test harness executing **327 automated test cases across 16 defensive suites** covering **41 MITRE CWE classes** (`CWE-20` through `CWE-918`, including `CWE-798`) with a verified **10.0 / 10.0** scorecard. **Continuously tested in CI across both Windows PowerShell 5.1 and PowerShell 7+ (Core)**:
 ```powershell
 # Run using modern PowerShell 7+ (Recommended):
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1
