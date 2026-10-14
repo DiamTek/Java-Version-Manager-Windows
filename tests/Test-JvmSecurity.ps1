@@ -6564,7 +6564,7 @@ allow_skip_checksum = false
         $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
         try {
             $out = & cmd.exe /c "call `"$JvmBat`" distro create --out `"$distroOut`"" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm distro create must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm distro create must exit 0"
             Assert-True (Test-Path -LiteralPath $distroOut) "Distro output directory must exist"
 
             $manFile = Join-Path $distroOut "distro-manifest.json"
@@ -6599,7 +6599,7 @@ allow_skip_checksum = false
             # 2. Run install.ps1 with -Offline and -DistroDir pointing to local distro
             $installScript = Join-Path $RepoRoot "install.ps1"
             $p = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$installScript`"", "-Offline", "-DistroDir", "`"$distroDir`"", "-TargetDir", "`"$targetInstall`"", "-Quiet" -NoNewWindow -PassThru -Wait -RedirectStandardOutput (Join-Path $testDir "install_out.log") -RedirectStandardError (Join-Path $testDir "install_err.log")
-            Assert-Equals 0 $p.ExitCode "install.ps1 -Offline -DistroDir must exit 0"
+            Assert-Equals $p.ExitCode 0 "install.ps1 -Offline -DistroDir must exit 0"
 
             # 3. Verify installed payload
             Assert-True (Test-Path -LiteralPath (Join-Path $targetInstall "jvm.bat")) "Installed jvm.bat must exist"
