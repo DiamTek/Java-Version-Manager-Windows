@@ -66,7 +66,7 @@ flowchart TD
         P2["Paths: .jvm.toml, .jvm.lock, .jvm.lock.sig<br>Behavior: Pinned to source control repository"]
     end
     subgraph Layer3["3. Developer Workstation Defaults"]
-        P3["Path: %LOCALAPPDATA%\\DiamTek\\JVM\\config.toml<br>Behavior: User preferences within policy boundaries"]
+        P3["Path: %LOCALAPPDATA%\\DiamTek\\JVM\\config.json<br>Behavior: User preferences within policy boundaries"]
     end
 
     Layer1 -->|"Constrains & Overrides"| Layer2
@@ -85,70 +85,38 @@ Below is the complete specification of the `policy.toml` configuration format:
 ```toml
 # ==============================================================================
 # DiamTek JVM Enterprise Policy Specification
-# Path: %ProgramData%\DiamTek\JVM\policy.toml
+# Path: %ProgramData%\DiamTek\JVM\policy.toml (or $env:JVM_POLICY_FILE)
 # ==============================================================================
 
-# Global Policy Guard: Set to true to enforce strict validation
-enforce_policy = true
+[policy]
+# Prohibit bypassing SHA-256 checksum verification (--skip-checksum / --no-verify)
+allow_skip_checksum = false
 
-# Unmanaged Installation Guard:
-# When true, blocks developer installation of ad-hoc JDKs not matching policy.
-disallow_unmanaged_installations = true
+# Allow or restrict local user config modifications (jvm config set / reset)
+allow_user_config = true
 
-# Vendor Allowlist:
+# Require a valid .jvm.lock in the project workspace
+enforce_lockfile = false
+
+# Redirect downloads to an internal corporate artifact mirror (HTTPS required)
+enforced_mirror = "https://binaries.corp.internal/artifactory/jvm-cache/"
+
+# Pin self-update and release track to certified channel ("STABLE" or "NIGHTLY")
+enforced_channel = "STABLE"
+
+[vendors]
 # Only distributions from these specific vendors may be installed or activated.
 # Valid options: adoptium, corretto, zulu, bellsoft, semeru, microsoft,
-#                oracle, graalvm, sapmachine, liberica, temurin, dragonwell
-allowed_vendors = [
-    "adoptium",
-    "corretto",
-    "microsoft",
-    "zulu"
-]
+#                oracle, graalvm, sapmachine, mandrel, dragonwell, kona
+allowed = ["adoptium", "corretto", "microsoft", "zulu"]
 
-# Update Channel Allowlist:
-# Restrict self-updates and candidate channels to certified stable builds.
-# Options: "stable", "nightly"
-allowed_channels = [
-    "stable"
-]
+# Explicitly blocked vendor distributions
+blocked = ["oracle"]
 
-# Early Access & Preview Build Guard:
-# Prevent developers from deploying experimental or non-LTS EA builds to production.
-disallow_ea_builds = true
-
-# Lockfile Enforcement:
-# When true, 'jvm install' and 'jvm use' require a valid .jvm.lock in the project.
-require_lockfile = false
-
-# Cryptographic Signature Enforcement:
-# When true, requires a valid .jvm.lock.sig matching the enterprise HMAC key.
-require_signed_lockfile = false
-
-# Allowed Signing Key Fingerprints:
-# Hex-encoded SHA-256 fingerprints of enterprise signing keys permitted for lockfiles.
-allowed_key_fingerprints = [
-    "4a8e2b83c01f6871a25b13e9a5c43d78f23491ba32c1b504e76d912389ab4102"
-]
-
-# Internal Enterprise Mirror Redirection:
-# Redirect all downloads to an internal Nexus, Artifactory, or cloud storage bucket.
-# Must be an HTTPS URL ending with a trailing slash.
-restricted_mirror_base = "https://binaries.corp.internal/artifactory/jvm-cache/"
-
-# Corporate Proxy Configuration:
-# Automatically configured if HTTP_PROXY or HTTPS_PROXY is defined in system environment.
-[proxy]
-enabled = true
-url = "http://proxy.corp.internal:8080"
-bypass_local = true
-no_proxy = "localhost,127.0.0.1,.corp.internal"
-use_default_credentials = true
-
-# Telemetry & Diagnostics:
-# Guarantees zero outbound diagnostic telemetry outside corporate networks.
-[telemetry]
-disabled = true
+[versions]
+# Enforce lower and upper major Java version bounds across workstations
+min_java = "17"
+max_java = "25"
 ```
 
 ---

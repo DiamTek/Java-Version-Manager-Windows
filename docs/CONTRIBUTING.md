@@ -57,7 +57,7 @@ All contributions are subject to two automated test suites before being merged i
 
 ### 1. Security, Error Management & Adversarial Test Suite (`tests/Test-JvmSecurity.ps1`)
 
-The repository includes an exhaustive **323-test automated adversarial security test suite across 16 suites** covering **41 MITRE CWE classes** (including `CWE-798`) with a verified **`10.0 / 10.0`** scorecard. This suite validates input sanitization, reparse point operations, atomic failure-path rollbacks, handle disposal, and exit code propagation:
+The repository includes an exhaustive **327-test automated adversarial security test suite across 16 suites** covering **41 MITRE CWE classes** (including `CWE-798`) with a verified **`10.0 / 10.0`** scorecard. This suite validates input sanitization, reparse point operations, atomic failure-path rollbacks, handle disposal, and exit code propagation:
 
 ```powershell
 # Run using modern PowerShell 7+ (Recommended):
@@ -170,7 +170,7 @@ We actively welcome contributions! Follow this workflow for a seamless review:
    - `docs: update Intune silent deployment switches`
    - `test: add synthetic validation case for ARM64 detection`
 4. **Run the Pre-Flight Checklist:**
-   - [ ] `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1` passes 323/323 tests (`0` failures across all 16 suites and 41 MITRE CWE classes).
+   - [ ] `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1` passes 327/327 tests (`0` failures across all 16 suites and 41 MITRE CWE classes).
    - [ ] Verified zero empty catch blocks across all PowerShell files (`CWE-390`).
    - [ ] `cmd.exe /c "jvm.bat --version"` executes cleanly with exit code `0`.
    - [ ] Verified in standard **Command Prompt (`cmd.exe`)**.

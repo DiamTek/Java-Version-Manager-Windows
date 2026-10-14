@@ -38,7 +38,7 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **Pre-Change Safety** | None (overwrites shell files) | **Automated Registry Backups** (exports `.reg` to `%LOCALAPPDATA%\DiamTek\JVM\backups\`) |
 | **User Interface** | CLI Only (Manual typing) | **Interactive TUI** & Headless CLI |
 | **Archive Extraction** | Requires external `zip` / `tar` binaries | **Native `.NET System.IO.Compression`** |
-| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **323-Test Adversarial Suite (`41 MITRE CWEs` across 16 Suites), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
+| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **327-Test Adversarial Suite (`41 MITRE CWEs` across 16 Suites), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
 | **Multi-Tool Environment Profiles** | None (manual tool-by-tool switching) | **`jvm profile`** (Atomic multi-candidate switching, rollback on error `CWE-460`, and reparse point protection `CWE-59`) |
 | **State Snapshots & Rollback** | None | **`jvm snapshot`** (Point-in-time state capture into JSON manifests, validated restore, and `--dry-run` simulation) |
 | **Portable Toolchain Bundles** | None | **`jvm bundle`** (Standalone `.jvmbundle` archives with `0x50 0x4B` magic bytes & ZipSlip `CWE-22` containment) |

@@ -215,11 +215,23 @@ function Resolve-TestCweAllIds {
     return @($ids)
 }
 
+$RegisteredTests = [System.Collections.Generic.List[PSCustomObject]]::new()
+
 function Resolve-CanonicalSuite {
-    param([string]$RawSuite)
+    param([string]$RawSuite, [string]$TestName = '')
 
     if ($RawSuite -eq 'ReparsePoint') {
         $script:HasPassedSuite2 = $true
+    }
+
+    if ($RawSuite -eq 'Cache' -or $TestName -match '(?i)(Content-Addressed|CAS sha256|jvm cache|Cache bundle import|Resumable Downloads|Smart Retry with Exponential Backoff|Configurable Download Mirrors)') {
+        return $script:SuiteTracker['SUITE 9']
+    }
+    if ($RawSuite -eq 'Ecosystem' -or $TestName -match '(?i)(ResolveLatestEcosystemCandidate|EcoPerformCheck|UninstallCandidate and :InstallCandidate|Interactive ecosystem version prompt|Remote Search Engine|Remote search candidate|jvm compare|Version comparison specification|Toolchain Conflict Detection|Smart Contextual Execution|\.jvm\.toml|Exact Semantic Build)') {
+        return $script:SuiteTracker['SUITE 10']
+    }
+    if ($RawSuite -in @('Transaction', 'AtomicOperations') -or $TestName -match '(?i)(Transactional installations|transaction recovery|Transaction journal rollback|Interrupted activation pre-state|Self-Update Rollback & History)') {
+        return $script:SuiteTracker['SUITE 11']
     }
 
     $suiteKey = switch ($RawSuite) {
@@ -231,13 +243,9 @@ function Resolve-CanonicalSuite {
         'SupplyChain'         { 'SUITE 4' }
         'Reparse'             { 'SUITE 5' }
         'Concurrency'         { 'SUITE 5' }
-        'AtomicOperations'    { 'SUITE 5' }
         'Uninstall'           { 'SUITE 7' }
         'UninstallSafety'     { 'SUITE 7' }
         'TerminalJSON'        { 'SUITE 8' }
-        'Cache'               { 'SUITE 9' }
-        'Ecosystem'           { 'SUITE 10' }
-        'Transaction'         { 'SUITE 11' }
         'EnterprisePolicy'    { 'SUITE 12' }
         'LockfileLifecycle'   { 'SUITE 13' }
         'ShellErgonomics'     { 'SUITE 14' }
@@ -316,103 +324,138 @@ function Run-TestCase {
         [scriptblock]$TestLogic
     )
 
-    $suiteEntry = Resolve-CanonicalSuite -RawSuite $Suite
+    $suiteEntry = Resolve-CanonicalSuite -RawSuite $Suite -TestName $Name
     $cweMeta    = Resolve-TestCweMetadata -RawSuite $Suite -TestName $Name
     $allCweIds  = Resolve-TestCweAllIds -TestName $Name -PrimaryCweMeta $cweMeta
 
-    if (-not (Test-RunnerFilterMatch -SuiteEntry $suiteEntry -CweMeta $cweMeta -RawSuite $Suite -TestName $Name)) {
-        $script:GlobalSkipped++
-        $suiteEntry.Skipped++
-        return
-    }
+    $script:RegisteredTests.Add([PSCustomObject]@{
+        SuiteEntry = $suiteEntry
+        RawSuite   = $Suite
+        Name       = $Name
+        CweMeta    = $cweMeta
+        AllCweIds  = $allCweIds
+        TestLogic  = $TestLogic
+    })
+}
 
-    $suiteEntry.Total++
-    $cweBadge = "${cCyan}[$($cweMeta.Id)]${cReset}"
-    $cwePad   = if ($cweMeta.Id.Length -le 6) { "  " } else { " " }
+function Invoke-RegisteredTestSuites {
+    foreach ($suiteKey in $script:SuiteTracker.Keys) {
+        $suiteObj = $script:SuiteTracker[$suiteKey]
+        $suiteTests = @($script:RegisteredTests | Where-Object { $_.SuiteEntry.Id -eq $suiteObj.Id })
+        if ($suiteTests.Count -eq 0) { continue }
 
-    $snapLocalAppData = $env:LOCALAPPDATA
-    $snapUserProfile  = $env:USERPROFILE
-    $snapJavaHome     = $env:JAVA_HOME
-    $snapPath         = $env:PATH
-    $snapSystemRoot   = $env:SystemRoot
-    $snapNoColor      = $env:NO_COLOR
-    $snapCallerPid    = $env:JVM_CALLER_PID
-    $snapQueryPath    = $env:QUERY_PATH
-    $snapSkipChecksum = $env:SKIP_CHECKSUM
-    $snapEAP          = $ErrorActionPreference
-    $snapLocation     = (Get-Location).Path
-    $regEnvKeySnap    = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $false)
-    $snapRegUserPath  = try { if ($regEnvKeySnap) { $regEnvKeySnap.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } else { $null } } finally { if ($regEnvKeySnap) { $regEnvKeySnap.Close() } }
-    $snapRegJavaHome  = try { (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'JAVA_HOME' -ErrorAction SilentlyContinue).JAVA_HOME } catch { $null }
-
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    try {
-        & { & $TestLogic } 6>$null | Out-Null
-        $sw.Stop()
-        $elapsed = $sw.ElapsedMilliseconds
-        $script:GlobalPassed++
-        $suiteEntry.Passed++
-        $suiteEntry.ElapsedMs += $elapsed
-        Write-Host "  ${cGreen}[PASS]${cReset} $cweBadge$cwePad$Name ${cGray}($elapsed ms)${cReset}"
-        $script:TestResults.Add([PSCustomObject]@{
-            SuiteId    = $suiteEntry.Id
-            SuiteTitle = $suiteEntry.Name
-            Suite      = $Suite
-            CweId      = $cweMeta.Id
-            CweIds     = $allCweIds
-            CweShort   = $cweMeta.Short
-            Name       = $Name
-            Status     = "PASS"
-            Error      = $null
-            Duration   = $elapsed
-        })
-    } catch {
-        $sw.Stop()
-        $elapsed = $sw.ElapsedMilliseconds
-        $script:GlobalFailed++
-        $suiteEntry.Failed++
-        $suiteEntry.ElapsedMs += $elapsed
-        Write-Host "  ${cRed}[FAIL]${cReset} $cweBadge$cwePad$Name ${cGray}($elapsed ms)${cReset}" -ForegroundColor Red
-        Write-Host "         Error: $($_.Exception.Message)" -ForegroundColor DarkRed
-        $script:TestResults.Add([PSCustomObject]@{
-            SuiteId    = $suiteEntry.Id
-            SuiteTitle = $suiteEntry.Name
-            Suite      = $Suite
-            CweId      = $cweMeta.Id
-            CweIds     = $allCweIds
-            CweShort   = $cweMeta.Short
-            Name       = $Name
-            Status     = "FAIL"
-            Error      = $_.Exception.Message
-            Duration   = $elapsed
-        })
-    } finally {
-        $env:LOCALAPPDATA   = $snapLocalAppData
-        $env:USERPROFILE    = $snapUserProfile
-        $env:JAVA_HOME      = $snapJavaHome
-        $env:PATH           = $snapPath
-        $env:SystemRoot     = $snapSystemRoot
-        $env:NO_COLOR       = $snapNoColor
-        $env:JVM_CALLER_PID = $snapCallerPid
-        $env:QUERY_PATH     = $snapQueryPath
-        $env:SKIP_CHECKSUM  = $snapSkipChecksum
-        $ErrorActionPreference = $snapEAP
-        if ($null -ne $snapRegUserPath) {
-            $regEnvKeyRest = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
-            try {
-                $curRegPath = $regEnvKeyRest.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-                if ($curRegPath -ne $snapRegUserPath) {
-                    $regEnvKeyRest.SetValue('Path', $snapRegUserPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
-                }
-            } finally {
-                if ($regEnvKeyRest) { $regEnvKeyRest.Close() }
+        $matchingTests = [System.Collections.Generic.List[PSCustomObject]]::new()
+        foreach ($t in $suiteTests) {
+            if (Test-RunnerFilterMatch -SuiteEntry $t.SuiteEntry -CweMeta $t.CweMeta -RawSuite $t.RawSuite -TestName $t.Name) {
+                $matchingTests.Add($t)
+            } else {
+                $script:GlobalSkipped++
+                $t.SuiteEntry.Skipped++
             }
         }
-        if ($null -ne $snapRegJavaHome) {
-            Set-ItemProperty -Path 'HKCU:\Environment' -Name 'JAVA_HOME' -Value $snapRegJavaHome -Type String -ErrorAction SilentlyContinue
-        }
-        if ($snapLocation -and (Test-Path -LiteralPath $snapLocation)) {
-            Set-Location -LiteralPath $snapLocation
+        if ($matchingTests.Count -eq 0) { continue }
+
+        $headerTitle = $suiteObj.Name -replace '^Suite\s+\d+:\s*', ''
+        Write-Host ""
+        Write-Host "$cBold[$($suiteObj.Id)] $headerTitle$cReset"
+
+        foreach ($test in $matchingTests) {
+            $suiteEntry = $test.SuiteEntry
+            $cweMeta    = $test.CweMeta
+            $allCweIds  = $test.AllCweIds
+            $Name       = $test.Name
+            $Suite      = $test.RawSuite
+            $TestLogic  = $test.TestLogic
+
+            $suiteEntry.Total++
+            $cweBadge = "${cCyan}[$($cweMeta.Id)]${cReset}"
+            $cwePad   = if ($cweMeta.Id.Length -le 6) { "  " } else { " " }
+
+            $snapLocalAppData = $env:LOCALAPPDATA
+            $snapUserProfile  = $env:USERPROFILE
+            $snapJavaHome     = $env:JAVA_HOME
+            $snapPath         = $env:PATH
+            $snapSystemRoot   = $env:SystemRoot
+            $snapNoColor      = $env:NO_COLOR
+            $snapCallerPid    = $env:JVM_CALLER_PID
+            $snapQueryPath    = $env:QUERY_PATH
+            $snapSkipChecksum = $env:SKIP_CHECKSUM
+            $snapEAP          = $ErrorActionPreference
+            $snapLocation     = (Get-Location).Path
+            $regEnvKeySnap    = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $false)
+            $snapRegUserPath  = try { if ($regEnvKeySnap) { $regEnvKeySnap.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) } else { $null } } finally { if ($regEnvKeySnap) { $regEnvKeySnap.Close() } }
+            $snapRegJavaHome  = try { (Get-ItemProperty -Path 'HKCU:\Environment' -Name 'JAVA_HOME' -ErrorAction SilentlyContinue).JAVA_HOME } catch { $null }
+
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                & { & $TestLogic } 6>$null | Out-Null
+                $sw.Stop()
+                $elapsed = $sw.ElapsedMilliseconds
+                $script:GlobalPassed++
+                $suiteEntry.Passed++
+                $suiteEntry.ElapsedMs += $elapsed
+                Write-Host "  ${cGreen}[PASS]${cReset} $cweBadge$cwePad$Name ${cGray}($elapsed ms)${cReset}"
+                $script:TestResults.Add([PSCustomObject]@{
+                    SuiteId    = $suiteEntry.Id
+                    SuiteTitle = $suiteEntry.Name
+                    Suite      = $Suite
+                    CweId      = $cweMeta.Id
+                    CweIds     = $allCweIds
+                    CweShort   = $cweMeta.Short
+                    Name       = $Name
+                    Status     = "PASS"
+                    Error      = $null
+                    Duration   = $elapsed
+                })
+            } catch {
+                $sw.Stop()
+                $elapsed = $sw.ElapsedMilliseconds
+                $script:GlobalFailed++
+                $suiteEntry.Failed++
+                $suiteEntry.ElapsedMs += $elapsed
+                Write-Host "  ${cRed}[FAIL]${cReset} $cweBadge$cwePad$Name ${cGray}($elapsed ms)${cReset}" -ForegroundColor Red
+                Write-Host "         Error: $($_.Exception.Message)" -ForegroundColor DarkRed
+                $script:TestResults.Add([PSCustomObject]@{
+                    SuiteId    = $suiteEntry.Id
+                    SuiteTitle = $suiteEntry.Name
+                    Suite      = $Suite
+                    CweId      = $cweMeta.Id
+                    CweIds     = $allCweIds
+                    CweShort   = $cweMeta.Short
+                    Name       = $Name
+                    Status     = "FAIL"
+                    Error      = $_.Exception.Message
+                    Duration   = $elapsed
+                })
+            } finally {
+                $env:LOCALAPPDATA   = $snapLocalAppData
+                $env:USERPROFILE    = $snapUserProfile
+                $env:JAVA_HOME      = $snapJavaHome
+                $env:PATH           = $snapPath
+                $env:SystemRoot     = $snapSystemRoot
+                $env:NO_COLOR       = $snapNoColor
+                $env:JVM_CALLER_PID = $snapCallerPid
+                $env:QUERY_PATH     = $snapQueryPath
+                $env:SKIP_CHECKSUM  = $snapSkipChecksum
+                $ErrorActionPreference = $snapEAP
+                if ($null -ne $snapRegUserPath) {
+                    $regEnvKeyRest = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+                    try {
+                        $curRegPath = $regEnvKeyRest.GetValue('Path', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                        if ($curRegPath -ne $snapRegUserPath) {
+                            $regEnvKeyRest.SetValue('Path', $snapRegUserPath, [Microsoft.Win32.RegistryValueKind]::ExpandString)
+                        }
+                    } finally {
+                        if ($regEnvKeyRest) { $regEnvKeyRest.Close() }
+                    }
+                }
+                if ($null -ne $snapRegJavaHome) {
+                    Set-ItemProperty -Path 'HKCU:\Environment' -Name 'JAVA_HOME' -Value $snapRegJavaHome -Type String -ErrorAction SilentlyContinue
+                }
+                if ($snapLocation -and (Test-Path -LiteralPath $snapLocation)) {
+                    Set-Location -LiteralPath $snapLocation
+                }
+            }
         }
     }
 }
@@ -6667,8 +6710,8 @@ allow_skip_checksum = false
                 @{ Cmd = "help distro";   Expected = "jvm distro - Command Line Reference" }
             )
             foreach ($c in $cards) {
-                $out = & cmd.exe /c "call `"$JvmBat`" $($c.Cmd)" 2>&1 | Out-String
-                Assert-Equals 0 $LASTEXITCODE "jvm $($c.Cmd) must exit 0"
+                $out = & cmd.exe /d /c "call `"$JvmBat`" $($c.Cmd)" 2>&1 | Out-String
+                Assert-Equals $LASTEXITCODE 0 "jvm $($c.Cmd) must exit 0"
                 Assert-Contains $out $c.Expected "Output must contain help card header '$($c.Expected)'"
                 Assert-Contains $out "Syntax:" "Must contain Syntax section"
             }
@@ -6677,6 +6720,7 @@ allow_skip_checksum = false
         }
     }
 
+    Invoke-RegisteredTestSuites
 } finally {
     # --------------------------------------------------------------------------
     # Sandbox Cleanup (Guaranteed Non-Recursive Reparse Safe Cleanup)

@@ -1234,12 +1234,15 @@ if exist "%_JVM_SYS32%\doskey.exe" (
 set "_JVM_SYS32="
 '@
     [System.IO.File]::WriteAllText($cmdHookPath, ($cmdHookContent -replace "`r?`n", "`r`n"), $utf8NoBom)
-    $cmdRegPath = "HKCU:\Software\Microsoft\Command Processor"
-    if (-not (Test-Path -LiteralPath $cmdRegPath)) { New-Item -Path $cmdRegPath -Force | Out-Null }
-    $existingAutoRun = (Get-ItemProperty -Path $cmdRegPath -Name "AutoRun" -ErrorAction SilentlyContinue).AutoRun
-    if (-not $existingAutoRun -or $existingAutoRun -notmatch '(?i)cmd_hook\.cmd') {
-        $newAutoRun = if ($existingAutoRun) { "$existingAutoRun & `"$cmdHookPath`"" } else { "`"$cmdHookPath`"" }
-        Set-ItemProperty -Path $cmdRegPath -Name "AutoRun" -Value $newAutoRun -Type String -Force
+    if (-not $TargetDir) {
+        $cmdRegPath = "HKCU:\Software\Microsoft\Command Processor"
+        if (-not (Test-Path -LiteralPath $cmdRegPath)) { New-Item -Path $cmdRegPath -Force | Out-Null }
+        $existingAutoRun = (Get-ItemProperty -Path $cmdRegPath -Name "AutoRun" -ErrorAction SilentlyContinue).AutoRun
+        $safeHookCmd = "if exist `"$cmdHookPath`" call `"$cmdHookPath`""
+        if (-not $existingAutoRun -or $existingAutoRun -notmatch '(?i)cmd_hook\.cmd') {
+            $newAutoRun = if ($existingAutoRun) { "$existingAutoRun & $safeHookCmd" } else { $safeHookCmd }
+            Set-ItemProperty -Path $cmdRegPath -Name "AutoRun" -Value $newAutoRun -Type String -Force
+        }
     }
 } catch {
     Write-Verbose "CMD AutoRun hook registration skipped: $($_.Exception.Message)"

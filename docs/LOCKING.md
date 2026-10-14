@@ -57,44 +57,42 @@ DiamTek JVM solves this with **Hermetic Toolchain Locking** (`.jvm.lock`) and **
 <a id="the-jvmlock-v2-specification"></a>
 ## The `.jvm.lock` v2 Specification
 
-DiamTek JVM uses a declarative TOML lockfile format designed to be committed directly into project source control (Git). It captures the complete immutable provenance of the active Java runtime and associated ecosystem build tools.
+DiamTek JVM uses a deterministic Schema v2 JSON lockfile format (UTF-8 No BOM) designed to be committed directly into project source control (Git). It captures the complete immutable provenance of the active Java runtime and associated ecosystem build tools.
 
 ### Sample `.jvm.lock` File:
 
-```toml
-# ==============================================================================
-# DiamTek JVM Hermetic Toolchain Lockfile (v2 Schema)
-# Generated: 2026-10-09T20:30:00Z
-# DO NOT EDIT DIRECTLY - Use 'jvm freeze' or 'jvm lock'
-# ==============================================================================
-schema_version = 2
-timestamp = "2026-10-09T20:30:00Z"
-jvm_version = "1.0.2"
-platform = "windows-x64"
-
-[tools.java]
-candidate = "java"
-vendor = "adoptium"
-version = "21.0.6+7"
-build = 7
-distribution = "temurin"
-archive_url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_x64_windows_hotspot_21.0.6_7.zip"
-sha256 = "d489b03126f5546ca337c75628b05e04cb2c48bf5ba2ea72d73347c61775f0a1"
-bin_path = "bin\\java.exe"
-
-[tools.maven]
-candidate = "maven"
-version = "3.9.9"
-archive_url = "https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.zip"
-sha256 = "a5552427a1f59efd50ab133285749f754ad4e2b0ef5d27845f0fcb718be7ec9b"
-bin_path = "bin\\mvn.cmd"
-
-[tools.gradle]
-candidate = "gradle"
-version = "8.12.1"
-archive_url = "https://services.gradle.org/distributions/gradle-8.12.1-bin.zip"
-sha256 = "6639537e6b01e389a64765d78a87b3378be260ebcae1df676479f6e2467d130a"
-bin_path = "bin\\gradle.bat"
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/schemas/jvm.lock.json",
+  "schema": 2,
+  "lockfile_version": 1,
+  "platform": "windows-x64",
+  "generated_at": "2026-10-14T20:30:00Z",
+  "tools": {
+    "java": {
+      "version": "21.0.6+7",
+      "vendor": "adoptium",
+      "arch": "x64",
+      "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_x64_windows_hotspot_21.0.6_7.zip",
+      "checksum_type": "sha256",
+      "checksum": "d489b03126f5546ca337c75628b05e04cb2c48bf5ba2ea72d73347c61775f0a1"
+    },
+    "maven": {
+      "version": "3.9.9",
+      "arch": "all",
+      "url": "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip",
+      "checksum_type": "sha512",
+      "checksum": "8beac8d11ef208f1e2a8df0682b9448a9a363d2ad13ca74af43705549e72e74c9378823bf689287801cbbfc2f6ea9596201d19ccacfdfb682ee8a2ff4c4418ba"
+    },
+    "gradle": {
+      "version": "8.12.1",
+      "arch": "all",
+      "url": "https://services.gradle.org/distributions/gradle-8.12.1-bin.zip",
+      "checksum_type": "sha256",
+      "checksum": "6639537e6b01e389a64765d78a87b3378be260ebcae1df676479f6e2467d130a"
+    }
+  }
+}
 ```
 
 ---

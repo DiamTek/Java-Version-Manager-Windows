@@ -141,7 +141,7 @@ flowchart TD
     M1 --> M2["2. NTFS ADS Stream Fuzzing<br>(java:stream, file::$DATA)"]
     M2 --> M3["3. Process Kill Fault Injection<br>(Simulate hard crash mid-download)"]
     M3 --> M4["4. PowerShell AST Audit<br>(Enforce ZERO empty catch blocks - CWE-390)"]
-    M4 --> Pass{"All 323 Test Cases Pass?"}
+    M4 --> Pass{"All 327 Test Cases Pass?"}
     Pass -- Yes --> Score["Verified Scorecard: 10.0 / 10.0 (41 CWEs Protected across 16 Suites)"]
     Pass -- No --> Fail["Fail-Closed: Block Build / Commit"]
 ```

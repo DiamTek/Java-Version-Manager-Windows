@@ -177,13 +177,11 @@ doskey jthaw=jvm thaw
 
 To have these aliases automatically load every time a new `cmd.exe` prompt is opened:
 
-1. Export the aliases to your user profile:
+1. Generate the macro script at `%LOCALAPPDATA%\DiamTek\JVM\jvm_aliases.cmd` and register it in `HKCU\Software\Microsoft\Command Processor\AutoRun` with a single command:
    ```cmd
-   jvm aliases > "%USERPROFILE%\.jvm_aliases.cmd"
-   ```
-2. Register the script in the CMD `AutoRun` registry key:
-   ```cmd
-   reg add "HKCU\Software\Microsoft\Command Processor" /v AutoRun /t REG_SZ /d "%USERPROFILE%\.jvm_aliases.cmd" /f
+   jvm aliases --install
+   :: Or via the hook subcommand:
+   jvm hook cmd --install
    ```
 
 Now, opening any CMD window allows instant version switching with zero typing overhead:
@@ -270,7 +268,7 @@ A persistent issue with version managers on Windows is process environment synch
 
 <a id="diamtek-jvm-architecture"></a>
 ### DiamTek JVM Architecture:
-1. **Stable Junction Pointer:** `JAVA_HOME` is pointed to `%USERPROFILE%\.jvm\current`. When a developer switches versions via `jvm use 17`, DiamTek JVM updates the underlying NTFS Directory Junction atomically. All existing and newly spawned shells immediately resolve the new JDK binary without requiring a terminal restart!
+1. **Stable Junction Pointer:** `JAVA_HOME` is pointed to `%LOCALAPPDATA%\DiamTek\JVM\current`. When a developer switches versions via `jvm use 17`, DiamTek JVM updates the underlying NTFS Directory Junction atomically. All existing and newly spawned shells immediately resolve the new JDK binary without requiring a terminal restart!
 2. **Infinite Length Buffer Defense:** Environment variables are updated using native Win32 .NET APIs (`[Environment]::SetEnvironmentVariable`), avoiding the 1,024-character buffer overflow limit inherent in legacy `setx.exe`.
 3. **Ownership Tracking:** All registry modifications are recorded in `%LOCALAPPDATA%\DiamTek\JVM\ownership.json`. The uninstaller will only ever touch keys and PATH entries registered by DiamTek JVM, guaranteeing non-destructive operation on corporate workstations.
 

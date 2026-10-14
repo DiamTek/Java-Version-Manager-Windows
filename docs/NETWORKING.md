@@ -63,7 +63,7 @@ flowchart TD
         SStream["Atomic Stream to .part File"]
         SHash["In-Memory SHA-256 Digest Computation"]
         SMatch["Comparison Against Manifest / API Digest"]
-        SMove["Atomic Move to %LOCALAPPDATA%\\DiamTek\\JVM\\cache\\cas\\"]
+        SMove["Atomic Move to %LOCALAPPDATA%\\DiamTek\\JVM\\cache\\sha256\\"]
     end
 
     CLI --> PEnv
@@ -187,10 +187,9 @@ To minimize network bandwidth, accelerate multi-project workflows, and support o
 
 ```text
 %LOCALAPPDATA%\DiamTek\JVM\cache\
-├── cas\
+├── sha256\
 │   ├── d4\
-│   │   └── 89\
-│   │       └── d489b03126f5546ca337c75628b05e04cb2c48bf5ba2ea72d73347c61775f0a1.zip
+│   │   └── d489b03126f5546ca337c75628b05e04cb2c48bf5ba2ea72d73347c61775f0a1.zip
 │   └── 66\
 │       └── 39\
 │           └── 6639537e6b01e389a64765d78a87b3378be260ebcae1df676479f6e2467d130a.zip
@@ -204,7 +203,7 @@ To minimize network bandwidth, accelerate multi-project workflows, and support o
 <a id="deduplication-across-projects--tools"></a>
 ### Deduplication Across Projects & Tools
 
-1. **Hash-Based Addressing:** Files in the CAS are stored according to their SHA-256 digest (`cas\xx\yy\<hash>.zip`).
+1. **Hash-Based Addressing:** Files in the CAS are stored according to their SHA-256 digest (`sha256\xx\<hash>.zip`).
 2. **Deduplication:** If two developers or two different projects reference the exact same tool version, archive download is executed only once.
 3. **Hardlink Optimization:** When extracting or staging runtimes, DiamTek JVM utilizes NTFS hardlinks where appropriate to eliminate redundant disk consumption.
 
@@ -213,13 +212,13 @@ To minimize network bandwidth, accelerate multi-project workflows, and support o
 
 ```mermaid
 flowchart TD
-    Req["Request: Tool Version X (SHA-256: H)"] --> CalcPrefix["Compute CAS Path: cas\\H[0..1]\\H[2..3]\\H.zip"]
+    Req["Request: Tool Version X (SHA-256: H)"] --> CalcPrefix["Compute CAS Path: sha256\\H[0..1]\\H.zip"]
     CalcPrefix --> CheckExists{"Archive exists in CAS?"}
     CheckExists -- Yes --> QuickExtract["Extract from CAS Cache (Zero Network Transit)"]
     CheckExists -- No --> Download["Stream from CDN to tmp\\download.part"]
     Download --> VerifyHash{"Computed SHA-256 == H?"}
     VerifyHash -- No --> Abort["Delete .part & Abort (CWE-494 / CWE-459)"]
-    VerifyHash -- Yes --> StoreCAS["Atomic Move to CAS Path: cas\\xx\\yy\\H.zip"]
+    VerifyHash -- Yes --> StoreCAS["Atomic Move to CAS Path: sha256\\xx\\H.zip"]
     StoreCAS --> QuickExtract
 ```
 
@@ -236,7 +235,7 @@ jvm cache stats
 jvm cache prune
 
 # Clear all cached archives (forces fresh downloads)
-jvm clean --cache
+jvm cache clean
 ```
 
 ---
@@ -251,7 +250,7 @@ Downloads are never written directly to their target destination:
 1. Data streams to an isolated temporary file with a `.part` extension in `%LOCALAPPDATA%\DiamTek\JVM\cache\tmp\`.
 2. The complete SHA-256 digest is calculated on-the-fly during the streaming read.
 3. Once the download completes, the calculated hash is compared against the expected digest.
-4. If valid, the file is atomically moved to its permanent location in `cache\cas\`. If invalid or interrupted, the `.part` file is deleted immediately.
+4. If valid, the file is atomically moved to its permanent location in `cache\sha256\`. If invalid or interrupted, the `.part` file is deleted immediately.
 
 <a id="atomic-staging-execution-flow"></a>
 ### Atomic Staging Execution Flow
@@ -263,7 +262,7 @@ flowchart TD
     Calc --> Comp{"Compare with expected SHA-256"}
     Comp -- Mismatch --> Del["Delete .part file immediately (CWE-494 / CWE-459)"]
     Del --> Err["Exit Code 5 (Checksum Mismatch)"]
-    Comp -- Match --> Move["Atomic Move: cache\\tmp\\*.part -> cache\\cas\\xx\\yy\\hash.zip"]
+    Comp -- Match --> Move["Atomic Move: cache\\tmp\\*.part -> cache\\sha256\\xx\\hash.zip"]
     Move --> Extract["Stage / Unpack to target directory"]
     Extract --> Junction["Repoint Directory Junction"]
 ```

@@ -31,7 +31,7 @@ This project is a zero-dependency, lightweight, native Windows implementation de
 - [CMD & PowerShell Transparent Directory Switching Hooks](#cmd--powershell-transparent-directory-switching-hooks)
 - [Content-Addressed Storage & Resilient Transport Engine](#content-addressed-storage--resilient-transport-engine)
 - [Environment Resolution, Toolchain & Diagnostic Subsystems](#environment-resolution-toolchain--diagnostic-subsystems)
-- [Automated Adversarial Test Architecture (323 Tests, 41 CWEs)](#automated-adversarial-test-architecture-323-tests-41-cwes)
+- [Automated Adversarial Test Architecture (327 Tests, 41 CWEs)](#automated-adversarial-test-architecture-327-tests-41-cwes)
 
 ---
 
@@ -785,10 +785,10 @@ Architected for enterprise environment portability and strict air-gapped deploym
 
 ---
 
-<a id="automated-adversarial-test-architecture-323-tests-41-cwes"></a>
-## Automated Adversarial Test Architecture (323 Tests, 41 CWEs)
+<a id="automated-adversarial-test-architecture-327-tests-41-cwes"></a>
+## Automated Adversarial Test Architecture (327 Tests, 41 CWEs)
 
-The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **323 automated test cases across 16 defensive suites**, covering **41 MITRE CWE classes** (including `CWE-798`) with a verified **10.0 / 10.0** scorecard:
+The security, integrity, and operational resilience of DiamTek JVM are verified on every commit via `tests/Test-JvmSecurity.ps1`. The test harness executes **327 automated test cases across 16 defensive suites**, covering **41 MITRE CWE classes** (including `CWE-798`) with a verified **10.0 / 10.0** scorecard:
 
 | Suite | Category Focus | Status |
 | :--- | :--- | :---: |
@@ -808,7 +808,7 @@ The security, integrity, and operational resilience of DiamTek JVM are verified 
 | **Suite 14** | Unified Status, Ergonomics & Multi-Shell Cross-Compatibility (jvm status, Dynamic Completions, CMD Aliases) | **PASS** |
 | **Suite 15** | Adversarial Robustness, Fuzzing & Mutation Resilience (ADS streams, Fault injection, AST zero empty catch, Help cards, Timings, Universal JSON schema) | **PASS** |
 | **Suite 16** | Next-Gen Portability, Profiles, Snapshots & Toolchain Distros (Profiles lifecycle, Snapshots, transactional restore rollback, .jvmbundle ZipSlip/magic byte defense, Air-gapped distros, install.ps1 -Offline) | **PASS** |
-| **Total** | **Comprehensive Full-System Security Suite (323 / 323)** | **`10.0 / 10.0`** |
+| **Total** | **Comprehensive Full-System Security Suite (327 / 327)** | **`10.0 / 10.0`** |
 
 ---
 
