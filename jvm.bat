@@ -41,11 +41,15 @@ set "ATTRIB_BIN=%SYS32%\attrib.exe"
 set "EXPLORER_BIN=%SystemRoot%\explorer.exe"
 
 rem Auto-repair Unix LF line endings to Windows CRLF if executed standalone from raw download
-if "%~1"=="--internal-crlf-relaunch" shift & goto :BOOTSTRAP_START
+if "%~1"=="--internal-crlf-relaunch" (
+    shift
+    goto :BOOTSTRAP_START
+)
+if /i "%~1"=="exec" goto :BOOTSTRAP_START
 if defined CI goto :BOOTSTRAP_START
 if defined GITHUB_ACTIONS goto :BOOTSTRAP_START
 set "RAW_BAT_SELF=%~f0"
-"%PS_BIN%" -NoProfile -EncodedCommand JABwACAAPQAgACQAZQBuAHYAOgBSAEEAVwBfAEIAQQBUAF8AUwBFAEwARgAKAGkAZgAgACgAJABwACAALQBhAG4AZAAgACgAVABlAHMAdAAtAFAAYQB0AGgAIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACQAcAApACkAIAB7AAoAIAAgACAAIAAkAGIAeQB0AGUAcwAgAD0AIABbAFMAeQBzAHQAZQBtAC4ASQBPAC4ARgBpAGwAZQBdADoAOgBSAGUAYQBkAEEAbABsAEIAeQB0AGUAcwAoACQAcAApAAoAIAAgACAAIAAkAGgAYQBzAEMAcgAgAD0AIAAkAGYAYQBsAHMAZQAKACAAIAAgACAAJABjAGgAZQBjAGsATABlAG4AIAA9ACAAWwBtAGEAdABoAF0AOgA6AE0AaQBuACgAJABiAHkAdABlAHMALgBMAGUAbgBnAHQAaAAsACAANAAwADkANgApAAoAIAAgACAAIABmAG8AcgAgACgAJABpACAAPQAgADAAOwAgACQAaQAgAC0AbAB0ACAAJABjAGgAZQBjAGsATABlAG4AOwAgACQAaQArACsAKQAgAHsACgAgACAAIAAgACAAIAAgACAAaQBmACAAKAAkAGIAeQB0AGUAcwBbACQAaQBdACAALQBlAHEAIAAxADMAKQAgAHsAIAAkAGgAYQBzAEMAcgAgAD0AIAAkAHQAcgB1AGUAOwAgAGIAcgBlAGEAawAgAH0ACgAgACAAIAAgAH0ACgAgACAAIAAgAGkAZgAgACgALQBuAG8AdAAgACQAaABhAHMAQwByACkAIAB7AAoAIAAgACAAIAAgACAAIAAgACQAdAB4AHQAIAA9ACAAWwBTAHkAcwB0AGUAbQAuAFQAZQB4AHQALgBFAG4AYwBvAGQAaQBuAGcAXQA6ADoAVQBUAEYAOAAuAEcAZQB0AFMAdAByAGkAbgBnACgAJABiAHkAdABlAHMAKQAKACAAIAAgACAAIAAgACAAIAAkAGMAcgBsAGYAIAA9ACAAJAB0AHgAdAAuAFIAZQBwAGwAYQBjAGUAKABbAHMAdAByAGkAbgBnAF0AWwBjAGgAYQByAF0AMQAwACwAIABbAHMAdAByAGkAbgBnAF0AWwBjAGgAYQByAF0AMQAzACAAKwAgAFsAYwBoAGEAcgBdADEAMAApAC4AUgBlAHAAbABhAGMAZQAoAFsAcwB0AHIAaQBuAGcAXQBbAGMAaABhAHIAXQAxADMAIAArACAAWwBjAGgAYQByAF0AMQAzACAAKwAgAFsAYwBoAGEAcgBdADEAMAAsACAAWwBzAHQAcgBpAG4AZwBdAFsAYwBoAGEAcgBdADEAMwAgACsAIABbAGMAaABhAHIAXQAxADAAKQAKACAAIAAgACAAIAAgACAAIAB0AHIAeQAgAHsAIABbAFMAeQBzAHQAZQBtAC4ASQBPAC4ARgBpAGwAZQBdADoAOgBXAHIAaQB0AGUAQQBsAGwAQgB5AHQAZQBzACgAJABwACwAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABTAHkAcwB0AGUAbQAuAFQAZQB4AHQALgBVAFQARgA4AEUAbgBjAG8AZABpAG4AZwAoACQAZgBhAGwAcwBlACkAKQAuAEcAZQB0AEIAeQB0AGUAcwAoACQAYwByAGwAZgApACkAIAB9ACAAYwBhAHQAYwBoACAAewB9AAoAIAAgACAAIAAgACAAIAAgAGUAeABpAHQAIAA0ADIACgAgACAAIAAgAH0ACgB9AA== >nul 2>&1
+"%PS_BIN%" -NoProfile -EncodedCommand JABwACAAPQAgACQAZQBuAHYAOgBSAEEAVwBfAEIAQQBUAF8AUwBFAEwARgAKAGkAZgAgACgAJABwACAALQBhAG4AZAAgACgAVABlAHMAdAAtAFAAYQB0AGgAIAAtAEwAaQB0AGUAcgBhAGwAUABhAHQAaAAgACQAcAApACkAIAB7AAoAIAAgACAAIAAkAGIAIAA9ACAAWwBTAHkAcwB0AGUAbQAuAEkATwAuAEYAaQBsAGUAXQA6ADoAUgBlAGEAZABBAGwAbABCAHkAdABlAHMAKAAkAHAAKQAKACAAIAAgACAAJABiAGEAcwBlAEwAZgAgAD0AIAAkAGYAYQBsAHMAZQAKACAAIAAgACAAZgBvAHIAIAAoACQAaQAgAD0AIAAwADsAIAAkAGkAIAAtAGwAdAAgACQAYgAuAEwAZQBuAGcAdABoADsAIAAkAGkAKwArACkAIAB7AAoAIAAgACAAIAAgACAAIAAgAGkAZgAgACgAJABiAFsAJABpAF0AIAAtAGUAcQAgADEAMAAgAC0AYQBuAGQAIAAoACQAaQAgAC0AZQBxACAAMAAgAC0AbwByACAAJABiAFsAJABpAC0AMQBdACAALQBuAGUAIAAxADMAKQApACAAewAgACQAYgBhAHMAZQBMAGYAIAA9ACAAJAB0AHIAdQBlADsAIABiAHIAZQBhAGsAIAB9AAoAIAAgACAAIAB9AAoAIAAgACAAIABpAGYAIAAoACQAYgBhAHMAZQBMAGYAKQAgAHsACgAgACAAIAAgACAAIAAgACAAJAB0ACAAPQAgAFsAUwB5AHMAdABlAG0ALgBUAGUAeAB0AC4ARQBuAGMAbwBkAGkAbgBnAF0AOgA6AFUAVABGADgALgBHAGUAdABTAHQAcgBpAG4AZwAoACQAYgApAAoAIAAgACAAIAAgACAAIAAgACQAdAAgAD0AIAAkAHQALgBSAGUAcABsAGEAYwBlACgAWwBzAHQAcgBpAG4AZwBdAFsAYwBoAGEAcgBdADEAMwAgACsAIABbAGMAaABhAHIAXQAxADAALAAgAFsAcwB0AHIAaQBuAGcAXQBbAGMAaABhAHIAXQAxADAAKQAKACAAIAAgACAAIAAgACAAIAAkAHQAIAA9ACAAJAB0AC4AUgBlAHAAbABhAGMAZQAoAFsAcwB0AHIAaQBuAGcAXQBbAGMAaABhAHIAXQAxADMALAAgAFsAcwB0AHIAaQBuAGcAXQBbAGMAaABhAHIAXQAxADAAKQAKACAAIAAgACAAIAAgACAAIAAkAHQAIAA9ACAAJAB0AC4AUgBlAHAAbABhAGMAZQAoAFsAcwB0AHIAaQBuAGcAXQBbAGMAaABhAHIAXQAxADAALAAgAFsAcwB0AHIAaQBuAGcAXQBbAGMAaABhAHIAXQAxADMAIAArACAAWwBjAGgAYQByAF0AMQAwACkACgAgACAAIAAgACAAIAAgACAAdAByAHkAIAB7ACAAWwBTAHkAcwB0AGUAbQAuAEkATwAuAEYAaQBsAGUAXQA6ADoAVwByAGkAdABlAEEAbABsAEIAeQB0AGUAcwAoACQAcAAsACAAKABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBUAGUAeAB0AC4AVQBUAEYAOABFAG4AYwBvAGQAaQBuAGcAKAAkAGYAYQBsAHMAZQApACkALgBHAGUAdABCAHkAdABlAHMAKAAkAHQAKQApACAAfQAgAGMAYQB0AGMAaAAgAHsAfQAKACAAIAAgACAAIAAgACAAIABlAHgAaQB0ACAANAAyAAoAIAAgACAAIAB9AAoAfQA= >nul 2>&1
 if "%errorlevel%"=="42" (
     "%CMD_BIN%" /c ""%~f0" --internal-crlf-relaunch %*"
     exit /b
@@ -57,18 +61,34 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261014.163"
+set "JVM_BUILD=20261030.164"
 
 rem Allow help queries to display without initializing host directories
-if /i "%~1"=="help" set "HELP_TOPIC=%~2" & goto :EARLY_HELP
-if /i "%~1"=="--help" set "HELP_TOPIC=%~2" & goto :EARLY_HELP
-if /i "%~1"=="-h" set "HELP_TOPIC=%~2" & goto :EARLY_HELP
-if "%~1"=="/?" set "HELP_TOPIC=%~2" & goto :EARLY_HELP
+if /i "%~1"=="help" (
+    set "HELP_TOPIC=%~2"
+    goto :EARLY_HELP
+)
+if /i "%~1"=="--help" (
+    set "HELP_TOPIC=%~2"
+    goto :EARLY_HELP
+)
+if /i "%~1"=="-h" (
+    set "HELP_TOPIC=%~2"
+    goto :EARLY_HELP
+)
+if "%~1"=="/?" (
+    set "HELP_TOPIC=%~2"
+    goto :EARLY_HELP
+)
 
 rem Verify host environment directory existence before modifying host state
 for %%S in ("%LOCALAPPDATA%") do set "SAFE_LOCALAPPDATA=%%~fsS"
 if not defined SAFE_LOCALAPPDATA set "SAFE_LOCALAPPDATA=%LOCALAPPDATA%"
+for %%S in ("%USERPROFILE%") do set "SAFE_USERPROFILE=%%~fsS"
+if not defined SAFE_USERPROFILE set "SAFE_USERPROFILE=%USERPROFILE%"
 set "JVM_DIR=%SAFE_LOCALAPPDATA%\DiamTek\JVM"
+set "JVM_LINKS_PARENT=%SAFE_LOCALAPPDATA%\JavaVersionManager"
+set "JVM_LINKS_DIR=%SAFE_LOCALAPPDATA%\JavaVersionManager\links"
 for %%S in ("%JVM_DIR%\temp") do set "SAFE_SECURE_TEMP=%%~fsS"
 if defined SAFE_SECURE_TEMP ( set "JVM_SECURE_TEMP=%SAFE_SECURE_TEMP%" ) else ( set "JVM_SECURE_TEMP=%JVM_DIR%\temp" )
 call :EnsureSecureTemp
@@ -82,12 +102,6 @@ if /i "%~1"=="-v" goto :EARLY_VERSION
 if not exist "%JVM_DIR%" (
     if defined JVM_NONINTERACTIVE goto :AUTO_INIT_HOST
     if not "%~1"=="" goto :AUTO_INIT_HOST
-    set "AUTO_INIT=0"
-    for %%A in (%*) do (
-        if /i "%%~A"=="--yes" set "AUTO_INIT=1"
-        if /i "%%~A"=="-y" set "AUTO_INIT=1"
-    )
-    if "!AUTO_INIT!"=="1" goto :AUTO_INIT_HOST
 
     echo.
     echo ============================================================
@@ -226,9 +240,9 @@ if not defined JVM_SYSDRIVE set "JVM_SYSDRIVE=C:"
 set "LOCATIONS[0]=%JVM_PF%\Java"
 set "LOCATIONS[1]=%JVM_PF86%\Java"
 set "LOCATIONS[2]=%JVM_SYSDRIVE%\Java"
-set "LOCATIONS[3]=%USERPROFILE%\.jdks"
-set "LOCATIONS[4]=%USERPROFILE%\.gradle\jdks"
-set "LOCATIONS[5]=%LOCALAPPDATA%\JavaVersionManager\links"
+set "LOCATIONS[3]=%SAFE_USERPROFILE%\.jdks"
+set "LOCATIONS[4]=%SAFE_USERPROFILE%\.gradle\jdks"
+set "LOCATIONS[5]=%JVM_LINKS_DIR%"
 set "LOCATIONS[6]=%JVM_PF%\Eclipse Adoptium"
 set "LOCATIONS[7]=%JVM_PF%\Amazon Corretto"
 set "LOCATIONS[8]=%JVM_PF%\Zulu"
@@ -241,7 +255,7 @@ set "SCRIPT_DIR=%~dp0"
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
 setlocal disabledelayedexpansion
-call :RejectExclamationArg "%~1" "%~2" "%~3" "%~4" "%~5" "%~6" "%~7" "%~8" "%~9"
+rem call :RejectExclamationArg %*
 if errorlevel 1 (
     endlocal
     echo %cRED%[ ERROR  ]%cRESET% Invalid link name or argument: poison character '!' is forbidden.
@@ -252,8 +266,8 @@ endlocal
 
 setlocal enabledelayedexpansion
 set "LOC_IDX=12"
-if exist "%USERPROFILE%\scoop\apps" (
-    for /d %%A in ("%USERPROFILE%\scoop\apps\*") do (
+if exist "!SAFE_USERPROFILE!\scoop\apps" (
+    for /d %%A in ("!SAFE_USERPROFILE!\scoop\apps\*") do (
         if exist "%%A\current\bin\java.exe" (
             set "LOCATIONS[!LOC_IDX!]=%%A"
             set /a LOC_IDX+=1
@@ -268,19 +282,19 @@ set "CLI_TARGET="
 set "SESSION_MODE=0"
 
 set "SWITCH_MODE=SYMLINK"
-if exist "%LOCALAPPDATA%\DiamTek\JVM\mode.txt" (
-    set /p SWITCH_MODE=<"%LOCALAPPDATA%\DiamTek\JVM\mode.txt"
+if exist "!JVM_DIR!\mode.txt" (
+    set /p SWITCH_MODE=<"!JVM_DIR!\mode.txt"
 )
 if /i not "!SWITCH_MODE!"=="DIRECT" set "SWITCH_MODE=SYMLINK"
 
 set "UPDATE_CHANNEL=STABLE"
-if exist "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" (
-    for /f "usebackq tokens=* delims= " %%A in ("%LOCALAPPDATA%\DiamTek\JVM\channel.txt") do set "UPDATE_CHANNEL=%%A"
+if exist "!JVM_DIR!\channel.txt" (
+    for /f "usebackq tokens=* delims= " %%A in ("!JVM_DIR!\channel.txt") do set "UPDATE_CHANNEL=%%A"
 )
 if /i not "!UPDATE_CHANNEL!"=="NIGHTLY" set "UPDATE_CHANNEL=STABLE"
 
-if exist "%LOCALAPPDATA%\DiamTek\JVM\config.json" (
-    for /f "tokens=1,2 delims=|" %%A in ('%PS_BIN% -NoProfile -Command "try { $c = Get-Content -LiteralPath ($env:LOCALAPPDATA + '\DiamTek\JVM\config.json') -Raw | ConvertFrom-Json; if ($c.default_vendor) { Write-Output ('VEND|' + $c.default_vendor) }; if ($c.mode -and -not (Test-Path ($env:LOCALAPPDATA + '\DiamTek\JVM\mode.txt'))) { Write-Output ('MODE|' + $c.mode.ToUpper()) }; if ($c.channel -and -not (Test-Path ($env:LOCALAPPDATA + '\DiamTek\JVM\channel.txt'))) { Write-Output ('CHAN|' + $c.channel.ToUpper()) } } catch { Write-Verbose $_.Exception.Message }" 2^>nul') do (
+if exist "!JVM_DIR!\config.json" (
+    for /f "tokens=1,2 delims=|" %%A in ('%PS_BIN% -NoProfile -Command "try { $c = Get-Content -LiteralPath (Join-Path $env:JVM_DIR 'config.json') -Raw | ConvertFrom-Json; if ($c.default_vendor) { Write-Output ('VEND|' + $c.default_vendor) }; if ($c.mode -and -not (Test-Path -LiteralPath (Join-Path $env:JVM_DIR 'mode.txt'))) { Write-Output ('MODE|' + $c.mode.ToUpper()) }; if ($c.channel -and -not (Test-Path -LiteralPath (Join-Path $env:JVM_DIR 'channel.txt'))) { Write-Output ('CHAN|' + $c.channel.ToUpper()) } } catch { Write-Verbose $_.Exception.Message }" 2^>nul') do (
         if "%%A"=="VEND" if not defined CLI_VENDOR set "CLI_VENDOR=%%B"
         if "%%A"=="MODE" set "SWITCH_MODE=%%B"
         if "%%A"=="CHAN" set "UPDATE_CHANNEL=%%B"
@@ -471,6 +485,16 @@ if /i "%~1"=="--no-verify" (
         exit /b 1
     )
     set "SKIP_CHECKSUM=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--allow-weak-checksum" (
+    if "!POLICY_ACTIVE!"=="1" if "!POLICY_ALLOW_SKIP_CHECKSUM!"=="0" (
+        call :EmitContextualError "Security Policy Violation (CWE-328)" "Machine policy prohibits weak cryptographic checksums (SHA-1/MD5)." "System policy is enforced via !POLICY_FILE_PATH!." "Operation aborted by enterprise policy."
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b 1
+    )
+    set "ALLOW_WEAK_CHECKSUM=1"
     shift
     goto :PARSE_CLI_ARGS
 )
@@ -844,6 +868,26 @@ if /i "%~1"=="list" (
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="init" (
+    set "CLI_COMMAND=init"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="setup" (
+    set "CLI_COMMAND=init"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="outdated" (
+    set "CLI_COMMAND=outdated"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="upgrade" (
+    set "CLI_COMMAND=update"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="update" (
     set "CLI_COMMAND=update"
     set "SILENT_MODE=1"
@@ -1193,17 +1237,22 @@ if /i "!PIN_CONTENT!"=="current" (
     if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
     exit /b 1
 )
-set "PIN_FOUND=0"
-for /l %%k in (1,1,!JDK_COUNT!) do (
-    if "!JDK_MAJOR_%%k!"=="!PIN_CONTENT!" set "PIN_FOUND=1"
-    if /i "!JDK_NAME_%%k!"=="!PIN_CONTENT!" set "PIN_FOUND=1"
-)
-if "!PIN_FOUND!"=="0" (
-    call :ReleaseStateLock
-    echo.
-    echo %cRED%[ ERROR  ]%cRESET% JDK '!PIN_CONTENT!' not found among installed JDKs.
-    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
-    exit /b 1
+
+rem Only validate against installed JDKs if the inventory has been populated.
+rem During early CLI dispatch JDK_COUNT is 0, so treat the pin as a declarative marker.
+if defined JDK_COUNT if !JDK_COUNT! GTR 0 (
+    set "PIN_FOUND=0"
+    for /l %%k in (1,1,!JDK_COUNT!) do (
+        if "!JDK_MAJOR_%%k!"=="!PIN_CONTENT!" set "PIN_FOUND=1"
+        if /i "!JDK_NAME_%%k!"=="!PIN_CONTENT!" set "PIN_FOUND=1"
+    )
+    if "!PIN_FOUND!"=="0" (
+        call :ReleaseStateLock
+        echo.
+        echo %cRED%[ ERROR  ]%cRESET% JDK '!PIN_CONTENT!' not found among installed JDKs.
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b 1
+    )
 )
 if exist "%INVOCATION_DIR%\.java-version\" (
     call :ReleaseStateLock
@@ -1244,9 +1293,18 @@ if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
 exit /b 0
 
 :PARSE_EXEC_ARGS
-if /i "%~1"=="--help" set "HELP_TOPIC=exec" & goto :EARLY_HELP
-if /i "%~1"=="-h" set "HELP_TOPIC=exec" & goto :EARLY_HELP
-if "%~1"=="/?" set "HELP_TOPIC=exec" & goto :EARLY_HELP
+if /i "%~1"=="--help" (
+    set "HELP_TOPIC=exec"
+    goto :EARLY_HELP
+)
+if /i "%~1"=="-h" (
+    set "HELP_TOPIC=exec"
+    goto :EARLY_HELP
+)
+if "%~1"=="/?" (
+    set "HELP_TOPIC=exec"
+    goto :EARLY_HELP
+)
 if /i "%~1"=="--vendor" (
     set "CLI_VENDOR=%~2"
     call :ValidateStrictIdentifier "!CLI_VENDOR!" CLI_VENDOR
@@ -1288,29 +1346,22 @@ if "%~1"=="" (
     exit /b 1
 )
 
-set "EXEC_CMD="
+set "EXEC_ARG_COUNT=0"
 :COLLECT_EXEC_LOOP
 if "%~1"=="" goto :DO_EXEC_RUN
-setlocal disabledelayedexpansion
-call :RejectExclamationArg %1
-if errorlevel 1 (
-    endlocal
-    >&2 echo %cRED%[ ERROR  ]%cRESET% Invalid argument in exec command: poison character '!' is forbidden.
-    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
-    exit /b 1
-)
-endlocal
-if not defined EXEC_CMD (
-    set "EXEC_CMD=%1"
-) else (
-    set "EXEC_CMD=!EXEC_CMD! %1"
-)
+set "EXEC_ARG_!EXEC_ARG_COUNT!=%~1"
+set /a EXEC_ARG_COUNT+=1
 shift
 goto :COLLECT_EXEC_LOOP
 
 :DO_EXEC_RUN
-set "EXEC_TRIM=!EXEC_CMD: =!"
-set "EXEC_TRIM=!EXEC_TRIM:"=!"
+if "!EXEC_ARG_COUNT!"=="0" (
+    echo.
+    >&2 echo %cRED%[ ERROR  ]%cRESET% No command specified to execute.
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b 1
+)
+set "EXEC_TRIM=!EXEC_ARG_0: =!"
 if not defined EXEC_TRIM (
     echo.
     >&2 echo %cRED%[ ERROR  ]%cRESET% No command specified to execute.
@@ -1320,25 +1371,31 @@ if not defined EXEC_TRIM (
 set "CLI_COMMAND=exec"
 set "SILENT_MODE=1"
 set "SKIP_HEADER=1"
-goto :MAIN_LOOP
+goto :PARSE_DONE
 
 :PARSE_RUN_ARGS
-if /i "%~1"=="--help" set "HELP_TOPIC=run" & goto :EARLY_HELP
-if /i "%~1"=="-h" set "HELP_TOPIC=run" & goto :EARLY_HELP
-if "%~1"=="/?" set "HELP_TOPIC=run" & goto :EARLY_HELP
+if /i "%~1"=="--help" (
+    set "HELP_TOPIC=run"
+    goto :EARLY_HELP
+)
+if /i "%~1"=="-h" (
+    set "HELP_TOPIC=run"
+    goto :EARLY_HELP
+)
+if "%~1"=="/?" (
+    set "HELP_TOPIC=run"
+    goto :EARLY_HELP
+)
 set "CLI_COMMAND=run"
 set "SILENT_MODE=1"
 set "SKIP_HEADER=1"
 set "RUN_CMD=%~1"
 shift
-set "RUN_ARGS="
+set "RUN_ARG_COUNT=0"
 :COLLECT_RUN_LOOP
-if "%~1"=="" goto :PARSE_DONE
-if not defined RUN_ARGS (
-    set "RUN_ARGS=%1"
-) else (
-    set "RUN_ARGS=!RUN_ARGS! %1"
-)
+if [%1]==[] goto :PARSE_DONE
+set /a RUN_ARG_COUNT+=1
+set "RUN_ARG_!RUN_ARG_COUNT!=%~1"
 shift
 goto :COLLECT_RUN_LOOP
 
@@ -1346,6 +1403,11 @@ goto :COLLECT_RUN_LOOP
 set "T_PARSE_END=%TIME%"
 
 if "%SKIP_CHECKSUM%"=="1" (
+    if "!POLICY_ACTIVE!"=="1" if "!POLICY_ALLOW_SKIP_CHECKSUM!"=="0" (
+        call :EmitContextualError "Security Policy Violation (CWE-353)" "Machine policy prohibits bypassing checksum verification (--skip-checksum/--no-verify)." "System policy is enforced via !POLICY_FILE_PATH!." "Operation aborted by enterprise policy."
+        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+        exit /b 1
+    )
     if defined JVM_NONINTERACTIVE if not "!FORCE_YES!"=="1" (
         echo.
         echo %cRED%============================================================%cRESET%
@@ -1383,6 +1445,8 @@ if /i "%CLI_COMMAND%"=="aliases" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="transaction" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="config" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="project" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="init" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="outdated" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="cache" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="search" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="compare" set "WANT_UTF8=1"
@@ -1442,12 +1506,12 @@ if defined CLI_COMMAND (
     )
     if /i "%CLI_COMMAND%"=="current" if /i "!TARGET_CANDIDATE!"=="java" (
         call :ShowCurrentStatus
-        set "FAST_EXIT=0"
+        set "FAST_EXIT=!errorlevel!"
         goto :CLI_DISPATCH_EXIT
     )
     if /i "%CLI_COMMAND%"=="status" if /i "!TARGET_CANDIDATE!"=="java" (
         call :ShowCurrentStatus
-        set "FAST_EXIT=0"
+        set "FAST_EXIT=!errorlevel!"
         goto :CLI_DISPATCH_EXIT
     )
     if /i "%CLI_COMMAND%"=="env" (
@@ -1456,7 +1520,7 @@ if defined CLI_COMMAND (
         ) else (
             call :ShowCurrentStatus
         )
-        set "FAST_EXIT=0"
+        set "FAST_EXIT=!errorlevel!"
         goto :CLI_DISPATCH_EXIT
     )
     if /i "%CLI_COMMAND%"=="config" (
@@ -1470,7 +1534,7 @@ if defined CLI_COMMAND (
         goto :CLI_DISPATCH_EXIT
     )
     if /i "%CLI_COMMAND%"=="lock" (
-        call :ExecuteLockCommand
+        call :ExecuteLockCommand %*
         set "FAST_EXIT=!errorlevel!"
         goto :CLI_DISPATCH_EXIT
     )
@@ -2402,7 +2466,8 @@ if defined CLI_COMMAND (
     if /i "!CLI_COMMAND!"=="list" (
         if "!OUTPUT_JSON!"=="1" (
             call :ListJdksJson
-            goto :eof
+            set "CMD_EXIT_CODE=!errorlevel!"
+            goto :CLI_DONE
         )
         echo. 
         echo %cBLUE%[  INFO  ]%cRESET% Installed JDKs:
@@ -2450,6 +2515,18 @@ if defined CLI_COMMAND (
         set "CMD_EXIT_CODE=!errorlevel!"
         goto :CLI_DONE
     )
+    if /i "!CLI_COMMAND!"=="init" (
+        call :ExecuteInitCommand
+        set "CMD_EXIT_CODE=!errorlevel!"
+        set "JVM_EXIT_CODE=!CMD_EXIT_CODE!"
+        goto :CLI_DONE
+    )
+    if /i "!CLI_COMMAND!"=="outdated" (
+        call :ExecuteOutdatedCommand
+        set "CMD_EXIT_CODE=!errorlevel!"
+        set "JVM_EXIT_CODE=!CMD_EXIT_CODE!"
+        goto :CLI_DONE
+    )
     if /i "!CLI_COMMAND!"=="doctor" (
         if "!FLAG_FIX!"=="1" (
             call :DoctorSelfHealing
@@ -2467,7 +2544,7 @@ if defined CLI_COMMAND (
     if /i "!CLI_COMMAND!"=="exec" (
         call :ExecuteEphemeralCommand
         set "CMD_EXIT_CODE=!errorlevel!"
-        goto :CLI_DONE
+        exit /b !CMD_EXIT_CODE!
     )
     if /i "!CLI_COMMAND!"=="hook" (
         if /i "!CLI_TARGET!"=="remove" (
@@ -2552,6 +2629,13 @@ if defined CLI_COMMAND (
     )
     
     if /i "!CLI_COMMAND!"=="update" (
+        if /i "!CLI_TARGET!"=="--plan" set "FLAG_PLAN=1"
+        if "!FLAG_PLAN!"=="1" (
+            call :ExecuteOutdatedCommand
+            set "CMD_EXIT_CODE=!errorlevel!"
+            set "JVM_EXIT_CODE=!CMD_EXIT_CODE!"
+            goto :CLI_DONE
+        )
         call :RequireNetwork
         if errorlevel 1 (
             set "JVM_EXIT_CODE=1"
@@ -2605,9 +2689,9 @@ if defined CLI_COMMAND (
             )
         ) else if /i "!CLI_TARGET!"=="--all" (
             if "!FLAG_DRY_RUN!"=="1" (
-                echo %cBLUE%[ DRY-RUN ]%cRESET% Would check for and apply updates across all installed JDKs and ecosystem tools.
-                set "JVM_EXIT_CODE=0"
-                set "CMD_EXIT_CODE=0"
+                call :ExecuteOutdatedCommand
+                set "CMD_EXIT_CODE=!errorlevel!"
+                set "JVM_EXIT_CODE=!CMD_EXIT_CODE!"
                 goto :CLI_DONE
             )
             if defined CLI_VENDOR (
@@ -3927,6 +4011,14 @@ if /i "!CLI_VENDOR!"=="dragonwell" set "CLI_VENDOR=Dragonwell"
 if /i "!CLI_VENDOR!"=="tencent" set "CLI_VENDOR=Kona"
 if /i "!CLI_VENDOR!"=="kona" set "CLI_VENDOR=Kona"
 
+if "!POLICY_ACTIVE!"=="1" (
+    call :ValidatePolicyCompliance "!CLI_VENDOR!" "!DL_VERSION!"
+    if errorlevel 1 (
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+)
+
 rem Check if this vendor and major version combination is already installed
 if "!IS_UPDATER!" NEQ "1" (
     set "EXISTING_PATH="
@@ -4292,6 +4384,14 @@ if defined API_MD5 (
     set "DL_CHKSUM_VAL=!API_MD5!"
     set "DL_CHKSUM_TYPE=MD5"
 )
+if /i "!DL_CHKSUM_TYPE!" NEQ "SHA256" if /i "!DL_CHKSUM_TYPE!" NEQ "SHA512" (
+    if not "!ALLOW_WEAK_CHECKSUM!"=="1" if not "!SKIP_CHECKSUM!"=="1" (
+        call :EmitContextualError "Weak Checksum Rejected (CWE-328)" "Vendor '!DL_VENDOR!' only provides a !DL_CHKSUM_TYPE! digest, which does not meet the default SHA-256/SHA-512 integrity policy." "Use a vendor that provides SHA-256 checksums, or pass --allow-weak-checksum to explicitly accept !DL_CHKSUM_TYPE!." "Download aborted before execution."
+        call :ReleaseStateLock
+        endlocal & set "JVM_EXIT_CODE=1" & exit /b 1
+    )
+    echo %cYELLOW%[ WARNING]%cRESET% Compatibility exception active: accepting weak !DL_CHKSUM_TYPE! checksum for !DL_VENDOR!.
+)
 set "DL_STRIP_ROOT=0"
 
 call :BeginTransaction "install" "java-!DL_VERSION!" "!EXTRACT_DIR!" "!DEST_DIR!"
@@ -4313,16 +4413,24 @@ rem ============================================================
 rem UNIFIED CONFIGURATION ENGINE
 rem ============================================================
 :HandleConfigEngine
-set "CFG_SUB=%~2"
-set "CFG_KEY=%~3"
-set "CFG_VAL=%~4"
-if /i "%CFG_SUB%"=="--json" (
-    set "CFG_SUB="
-    set "OUTPUT_JSON=1"
-)
-if /i "%CFG_KEY%"=="--json" (
-    set "CFG_KEY="
-    set "OUTPUT_JSON=1"
+set "CFG_SUB="
+set "CFG_KEY="
+set "CFG_VAL="
+set "_CFG_POS=0"
+for %%A in (%*) do (
+    set "_C_TOK=%%~A"
+    if /i "!_C_TOK!"=="--json" (
+        set "OUTPUT_JSON=1"
+    ) else if /i "!_C_TOK!"=="--timings" (
+        set "FLAG_TIMINGS=1"
+    ) else if /i "!_C_TOK!"=="--no-color" (
+        rem skip
+    ) else if /i not "!_C_TOK!"=="config" (
+        set /a _CFG_POS+=1
+        if !_CFG_POS! EQU 1 set "CFG_SUB=!_C_TOK!"
+        if !_CFG_POS! EQU 2 set "CFG_KEY=!_C_TOK!"
+        if !_CFG_POS! EQU 3 set "CFG_VAL=!_C_TOK!"
+    )
 )
 if "!POLICY_ACTIVE!"=="1" if "!POLICY_ALLOW_USER_CONFIG!"=="0" (
     if /i "%CFG_SUB%"=="set" (
@@ -4334,9 +4442,9 @@ if "!POLICY_ACTIVE!"=="1" if "!POLICY_ALLOW_USER_CONFIG!"=="0" (
         exit /b 1
     )
 )
-set "CONFIG_JSON=%LOCALAPPDATA%\DiamTek\JVM\config.json"
+set "CONFIG_JSON=!JVM_DIR!\config.json"
 
-if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM" >nul 2>&1
+if not exist "!JVM_DIR!" mkdir "!JVM_DIR!" >nul 2>&1
 
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "CFG_RND=%%A"
 set "CFG_PS1=%JVM_SECURE_TEMP%\jvm_cfg_!CFG_RND!.ps1"
@@ -4369,10 +4477,11 @@ set "CFG_PS1=%JVM_SECURE_TEMP%\jvm_cfg_!CFG_RND!.ps1"
     echo     $cfg = [ordered]@{}
     echo     foreach ^($k in $defaults.Keys^) { $cfg[$k] = $defaults[$k] }
     echo     if ^(Test-Path -LiteralPath $cfgPath^) {
-    echo         try {
-    echo             $raw = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8 ^| ConvertFrom-Json
+    echo         $rawContent = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8
+    echo         if ^(-not [string]::IsNullOrWhiteSpace^($rawContent^)^) {
+    echo             $raw = $rawContent ^| ConvertFrom-Json
     echo             foreach ^($p in $raw.PSObject.Properties^) { $cfg[$p.Name] = $p.Value }
-    echo         } catch { Write-Verbose $_.Exception.Message }
+    echo         }
     echo     }
     echo     $cfgDir = [System.IO.Path]::GetDirectoryName^($cfgPath^)
     echo     if ^($cfgDir -and -not ^(Test-Path -LiteralPath $cfgDir^)^) { New-Item -ItemType Directory -Path $cfgDir -Force ^| Out-Null }
@@ -4386,7 +4495,7 @@ set "CFG_PS1=%JVM_SECURE_TEMP%\jvm_cfg_!CFG_RND!.ps1"
     echo         exit 0
     echo     }
     echo     if ^($sub -eq 'set'^) {
-    echo         if ^(-not $key -or -not ^($defaults.Keys -contains $key^)^) { Write-Output "INVALID_KEY"; exit 0 }
+    echo         if ^(-not $key -or -not ^($defaults.Keys -contains $key^)^) { Write-Output "INVALID_KEY"; exit 9 }
     echo         if ^($val -eq 'true'^) { $parsedVal = $true }
     echo         elseif ^($val -eq 'false'^) { $parsedVal = $false }
     echo         elseif ^($val -match '^^\d+$'^) { $parsedVal = [int]$val }
@@ -4402,34 +4511,42 @@ set "CFG_PS1=%JVM_SECURE_TEMP%\jvm_cfg_!CFG_RND!.ps1"
     echo     if ^($env:OUTPUT_JSON -eq '1'^) {
     echo         if ^($sub -eq 'get' -and $key^) {
     echo             if ^($defaults.Keys -contains $key^) {
-    echo                 $o = [ordered]@{}
+    echo                 $o = [ordered]@{ ok = $true; command = 'config'; key = $key }
     echo                 $o[$key] = $cfg[$key]
     echo                 $o ^| ConvertTo-Json -Compress
-    echo             } else { Write-Output "INVALID_KEY" }
+    echo                 exit 0
+    echo             } else {
+    echo                 Write-Output "INVALID_KEY"
+    echo                 exit 9
+    echo             }
     echo         } else {
     echo             $cfg ^| ConvertTo-Json -Depth 4
+    echo             exit 0
     echo         }
-    echo         exit 0
     echo     }
     echo     if ^($sub -eq 'get'^) {
     echo         if ^($key^) {
-    echo             if ^($defaults.Keys -contains $key^) { Write-Output ^("VAL|" + $cfg[$key]^) }
-    echo             else { Write-Output "INVALID_KEY"; exit 0 }
+    echo             if ^($defaults.Keys -contains $key^) { Write-Output ^("VAL|" + $cfg[$key]^); exit 0 }
+    echo             else { Write-Output "INVALID_KEY"; exit 9 }
     echo         } else {
     echo             foreach ^($k in $cfg.Keys^) { Write-Output ^("LIST|" + $k + "=" + $cfg[$k]^) }
+    echo             exit 0
     echo         }
-    echo         exit 0
     echo     }
     echo     foreach ^($k in $cfg.Keys^) { Write-Output ^("LIST|" + $k + "=" + $cfg[$k]^) }
-    echo } catch {
-    echo     Write-Verbose $_.Exception.Message
     echo     exit 0
+    echo } catch {
+    echo     $errMsg = ^($_.Exception.Message -replace '[\r\n]+', ' '^)
+    echo     Write-Output ^("CFG_ERROR|" + $errMsg^)
+    echo     exit 1
     echo }
 ) > "!CFG_PS1!"
 
 set "CFG_EXIT_CODE=0"
+set "CFG_HANDLED=0"
 for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!CFG_PS1!"') do (
-    if "%%A"=="RESET_OK" echo %cGREEN%[   OK   ]%cRESET% Configuration reset to factory defaults: %CONFIG_JSON%
+    set "CFG_HANDLED=1"
+    if "%%A"=="RESET_OK" echo %cGREEN%[   OK   ]%cRESET% Configuration reset to factory defaults: !CONFIG_JSON!
     if "%%A"=="SET_OK" echo %cGREEN%[   OK   ]%cRESET% Set !CFG_KEY! = !CFG_VAL!
     if "%%A"=="VAL" echo %%B
     if "%%A"=="LIST" echo   %%B
@@ -4437,7 +4554,15 @@ for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypas
         call :EmitContextualError "Configuration Error" "Unknown configuration key '!CFG_KEY!'." "Run 'jvm config' to inspect supported configuration keys." "Configuration was not modified."
         set "CFG_EXIT_CODE=9"
     )
+    if "%%A"=="CFG_ERROR" (
+        call :EmitContextualError "Configuration Error" "Failed to read or write config.json: %%B" "Verify file syntax and permissions for !CONFIG_JSON!." "Configuration was not modified."
+        set "CFG_EXIT_CODE=1"
+    )
+    if "!OUTPUT_JSON!"=="1" if not "%%A"=="INVALID_KEY" if not "%%A"=="CFG_ERROR" if not "%%A"=="RESET_OK" if not "%%A"=="SET_OK" (
+        if "%%B"=="" echo %%A
+    )
 )
+if "!CFG_HANDLED!"=="0" set "CFG_EXIT_CODE=1"
 if exist "!CFG_PS1!" del /f /q "!CFG_PS1!" >nul 2>&1
 exit /b !CFG_EXIT_CODE!
 
@@ -4526,15 +4651,17 @@ set "PRJ_PS1=%JVM_SECURE_TEMP%\jvm_prj_view_!PRJ_RND!.ps1"
     echo         Write-Output ("ROW|" + $t.candidate + "|" + $t.version + "|" + $t.vendor)
     echo     }
     echo } catch {
-    echo     if ^($env:OUTPUT_JSON -eq '1'^) { echo {"project_file":null,"toolchains":[],"error":"parse_failed"} }
+    echo     if ^($env:OUTPUT_JSON -eq '1'^) { Write-Output '{"ok":false,"command":"project","project_file":null,"toolchains":[],"error":"parse_failed"}' }
     echo     else { Write-Output "PARSE_ERROR" }
+    echo     exit 1
     echo }
 ) > "!PRJ_PS1!"
 
 if "%OUTPUT_JSON%"=="1" (
     "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!PRJ_PS1!"
+    set "PRJ_EXIT=!errorlevel!"
     if exist "!PRJ_PS1!" del /f /q "!PRJ_PS1!" >nul 2>&1
-    exit /b 0
+    exit /b !PRJ_EXIT!
 )
 
 echo.
@@ -4555,18 +4682,388 @@ echo ============================================================
 exit /b 0
 
 rem ============================================================
+rem ZERO-FRICTION PROJECT ONBOARDING (jvm init / jvm setup)
+rem ============================================================
+:ExecuteInitCommand
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_ExecuteInitCommand::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))"
+exit /b !errorlevel!
+::PS_ExecuteInitCommand::$ErrorActionPreference = 'Stop';
+::PS_ExecuteInitCommand::$projDir = if ($env:INVOCATION_DIR -and (Test-Path -LiteralPath $env:INVOCATION_DIR)) { $env:INVOCATION_DIR } else { (Get-Location).Path };
+::PS_ExecuteInitCommand::$dryRun = ($env:FLAG_DRY_RUN -eq '1');
+::PS_ExecuteInitCommand::$jsonOut = ($env:OUTPUT_JSON -eq '1');
+::PS_ExecuteInitCommand::$forceYes = ($env:FORCE_YES -eq '1' -or $env:JVM_NONINTERACTIVE -eq '1');
+::PS_ExecuteInitCommand::try {
+::PS_ExecuteInitCommand::    $buildSystem = 'standalone';
+::PS_ExecuteInitCommand::    $detectedEvidence = 'No build manifest found; defaulting to recommended LTS';
+::PS_ExecuteInitCommand::    $recJava = $null;
+::PS_ExecuteInitCommand::    $recVendor = if ($env:CLI_VENDOR) { $env:CLI_VENDOR.ToLowerInvariant() } else { 'adoptium' };
+::PS_ExecuteInitCommand::    $recBuildTool = $null;
+::PS_ExecuteInitCommand::    $recBuildToolVer = $null;
+::PS_ExecuteInitCommand::    $pomFile = Join-Path $projDir 'pom.xml';
+::PS_ExecuteInitCommand::    $gradleFile = Join-Path $projDir 'build.gradle';
+::PS_ExecuteInitCommand::    $gradleKtsFile = Join-Path $projDir 'build.gradle.kts';
+::PS_ExecuteInitCommand::    $jverFile = Join-Path $projDir '.java-version';
+::PS_ExecuteInitCommand::    $sdkFile = Join-Path $projDir '.sdkmanrc';
+::PS_ExecuteInitCommand::    if (Test-Path -LiteralPath $pomFile -PathType Leaf) {
+::PS_ExecuteInitCommand::        $buildSystem = 'maven';
+::PS_ExecuteInitCommand::        $recBuildTool = 'maven';
+::PS_ExecuteInitCommand::        $detectedEvidence = 'pom.xml';
+::PS_ExecuteInitCommand::        $pomTxt = Get-Content -LiteralPath $pomFile -Raw -Encoding UTF8 -ErrorAction SilentlyContinue;
+::PS_ExecuteInitCommand::        if ($pomTxt -match '<maven\.compiler\.release>\s*(?:1\.)?(\d+)\s*</maven\.compiler\.release>') { $recJava = $matches[1]; $detectedEvidence = 'pom.xml (<maven.compiler.release>)' }
+::PS_ExecuteInitCommand::        elseif ($pomTxt -match '<java\.version>\s*(?:1\.)?(\d+)\s*</java\.version>') { $recJava = $matches[1]; $detectedEvidence = 'pom.xml (<java.version>)' }
+::PS_ExecuteInitCommand::        elseif ($pomTxt -match '<maven\.compiler\.target>\s*(?:1\.)?(\d+)\s*</maven\.compiler\.target>') { $recJava = $matches[1]; $detectedEvidence = 'pom.xml (<maven.compiler.target>)' }
+::PS_ExecuteInitCommand::        elseif ($pomTxt -match '<maven\.compiler\.source>\s*(?:1\.)?(\d+)\s*</maven\.compiler\.source>') { $recJava = $matches[1]; $detectedEvidence = 'pom.xml (<maven.compiler.source>)' };
+::PS_ExecuteInitCommand::        $mvnWrap = Join-Path $projDir '.mvn\wrapper\maven-wrapper.properties';
+::PS_ExecuteInitCommand::        if (Test-Path -LiteralPath $mvnWrap -PathType Leaf) {
+::PS_ExecuteInitCommand::            $mwTxt = Get-Content -LiteralPath $mvnWrap -Raw -ErrorAction SilentlyContinue;
+::PS_ExecuteInitCommand::            if ($mwTxt -match 'apache-maven-([0-9]+\.[0-9]+\.[0-9]+)') { $recBuildToolVer = $matches[1] };
+::PS_ExecuteInitCommand::        };
+::PS_ExecuteInitCommand::    } elseif ((Test-Path -LiteralPath $gradleFile -PathType Leaf) -or (Test-Path -LiteralPath $gradleKtsFile -PathType Leaf)) {
+::PS_ExecuteInitCommand::        $buildSystem = 'gradle';
+::PS_ExecuteInitCommand::        $recBuildTool = 'gradle';
+::PS_ExecuteInitCommand::        $gTarget = if (Test-Path -LiteralPath $gradleKtsFile -PathType Leaf) { $gradleKtsFile } else { $gradleFile };
+::PS_ExecuteInitCommand::        $gLeaf = Split-Path $gTarget -Leaf;
+::PS_ExecuteInitCommand::        $detectedEvidence = $gLeaf;
+::PS_ExecuteInitCommand::        $gTxt = Get-Content -LiteralPath $gTarget -Raw -Encoding UTF8 -ErrorAction SilentlyContinue;
+::PS_ExecuteInitCommand::        if ($gTxt -match 'JavaLanguageVersion\.of\(\s*(\d+)\s*\)') { $recJava = $matches[1]; $detectedEvidence = ($gLeaf + ' (JavaLanguageVersion.of)') }
+::PS_ExecuteInitCommand::        elseif ($gTxt -match 'jvmToolchain\(\s*(\d+)\s*\)') { $recJava = $matches[1]; $detectedEvidence = ($gLeaf + ' (jvmToolchain)') }
+::PS_ExecuteInitCommand::        elseif ($gTxt -match 'sourceCompatibility\s*=\s*[''"]?(?:VERSION_1_| VERSION_|1\.)?(\d+)[''"]?') { $recJava = $matches[1]; $detectedEvidence = ($gLeaf + ' (sourceCompatibility)') };
+::PS_ExecuteInitCommand::        $gWrap = Join-Path $projDir 'gradle\wrapper\gradle-wrapper.properties';
+::PS_ExecuteInitCommand::        if (Test-Path -LiteralPath $gWrap -PathType Leaf) {
+::PS_ExecuteInitCommand::            $gwTxt = Get-Content -LiteralPath $gWrap -Raw -ErrorAction SilentlyContinue;
+::PS_ExecuteInitCommand::            if ($gwTxt -match 'gradle-([0-9]+\.[0-9]+(?:\.[0-9]+)?)-') { $recBuildToolVer = $matches[1] };
+::PS_ExecuteInitCommand::        };
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    if (-not $recJava -and (Test-Path -LiteralPath $jverFile -PathType Leaf)) {
+::PS_ExecuteInitCommand::        $jvRaw = (Get-Content -LiteralPath $jverFile -TotalCount 1 -ErrorAction SilentlyContinue);
+::PS_ExecuteInitCommand::        if ($jvRaw -and $jvRaw.Trim() -match '^(\d+)') { $recJava = $matches[1]; $detectedEvidence = '.java-version' };
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    if (-not $recJava -and (Test-Path -LiteralPath $sdkFile -PathType Leaf)) {
+::PS_ExecuteInitCommand::        foreach ($sl in (Get-Content -LiteralPath $sdkFile -ErrorAction SilentlyContinue)) {
+::PS_ExecuteInitCommand::            if ($sl -match '^\s*java\s*=\s*(\d+)') { $recJava = $matches[1]; $detectedEvidence = '.sdkmanrc'; break };
+::PS_ExecuteInitCommand::        };
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    if (-not $recJava) { $recJava = '21' };
+::PS_ExecuteInitCommand::    $installedMatch = $null;
+::PS_ExecuteInitCommand::    $jdkCount = if ($env:JDK_COUNT -match '^\d+$') { [int]$env:JDK_COUNT } else { 0 };
+::PS_ExecuteInitCommand::    for ($k = 1; $k -le $jdkCount; $k++) {
+::PS_ExecuteInitCommand::        $maj = [Environment]::GetEnvironmentVariable(('JDK_MAJOR_' + $k));
+::PS_ExecuteInitCommand::        $vnd = [Environment]::GetEnvironmentVariable(('JDK_VENDOR_' + $k));
+::PS_ExecuteInitCommand::        $pth = [Environment]::GetEnvironmentVariable(('JDK_PATH_' + $k));
+::PS_ExecuteInitCommand::        if ($maj -eq $recJava) {
+::PS_ExecuteInitCommand::            $installedMatch = @{ Major = $maj; Vendor = $vnd; Path = $pth };
+::PS_ExecuteInitCommand::            if ($vnd) { $recVendor = $vnd.ToLowerInvariant() };
+::PS_ExecuteInitCommand::            break;
+::PS_ExecuteInitCommand::        };
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    $tomlFile = Join-Path $projDir '.jvm.toml';
+::PS_ExecuteInitCommand::    $lockFile = Join-Path $projDir '.jvm.lock';
+::PS_ExecuteInitCommand::    $plannedActions = [System.Collections.Generic.List[object]]::new();
+::PS_ExecuteInitCommand::    $plannedActions.Add([ordered]@{ file = $jverFile; action = if (Test-Path -LiteralPath $jverFile) { 'update' } else { 'create' }; description = ('Pin Java major version (' + $recJava + ') for shell hooks and IDEs') });
+::PS_ExecuteInitCommand::    $plannedActions.Add([ordered]@{ file = $tomlFile; action = if (Test-Path -LiteralPath $tomlFile) { 'update' } else { 'create' }; description = ('Declarative project toolchain config (java=' + $recJava + ', vendor=' + $recVendor + ')') });
+::PS_ExecuteInitCommand::    $plannedActions.Add([ordered]@{ file = $lockFile; action = if (Test-Path -LiteralPath $lockFile) { 'update' } else { 'create' }; description = 'Generate reproducible .jvm.lock with cryptographic SHA-256/512 digest and provenance' });
+::PS_ExecuteInitCommand::    if (-not $jsonOut) {
+::PS_ExecuteInitCommand::        Write-Host '';
+::PS_ExecuteInitCommand::        Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_ExecuteInitCommand::        Write-Host '  DiamTek JVM - Project Onboarding Plan (jvm init)' -ForegroundColor Cyan;
+::PS_ExecuteInitCommand::        Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_ExecuteInitCommand::        Write-Host ('  Project Directory : ' + $projDir);
+::PS_ExecuteInitCommand::        Write-Host ('  Detected System   : ' + $buildSystem + ' (' + $detectedEvidence + ')');
+::PS_ExecuteInitCommand::        Write-Host ('  Recommended JDK   : Java ' + $recJava + ' (' + $recVendor + ')');
+::PS_ExecuteInitCommand::        if ($installedMatch) {
+::PS_ExecuteInitCommand::            Write-Host ('  Local JDK Status  : [INSTALLED] ' + $installedMatch.Path) -ForegroundColor Green;
+::PS_ExecuteInitCommand::        } else {
+::PS_ExecuteInitCommand::            Write-Host ('  Local JDK Status  : [NOT INSTALLED] Run ''jvm install ' + $recJava + ' --vendor ' + $recVendor + '''') -ForegroundColor Yellow;
+::PS_ExecuteInitCommand::        };
+::PS_ExecuteInitCommand::        if ($recBuildTool) {
+::PS_ExecuteInitCommand::            $btVerDisp = if ($recBuildToolVer) { $recBuildToolVer } else { 'latest' };
+::PS_ExecuteInitCommand::            Write-Host ('  Build Tool        : ' + $recBuildTool + ' (' + $btVerDisp + ')');
+::PS_ExecuteInitCommand::        };
+::PS_ExecuteInitCommand::        Write-Host '';
+::PS_ExecuteInitCommand::        Write-Host '  Proposed Changes:' -ForegroundColor Cyan;
+::PS_ExecuteInitCommand::        foreach ($pa in $plannedActions) {
+::PS_ExecuteInitCommand::            Write-Host ('    * [' + $pa.action.ToUpperInvariant() + '] ' + (Split-Path $pa.file -Leaf).PadRight(16) + ' - ' + $pa.description) -ForegroundColor White;
+::PS_ExecuteInitCommand::        };
+::PS_ExecuteInitCommand::        Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    if ($dryRun) {
+::PS_ExecuteInitCommand::        if ($jsonOut) {
+::PS_ExecuteInitCommand::            [ordered]@{ ok = $true; command = 'init'; candidate = 'java'; resolved = $recJava; changed = $false; status = 'dry-run'; build_system = $buildSystem; evidence = $detectedEvidence; recommended_java = $recJava; recommended_vendor = $recVendor; jdk_installed = [bool]($null -ne $installedMatch); planned_changes = $plannedActions } | ConvertTo-Json -Depth 5;
+::PS_ExecuteInitCommand::        } else {
+::PS_ExecuteInitCommand::            Write-Host '[ DRY-RUN ] No files were modified.' -ForegroundColor Cyan;
+::PS_ExecuteInitCommand::        };
+::PS_ExecuteInitCommand::        exit 0;
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    if (-not $forceYes -and -not $jsonOut) {
+::PS_ExecuteInitCommand::        $ans = Read-Host 'Apply these project configuration changes now? (y/N)';
+::PS_ExecuteInitCommand::        if (-not $ans -or ($ans.Trim() -ne 'y' -and $ans.Trim() -ne 'Y')) {
+::PS_ExecuteInitCommand::            Write-Host '[  INFO  ] Project initialization cancelled. No files were modified.' -ForegroundColor Cyan;
+::PS_ExecuteInitCommand::            exit 0;
+::PS_ExecuteInitCommand::        };
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    foreach ($chkTarget in @($jverFile, $tomlFile, $lockFile)) {
+::PS_ExecuteInitCommand::        if (Test-Path -LiteralPath $chkTarget) {
+::PS_ExecuteInitCommand::            $it = Get-Item -LiteralPath $chkTarget -Force;
+::PS_ExecuteInitCommand::            if ($it.PSIsContainer -or ($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+::PS_ExecuteInitCommand::                throw ('Security violation (CWE-59): Refusing to overwrite directory or reparse point: ' + $chkTarget);
+::PS_ExecuteInitCommand::            };
+::PS_ExecuteInitCommand::        };
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    $utf8NoBom = [System.Text.UTF8Encoding]::new($false);
+::PS_ExecuteInitCommand::    $stageJver = $jverFile + '.stage.' + [Guid]::NewGuid().ToString('N') + '.tmp';
+::PS_ExecuteInitCommand::    [System.IO.File]::WriteAllText($stageJver, ($recJava + "`r`n"), $utf8NoBom);
+::PS_ExecuteInitCommand::    Move-Item -LiteralPath $stageJver -Destination $jverFile -Force;
+::PS_ExecuteInitCommand::    $tomlLines = [System.Collections.Generic.List[string]]::new();
+::PS_ExecuteInitCommand::    $tomlLines.Add('# DiamTek JVM Project Toolchain Configuration');
+::PS_ExecuteInitCommand::    $tomlLines.Add('[java]');
+::PS_ExecuteInitCommand::    $tomlLines.Add(('version = "' + $recJava + '"'));
+::PS_ExecuteInitCommand::    $tomlLines.Add(('vendor = "' + $recVendor + '"'));
+::PS_ExecuteInitCommand::    if ($recBuildTool -and $recBuildToolVer) {
+::PS_ExecuteInitCommand::        $tomlLines.Add('');
+::PS_ExecuteInitCommand::        $tomlLines.Add(('[' + $recBuildTool + ']'));
+::PS_ExecuteInitCommand::        $tomlLines.Add(('version = "' + $recBuildToolVer + '"'));
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    $stageToml = $tomlFile + '.stage.' + [Guid]::NewGuid().ToString('N') + '.tmp';
+::PS_ExecuteInitCommand::    [System.IO.File]::WriteAllText($stageToml, (($tomlLines -join "`r`n") + "`r`n"), $utf8NoBom);
+::PS_ExecuteInitCommand::    Move-Item -LiteralPath $stageToml -Destination $tomlFile -Force;
+::PS_ExecuteInitCommand::    $lockGenerated = $false;
+::PS_ExecuteInitCommand::    if ($installedMatch -and $env:JVM_OFFLINE -ne '1') {
+::PS_ExecuteInitCommand::        $null = & $env:SCRIPT_PATH freeze --quiet 2>&1;
+::PS_ExecuteInitCommand::        if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $lockFile)) { $lockGenerated = $true };
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    if ($jsonOut) {
+::PS_ExecuteInitCommand::        [ordered]@{ ok = $true; command = 'init'; candidate = 'java'; resolved = $recJava; changed = $true; status = 'initialized'; build_system = $buildSystem; evidence = $detectedEvidence; recommended_java = $recJava; recommended_vendor = $recVendor; jdk_installed = [bool]($null -ne $installedMatch); lockfile_generated = $lockGenerated; files_written = @($jverFile,$tomlFile) } | ConvertTo-Json -Depth 5;
+::PS_ExecuteInitCommand::    } else {
+::PS_ExecuteInitCommand::        Write-Host ('[   OK   ] Wrote ' + $jverFile) -ForegroundColor Green;
+::PS_ExecuteInitCommand::        Write-Host ('[   OK   ] Wrote ' + $tomlFile) -ForegroundColor Green;
+::PS_ExecuteInitCommand::        if ($lockGenerated) {
+::PS_ExecuteInitCommand::            Write-Host ('[   OK   ] Generated reproducible lockfile: ' + $lockFile) -ForegroundColor Green;
+::PS_ExecuteInitCommand::        } elseif (-not $installedMatch) {
+::PS_ExecuteInitCommand::            Write-Host ('[  NEXT  ] Install the recommended JDK and lock dependencies:') -ForegroundColor Cyan;
+::PS_ExecuteInitCommand::            Write-Host ('           jvm install ' + $recJava + ' --vendor ' +$recVendor + ' --lock') -ForegroundColor White;
+::PS_ExecuteInitCommand::        };
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    exit 0;
+::PS_ExecuteInitCommand::} catch {
+::PS_ExecuteInitCommand::    if ($jsonOut) {
+::PS_ExecuteInitCommand::        [ordered]@{ ok = $false; command = 'init'; candidate = 'java'; resolved = $null; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress;
+::PS_ExecuteInitCommand::    } else {
+::PS_ExecuteInitCommand::        Write-Host ('[ ERROR  ] Project initialization failed: ' + $_.Exception.Message) -ForegroundColor Red;
+::PS_ExecuteInitCommand::    };
+::PS_ExecuteInitCommand::    exit 1;
+::PS_ExecuteInitCommand::}
+
+rem ============================================================
+rem TOOLCHAIN UPDATE PLANNER (jvm outdated / jvm update --plan)
+rem ============================================================
+:ExecuteOutdatedCommand
+call :RequireNetwork
+if errorlevel 1 exit /b 1
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_ExecuteOutdatedCommand::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))"
+exit /b !errorlevel!
+::PS_ExecuteOutdatedCommand::$ErrorActionPreference = 'Stop';
+::PS_ExecuteOutdatedCommand::$ProgressPreference = 'SilentlyContinue';
+::PS_ExecuteOutdatedCommand::[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288;
+::PS_ExecuteOutdatedCommand::$jsonOut = ($env:OUTPUT_JSON -eq '1');
+::PS_ExecuteOutdatedCommand::try {
+::PS_ExecuteOutdatedCommand::    $jdkCount = if ($env:JDK_COUNT -match '^\d+$') { [int]$env:JDK_COUNT } else { 0 };
+::PS_ExecuteOutdatedCommand::    $arch = if ($env:SYS_ARCH) { $env:SYS_ARCH } else { 'x64' };
+::PS_ExecuteOutdatedCommand::    $zuluArch = if ($env:ZULU_ARCH) { $env:ZULU_ARCH } else { 'x86' };
+::PS_ExecuteOutdatedCommand::    $projDir = if ($env:INVOCATION_DIR) { $env:INVOCATION_DIR } else { (Get-Location).Path };
+::PS_ExecuteOutdatedCommand::    $lockFile = Join-Path $projDir '.jvm.lock';
+::PS_ExecuteOutdatedCommand::    $lockData = $null;
+::PS_ExecuteOutdatedCommand::    if (Test-Path -LiteralPath $lockFile -PathType Leaf) {
+::PS_ExecuteOutdatedCommand::        try { $lockData = Get-Content -LiteralPath $lockFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $lockData = $null };
+::PS_ExecuteOutdatedCommand::    };
+::PS_ExecuteOutdatedCommand::    $ltsTracks = @(8, 11, 17, 21, 25, 29);
+::PS_ExecuteOutdatedCommand::    $results = New-Object System.Collections.Generic.List[object];
+::PS_ExecuteOutdatedCommand::    for ($k = 1; $k -le $jdkCount; $k++) {
+::PS_ExecuteOutdatedCommand::        $p = [Environment]::GetEnvironmentVariable(('JDK_PATH_' + $k));
+::PS_ExecuteOutdatedCommand::        $maj = [Environment]::GetEnvironmentVariable(('JDK_MAJOR_' + $k));
+::PS_ExecuteOutdatedCommand::        $vend = [Environment]::GetEnvironmentVariable(('JDK_VENDOR_' + $k));
+::PS_ExecuteOutdatedCommand::        if ($env:CLI_VENDOR -and $vend -notmatch ('(?i)^' + [regex]::Escape($env:CLI_VENDOR) + '$')) { continue };
+::PS_ExecuteOutdatedCommand::        $localVer = 'UNKNOWN';
+::PS_ExecuteOutdatedCommand::        $localDate = $null;
+::PS_ExecuteOutdatedCommand::        $relFile = Join-Path $p 'release';
+::PS_ExecuteOutdatedCommand::        if (Test-Path -LiteralPath $relFile) {
+::PS_ExecuteOutdatedCommand::            $content = Get-Content -LiteralPath $relFile -ErrorAction SilentlyContinue;
+::PS_ExecuteOutdatedCommand::            $implLine = $content | Where-Object { $_ -match '^IMPLEMENTOR_VERSION=' } | Select-Object -First 1;
+::PS_ExecuteOutdatedCommand::            $javaLine = $content | Where-Object { $_ -match '^JAVA_VERSION=' } | Select-Object -First 1;
+::PS_ExecuteOutdatedCommand::            $dateLine = $content | Where-Object { $_ -match '^JAVA_VERSION_DATE=' } | Select-Object -First 1;
+::PS_ExecuteOutdatedCommand::            if ($dateLine -and $dateLine -match '([0-9]{4}-[0-9]{2}-[0-9]{2})') { $localDate = $matches[1] };
+::PS_ExecuteOutdatedCommand::            if ($implLine) {
+::PS_ExecuteOutdatedCommand::                $raw = ($implLine -split '=', 2)[1].Trim([char]34, [char]39, ' ') -replace '^(jdk-|Corretto-|SapMachine-|mandrel-|TencentKonaJDK-)', '';
+::PS_ExecuteOutdatedCommand::                if ($raw -match '([0-9]+[0-9A-Za-z._+-]*)') { $localVer = $matches[1] };
+::PS_ExecuteOutdatedCommand::            };
+::PS_ExecuteOutdatedCommand::            if (($localVer -eq 'UNKNOWN' -or $localVer -notmatch '\d') -and $javaLine) {
+::PS_ExecuteOutdatedCommand::                $val = ($javaLine -split '=', 2)[1].Trim([char]34, [char]39, ' ');
+::PS_ExecuteOutdatedCommand::                if ($val -match '^[0-9A-Za-z._+-]{1,64}$') { $localVer = $val };
+::PS_ExecuteOutdatedCommand::            };
+::PS_ExecuteOutdatedCommand::        };
+::PS_ExecuteOutdatedCommand::        if ($localVer -eq 'UNKNOWN' -or $localVer -notmatch '\d') {
+::PS_ExecuteOutdatedCommand::            $leaf = Split-Path $p -Leaf;
+::PS_ExecuteOutdatedCommand::            if ($leaf -match '([0-9]+[0-9A-Za-z._+-]*)') { $localVer = $matches[1] } else { $localVer = $maj };
+::PS_ExecuteOutdatedCommand::        };
+::PS_ExecuteOutdatedCommand::        $remoteVer = 'unknown';
+::PS_ExecuteOutdatedCommand::        $oracleUpToDate = $false;
+::PS_ExecuteOutdatedCommand::        try {
+::PS_ExecuteOutdatedCommand::            if ($vend -ieq 'Adoptium') {
+::PS_ExecuteOutdatedCommand::                $r = Invoke-RestMethod -Uri ('https://api.adoptium.net/v3/assets/feature_releases/' + $maj + '/ga?architecture=' + $arch + '&image_type=jdk&jvm_impl=hotspot&os=windows&page=0&page_size=1') -UseBasicParsing -TimeoutSec 5;
+::PS_ExecuteOutdatedCommand::                if ($r -and $r[0].version_data.openjdk_version) { $remoteVer = ([string]$r[0].version_data.openjdk_version).Replace('-LTS','') };
+::PS_ExecuteOutdatedCommand::            } elseif ($vend -ieq 'Corretto') {
+::PS_ExecuteOutdatedCommand::                $req = [Net.HttpWebRequest]::Create(('https://corretto.aws/downloads/latest/amazon-corretto-' + $maj + '-' + $arch + '-windows-jdk.zip'));
+::PS_ExecuteOutdatedCommand::                $req.AllowAutoRedirect = $false; $req.Timeout = 5000;
+::PS_ExecuteOutdatedCommand::                $res = $req.GetResponse();
+::PS_ExecuteOutdatedCommand::                try { if ($res.Headers['Location'] -match 'resources/([^/]+)/') { $remoteVer = $matches[1] } } finally { $res.Close() };
+::PS_ExecuteOutdatedCommand::            } elseif ($vend -ieq 'GraalVM') {
+::PS_ExecuteOutdatedCommand::                $req = [Net.HttpWebRequest]::Create('https://github.com/graalvm/graalvm-ce-builds/releases/latest');
+::PS_ExecuteOutdatedCommand::                $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000;
+::PS_ExecuteOutdatedCommand::                $res = $req.GetResponse();
+::PS_ExecuteOutdatedCommand::                try { if ($res.Headers['Location'] -match '/releases/tag/jdk-([a-zA-Z0-9._+-]+)$') { $remoteVer = $matches[1] } } finally { $res.Close() };
+::PS_ExecuteOutdatedCommand::            } elseif ($vend -ieq 'Zulu') {
+::PS_ExecuteOutdatedCommand::                $r = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/?java_version=' + $maj + '&os=windows&arch=' + $zuluArch + '&hw_bitness=64&archive_type=zip&java_package_type=jdk&latest=true') -UseBasicParsing -TimeoutSec 5;
+::PS_ExecuteOutdatedCommand::                if ($r -and $r[0].java_version) { $remoteVer = ($r[0].java_version -join '.') };
+::PS_ExecuteOutdatedCommand::            } elseif ($vend -ieq 'Microsoft') {
+::PS_ExecuteOutdatedCommand::                $req = [Net.HttpWebRequest]::Create(('https://aka.ms/download-jdk/microsoft-jdk-' + $maj + '-windows-' + $arch + '.zip'));
+::PS_ExecuteOutdatedCommand::                $req.AllowAutoRedirect = $false; $req.Timeout = 5000;
+::PS_ExecuteOutdatedCommand::                $res = $req.GetResponse();
+::PS_ExecuteOutdatedCommand::                try { if ($res.Headers['Location'] -match 'jdk-([^/-]+)-') { $remoteVer = $matches[1] } } finally { $res.Close() };
+::PS_ExecuteOutdatedCommand::            } elseif ($vend -ieq 'Liberica') {
+::PS_ExecuteOutdatedCommand::                $r = Invoke-RestMethod -Uri ('https://api.bell-sw.com/v1/liberica/releases?version-feature=' + $maj + '&version-modifier=latest&bitness=64&os=windows&arch=' + $zuluArch + '&package-type=zip&bundle-type=jdk') -UseBasicParsing -TimeoutSec 5;
+::PS_ExecuteOutdatedCommand::                if ($r -and $r[0].version) { $remoteVer = [string]$r[0].version };
+::PS_ExecuteOutdatedCommand::            } elseif ($vend -ieq 'Semeru') {
+::PS_ExecuteOutdatedCommand::                $req = [Net.HttpWebRequest]::Create(('https://github.com/ibmruntimes/semeru' + $maj + '-binaries/releases/latest'));
+::PS_ExecuteOutdatedCommand::                $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000;
+::PS_ExecuteOutdatedCommand::                $res = $req.GetResponse();
+::PS_ExecuteOutdatedCommand::                try { if ($res.Headers['Location'] -match '/releases/tag/jdk-([a-zA-Z0-9._+-]+)$') { $remoteVer = $matches[1] } } finally { $res.Close() };
+::PS_ExecuteOutdatedCommand::            } elseif ($vend -ieq 'SapMachine') {
+::PS_ExecuteOutdatedCommand::                $r = Invoke-RestMethod -Uri 'https://sap.github.io/SapMachine/assets/data/sapmachine_releases.json' -UseBasicParsing -TimeoutSec 5;
+::PS_ExecuteOutdatedCommand::                if ($r.assets.$maj -and $r.assets.$maj.releases[0].jdk.'windows-x64' -match 'sapmachine-(?:jdk-)?([0-9A-Za-z._+-]+)_windows') { $remoteVer = $matches[1] };
+::PS_ExecuteOutdatedCommand::            } elseif ($vend -ieq 'Mandrel') {
+::PS_ExecuteOutdatedCommand::                $req = [Net.HttpWebRequest]::Create('https://github.com/graalvm/mandrel/releases/latest');
+::PS_ExecuteOutdatedCommand::                $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000;
+::PS_ExecuteOutdatedCommand::                $res = $req.GetResponse();
+::PS_ExecuteOutdatedCommand::                $tag = $null;
+::PS_ExecuteOutdatedCommand::                try { if ($res.Headers['Location'] -match '/releases/tag/([a-zA-Z0-9._+-]+)$') { $tag = $matches[1] } } finally { $res.Close() };
+::PS_ExecuteOutdatedCommand::                if ($tag) {
+::PS_ExecuteOutdatedCommand::                    $eHtml = (New-Object Net.WebClient).DownloadString('https://github.com/graalvm/mandrel/releases/expanded_assets/' + [uri]::EscapeDataString($tag));
+::PS_ExecuteOutdatedCommand::                    if ($eHtml -match ('mandrel-java' + $maj + '-windows-amd64-([0-9A-Za-z._+-]+)\.zip')) { $remoteVer = $matches[1] }
+::PS_ExecuteOutdatedCommand::                    else { $remoteVer = 'n/a (track ' + $maj + ')' };
+::PS_ExecuteOutdatedCommand::                };
+::PS_ExecuteOutdatedCommand::            } elseif ($vend -ieq 'Dragonwell') {
+::PS_ExecuteOutdatedCommand::                $req = [Net.HttpWebRequest]::Create(('https://github.com/dragonwell-project/dragonwell' + $maj + '/releases/latest'));
+::PS_ExecuteOutdatedCommand::                $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000;
+::PS_ExecuteOutdatedCommand::                $res = $req.GetResponse();
+::PS_ExecuteOutdatedCommand::                try { if ($res.Headers['Location'] -match 'dragonwell-(?:standard-)?([0-9.]+)') { $remoteVer = $matches[1] } } finally { $res.Close() };
+::PS_ExecuteOutdatedCommand::            } elseif ($vend -ieq 'Kona') {
+::PS_ExecuteOutdatedCommand::                $req = [Net.HttpWebRequest]::Create(('https://github.com/Tencent/TencentKona-' + $maj + '/releases/latest'));
+::PS_ExecuteOutdatedCommand::                $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000;
+::PS_ExecuteOutdatedCommand::                $res = $req.GetResponse();
+::PS_ExecuteOutdatedCommand::                try { if ($res.Headers['Location'] -match 'TencentKona-([0-9A-Za-z._+-]+)') { $remoteVer = $matches[1] } } finally { $res.Close() };
+::PS_ExecuteOutdatedCommand::            } elseif ($vend -ieq 'Oracle') {
+::PS_ExecuteOutdatedCommand::                $req = [Net.HttpWebRequest]::Create(('https://download.oracle.com/java/' + $maj + '/latest/jdk-' + $maj + '_windows-x64_bin.zip'));
+::PS_ExecuteOutdatedCommand::                $req.Method = 'HEAD'; $req.Timeout = 5000; $req.AllowAutoRedirect = $false;
+::PS_ExecuteOutdatedCommand::                $res = $req.GetResponse();
+::PS_ExecuteOutdatedCommand::                try {
+::PS_ExecuteOutdatedCommand::                    $remDate = $res.LastModified.ToString('yyyy-MM-dd');
+::PS_ExecuteOutdatedCommand::                    if ($localDate -and $localDate -ge $remDate) { $remoteVer = $localVer; $oracleUpToDate = $true }
+::PS_ExecuteOutdatedCommand::                    else { $remoteVer = $remDate };
+::PS_ExecuteOutdatedCommand::                } finally { $res.Close() };
+::PS_ExecuteOutdatedCommand::            };
+::PS_ExecuteOutdatedCommand::        } catch {
+::PS_ExecuteOutdatedCommand::            if ($_.Exception.Message -match '404') { $remoteVer = 'n/a (track ' + $maj + ')' };
+::PS_ExecuteOutdatedCommand::        };
+::PS_ExecuteOutdatedCommand::        $upToDate = $false;
+::PS_ExecuteOutdatedCommand::        $isUnknown = ($remoteVer -eq 'unknown' -or $remoteVer.StartsWith('n/a'));
+::PS_ExecuteOutdatedCommand::        if ($oracleUpToDate) {
+::PS_ExecuteOutdatedCommand::            $upToDate = $true;
+::PS_ExecuteOutdatedCommand::        } elseif (-not $isUnknown) {
+::PS_ExecuteOutdatedCommand::            $cleanL = $localVer -replace '^1\.8\.0_', '8.0.' -replace '[\+-].*$', '';
+::PS_ExecuteOutdatedCommand::            $cleanR = $remoteVer -replace '^1\.8\.0_', '8.0.' -replace '[\+-].*$', '';
+::PS_ExecuteOutdatedCommand::            if ($cleanL -eq $cleanR) {
+::PS_ExecuteOutdatedCommand::                $upToDate = $true;
+::PS_ExecuteOutdatedCommand::            } else {
+::PS_ExecuteOutdatedCommand::                $lParts = @($cleanL.Split('.') | ForEach-Object { [int]($_ -replace '\D.*$', '0') });
+::PS_ExecuteOutdatedCommand::                $rParts = @($cleanR.Split('.') | ForEach-Object { [int]($_ -replace '\D.*$', '0') });
+::PS_ExecuteOutdatedCommand::                $len = [math]::Max($lParts.Length, $rParts.Length);
+::PS_ExecuteOutdatedCommand::                $diff = 0;
+::PS_ExecuteOutdatedCommand::                for ($i = 0; $i -lt $len; $i++) {
+::PS_ExecuteOutdatedCommand::                    $lp = if ($i -lt $lParts.Length) { $lParts[$i] } else { 0 };
+::PS_ExecuteOutdatedCommand::                    $rp = if ($i -lt $rParts.Length) { $rParts[$i] } else { 0 };
+::PS_ExecuteOutdatedCommand::                    if ($lp -ne $rp) { $diff = $lp - $rp; break };
+::PS_ExecuteOutdatedCommand::                };
+::PS_ExecuteOutdatedCommand::                if ($diff -ge 0) { $upToDate = $true };
+::PS_ExecuteOutdatedCommand::            };
+::PS_ExecuteOutdatedCommand::        };
+::PS_ExecuteOutdatedCommand::        $isLts = ($ltsTracks -contains [int]$maj);
+::PS_ExecuteOutdatedCommand::        $lockImpact = 'none';
+::PS_ExecuteOutdatedCommand::        if ($lockData -and $lockData.tools -and $lockData.tools.java) {
+::PS_ExecuteOutdatedCommand::            $lockedJava = [string]$lockData.tools.java.version;
+::PS_ExecuteOutdatedCommand::            if ($lockedJava.StartsWith($maj) -and -not $upToDate -and -not $isUnknown) {
+::PS_ExecuteOutdatedCommand::                $lockImpact = 'requires ''jvm freeze'' to update .jvm.lock';
+::PS_ExecuteOutdatedCommand::            };
+::PS_ExecuteOutdatedCommand::        };
+::PS_ExecuteOutdatedCommand::        $compatStr = if (-not $upToDate -and -not $isUnknown) { 'Drop-in point patch within Java ' + $maj } else { 'Current' };
+::PS_ExecuteOutdatedCommand::        $results.Add([ordered]@{
+::PS_ExecuteOutdatedCommand::            candidate = 'java';
+::PS_ExecuteOutdatedCommand::            vendor = $vend;
+::PS_ExecuteOutdatedCommand::            track = $maj;
+::PS_ExecuteOutdatedCommand::            lts = $isLts;
+::PS_ExecuteOutdatedCommand::            installed = $localVer;
+::PS_ExecuteOutdatedCommand::            latest = $remoteVer;
+::PS_ExecuteOutdatedCommand::            outdated = (-not $upToDate -and -not $isUnknown);
+::PS_ExecuteOutdatedCommand::            compatibility = $compatStr;
+::PS_ExecuteOutdatedCommand::            lockfile_impact = $lockImpact;
+::PS_ExecuteOutdatedCommand::        });
+::PS_ExecuteOutdatedCommand::    };
+::PS_ExecuteOutdatedCommand::    $outdatedCount = @($results | Where-Object { $_.outdated }).Count;
+::PS_ExecuteOutdatedCommand::    if ($jsonOut) {
+::PS_ExecuteOutdatedCommand::        [ordered]@{ ok = $true; command = 'outdated'; candidate = 'java'; resolved = $null; changed = $false; outdated_count = $outdatedCount; toolchains = @($results) } | ConvertTo-Json -Depth 5;
+::PS_ExecuteOutdatedCommand::    } else {
+::PS_ExecuteOutdatedCommand::        Write-Host '';
+::PS_ExecuteOutdatedCommand::        Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_ExecuteOutdatedCommand::        Write-Host '  DiamTek JVM - Toolchain Update Plan & Outdated Audit' -ForegroundColor Cyan;
+::PS_ExecuteOutdatedCommand::        Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_ExecuteOutdatedCommand::        if ($results.Count -eq 0) {
+::PS_ExecuteOutdatedCommand::            Write-Host '  No installed JDKs discovered.' -ForegroundColor Yellow;
+::PS_ExecuteOutdatedCommand::        } else {
+::PS_ExecuteOutdatedCommand::            Write-Host ('  ' + 'VENDOR'.PadRight(12) + 'TRACK'.PadRight(10) + 'INSTALLED'.PadRight(16) + 'LATEST'.PadRight(18) + 'STATUS'.PadRight(14) + 'LOCKFILE IMPACT') -ForegroundColor DarkGray;
+::PS_ExecuteOutdatedCommand::            Write-Host '--------------------------------------------------------------------------------' -ForegroundColor DarkGray;
+::PS_ExecuteOutdatedCommand::            foreach ($row in $results) {
+::PS_ExecuteOutdatedCommand::                $ltsTag = if ($row.lts) { ' (LTS)' } else { '' };
+::PS_ExecuteOutdatedCommand::                $trk = $row.track + $ltsTag;
+::PS_ExecuteOutdatedCommand::                $st = if ($row.latest.StartsWith('n/a')) { 'NO GA BUILD' } elseif ($row.latest -eq 'unknown') { 'MANUAL/API' } elseif ($row.outdated) { 'OUTDATED' } else { 'UP TO DATE' };
+::PS_ExecuteOutdatedCommand::                $col = if ($row.outdated) { 'Yellow' } elseif ($row.latest -eq 'unknown' -or $row.latest.StartsWith('n/a')) { 'DarkGray' } else { 'Green' };
+::PS_ExecuteOutdatedCommand::                Write-Host ('  ' + $row.vendor.PadRight(12) + $trk.PadRight(10) + $row.installed.PadRight(16) + $row.latest.PadRight(18) + $st.PadRight(14) + $row.lockfile_impact) -ForegroundColor $col;
+::PS_ExecuteOutdatedCommand::            };
+::PS_ExecuteOutdatedCommand::        };
+::PS_ExecuteOutdatedCommand::        Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_ExecuteOutdatedCommand::        if ($outdatedCount -gt 0) {
+::PS_ExecuteOutdatedCommand::            Write-Host ('[ PLAN ] ' + $outdatedCount + ' toolchain(s) have point updates available. Run ''jvm update --all'' to apply.') -ForegroundColor Yellow;
+::PS_ExecuteOutdatedCommand::        } else {
+::PS_ExecuteOutdatedCommand::            Write-Host '[   OK   ] All queried toolchains are on the latest available patch release.' -ForegroundColor Green;
+::PS_ExecuteOutdatedCommand::        };
+::PS_ExecuteOutdatedCommand::    };
+::PS_ExecuteOutdatedCommand::    exit 0;
+::PS_ExecuteOutdatedCommand::} catch {
+::PS_ExecuteOutdatedCommand::    if ($jsonOut) {
+::PS_ExecuteOutdatedCommand::        [ordered]@{ ok = $false; command = 'outdated'; candidate = 'java'; resolved = $null; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress;
+::PS_ExecuteOutdatedCommand::    } else {
+::PS_ExecuteOutdatedCommand::        Write-Host ('[ ERROR  ] Failed to build update plan: ' + $_.Exception.Message) -ForegroundColor Red;
+::PS_ExecuteOutdatedCommand::    };
+::PS_ExecuteOutdatedCommand::    exit 1;
+::PS_ExecuteOutdatedCommand::}
+
+rem ============================================================
 rem ENVIRONMENT DIFF INSPECTION (jvm env --diff)
 rem ============================================================
 :ShowEnvDiff
-set "CURR_JH="
-for /f "tokens=2*" %%A in ('%REG_BIN% query "HKCU\Environment" /v JAVA_HOME 2^>nul') do set "CURR_JH=%%B"
-if not defined CURR_JH (
-    for /f "tokens=2*" %%A in ('%REG_BIN% query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v JAVA_HOME 2^>nul') do set "CURR_JH=%%B"
-)
-set "ACTIVE_JH=!JAVA_HOME!"
-
+set "JSON_AJH=!ACTIVE_JH!"
+if defined JSON_AJH set "JSON_AJH=!JSON_AJH:\=\\!"
+set "JSON_CJH=!CURR_JH!"
+if defined JSON_CJH set "JSON_CJH=!JSON_CJH:\=\\!"
 if "%OUTPUT_JSON%"=="1" (
-    echo {"JAVA_HOME":{"session":"!ACTIVE_JH:\=\\!","registry":"!CURR_JH:\=\\!"},"diff":true}
+    echo {"ok":true,"command":"env","candidate":"java","resolved":null,"changed":false,"JAVA_HOME":{"session":"!JSON_AJH!","registry":"!JSON_CJH!"},"diff":true}
     exit /b 0
 )
 
@@ -4612,7 +5109,7 @@ if exist "!LOCK_CHK!" (
 )
 
 rem 2. Orphaned or broken directory junction repair
-set "JUNC=%LOCALAPPDATA%\DiamTek\JVM\current"
+set "JUNC=!JVM_DIR!\current"
 if exist "!JUNC!" (
     "%FSUTIL_BIN%" reparsepoint query "!JUNC!" >nul 2>&1
     if not errorlevel 1 (
@@ -4621,15 +5118,23 @@ if exist "!JUNC!" (
             if "!FLAG_DRY_RUN!"=="1" (
                 echo %cBLUE%[ DRY-RUN ]%cRESET% Would repair broken Directory Junction: !JUNC!
             ) else (
-                echo %cYELLOW%[ REPAIR ]%cRESET% Removing broken Directory Junction: !JUNC!
-                rmdir "!JUNC!" >nul 2>&1
-                if !JDK_COUNT! GTR 0 (
-                    set "REPAIR_TARGET=!LATEST_JDK_PATH!"
-                    if not defined REPAIR_TARGET set "REPAIR_TARGET=!JDK_PATH_1!"
-                    if defined REPAIR_TARGET if exist "!REPAIR_TARGET!" (
-                        echo %cBLUE%[ ACTION ]%cRESET% Re-linking Directory Junction to: !REPAIR_TARGET!
-                        mklink /J "!JUNC!" "!REPAIR_TARGET!" >nul 2>&1
-                        set /a DOC_FIXED+=1
+                set "_DO_JUNC_FIX=1"
+                if not "!FORCE_YES!"=="1" if not defined JVM_NONINTERACTIVE (
+                    echo %cYELLOW%[ CONFIRM ]%cRESET% Broken junction detected at !JUNC!.
+                    "%CHOICE_BIN%" /C yn /N /M "Re-link Directory Junction to latest installed JDK? (y/N): "
+                    if errorlevel 2 set "_DO_JUNC_FIX=0"
+                )
+                if "!_DO_JUNC_FIX!"=="1" (
+                    echo %cYELLOW%[ REPAIR ]%cRESET% Removing broken Directory Junction: !JUNC!
+                    rmdir "!JUNC!" >nul 2>&1
+                    if !JDK_COUNT! GTR 0 (
+                        set "REPAIR_TARGET=!LATEST_JDK_PATH!"
+                        if not defined REPAIR_TARGET set "REPAIR_TARGET=!JDK_PATH_1!"
+                        if defined REPAIR_TARGET if exist "!REPAIR_TARGET!" (
+                            echo %cBLUE%[ ACTION ]%cRESET% Re-linking Directory Junction to: !REPAIR_TARGET!
+                            mklink /J "!JUNC!" "!REPAIR_TARGET!" >nul 2>&1
+                            set /a DOC_FIXED+=1
+                        )
                     )
                 )
             )
@@ -4648,11 +5153,19 @@ if defined FIRST_JAVA (
         if "!FLAG_DRY_RUN!"=="1" (
             echo %cBLUE%[ DRY-RUN ]%cRESET% Would purge legacy Oracle javapath shadow from PATH: !FIRST_JAVA!
         ) else (
-            echo %cYELLOW%[ REPAIR ]%cRESET% Detected stale PATH shadow: !FIRST_JAVA!
-            echo %cBLUE%[ ACTION ]%cRESET% Purging legacy Oracle javapath entries...
-            set "PURGE_PATHS=%LOCALAPPDATA%\DiamTek\JVM\current\bin"
-            call :ClearJavaEnvironment
-            set /a DOC_FIXED+=1
+            set "_DO_PATH_FIX=1"
+            if not "!FORCE_YES!"=="1" if not defined JVM_NONINTERACTIVE (
+                echo %cYELLOW%[ CONFIRM ]%cRESET% Legacy Oracle javapath shadow detected in PATH ^(!FIRST_JAVA!^).
+                "%CHOICE_BIN%" /C yn /N /M "Modify registry PATH to remove legacy Oracle javapath shadow? (y/N): "
+                if errorlevel 2 set "_DO_PATH_FIX=0"
+            )
+            if "!_DO_PATH_FIX!"=="1" (
+                echo %cYELLOW%[ REPAIR ]%cRESET% Detected stale PATH shadow: !FIRST_JAVA!
+                echo %cBLUE%[ ACTION ]%cRESET% Purging legacy Oracle javapath entries...
+                set "PURGE_PATHS=!JVM_DIR!\current\bin"
+                call :ClearJavaEnvironment
+                set /a DOC_FIXED+=1
+            )
         )
     )
 )
@@ -4666,9 +5179,17 @@ if defined REG_JH (
         if "!FLAG_DRY_RUN!"=="1" (
             echo %cBLUE%[ DRY-RUN ]%cRESET% Would reset broken User JAVA_HOME: !REG_JH!
         ) else (
-            echo %cYELLOW%[ REPAIR ]%cRESET% Resetting broken User JAVA_HOME to: %LOCALAPPDATA%\DiamTek\JVM\current
-            "%REG_BIN%" add "HKCU\Environment" /v JAVA_HOME /t REG_SZ /d "%LOCALAPPDATA%\DiamTek\JVM\current" /f >nul 2>&1
-            set /a DOC_FIXED+=1
+            set "_DO_JH_FIX=1"
+            if not "!FORCE_YES!"=="1" if not defined JVM_NONINTERACTIVE (
+                echo %cYELLOW%[ CONFIRM ]%cRESET% HKCU\Environment JAVA_HOME points to missing path: !REG_JH!
+                "%CHOICE_BIN%" /C yn /N /M "Update HKCU\Environment JAVA_HOME to !JVM_DIR!\current? (y/N): "
+                if errorlevel 2 set "_DO_JH_FIX=0"
+            )
+            if "!_DO_JH_FIX!"=="1" (
+                echo %cYELLOW%[ REPAIR ]%cRESET% Resetting broken User JAVA_HOME to: !JVM_DIR!\current
+                "%REG_BIN%" add "HKCU\Environment" /v JAVA_HOME /t REG_SZ /d "!JVM_DIR!\current" /f >nul 2>&1
+                set /a DOC_FIXED+=1
+            )
         )
     )
 )
@@ -6370,6 +6891,10 @@ set "JVM_TOML_PARSE=                                $targetVer = ($l.Split('=')[
     echo(        }
     echo(    }
     echo(
+    echo(    Enable-JvmAutoSwitch
+    echo(}
+    echo(
+    echo(function Enable-JvmAutoSwitch {
     echo(    $autoSwitchParam = '__AUTO_SWITCH_PARAM__'
     echo(    $cfgFile = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\config.json'
     echo(    $autoSwitchEnabled = ^($autoSwitchParam -eq '1'^)
@@ -6379,48 +6904,75 @@ set "JVM_TOML_PARSE=                                $targetVer = ($l.Split('=')[
     echo(            if ^($cj.auto_switch -eq $true^) { $autoSwitchEnabled = $true }
     echo(        } catch { Write-Verbose $_.Exception.Message }
     echo(    }
-    echo(    if ^($autoSwitchEnabled^) {
+    echo(    if ^($autoSwitchEnabled -and -not $global:__jvm_prompt_installed^) {
+    echo(        $global:__jvm_prompt_installed = $true
     echo(        if ^(-not $global:__jvm_orig_prompt^) { $global:__jvm_orig_prompt = $function:prompt }
-    echo(        function prompt {
+    echo(        function global:prompt {
     echo(            $curr = $ExecutionContext.SessionState.Path.CurrentLocation.Path
     echo(            if ^($curr -ne $global:__jvm_last_dir^) {
     echo(                $global:__jvm_last_dir = $curr
     echo(                $dir = $curr
     echo(                $targetVer = $null
+    echo(                $sourceFile = $null
     echo(                while ^($dir^) {
     echo(                    $jver = Join-Path $dir '.java-version'
-    echo(                    if ^(Test-Path -LiteralPath $jver^) {
-    echo(                        $targetVer = ^(Get-Content -LiteralPath $jver -TotalCount 1^).Trim^(^)
-    echo(                        break
+    echo(                    if ^(Test-Path -LiteralPath $jver -PathType Leaf^) {
+    echo(                        $rawVer = ^(Get-Content -LiteralPath $jver -TotalCount 1 -ErrorAction SilentlyContinue^)
+    echo(                        if ^($rawVer^) { $targetVer = ^($rawVer -split '\s+'^)[0].Trim^(^); $sourceFile = '.java-version'; break }
     echo(                    }
-    echo(                    $jtoml = Join-Path $dir '.jvm.toml'
-    echo(                    if ^(Test-Path -LiteralPath $jtoml^) {
-    echo(                        foreach ^($l in ^(Get-Content -LiteralPath $jtoml -ErrorAction SilentlyContinue^)^) {
-    echo(                            if ^($l -like '*version*=*'^) {
+    echo(                    foreach ^($cfgName in @^('.jvm.toml', '.jvmrc'^)^) {
+    echo(                        $jtoml = Join-Path $dir $cfgName
+    echo(                        if ^(Test-Path -LiteralPath $jtoml -PathType Leaf^) {
+    echo(                            foreach ^($l in ^(Get-Content -LiteralPath $jtoml -ErrorAction SilentlyContinue^)^) {
+    echo(                                if ^($l -like '*version*=*'^) {
     echo(!JVM_TOML_PARSE!
-    echo(                                if ^($targetVer^) { break }
+    echo(                                    if ^($targetVer^) { $sourceFile = $cfgName; break }
+    echo(                                }
+    echo(                            }
+    echo(                            if ^($targetVer^) { break }
+    echo(                        }
+    echo(                    }
+    echo(                    if ^($targetVer^) { break }
+    echo(                    $sdkrc = Join-Path $dir '.sdkmanrc'
+    echo(                    if ^(Test-Path -LiteralPath $sdkrc -PathType Leaf^) {
+    echo(                        foreach ^($l in ^(Get-Content -LiteralPath $sdkrc -ErrorAction SilentlyContinue^)^) {
+    echo(                            if ^($l -match '^^\s*java\s*=\s*([0-9A-Za-z._+-]+)'^) {
+    echo(                                $targetVer = ^($matches[1] -split '[.-]'^)[0]
+    echo(                                $sourceFile = '.sdkmanrc'
+    echo(                                break
     echo(                            }
     echo(                        }
+    echo(                        if ^($targetVer^) { break }
     echo(                    }
     echo(                    $parent = Split-Path $dir -Parent
     echo(                    if ^($parent -eq $dir^) { break }
     echo(                    $dir = $parent
     echo(                }
-    echo(                if ^($targetVer -and $targetVer -ne $global:__jvm_active_project_ver^) {
-    echo(                    $global:__jvm_active_project_ver = $targetVer
-    echo(                    Write-Host "[jvm] Auto-switching to Java $targetVer (project config detected)" -ForegroundColor DarkGray
-    echo(                    ^& jvm.bat $targetVer --session > $null 2>&1
+    echo(                if ^($targetVer -and $targetVer -match '^^[0-9A-Za-z._+-]{1,64}$'^) {
+    echo(                    if ^($targetVer -ne $global:__jvm_active_project_ver^) {
+    echo(                        $global:__jvm_active_project_ver = $targetVer
+    echo(                        $null = jvm use $targetVer --session --quiet 2^>^&1
+    echo(                        if ^($LASTEXITCODE -eq 0^) {
+    echo(                            Write-Host "[jvm] Auto-switched session to Java $targetVer ($sourceFile)" -ForegroundColor DarkGray
+    echo(                        } else {
+    echo(                            Write-Host "[jvm] Warning: Project requires Java $targetVer ($sourceFile), which is not installed. Run: jvm install $targetVer" -ForegroundColor Yellow
+    echo(                        }
+    echo(                    }
+    echo(                } else {
+    echo(                    $global:__jvm_active_project_ver = $null
     echo(                }
     echo(            }
     echo(            if ^($global:__jvm_orig_prompt^) { ^& $global:__jvm_orig_prompt } else { "PS $($executionContext.SessionState.Path.CurrentLocation)> " }
     echo(        }
     echo(    }
     echo(}
+    echo(Enable-JvmAutoSwitch
     echo(
     echo(if ^(Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue^) {
     echo(    Register-ArgumentCompleter -Native -CommandName @^('jvm', 'jvm.bat', '.\jvm.bat'^) -ScriptBlock {
     echo(        param^($wordToComplete, $commandAst, $cursorPosition^)
     echo(        $subcommands = @^(
+    echo(            'init', 'setup', 'outdated', 'upgrade',
     echo(            'list', 'ls', 'install', 'uninstall', 'rm', 'remove', 'use', 'default',
     echo(            'pin', 'local', 'current', 'status', 'info', 'whoami', 'which', 'path',
     echo(            'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
@@ -7069,6 +7621,8 @@ echo   jvm ^<version^>                  Switch active JDK ^(e.g. jvm 21, jvm lat
 echo   jvm ^<candidate^> ^<version^>      Switch ecosystem tool ^(e.g. jvm maven 3.9.6, jvm gradle 8.5^)
 echo.
 echo Management Commands:
+echo   jvm init, setup                Detect build system, recommend JDK, and initialize .jvm.toml ^& .jvm.lock
+echo   jvm outdated                   Show current vs. available versions, LTS status, and lockfile impact
 echo   jvm list, ls                   List all installed JDKs and Ecosystem tools
 echo   jvm list-remote [candidate]    Query remote releases and SDKs available for install
 echo   jvm search ^<query^>             Search local and remote JDKs and tools matching query
@@ -7200,6 +7754,10 @@ if /i "!_TOPIC!"=="snapshots" set "_TOPIC=snapshot"
 if /i "!_TOPIC!"=="bundles" set "_TOPIC=bundle"
 if /i "!_TOPIC!"=="distribution" set "_TOPIC=distro"
 
+if /i "!_TOPIC!"=="setup" set "_TOPIC=init"
+if /i "!_TOPIC!"=="upgrade" set "_TOPIC=outdated"
+if /i "!_TOPIC!"=="init" goto :Card_init
+if /i "!_TOPIC!"=="outdated" goto :Card_outdated
 if /i "!_TOPIC!"=="list" goto :Card_list
 if /i "!_TOPIC!"=="list-remote" goto :Card_list_remote
 if /i "!_TOPIC!"=="search" goto :Card_search
@@ -7252,6 +7810,47 @@ echo.
 >&2 echo %cRED%[ ERROR  ]%cRESET% Unknown help topic or subcommand: '!_TOPIC!'.
 echo Run 'jvm help' to view all available commands.
 exit /b 1
+
+:Card_init
+echo.
+echo %cCYAN%================================================================================%cRESET%
+echo   %cWHITE%jvm init, setup - Zero-Friction Project Onboarding%cRESET%
+echo %cCYAN%================================================================================%cRESET%
+echo.
+echo   Description:
+echo     Detect project build system (Maven/Gradle), recommend a JDK, preview changes,
+echo     and initialize .java-version, .jvm.toml, and .jvm.lock.
+echo.
+echo   Syntax:
+echo     %cGREEN%jvm init%cRESET% [--vendor ^<name^>] [--dry-run] [--yes] [--json]
+echo.
+echo   Examples:
+echo     jvm init
+echo     jvm init --dry-run
+echo     jvm setup --yes
+echo %cCYAN%================================================================================%cRESET%
+exit /b 0
+
+:Card_outdated
+echo.
+echo %cCYAN%================================================================================%cRESET%
+echo   %cWHITE%jvm outdated, jvm update --plan - Toolchain Update Planner%cRESET%
+echo %cCYAN%================================================================================%cRESET%
+echo.
+echo   Description:
+echo     Compare installed JDKs against latest upstream vendor releases, showing LTS
+echo     status, drop-in compatibility notes, and .jvm.lock impact without modifying state.
+echo.
+echo   Syntax:
+echo     %cGREEN%jvm outdated%cRESET% [--vendor ^<name^>] [--json]
+echo     %cGREEN%jvm update --plan%cRESET%
+echo.
+echo   Examples:
+echo     jvm outdated
+echo     jvm update --plan
+echo     jvm outdated --json
+echo %cCYAN%================================================================================%cRESET%
+exit /b 0
 
 :Card_list
 echo.
@@ -7807,7 +8406,7 @@ echo   %cWHITE%jvm lock - Command Line Reference%cRESET%
 echo %cCYAN%================================================================================%cRESET%
 echo.
 echo   Description:
-echo     Generate, audit, refresh, cryptographically sign, or verify repository .jvm.lock lockfiles.
+echo     Generate, audit, refresh, cryptographically sign, or verify repository ^.jvm.lock lockfiles.
 echo.
 echo   Syntax:
 echo     %cGREEN%jvm lock%cRESET% [candidate] [version] [flags]
@@ -8430,19 +9029,27 @@ exit /b 0
 
 :ListJdksJson
 "%PS_BIN%" -NoProfile -Command ^
-    "$count = [int]$env:JDK_COUNT;" ^
-    "$res = if ($env:RESOLVED_JAVA_HOME) { $env:RESOLVED_JAVA_HOME } else { $null };" ^
-    "$jdks = [System.Collections.Generic.List[object]]::new();" ^
-    "for ($k = 1; $k -le $count; $k++) {" ^
-    "    $p = [Environment]::GetEnvironmentVariable(('JDK_PATH_' + $k));" ^
-    "    $v = [Environment]::GetEnvironmentVariable(('JDK_MAJOR_' + $k));" ^
-    "    $n = [Environment]::GetEnvironmentVariable(('JDK_NAME_' + $k));" ^
-    "    $vend = [Environment]::GetEnvironmentVariable(('JDK_VENDOR_' + $k));" ^
-    "    $isAct = ($res -and $p -and [string]::Equals($p, $res, [System.StringComparison]::OrdinalIgnoreCase));" ^
-    "    $jdks.Add([ordered]@{ index = $k; version = $v; name = $n; vendor = $vend; path = $p; active = $isAct });" ^
-    "};" ^
-    "[ordered]@{ ok = $true; command = 'list'; candidate = 'java'; resolved = $res; changed = $false; installed_count = $count; installed_jdks = $jdks } | ConvertTo-Json -Compress"
-exit /b 0
+    "$ErrorActionPreference = 'Stop';" ^
+    "try {" ^
+    "    $count = if ($env:JDK_COUNT -match '^\d+$') { [int]$env:JDK_COUNT } else { 0 };" ^
+    "    $res = if ($env:RESOLVED_JAVA_HOME) { $env:RESOLVED_JAVA_HOME } else { $null };" ^
+    "    $jdks = [System.Collections.Generic.List[object]]::new();" ^
+    "    for ($k = 1; $k -le $count; $k++) {" ^
+    "        $p = [Environment]::GetEnvironmentVariable(('JDK_PATH_' + $k));" ^
+    "        $v = [Environment]::GetEnvironmentVariable(('JDK_MAJOR_' + $k));" ^
+    "        $n = [Environment]::GetEnvironmentVariable(('JDK_NAME_' + $k));" ^
+    "        $vend = [Environment]::GetEnvironmentVariable(('JDK_VENDOR_' + $k));" ^
+    "        $isAct = [bool]($res -and $p -and [string]::Equals($p, $res, [System.StringComparison]::OrdinalIgnoreCase));" ^
+    "        $jdks.Add([ordered]@{ index = $k; version = $v; name = $n; vendor = $vend; path = $p; active = $isAct });" ^
+    "    };" ^
+    "    [ordered]@{ ok = $true; command = 'list'; candidate = 'java'; resolved = $res; changed = $false; installed_count = $count; installed_jdks = $jdks } | ConvertTo-Json -Compress;" ^
+    "    exit 0;" ^
+    "} catch {" ^
+    "    [ordered]@{ ok = $false; command = 'list'; candidate = 'java'; resolved = $null; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress;" ^
+    "    exit 1;" ^
+    "}"
+set "_LJJ_ERR=!errorlevel!"
+exit /b !_LJJ_ERR!
 
 :CalcElapsedCs
 set "_CEC_START=%~1"
@@ -8761,7 +9368,7 @@ if /i "!WHICH_TARGET!"=="java" (
     exit /b 1
 )
 
-set "CAND_JUNC=%LOCALAPPDATA%\DiamTek\JVM\candidates\!WHICH_TARGET!\current"
+set "CAND_JUNC=!JVM_DIR!\candidates\!WHICH_TARGET!\current"
 set "CAND_ROOT=!CAND_JUNC!\bin"
 if exist "!CAND_JUNC!" (
     "%FSUTIL_BIN%" reparsepoint query "!CAND_JUNC!" >nul 2>&1
@@ -8830,9 +9437,12 @@ rem ============================================================
 :DoctorDiagnostics
 if "%OUTPUT_JSON%"=="1" (
     set "DOC_STORAGE_OK=false"
-    if exist "%LOCALAPPDATA%\DiamTek\JVM" set "DOC_STORAGE_OK=true"
+    if exist "!JVM_DIR!" set "DOC_STORAGE_OK=true"
     set "DOC_JUNC_OK=false"
-    if exist "%LOCALAPPDATA%\DiamTek\JVM\current\bin\java.exe" set "DOC_JUNC_OK=true"
+    if exist "!JVM_DIR!\current\bin\java.exe" (
+        "%FSUTIL_BIN%" reparsepoint query "!JVM_DIR!\current" >nul 2>&1
+        if not errorlevel 1 set "DOC_JUNC_OK=true"
+    )
     set "DOC_JH_VAL=!JAVA_HOME!"
     if defined DOC_JH_VAL set "DOC_JH_VAL=!DOC_JH_VAL:\=\\!"
     if defined DOC_JH_VAL set "DOC_JH_VAL=!DOC_JH_VAL:"=!"
@@ -8848,8 +9458,18 @@ if "%OUTPUT_JSON%"=="1" (
     if "!POLICY_ACTIVE!"=="1" set "DOC_POL_ACT=true"
     set "DOC_POL_PATH=!POLICY_FILE_PATH!"
     if defined DOC_POL_PATH set "DOC_POL_PATH=!DOC_POL_PATH:\=\\!"
-    echo {"ok":true,"command":"doctor","candidate":"java","resolved":null,"changed":false,"status":"doctor","storage_root_ok":!DOC_STORAGE_OK!,"mode":"!SWITCH_MODE!","junction_ok":!DOC_JUNC_OK!,"java_home":"!DOC_JH_VAL!","active_binary":"!DOC_FIRST_BIN!","arch":"!SYS_ARCH!","installed_jdks":!JDK_COUNT!,"proxy_configured":!DOC_HAS_PROXY!,"cert_store_ok":true,"policy_active":!DOC_POL_ACT!,"policy_file":"!DOC_POL_PATH!"}
-    exit /b 0
+    set "DOC_OK_BOOL=true"
+    set "DOC_JSON_EXIT=0"
+    if "!DOC_STORAGE_OK!"=="false" (
+        set "DOC_OK_BOOL=false"
+        set "DOC_JSON_EXIT=1"
+    )
+    if exist "!JVM_DIR!\current" if "!DOC_JUNC_OK!"=="false" (
+        set "DOC_OK_BOOL=false"
+        set "DOC_JSON_EXIT=1"
+    )
+    echo {"ok":!DOC_OK_BOOL!,"command":"doctor","candidate":"java","resolved":null,"changed":false,"status":"doctor","storage_root_ok":!DOC_STORAGE_OK!,"mode":"!SWITCH_MODE!","junction_ok":!DOC_JUNC_OK!,"java_home":"!DOC_JH_VAL!","active_binary":"!DOC_FIRST_BIN!","arch":"!SYS_ARCH!","installed_jdks":!JDK_COUNT!,"proxy_configured":!DOC_HAS_PROXY!,"cert_store_ok":true,"policy_active":!DOC_POL_ACT!,"policy_file":"!DOC_POL_PATH!"}
+    exit /b !DOC_JSON_EXIT!
 )
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Running DiamTek JVM System Health Audit...
@@ -8858,7 +9478,7 @@ echo ============================================================
 set "DOC_ISSUES=0"
 
 rem 1. Storage Root & Permissions
-set "DOC_APPDIR=%LOCALAPPDATA%\DiamTek\JVM"
+set "DOC_APPDIR=!JVM_DIR!"
 if exist "!DOC_APPDIR!" (
     for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "DOC_RANDOM_NAME=%%A"
 set "DOC_TESTFILE=!DOC_APPDIR!\.health_check_!DOC_RANDOM_NAME!"
@@ -8868,10 +9488,16 @@ set "DOC_TESTFILE=!DOC_APPDIR!\.health_check_!DOC_RANDOM_NAME!"
         echo %cGREEN%[   OK   ]%cRESET% Storage Root:        !DOC_APPDIR! ^(Writable^)
     ) else (
         echo %cRED%[ ERROR  ]%cRESET% Storage Root:        !DOC_APPDIR! ^(Read-Only / Permission Denied^)
+        echo            Impact:        JVM cannot persist settings, junctions, or state locks.
+        echo            Evidence:      Write test failed on !DOC_TESTFILE!
+        echo            Suggested Fix: Run 'icacls "!DOC_APPDIR!" /grant "%USERNAME%:(OI)(CI)F"'
         set /a DOC_ISSUES+=1
     )
 ) else (
     echo %cYELLOW%[ WARNING]%cRESET% Storage Root:        !DOC_APPDIR! ^(Missing - run install.ps1^)
+    echo            Impact:        Host state directory has not been initialized yet.
+    echo            Evidence:      Directory !DOC_APPDIR! does not exist.
+    echo            Suggested Fix: Run 'jvm use ^<version^>' or 'powershell -File install.ps1'
     set /a DOC_ISSUES+=1
 )
 
@@ -8880,20 +9506,29 @@ if /i "!SWITCH_MODE!"=="DIRECT" (
     echo %cBLUE%[  INFO  ]%cRESET% Architecture Mode:   [Registry Mode] ^(UAC Required for switches^)
 ) else (
     echo %cGREEN%[   OK   ]%cRESET% Architecture Mode:   [Symlink Mode] ^(User Junction, UAC-Free^)
-    set "DOC_JUNC=%LOCALAPPDATA%\DiamTek\JVM\current"
+    set "DOC_JUNC=!JVM_DIR!\current"
     if exist "!DOC_JUNC!" (
         "%FSUTIL_BIN%" reparsepoint query "!DOC_JUNC!" >nul 2>&1
         if errorlevel 1 (
             echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): !DOC_JUNC! is a regular directory, not a junction.
+            echo            Impact:        JDK version switching is blocked to prevent directory deletion.
+            echo            Evidence:      fsutil reparsepoint query returned non-reparse status on !DOC_JUNC!
+            echo            Suggested Fix: Inspect and remove '!DOC_JUNC!', then run 'jvm use ^<version^>'
             set /a DOC_ISSUES+=1
         ) else if exist "!DOC_JUNC!\bin\java.exe" (
             echo %cGREEN%[   OK   ]%cRESET% Directory Junction:  !DOC_JUNC! -^> !RESOLVED_JAVA_HOME!
         ) else (
             echo %cRED%[ ERROR  ]%cRESET% Directory Junction:  !DOC_JUNC! is broken ^(target missing java.exe^)
+            echo            Impact:        Invoking 'java' via JAVA_HOME will fail.
+            echo            Evidence:      Missing executable at !DOC_JUNC!\bin\java.exe
+            echo            Suggested Fix: Run 'jvm doctor --fix' or 'jvm use ^<version^>'
             set /a DOC_ISSUES+=1
         )
     ) else (
         echo %cYELLOW%[ WARNING]%cRESET% Directory Junction:  !DOC_JUNC! not initialized ^(switch with 'jvm ^<ver^>'^)
+        echo            Impact:        No active JDK is linked via JVM's UAC-free junction.
+        echo            Evidence:      Junction !DOC_JUNC! is absent.
+        echo            Suggested Fix: Run 'jvm use ^<version^>' ^(e.g. 'jvm use 21'^)
         set /a DOC_ISSUES+=1
     )
 )
@@ -8952,10 +9587,15 @@ for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do (
 
 if not defined FIRST_JAVA (
     echo %cRED%[ ERROR  ]%cRESET% Active Binary:       'java.exe' not found in PATH
+    echo            Impact:        Running 'java' or build tools in the terminal will fail.
+    echo            Evidence:      where.exe $PATH:java returned no matches.
+    echo            Suggested Fix: Run 'jvm use ^<version^>' or 'jvm init'
     set /a DOC_ISSUES+=1
 ) else if "!SHADOW_FOUND!"=="1" (
     echo %cYELLOW%[ WARNING]%cRESET% PATH Shadowing:      Rogue path found before JVM: !FIRST_JAVA!
-    echo                        ^(Run 'jvm clear' to purge legacy Oracle javapath entries^)
+    echo            Impact:        Another Java binary overrides JVM's active JDK in PATH.
+    echo            Evidence:      First PATH match is !FIRST_JAVA!
+    echo            Suggested Fix: Run 'jvm doctor --fix' or 'jvm clear' to purge legacy Oracle javapath entries
     set /a DOC_ISSUES+=1
 ) else (
     echo %cGREEN%[   OK   ]%cRESET% PATH Precedence:     !FIRST_JAVA! ^(Clean^)
@@ -8984,8 +9624,8 @@ if defined HTTPS_PROXY set "DOC_PROXY=%HTTPS_PROXY%"
 if not defined DOC_PROXY if defined HTTP_PROXY set "DOC_PROXY=%HTTP_PROXY%"
 if not defined DOC_PROXY if defined ALL_PROXY set "DOC_PROXY=%ALL_PROXY%"
 if not defined DOC_PROXY (
-    if exist "%LOCALAPPDATA%\DiamTek\JVM\config.json" (
-        for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -Command "try { $c = Get-Content -LiteralPath ($env:LOCALAPPDATA + '\DiamTek\JVM\config.json') -Raw | ConvertFrom-Json; if ($c.proxy) { Write-Output ('PROXY|' + $c.proxy) } } catch { Write-Verbose $_.Exception.Message }" 2^>nul') do (
+    if exist "!JVM_DIR!\config.json" (
+        for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -Command "try { $c = Get-Content -LiteralPath (Join-Path $env:JVM_DIR 'config.json') -Raw | ConvertFrom-Json; if ($c.proxy) { Write-Output ('PROXY|' + $c.proxy) } } catch { Write-Verbose $_.Exception.Message }" 2^>nul') do (
             if "%%A"=="PROXY" set "DOC_PROXY=%%B"
         )
     )
@@ -8996,7 +9636,7 @@ if defined DOC_PROXY (
     echo %cBLUE%[  INFO  ]%cRESET% Corporate Proxy:     Direct Connection ^(No proxy configured^)
 )
 rem 9. Windows Certificate Store Integration
-echo %cGREEN%[   OK   ]%cRESET% TLS Certificate Store: Windows Root ^& Intermediate Stores Trusted ^(CRL offline bypass active^)
+echo %cGREEN%[   OK   ]%cRESET% TLS Certificate Store: Windows Root ^& Intermediate Stores Trusted ^(CRL revocation check active^)
 
 rem 10. System Enterprise Policy Mode
 if "!POLICY_ACTIVE!"=="1" (
@@ -9072,10 +9712,47 @@ if not defined FOUND_EXEC_JDK (
 set "JAVA_HOME=!FOUND_EXEC_JDK!"
 set "PATH=!FOUND_EXEC_JDK!\bin;!PATH!"
 
-setlocal disabledelayedexpansion
-"%CMD_BIN%" /d /s /c "%EXEC_CMD%"
-set "EXEC_EXIT_CODE=%errorlevel%"
-endlocal & exit /b %EXEC_EXIT_CODE%
+setlocal enabledelayedexpansion
+set "EXEC_ENV_ARG_COUNT=!EXEC_ARG_COUNT!"
+set "EXEC_ENV_JDK_PATH=!FOUND_EXEC_JDK!"
+
+for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "EXEC_RND=%%A"
+set "EXEC_CMDFILE=%JVM_SECURE_TEMP%\jvm_exec_!EXEC_RND!.cmd"
+
+rem Write args to a self-contained .cmd file — no cross-process quoting required.
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Stop';" ^
+  "$dq=[char]34;" ^
+  "$cnt=[int]$env:EXEC_ENV_ARG_COUNT;" ^
+  "$exe=[Environment]::GetEnvironmentVariable('EXEC_ARG_0');" ^
+  "$jdk=$env:EXEC_ENV_JDK_PATH;" ^
+  "$lines=[System.Collections.Generic.List[string]]::new();" ^
+  "$lines.Add('@echo off');" ^
+  "$lines.Add('set ' + $dq + 'JAVA_HOME=' + $jdk + $dq);" ^
+  "$lines.Add('set ' + $dq + 'PATH=' + $jdk + '\bin;%PATH%' + $dq);" ^
+  "$cmd=$exe;" ^
+  "for($i=1;$i -lt $cnt;$i++){" ^
+  "  $v=[Environment]::GetEnvironmentVariable('EXEC_ARG_'+$i);" ^
+  "  $v=$v -replace '%', '%%';" ^
+  "  if($v -match '[\s&|<>^()]'){ $v=$dq + ($v -replace $dq,($dq+$dq)) + $dq };" ^
+  "  $cmd += ' ' + $v" ^
+  "};" ^
+  "$lines.Add($cmd);" ^
+  "$lines.Add('exit /b %ERRORLEVEL%');" ^
+  "[System.IO.File]::WriteAllLines($env:EXEC_CMDFILE,$lines,[System.Text.UTF8Encoding]::new($false))"
+
+if errorlevel 1 (
+    >&2 echo %cRED%[ ERROR  ]%cRESET% Failed to prepare exec wrapper.
+    if exist "!EXEC_CMDFILE!" del /f /q "!EXEC_CMDFILE!" >nul 2>&1
+    endlocal & exit /b 1
+)
+
+"%CMD_BIN%" /d /c "!EXEC_CMDFILE!"
+rem "%CMD_BIN%" /d /s /c "%EXEC_CMD%"
+set "EXEC_EXIT_CODE=!errorlevel!"
+if exist "!EXEC_CMDFILE!" del /f /q "!EXEC_CMDFILE!" >nul 2>&1
+endlocal & set "EXEC_EXIT_CODE=%EXEC_EXIT_CODE%"
+exit /b %EXEC_EXIT_CODE%
 
 rem ============================================================
 rem OPEN DIRECTORY IN FILE EXPLORER
@@ -10003,7 +10680,9 @@ if /i "%~2"=="thaw" (
 )
 if /i "%~2"=="check" (
     call :CheckLockfile
-    exit /b !errorlevel!
+    set "_LCK_CHK_ERR=!errorlevel!"
+    if "!_LCK_CHK_ERR!"=="0" if not "!OUTPUT_JSON!"=="1" call :ExplainLockfileHermeticity
+    exit /b !_LCK_CHK_ERR!
 )
 if /i "%~2"=="diff" (
     call :DiffLockfile
@@ -10015,7 +10694,9 @@ if /i "%~2"=="update" (
 )
 if "%FLAG_LOCK_CHECK%"=="1" (
     call :CheckLockfile
-    exit /b !errorlevel!
+    set "_LCK_CHK_ERR=!errorlevel!"
+    if "!_LCK_CHK_ERR!"=="0" if not "!OUTPUT_JSON!"=="1" call :ExplainLockfileHermeticity
+    exit /b !_LCK_CHK_ERR!
 )
 if "%FLAG_LOCK_DIFF%"=="1" (
     call :DiffLockfile
@@ -10329,6 +11010,35 @@ set "ENTRY_CHKSUM_TYPE=!FINAL_CHKSUM_TYPE!"
 set "ENTRY_CHKSUM=!FINAL_CHKSUM_VAL!"
 goto :WriteLockFileEntry
 
+:ExplainLockfileHermeticity
+set "RESOLVED_LOCK_FILE="
+call :ResolveLockfilePath
+if not defined RESOLVED_LOCK_FILE exit /b 0
+if not exist "!RESOLVED_LOCK_FILE!" exit /b 0
+set "ENV_LOCK_PATH=!RESOLVED_LOCK_FILE!"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$lf = $env:ENV_LOCK_PATH; if (-not $lf -or -not (Test-Path -LiteralPath $lf)) { exit 0 };" ^
+    "try {" ^
+    "    $d = Get-Content -LiteralPath $lf -Raw -Encoding UTF8 | ConvertFrom-Json;" ^
+    "    if (-not $d -or -not $d.tools) { exit 0 };" ^
+    "    $hasSig = Test-Path -LiteralPath ($lf + '.sig');" ^
+    "    $hermetic = $true; $reasons = New-Object System.Collections.Generic.List[string];" ^
+    "    foreach ($p in $d.tools.PSObject.Properties) {" ^
+    "        $n = $p.Name; $t = $p.Value;" ^
+    "        if (-not $t.version -or [string]$t.version -notmatch '\d+\.\d+') { $hermetic = $false; $reasons.Add($n + ': version ''' + $t.version + ''' is a floating track (run ''jvm freeze'')') };" ^
+    "        if (-not $t.checksum_type -or $t.checksum_type -notin @('sha256','sha512') -or [string]$t.checksum -notmatch '^[0-9a-fA-F]{64,128}$') { $hermetic = $false; $reasons.Add($n + ': missing strong SHA-256/512 digest') };" ^
+    "        $prov = if ($t.provenance) { $t.provenance } else { 'unspecified (pre-freeze)' };" ^
+    "        Write-Host ('  [ PROVENANCE ] ' + $n.PadRight(10) + ' version=' + $t.version + ' | arch=' + $t.arch + ' | provenance=' + $prov) -ForegroundColor Cyan;" ^
+    "    };" ^
+    "    if ($hermetic) {" ^
+    "        Write-Host ('[ HERMETIC ] Environment is reproducible across developer machines and CI' + $(if ($hasSig) { ' (Signed: .jvm.lock.sig present).' } else { ' (Unsigned: run ''jvm lock --sign'' for tamper protection).' })) -ForegroundColor Green;" ^
+    "    } else {" ^
+    "        Write-Host '[ ADVISORY ] Environment is not yet fully hermetic:' -ForegroundColor Yellow;" ^
+    "        foreach ($r in $reasons) { Write-Host ('             - ' + $r) -ForegroundColor Yellow };" ^
+    "    };" ^
+    "} catch { Write-Verbose $_.Exception.Message }"
+exit /b 0
+
 :WriteLockFileEntry
 set "LOCK_FILE_PATH=%INVOCATION_DIR%\.jvm.lock"
 
@@ -10389,11 +11099,19 @@ set "LOCK_WRITER_PS1=%JVM_SECURE_TEMP%\jvm_lock_write_!LOCK_PS_RND!.ps1"
     echo     tools = $toolsDict
     echo }
     echo $json = $lockObj ^| ConvertTo-Json -Depth 10
-    echo $guidStr = [System.Guid]::NewGuid^(^).ToString^('N'^)
     echo $stage = $lockPath + '.stage.' + [System.Guid]::NewGuid^(^).ToString^('N'^) + '.tmp'
     echo $utf8NoBom = New-Object System.Text.UTF8Encoding^($false^)
-    echo [System.IO.File]::WriteAllText^($stage, $json + [char]13 + [char]10, $utf8NoBom^)
-    echo Move-Item -LiteralPath $stage -Destination $lockPath -Force
+    echo try {
+    echo     [System.IO.File]::WriteAllText^($stage, $json + [char]13 + [char]10, $utf8NoBom^)
+    echo     $verifyObj = Get-Content -LiteralPath $stage -Raw -Encoding UTF8 ^| ConvertFrom-Json
+    echo     if ^(-not $verifyObj -or -not $verifyObj.tools^) { throw 'Staged lockfile validation failed.' }
+    echo     if ^(Test-Path -LiteralPath $lockPath^) { Copy-Item -LiteralPath $lockPath -Destination ^($lockPath + '.bak'^) -Force -ErrorAction SilentlyContinue }
+    echo     Move-Item -LiteralPath $stage -Destination $lockPath -Force
+    echo     $sigPath = $lockPath + '.sig'
+    echo     if ^(Test-Path -LiteralPath $sigPath^) { Remove-Item -LiteralPath $sigPath -Force -ErrorAction SilentlyContinue }
+    echo } finally {
+    echo     if ^(Test-Path -LiteralPath $stage^) { Remove-Item -LiteralPath $stage -Force -ErrorAction SilentlyContinue }
+    echo }
 ) > "!LOCK_WRITER_PS1!"
 
 "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!LOCK_WRITER_PS1!"
@@ -12526,7 +13244,7 @@ rem ============================================================
 :ExecuteSharedDownloader
 set "CAS_CACHE_HIT=0"
 if defined DL_CHKSUM_VAL (
-    set "CAS_TARGET_FILE=%LOCALAPPDATA%\DiamTek\JVM\cache\sha256\!DL_CHKSUM_VAL:~0,2!\!DL_CHKSUM_VAL!.zip"
+    set "CAS_TARGET_FILE=!JVM_DIR!\cache\sha256\!DL_CHKSUM_VAL:~0,2!\!DL_CHKSUM_VAL!.zip"
     if exist "!CAS_TARGET_FILE!" (
         echo %cGREEN%[ CACHE  ]%cRESET% Content-Addressed Cache hit for SHA-256: !DL_CHKSUM_VAL:~0,16!...
         copy /y "!CAS_TARGET_FILE!" "!DL_ZIP!" >nul 2>&1
@@ -12548,13 +13266,34 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo $ErrorActionPreference = 'Stop'
     echo $ProgressPreference = 'SilentlyContinue'
     echo [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288
-    echo [System.Net.ServicePointManager]::CheckCertificateRevocationList = $false
     echo try {
     echo     $url = $env:DL_URL
     echo     $out = $env:DL_ZIP
+    echo     $jvmRoot = if ^($env:JVM_DIR^) { $env:JVM_DIR } else { Join-Path $env:LOCALAPPDATA 'DiamTek\JVM' }
+    echo     $cfgFile = Join-Path $jvmRoot 'config.json'
+    echo     $cfgJson = $null
+    echo     if ^(Test-Path -LiteralPath $cfgFile^) {
+    echo         try { $cfgJson = Get-Content -LiteralPath $cfgFile -Raw ^| ConvertFrom-Json } catch { Write-Verbose $_.Exception.Message }
+    echo     }
+    echo     $permittedMirrorHosts = [System.Collections.Generic.List[string]]::new^(^)
+    echo     if ^($env:POLICY_ENFORCED_MIRROR^) {
+    echo         $mUri = $null
+    echo         if ^(-not [System.Uri]::TryCreate^($env:POLICY_ENFORCED_MIRROR, [System.UriKind]::Absolute, [ref]$mUri^) -or $mUri.Scheme -ne 'https' -or $mUri.IsLoopback^) {
+    echo             throw ^('Security policy violation ^(CWE-319^): Enforced policy mirror must be a valid non-loopback HTTPS URI: ' + $env:POLICY_ENFORCED_MIRROR^)
+    echo         }
+    echo         $permittedMirrorHosts.Add^($mUri.Host.ToLowerInvariant^(^)^)
+    echo     }
+    echo     if ^($cfgJson -and $cfgJson.mirror -and ^(-not $env:POLICY_ENFORCED_MIRROR^)^) {
+    echo         $uUri = $null
+    echo         if ^([System.Uri]::TryCreate^([string]$cfgJson.mirror, [System.UriKind]::Absolute, [ref]$uUri^) -and $uUri.Scheme -eq 'https' -and ^(-not $uUri.IsLoopback^)^) {
+    echo             $permittedMirrorHosts.Add^($uUri.Host.ToLowerInvariant^(^)^)
+    echo         }
+    echo     }
     echo     function Test-TrustedJvmUri^([System.Uri]$u^) {
     echo         if ^(-not $u -or $u.Scheme -ne 'https' -or $u.IsLoopback^) { return $false }
     echo         $h = $u.Host.ToLowerInvariant^(^)
+    echo         if ^($permittedMirrorHosts -contains $h^) { return $true }
+    echo         if ^($env:POLICY_ENFORCED_MIRROR^) { return $false }
     echo         $exact = @^('download.oracle.com','edelivery.oracle.com','api.adoptium.net','github.com','api.github.com','objects.githubusercontent.com','release-assets.githubusercontent.com','raw.githubusercontent.com','corretto.aws','api.azul.com','cdn.azul.com','static.azul.com','aka.ms','download.visualstudio.microsoft.com','api.bell-sw.com','download.bell-sw.com','repo.maven.apache.org','archive.apache.org','dlcdn.apache.org','downloads.apache.org','services.gradle.org','downloads.gradle.org','downloads.gradle-dn.com','api.sdkman.io','sap.github.io'^)
     echo         if ^($exact -contains $h^) { return $true }
     echo         if ^($h -match '^^corretto^(-downloads^)?\.[a-z0-9\-]+\.amazonaws\.com$' -or $h -match '^^corretto\.aws\.s3^(\.[a-z0-9\-]+^)?\.amazonaws\.com$'^) { return $true }
@@ -12563,43 +13302,39 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo         }
     echo         return $false
     echo     }
-    echo     $dlUri = $null
-    echo     if ^(-not [System.Uri]::TryCreate^($url, [System.UriKind]::Absolute, [ref]$dlUri^) -or $dlUri.Scheme -ne 'https'^) {
-    echo         throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS download URL: ' + $url^)
-    echo     }
-    echo     if ^(-not ^(Test-TrustedJvmUri $dlUri^)^) {
-    echo         throw ^('Security policy violation ^(CWE-918^): Untrusted download host: ' + $dlUri.Host^)
-    echo     }
-    echo     if ^($env:DL_CHKSUM_URL^) {
-    echo         $chkUri = $null
-    echo         if ^(-not [System.Uri]::TryCreate^($env:DL_CHKSUM_URL, [System.UriKind]::Absolute, [ref]$chkUri^) -or $chkUri.Scheme -ne 'https'^) {
-    echo             throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS checksum URL: ' + $env:DL_CHKSUM_URL^)
+    echo     if ^($env:POLICY_ENFORCED_MIRROR^) {
+    echo         $enfMirror = $env:POLICY_ENFORCED_MIRROR.Trim^(^)
+    echo         Write-Host '[  INFO  ] Routing download strictly through enforced enterprise policy mirror (fail-closed)...' -ForegroundColor Cyan
+    echo         $enfChk = if ^($env:POLICY_ENFORCED_MIRROR_CHECKSUM^) { $env:POLICY_ENFORCED_MIRROR_CHECKSUM } elseif ^(-not $env:DL_CHKSUM_VAL^) { $enfMirror + '.sha256' } else { $null }
+    echo         $dlUrls = @^($enfMirror^)
+    echo         $dlChks = @^($enfChk^)
+    echo     } else {
+    echo         $dlUri = $null
+    echo         if ^(-not [System.Uri]::TryCreate^($url, [System.UriKind]::Absolute, [ref]$dlUri^) -or $dlUri.Scheme -ne 'https'^) {
+    echo             throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS download URL: ' + $url^)
     echo         }
-    echo         if ^(-not ^(Test-TrustedJvmUri $chkUri^)^) {
-    echo             throw ^('Security policy violation ^(CWE-918^): Untrusted checksum host: ' + $chkUri.Host^)
+    echo         if ^(-not ^(Test-TrustedJvmUri $dlUri^)^) {
+    echo             throw ^('Security policy violation ^(CWE-918^): Untrusted download host: ' + $dlUri.Host^)
     echo         }
-    echo     }
-    echo     $dlUrls = @^($url^)
-    echo     $dlChks = @^($env:DL_CHKSUM_URL^)
-    echo     $cfgFile = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\config.json'
-    echo     $cfgJson = $null
-    echo     if ^(Test-Path -LiteralPath $cfgFile^) {
-    echo         try {
-    echo             $cfgJson = Get-Content -LiteralPath $cfgFile -Raw ^| ConvertFrom-Json
+    echo         if ^($env:DL_CHKSUM_URL^) {
+    echo             $chkUri = $null
+    echo             if ^(-not [System.Uri]::TryCreate^($env:DL_CHKSUM_URL, [System.UriKind]::Absolute, [ref]$chkUri^) -or $chkUri.Scheme -ne 'https'^) {
+    echo                 throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS checksum URL: ' + $env:DL_CHKSUM_URL^)
+    echo             }
+    echo             if ^(-not ^(Test-TrustedJvmUri $chkUri^)^) {
+    echo                 throw ^('Security policy violation ^(CWE-918^): Untrusted checksum host: ' + $chkUri.Host^)
+    echo             }
+    echo         }
+    echo         $dlUrls = @^($url^)
+    echo         $dlChks = @^($env:DL_CHKSUM_URL^)
+    echo         if ^($cfgJson -and $cfgJson.mirror^) {
     echo             $mirror = [string]$cfgJson.mirror
     echo             if ^($mirror -match '^^https://'^) {
-    echo                 Write-Host '[  INFO  ] Routing download through mirror...' -ForegroundColor Cyan
+    echo                 Write-Host '[  INFO  ] Routing download through configured mirror...' -ForegroundColor Cyan
+    echo                 $mChk = if ^(-not $env:DL_CHKSUM_VAL^) { $mirror + '.sha256' } else { $null }
     echo                 $dlUrls = @^($mirror^) + $dlUrls
-    echo                 $dlChks = @^($null^) + $dlChks
+    echo                 $dlChks = @^($mChk^) + $dlChks
     echo             }
-    echo         } catch { Write-Verbose $_.Exception.Message }
-    echo     }
-    echo     if ^($env:POLICY_ENFORCED_MIRROR^) {
-    echo         $enfMirror = $env:POLICY_ENFORCED_MIRROR
-    echo         if ^($enfMirror -match '^^https://'^) {
-    echo             Write-Host '[  INFO  ] Routing download through enforced enterprise policy mirror...' -ForegroundColor Cyan
-    echo             $dlUrls = @^($enfMirror^) + $dlUrls
-    echo             $dlChks = @^($null^) + $dlChks
     echo         }
     echo     }
     echo     $proxyUrl = $null; $proxyBypass = $null
@@ -12625,27 +13360,29 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo             [System.Net.WebRequest]::DefaultWebProxy = $proxyObj
     echo         } catch { Write-Verbose $_.Exception.Message }
     echo     }
-    echo     if ^($env:DL_FALLBACK_URL^) {
-    echo         $fbUri = $null
-    echo         if ^(-not [System.Uri]::TryCreate^($env:DL_FALLBACK_URL, [System.UriKind]::Absolute, [ref]$fbUri^) -or $fbUri.Scheme -ne 'https'^) {
-    echo             throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS download URL: ' + $env:DL_FALLBACK_URL^)
+    echo     if ^(-not $env:POLICY_ENFORCED_MIRROR^) {
+    echo         if ^($env:DL_FALLBACK_URL^) {
+    echo             $fbUri = $null
+    echo             if ^(-not [System.Uri]::TryCreate^($env:DL_FALLBACK_URL, [System.UriKind]::Absolute, [ref]$fbUri^) -or $fbUri.Scheme -ne 'https'^) {
+    echo                 throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS download URL: ' + $env:DL_FALLBACK_URL^)
+    echo             }
+    echo             if ^(-not ^(Test-TrustedJvmUri $fbUri^)^) {
+    echo                 throw ^('Security policy violation ^(CWE-918^): Untrusted download host: ' + $fbUri.Host^)
+    echo             }
+    echo             $dlUrls += $env:DL_FALLBACK_URL
+    echo             $dlChks += $env:DL_FALLBACK_CHKSUM
     echo         }
-    echo         if ^(-not ^(Test-TrustedJvmUri $fbUri^)^) {
-    echo             throw ^('Security policy violation ^(CWE-918^): Untrusted download host: ' + $fbUri.Host^)
+    echo         if ^($env:DL_FALLBACK2_URL^) {
+    echo             $fb2Uri = $null
+    echo             if ^(-not [System.Uri]::TryCreate^($env:DL_FALLBACK2_URL, [System.UriKind]::Absolute, [ref]$fb2Uri^) -or $fb2Uri.Scheme -ne 'https'^) {
+    echo                 throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS download URL: ' + $env:DL_FALLBACK2_URL^)
+    echo             }
+    echo             if ^(-not ^(Test-TrustedJvmUri $fb2Uri^)^) {
+    echo                 throw ^('Security policy violation ^(CWE-918^): Untrusted download host: ' + $fb2Uri.Host^)
+    echo             }
+    echo             $dlUrls += $env:DL_FALLBACK2_URL
+    echo             $dlChks += $env:DL_FALLBACK2_CHKSUM
     echo         }
-    echo         $dlUrls += $env:DL_FALLBACK_URL
-    echo         $dlChks += $env:DL_FALLBACK_CHKSUM
-    echo     }
-    echo     if ^($env:DL_FALLBACK2_URL^) {
-    echo         $fb2Uri = $null
-    echo         if ^(-not [System.Uri]::TryCreate^($env:DL_FALLBACK2_URL, [System.UriKind]::Absolute, [ref]$fb2Uri^) -or $fb2Uri.Scheme -ne 'https'^) {
-    echo             throw ^('Security policy violation ^(CWE-319^): Refusing non-HTTPS download URL: ' + $env:DL_FALLBACK2_URL^)
-    echo         }
-    echo         if ^(-not ^(Test-TrustedJvmUri $fb2Uri^)^) {
-    echo             throw ^('Security policy violation ^(CWE-918^): Untrusted download host: ' + $fb2Uri.Host^)
-    echo         }
-    echo         $dlUrls += $env:DL_FALLBACK2_URL
-    echo         $dlChks += $env:DL_FALLBACK2_CHKSUM
     echo     }
     echo     $downloadStarted = $false
     echo     $zipPath = $out
@@ -12679,21 +13416,21 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo                     throw ^('Security policy violation ^(CWE-601^): Blocked redirect to untrusted host: ' + $badUri.Host^)
     echo                 }
     echo                 $isPartial = ^([int]$res.StatusCode -eq 206^)
-    echo                 $fileMode = if ^($isPartial -and$existingLen -gt 0^) { [System.IO.FileMode]::Append } else { [System.IO.FileMode]::Create }
-    echo                 $fs = New-Object System.IO.FileStream^($partFile,$fileMode, [System.IO.FileAccess]::Write^)
+    echo                 $fileMode = if ^($isPartial -and $existingLen -gt 0^) { [System.IO.FileMode]::Append } else { [System.IO.FileMode]::Create }
+    echo                 $fs = New-Object System.IO.FileStream^($partFile, $fileMode, [System.IO.FileAccess]::Write^)
     echo                 try {
-    echo                     $respStream =$res.GetResponseStream^(^)
-    echo                     $totalLen =$res.ContentLength
-    echo                     if ^($isPartial^) { $totalLen +=$existingLen }
+    echo                     $respStream = $res.GetResponseStream^(^)
+    echo                     $totalLen = $res.ContentLength
+    echo                     if ^($isPartial^) { $totalLen += $existingLen }
     echo                     $buffer = New-Object byte[] 65536
     echo                     $downloaded = if ^($isPartial^) {$existingLen } else { 0 }
     echo                     $lastPercent = -1
-    echo                     while ^( ^( $read =$respStream.Read^($buffer, 0,$buffer.Length^) ^) -gt 0 ^) {
+    echo                     while ^( ^( $read = $respStream.Read^($buffer, 0,$buffer.Length^) ^) -gt 0 ^) {
     echo                         $fs.Write^($buffer, 0,$read^)
-    echo                         $downloaded +=$read
+    echo                         $downloaded += $read
     echo                         if ^($totalLen -gt 0^) {
     echo                             $percent = [math]::Floor^( ^($downloaded / $totalLen^) * 100 ^)
-    echo                             if ^($percent -ne$lastPercent^) {
+    echo                             if ^($percent -ne $lastPercent^) {
     echo                                 $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
     echo                                 $dMB = [math]::Round^($downloaded / 1MB, 1^)
     echo                                 $tMB = [math]::Round^($totalLen / 1MB, 1^)
@@ -12702,7 +13439,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo                                 $remainMB = [math]::Max^(0.0, $tMB - $dMB^)
     echo                                 $etaSec = if ^($speedMBs -gt 0^) { [math]::Round^($remainMB / $speedMBs, 1^) } else { 0.0 }
     echo                                 Write-Host "`r[3/6] Streaming payload: $bar $percent%% ($dMB / $tMB MB | $speedMBs MB/s | ETA ${etaSec}s) " -NoNewline -ForegroundColor Cyan
-    echo                                 $lastPercent =$percent
+    echo                                 $lastPercent = $percent
     echo                             }
     echo                         }
     echo                     }
@@ -12808,8 +13545,8 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo                 $expectedHash = Get-TrustedChecksumText $env:DL_CHKSUM_URL
     echo             } catch {
     echo                 if ^($_.Exception.Message -like 'Security policy violation*'^) { throw }
-    echo                 if ^($env:DL_CHKSUM_URL -match '\.sha512$'^) {
-    echo                     Write-Host "[ WARNING] SHA512 checksum not found, falling back to SHA1..." -ForegroundColor Yellow
+    echo                 if ^($env:DL_CHKSUM_URL -match '\.sha512$' -and $env:ALLOW_WEAK_CHECKSUM -eq '1'^) {
+    echo                     Write-Host "[ WARNING] SHA512 checksum not found, falling back to SHA1 (--allow-weak-checksum active)..." -ForegroundColor Yellow
     echo                     $fallbackUrl = $env:DL_CHKSUM_URL -replace '\.sha512$', '.sha1'
     echo                     try {
     echo                         $expectedHash = Get-TrustedChecksumText $fallbackUrl
@@ -12860,6 +13597,10 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo                     }
     echo                 }
     echo             } catch { Write-Verbose $_.Exception.Message }
+    echo         }
+    echo         $cryptoType = $cryptoType.ToUpperInvariant^(^)
+    echo         if ^($cryptoType -notin @^('SHA256', 'SHA512'^) -and $env:ALLOW_WEAK_CHECKSUM -ne '1'^) {
+    echo             throw ^('Security policy violation ^(CWE-328^): Weak checksum algorithm ' + $cryptoType + ' rejected by default. Pass --allow-weak-checksum to explicitly permit legacy digests.'^)
     echo         }
     echo         if ^($cryptoType -eq 'SHA256' -and $expectedHash -notmatch '^^[0-9a-fA-F]{64}$'^) { $expectedHash = $null }
     echo         if ^($cryptoType -eq 'SHA512' -and $expectedHash -notmatch '^^[0-9a-fA-F]{128}$'^) { $expectedHash = $null }
@@ -13054,8 +13795,12 @@ if not exist "%JVM_BACKUP_DIR%\usr_env_!BAK_DATE!_!BAK_TIME!.reg" (
 exit /b 0
 
 :RejectExclamationArg
-if "%~1"=="" exit /b 0
+if [%1]==[] exit /b 0
 set "_REA_VAL=%~1"
+if not defined _REA_VAL (
+    shift
+    goto :RejectExclamationArg
+)
 if "%_REA_VAL:~0,1%"=="!" exit /b 1
 if "%_REA_VAL:~-1%"=="!" exit /b 1
 for /f "tokens=1* delims=!" %%a in ("%_REA_VAL%") do (
@@ -13351,8 +14096,8 @@ rem CACHE MANAGEMENT & BUNDLING ENGINE
 rem ============================================================
 :ExecuteCacheCommand
 set "CACHE_ACTION=%~2"
-set "CACHE_ROOT=%LOCALAPPDATA%\DiamTek\JVM\cache"
-if not exist "%CACHE_ROOT%" mkdir "%CACHE_ROOT%" >nul 2>&1
+set "CACHE_ROOT=!JVM_DIR!\cache"
+if not exist "!CACHE_ROOT!" mkdir "!CACHE_ROOT!" >nul 2>&1
 
 if "!FLAG_STATS!"=="1" goto :CacheStats
 if "%CACHE_ACTION%"=="" set "CACHE_ACTION=list"
@@ -13438,6 +14183,57 @@ if "!FLAG_DRY_RUN!"=="1" (
 
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Importing and validating cache bundle from: !IMP_SRC!...
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$ErrorActionPreference = 'Stop';" ^
+    "$zip = $null;" ^
+    "try {" ^
+    "    $file = (Resolve-Path -LiteralPath $env:IMP_SRC).Path;" ^
+    "    $fInfo = Get-Item -LiteralPath $file -Force;" ^
+    "    if ($fInfo.Length -lt 4 -or $fInfo.Length -gt 2147483648L) { throw 'Security violation (CWE-400): Cache bundle size out of safe bounds.' };" ^
+    "    $magic = New-Object byte[] 4;" ^
+    "    $fs = [System.IO.File]::OpenRead($file);" ^
+    "    try { $r = $fs.Read($magic, 0, 4) } finally { $fs.Close(); $fs.Dispose() };" ^
+    "    if ($r -lt 4 -or $magic[0] -ne 0x50 -or $magic[1] -ne 0x4B) { throw 'Security violation (CWE-494): Invalid cache bundle ZIP signature.' };" ^
+    "    Add-Type -AssemblyName System.IO.Compression.FileSystem;" ^
+    "    $cacheRoot = [System.IO.Path]::GetFullPath($env:CACHE_ROOT);" ^
+    "    if (-not (Test-Path -LiteralPath $cacheRoot)) { New-Item -ItemType Directory -Path $cacheRoot -Force | Out-Null };" ^
+    "    $canonRoot = $cacheRoot.TrimEnd('\') + '\';" ^
+    "    $zip = [System.IO.Compression.ZipFile]::OpenRead($file);" ^
+    "    if ($zip.Entries.Count -le 0 -or $zip.Entries.Count -gt 10000) { throw 'Security violation (CWE-409): Cache bundle entry count out of safe bounds.' };" ^
+    "    $totalBytes = 0L;" ^
+    "    $sha = [System.Security.Cryptography.SHA256]::Create();" ^
+    "    foreach ($entry in $zip.Entries) {" ^
+    "        if ((($entry.ExternalAttributes -shr 16) -band 0xF000) -eq 0xA000) { throw 'Security violation (CWE-59): Symlink entry in cache bundle.' };" ^
+    "        if ($entry.Length -gt 1610612736L) { throw 'Security violation (CWE-409): Entry exceeds size limit.' };" ^
+    "        if ($entry.CompressedLength -gt 0 -and $entry.Length -gt 10485760L -and (($entry.Length / $entry.CompressedLength) -gt 100)) { throw 'Security violation (CWE-409): Suspicious compression ratio in cache bundle.' };" ^
+    "        $totalBytes += [math]::Max(0L, [int64]$entry.Length);" ^
+    "        if ($totalBytes -gt 2684354560L) { throw 'Security violation (CWE-409): Total expanded cache size limit exceeded.' };" ^
+    "        $rel = $entry.FullName.Replace('/','\');" ^
+    "        if ($rel.Contains('..') -or $rel.StartsWith('\') -or $rel.Contains(':')) { throw 'Security violation (CWE-22): Path traversal in cache bundle.' };" ^
+    "        $dest = [System.IO.Path]::GetFullPath((Join-Path $cacheRoot $rel));" ^
+    "        if (-not $dest.StartsWith($canonRoot, [System.StringComparison]::OrdinalIgnoreCase)) { throw 'Security violation (CWE-22): Entry escapes cache root.' };" ^
+    "        if (-not ($entry.FullName.EndsWith('/') -or $entry.FullName.EndsWith('\'))) {" ^
+    "            $pDir = [System.IO.Path]::GetDirectoryName($dest);" ^
+    "            if (-not (Test-Path -LiteralPath $pDir)) { New-Item -ItemType Directory -Path $pDir -Force | Out-Null };" ^
+    "            $tmpFile = $dest + '.stage.' + [Guid]::NewGuid().ToString('N') + '.tmp';" ^
+    "            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $tmpFile, $true);" ^
+    "            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($dest);" ^
+    "            if ($baseName -match '^[0-9a-fA-F]{64}$') {" ^
+    "                $efs = [System.IO.File]::OpenRead($tmpFile); $act = try { ([System.BitConverter]::ToString($sha.ComputeHash($efs)) -replace '-','').ToLowerInvariant() } finally { $efs.Close(); $efs.Dispose() };" ^
+    "                if ($act -ne $baseName.ToLowerInvariant()) { Remove-Item -LiteralPath $tmpFile -Force -ErrorAction SilentlyContinue; throw ('Security violation (CWE-494): Cache blob hash mismatch for ' + $baseName) };" ^
+    "            };" ^
+    "            Move-Item -LiteralPath $tmpFile -Destination $dest -Force;" ^
+    "        };" ^
+    "    };" ^
+    "    $sha.Dispose();" ^
+    "    Write-Host '[   OK   ] Cache bundle validated and imported successfully.' -ForegroundColor Green;" ^
+    "} catch {" ^
+    "    Write-Host ('[ ERROR  ] Cache import failed: ' + $_.Exception.Message) -ForegroundColor Red;" ^
+    "    exit 1;" ^
+    "} finally {" ^
+    "    if ($zip) { $zip.Dispose() };" ^
+    "}"
+exit /b !errorlevel!
 
 call :AcquireStateLock
 if errorlevel 1 (
@@ -14015,33 +14811,45 @@ if not defined RUN_CMD (
 call :DetectToolchainConflict
 
 set "RUNNER_EXEC="
-set "RUNNER_ARGS="
+set "RUNNER_PREPEND_CMD=1"
 
-if exist "%CD%\mvnw.cmd" (
-    set "RUNNER_EXEC=%CD%\mvnw.cmd"
-) else if exist "%CD%\mvnw.bat" (
-    set "RUNNER_EXEC=%CD%\mvnw.bat"
-) else if exist "%CD%\gradlew.bat" (
-    set "RUNNER_EXEC=%CD%\gradlew.bat"
-) else if exist "%CD%\gradlew.cmd" (
-    set "RUNNER_EXEC=%CD%\gradlew.cmd"
-) else if exist "%CD%\pom.xml" (
-    set "RUNNER_EXEC=mvn"
-) else if exist "%CD%\build.gradle" (
-    set "RUNNER_EXEC=gradle"
-) else if exist "%CD%\build.gradle.kts" (
-    set "RUNNER_EXEC=gradle"
+set "RUN_IS_LIFECYCLE=0"
+for %%G in (build test compile clean package assemble check verify run install) do (
+    if /i "!RUN_CMD!"=="%%G" set "RUN_IS_LIFECYCLE=1"
+)
+
+if "!RUN_IS_LIFECYCLE!"=="1" (
+    if exist "%CD%\mvnw.cmd" (
+        set "RUNNER_EXEC=%CD%\mvnw.cmd"
+    ) else if exist "%CD%\mvnw.bat" (
+        set "RUNNER_EXEC=%CD%\mvnw.bat"
+    ) else if exist "%CD%\gradlew.bat" (
+        set "RUNNER_EXEC=%CD%\gradlew.bat"
+    ) else if exist "%CD%\gradlew.cmd" (
+        set "RUNNER_EXEC=%CD%\gradlew.cmd"
+    ) else if exist "%CD%\pom.xml" (
+        set "RUNNER_EXEC=mvn"
+    ) else if exist "%CD%\build.gradle" (
+        set "RUNNER_EXEC=gradle"
+    ) else if exist "%CD%\build.gradle.kts" (
+        set "RUNNER_EXEC=gradle"
+    )
 )
 
 if not defined RUNNER_EXEC (
     set "RUNNER_EXEC=!RUN_CMD!"
-    set "RUNNER_ARGS=!RUN_ARGS!"
-) else (
-    set "RUNNER_ARGS=!RUN_CMD! !RUN_ARGS!"
+    set "RUNNER_PREPEND_CMD=0"
 )
 
-echo %cBLUE%[ ACTION ]%cRESET% Dispatching contextual runner: !RUNNER_EXEC! !RUNNER_ARGS!
-call !RUNNER_EXEC! !RUNNER_ARGS!
+echo %cBLUE%[ ACTION ]%cRESET% Dispatching contextual runner: !RUNNER_EXEC!
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$exe = $env:RUNNER_EXEC;" ^
+    "$argList = [System.Collections.Generic.List[string]]::new();" ^
+    "if ($env:RUNNER_PREPEND_CMD -eq '1') { $argList.Add([string]$env:RUN_CMD) };" ^
+    "$cnt = if ($env:RUN_ARG_COUNT -match '^\d+$') { [int]$env:RUN_ARG_COUNT } else { 0 };" ^
+    "for ($i = 1; $i -le $cnt; $i++) { $argList.Add([string][Environment]::GetEnvironmentVariable('RUN_ARG_' + $i)) };" ^
+    "& $exe @argList;" ^
+    "if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE } elseif ($?) { exit 0 } else { exit 1 }"
 exit /b !errorlevel!
 
 rem ============================================================
@@ -14106,20 +14914,159 @@ rem AUTOMATED ISSUE BUNDLE GENERATOR (jvm doctor --report)
 rem ============================================================
 :GenerateIssueBundle
 echo.
+echo %cBLUE%[  INFO  ]%cRESET% Diagnostic Issue Bundle Preview ^(jvm-issue-bundle.zip^):
+echo            The following redacted items will be collected:
+echo              - jvm-report.txt ^(redacted system ^& JDK environment summary^)
+echo              - config.json    ^(redacted settings; proxy credentials ^& user paths stripped^)
+echo            Excluded for privacy: ownership.json, secrets, and raw user profile paths.
+if not "!FORCE_YES!"=="1" if not defined JVM_NONINTERACTIVE (
+    "%CHOICE_BIN%" /C yn /N /M "Proceed with generating jvm-issue-bundle.zip? (y/N): "
+    if errorlevel 2 (
+        echo %cBLUE%[  INFO  ]%cRESET% Issue bundle collection cancelled.
+        exit /b 0
+    )
+)
 echo %cBLUE%[ ACTION ]%cRESET% Generating Diagnostic Issue Bundle ^(jvm-issue-bundle.zip^)...
 set "ISSUE_ZIP=%CD%\jvm-issue-bundle.zip"
-"%PS_BIN%" -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = $env:ISSUE_ZIP; $self = if ($env:SCRIPT_PATH -and (Test-Path -LiteralPath $env:SCRIPT_PATH)) { $env:SCRIPT_PATH } else { 'jvm.bat' }; $tmp = Join-Path $env:TEMP ('jvm_issue_' + [Guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $tmp -Force | Out-Null; & $self report 2>&1 | Out-Null; if (Test-Path 'jvm-report.txt') { Move-Item -LiteralPath 'jvm-report.txt' -Destination (Join-Path $tmp 'jvm-report.txt') -Force }; $cfg = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\config.json'; if (Test-Path -LiteralPath $cfg) { Copy-Item -LiteralPath $cfg -Destination (Join-Path $tmp 'config.json') -Force }; $own = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\ownership.json'; if (Test-Path -LiteralPath $own) { Copy-Item -LiteralPath $own -Destination (Join-Path $tmp 'ownership.json') -Force }; if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($tmp, $zip); Remove-Item -LiteralPath $tmp -Recurse -Force; Write-Host ('[   OK   ] Issue bundle generated: ' + $zip) -ForegroundColor Green; Write-Host '         Attach this file when submitting issues on GitHub.' -ForegroundColor Cyan"
-exit /b 0
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$ErrorActionPreference = 'Stop';" ^
+    "Add-Type -AssemblyName System.IO.Compression.FileSystem;" ^
+    "$zip = $env:ISSUE_ZIP;" ^
+    "$self = if ($env:SCRIPT_PATH -and (Test-Path -LiteralPath $env:SCRIPT_PATH)) { $env:SCRIPT_PATH } else { 'jvm.bat' };" ^
+    "$jvmRoot = if ($env:JVM_DIR) { $env:JVM_DIR } else { Join-Path $env:LOCALAPPDATA 'DiamTek\JVM' };" ^
+    "$secTemp = if ($env:JVM_SECURE_TEMP) { $env:JVM_SECURE_TEMP } else { $env:TEMP };" ^
+    "$tmp = Join-Path $secTemp ('jvm_issue_' + [Guid]::NewGuid().ToString('N'));" ^
+    "function Protect-DiagnosticText([string]$text) {" ^
+    "    if ([string]::IsNullOrEmpty($text)) { return $text };" ^
+    "    $r = $text;" ^
+    "    if ($env:LOCALAPPDATA) { $r = $r.Replace($env:LOCALAPPDATA, '%LOCALAPPDATA%') };" ^
+    "    if ($env:SAFE_LOCALAPPDATA) { $r = $r.Replace($env:SAFE_LOCALAPPDATA, '%LOCALAPPDATA%') };" ^
+    "    if ($env:USERPROFILE) { $r = $r.Replace($env:USERPROFILE, '%USERPROFILE%') };" ^
+    "    if ($env:SAFE_USERPROFILE) { $r = $r.Replace($env:SAFE_USERPROFILE, '%USERPROFILE%') };" ^
+    "    if ($env:USERNAME) { $r = $r -replace [regex]::Escape($env:USERNAME), '<REDACTED_USER>' };" ^
+    "    $r = $r -replace '(?i)(https?://)([^/\s:@]+):([^/\s@]+)@', '$1<REDACTED_CRED>@';" ^
+    "    $r = $r -replace '(?i)(secret|token|password|key)\s*[:=]\s*[^\s,;''\x22]+', '$1=<REDACTED>';" ^
+    "    return $r;" ^
+    "};" ^
+    "try {" ^
+    "    New-Item -ItemType Directory -Path $tmp -Force | Out-Null;" ^
+    "    & $self report 2>&1 | Out-Null;" ^
+    "    if (Test-Path -LiteralPath 'jvm-report.txt') {" ^
+    "        $repTxt = Protect-DiagnosticText (Get-Content -LiteralPath 'jvm-report.txt' -Raw -Encoding UTF8);" ^
+    "        [System.IO.File]::WriteAllText((Join-Path $tmp 'jvm-report.txt'), $repTxt, [System.Text.UTF8Encoding]::new($false));" ^
+    "        Remove-Item -LiteralPath 'jvm-report.txt' -Force -ErrorAction SilentlyContinue;" ^
+    "    };" ^
+    "    $cfg = Join-Path $jvmRoot 'config.json';" ^
+    "    if (Test-Path -LiteralPath $cfg) {" ^
+    "        try {" ^
+    "            $cObj = Get-Content -LiteralPath $cfg -Raw -Encoding UTF8 | ConvertFrom-Json;" ^
+    "            $redactedCfg = [ordered]@{};" ^
+    "            foreach ($p in $cObj.PSObject.Properties) {" ^
+    "                if ($p.Name -match '(?i)(secret|token|password|key)') { $redactedCfg[$p.Name] = '<REDACTED>' }" ^
+    "                elseif ($p.Name -in @('proxy', 'mirror') -and $p.Value) { $redactedCfg[$p.Name] = Protect-DiagnosticText ([string]$p.Value) }" ^
+    "                else { $redactedCfg[$p.Name] = $p.Value };" ^
+    "            };" ^
+    "            $cfgOut = Protect-DiagnosticText ($redactedCfg | ConvertTo-Json -Depth 4);" ^
+    "            [System.IO.File]::WriteAllText((Join-Path $tmp 'config.json'), $cfgOut, [System.Text.UTF8Encoding]::new($false));" ^
+    "        } catch { Write-Verbose $_.Exception.Message };" ^
+    "    };" ^
+    "    if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force };" ^
+    "    [System.IO.Compression.ZipFile]::CreateFromDirectory($tmp, $zip);" ^
+    "    Write-Host ('[   OK   ] Issue bundle generated: ' + $zip) -ForegroundColor Green;" ^
+    "    Write-Host '           Attach this file when submitting issues on GitHub.' -ForegroundColor Cyan;" ^
+    "    exit 0;" ^
+    "} catch {" ^
+    "    Write-Host ('[ ERROR  ] Failed to generate issue bundle: ' + $_.Exception.Message) -ForegroundColor Red;" ^
+    "    exit 1;" ^
+    "} finally {" ^
+    "    if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue };" ^
+    "}"
+exit /b !errorlevel!
 
 rem ============================================================
 rem SUPPORT BUNDLE GENERATOR (jvm support)
 rem ============================================================
 :GenerateSupportBundle
 echo.
+echo %cBLUE%[  INFO  ]%cRESET% Support Diagnostics Bundle Preview ^(jvm-support-bundle.zip^):
+echo            The following redacted items will be collected:
+echo              - report.txt        ^(redacted environment report^)
+echo              - doctor-output.txt ^(redacted health audit output^)
+echo              - config.json       ^(redacted configuration; credentials ^& user paths stripped^)
+echo            Excluded for privacy: ownership.json, secrets, and raw user profile paths.
+if not "!FORCE_YES!"=="1" if not defined JVM_NONINTERACTIVE (
+    "%CHOICE_BIN%" /C yn /N /M "Proceed with generating jvm-support-bundle.zip? (y/N): "
+    if errorlevel 2 (
+        echo %cBLUE%[  INFO  ]%cRESET% Support bundle collection cancelled.
+        exit /b 0
+    )
+)
 echo %cBLUE%[ ACTION ]%cRESET% Generating Complete Support Diagnostics Bundle...
 set "SUPP_ZIP=%CD%\jvm-support-bundle.zip"
-"%PS_BIN%" -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = $env:SUPP_ZIP; $self = if ($env:SCRIPT_PATH -and (Test-Path -LiteralPath $env:SCRIPT_PATH)) { $env:SCRIPT_PATH } else { 'jvm.bat' }; $tmp = Join-Path $env:TEMP ('jvm_support_' + [Guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $tmp -Force | Out-Null; & $self report 2>&1 | Out-Null; if (Test-Path 'jvm-report.txt') { Move-Item -LiteralPath 'jvm-report.txt' -Destination (Join-Path $tmp 'report.txt') -Force }; & $self doctor > (Join-Path $tmp 'doctor-output.txt') 2>&1; $cfg = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\config.json'; if (Test-Path -LiteralPath $cfg) { Copy-Item -LiteralPath $cfg -Destination (Join-Path $tmp 'config.json') -Force }; if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($tmp, $zip); Remove-Item -LiteralPath $tmp -Recurse -Force; Write-Host ('[   OK   ] Support bundle created: ' + $zip) -ForegroundColor Green"
-exit /b 0
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$ErrorActionPreference = 'Stop';" ^
+    "Add-Type -AssemblyName System.IO.Compression.FileSystem;" ^
+    "$zip = $env:SUPP_ZIP;" ^
+    "$self = if ($env:SCRIPT_PATH -and (Test-Path -LiteralPath $env:SCRIPT_PATH)) { $env:SCRIPT_PATH } else { 'jvm.bat' };" ^
+    "$jvmRoot = if ($env:JVM_DIR) { $env:JVM_DIR } else { Join-Path $env:LOCALAPPDATA 'DiamTek\JVM' };" ^
+    "$secTemp = if ($env:JVM_SECURE_TEMP) { $env:JVM_SECURE_TEMP } else { $env:TEMP };" ^
+    "$tmp = Join-Path $secTemp ('jvm_support_' + [Guid]::NewGuid().ToString('N'));" ^
+    "function Protect-DiagnosticText([string]$text) {" ^
+    "    if ([string]::IsNullOrEmpty($text)) { return $text };" ^
+    "    $r = $text;" ^
+    "    if ($env:LOCALAPPDATA) { $r = $r.Replace($env:LOCALAPPDATA, '%LOCALAPPDATA%') };" ^
+    "    if ($env:SAFE_LOCALAPPDATA) { $r = $r.Replace($env:SAFE_LOCALAPPDATA, '%LOCALAPPDATA%') };" ^
+    "    if ($env:USERPROFILE) { $r = $r.Replace($env:USERPROFILE, '%USERPROFILE%') };" ^
+    "    if ($env:SAFE_USERPROFILE) { $r = $r.Replace($env:SAFE_USERPROFILE, '%USERPROFILE%') };" ^
+    "    if ($env:USERNAME) { $r = $r -replace [regex]::Escape($env:USERNAME), '<REDACTED_USER>' };" ^
+    "    $r = $r -replace '(?i)(https?://)([^/\s:@]+):([^/\s@]+)@', '$1<REDACTED_CRED>@';" ^
+    "    $r = $r -replace '(?i)(secret|token|password|key)\s*[:=]\s*[^\s,;''\x22]+', '$1=<REDACTED>';" ^
+    "    return $r;" ^
+    "};" ^
+    "try {" ^
+    "    New-Item -ItemType Directory -Path $tmp -Force | Out-Null;" ^
+    "    & $self report 2>&1 | Out-Null;" ^
+    "    if (Test-Path -LiteralPath 'jvm-report.txt') {" ^
+    "        $repTxt = Protect-DiagnosticText (Get-Content -LiteralPath 'jvm-report.txt' -Raw -Encoding UTF8);" ^
+    "        [System.IO.File]::WriteAllText((Join-Path $tmp 'report.txt'), $repTxt, [System.Text.UTF8Encoding]::new($false));" ^
+    "        Remove-Item -LiteralPath 'jvm-report.txt' -Force -ErrorAction SilentlyContinue;" ^
+    "    };" ^
+    "    $docRaw = (& $self doctor 2>&1 | Out-String);" ^
+    "    [System.IO.File]::WriteAllText((Join-Path $tmp 'doctor-output.txt'), (Protect-DiagnosticText $docRaw), [System.Text.UTF8Encoding]::new($false));" ^
+    "    $cfg = Join-Path $jvmRoot 'config.json';" ^
+    "    if (Test-Path -LiteralPath $cfg) {" ^
+    "        try {" ^
+    "            $cObj = Get-Content -LiteralPath $cfg -Raw -Encoding UTF8 | ConvertFrom-Json;" ^
+    "            $redactedCfg = [ordered]@{};" ^
+    "            foreach ($p in $cObj.PSObject.Properties) {" ^
+    "                if ($p.Name -match '(?i)(secret|token|password|key)') { $redactedCfg[$p.Name] = '<REDACTED>' }" ^
+    "                elseif ($p.Name -in @('proxy', 'mirror') -and $p.Value) { $redactedCfg[$p.Name] = Protect-DiagnosticText ([string]$p.Value) }" ^
+    "                else { $redactedCfg[$p.Name] = $p.Value };" ^
+    "            };" ^
+    "            $cfgOut = Protect-DiagnosticText ($redactedCfg | ConvertTo-Json -Depth 4);" ^
+    "            [System.IO.File]::WriteAllText((Join-Path $tmp 'config.json'), $cfgOut, [System.Text.UTF8Encoding]::new($false));" ^
+    "        } catch { Write-Verbose $_.Exception.Message };" ^
+    "    };" ^
+    "    if ($env:FLAG_CLIP -eq '1' -and (Test-Path -LiteralPath (Join-Path $tmp 'report.txt'))) {" ^
+    "        Set-Clipboard -Value (Get-Content -LiteralPath (Join-Path $tmp 'report.txt') -Raw -Encoding UTF8);" ^
+    "        Write-Host '[   OK   ] Redacted diagnostic report copied to Windows Clipboard (--clip).' -ForegroundColor Green;" ^
+    "    };" ^
+    "    if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force };" ^
+    "    [System.IO.Compression.ZipFile]::CreateFromDirectory($tmp, $zip);" ^
+    "    Write-Host ('[   OK   ] Support bundle created: ' + $zip) -ForegroundColor Green;" ^
+    "    Write-Host ('           Engine Build : JVM v' + $env:JVM_VERSION + ' (Build ' + $env:JVM_BUILD + ', ' + $env:SYS_ARCH + ')') -ForegroundColor Cyan;" ^
+    "    Write-Host '           To report a reproducible bug:' -ForegroundColor Cyan;" ^
+    "    Write-Host '             1. Run ''jvm support --clip'' to copy the redacted report to your clipboard.' -ForegroundColor White;" ^
+    "    Write-Host '             2. Open https://github.com/DiamTek/Java-Version-Manager-Windows/issues/new' -ForegroundColor White;" ^
+    "    Write-Host '             3. Paste the clipboard report or attach jvm-support-bundle.zip (nothing is uploaded automatically).' -ForegroundColor White;" ^
+    "    exit 0;" ^
+    "} catch {" ^
+    "    Write-Host ('[ ERROR  ] Failed to generate support bundle: ' + $_.Exception.Message) -ForegroundColor Red;" ^
+    "    exit 1;" ^
+    "} finally {" ^
+    "    if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue };" ^
+    "}"
+exit /b !errorlevel!
 
 rem ============================================================
 rem SELF-UPDATE HISTORY VIEWER (jvm self-update --history)
@@ -14263,6 +15210,53 @@ if "!POLICY_ENFORCE_LOCKFILE!"=="1" (
         >&2 echo %cRED%[ ERROR  ]%cRESET% Enterprise Policy Violation: A valid .jvm.lock file is strictly enforced by policy.
         exit /b 1
     )
+    if exist "!RESOLVED_LOCK_FILE!\" (
+        >&2 echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): .jvm.lock is a directory.
+        exit /b 1
+    )
+    "%FSUTIL_BIN%" reparsepoint query "!RESOLVED_LOCK_FILE!" >nul 2>&1
+    if not errorlevel 1 (
+        >&2 echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Refusing to process symlinked/reparse point .jvm.lock.
+        exit /b 1
+    )
+    if /i "!CLI_COMMAND!"=="install" if not "!FLAG_LOCKED!"=="1" (
+        if not defined VAL_VER (
+            >&2 echo %cRED%[ ERROR  ]%cRESET% Enterprise Policy Violation: Unpinned installation is prohibited when enforce_lockfile is active. Use 'jvm install --locked'.
+            exit /b 1
+        )
+        set "FLAG_LOCKED=1"
+    )
+    set "_POL_CAND=!TARGET_CANDIDATE!"
+    if not defined _POL_CAND set "_POL_CAND=java"
+    "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+        "$ErrorActionPreference = 'Stop';" ^
+        "try {" ^
+        "    $lock = Get-Content -LiteralPath $env:RESOLVED_LOCK_FILE -Raw -Encoding UTF8 | ConvertFrom-Json;" ^
+        "    $cand = $env:_POL_CAND.ToLowerInvariant();" ^
+        "    if (-not $lock.tools -or -not $lock.tools.PSObject.Properties[$cand]) {" ^
+        "        Write-Error ('Candidate ''' + $cand + ''' is not present in enforced .jvm.lock.'); exit 1;" ^
+        "    };" ^
+        "    $entry = $lock.tools.$cand;" ^
+        "    $lockedVer = [string]$entry.version;" ^
+        "    $lockedMaj = (($lockedVer -split '[._+-]')[0]); if ($lockedMaj -eq '1') { $lockedMaj = (($lockedVer -split '[._+-]')[1]) };" ^
+        "    $reqVer = [string]$env:VAL_VER;" ^
+        "    if ($reqVer -and $reqVer -ne $lockedVer -and $reqVer -ne $lockedMaj) {" ^
+        "        Write-Error ('Requested version ''' + $reqVer + ''' does not match locked version ''' + $lockedVer + ''' in .jvm.lock.'); exit 1;" ^
+        "    };" ^
+        "    if ($cand -eq 'java' -and $entry.vendor) {" ^
+        "        $lv = ([string]$entry.vendor).ToLowerInvariant();" ^
+        "        if ($lv -match 'adoptium|temurin') { $lv = 'adoptium' };" ^
+        "        $rv = ([string]$env:NORM_VEND).ToLowerInvariant();" ^
+        "        if ($rv -and $lv -and $rv -ne $lv) {" ^
+        "            Write-Error ('Requested vendor ''' + $rv + ''' does not match locked vendor ''' + $lv + ''' in .jvm.lock.'); exit 1;" ^
+        "        };" ^
+        "    };" ^
+        "    exit 0;" ^
+        "} catch {" ^
+        "    Write-Host ('[ ERROR  ] Enterprise Policy Violation: ' + $_.Exception.Message) -ForegroundColor Red;" ^
+        "    exit 1;" ^
+        "}"
+    if errorlevel 1 exit /b 1
 )
 
 exit /b 0
@@ -14379,6 +15373,10 @@ call :ResolveLockfilePath
 set "TARGET_LOCK_PATH=!RESOLVED_LOCK_FILE!"
 if not defined TARGET_LOCK_PATH set "TARGET_LOCK_PATH=%INVOCATION_DIR%\.jvm.lock"
 
+if exist "!TARGET_LOCK_PATH!\" (
+    >&2 echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): .jvm.lock is a directory.
+    exit /b 1
+)
 if exist "!TARGET_LOCK_PATH!" (
     "%FSUTIL_BIN%" reparsepoint query "!TARGET_LOCK_PATH!" >nul 2>&1
     if not errorlevel 1 (
@@ -14387,82 +15385,120 @@ if exist "!TARGET_LOCK_PATH!" (
     )
 )
 
+call :AcquireStateLock
+if errorlevel 1 exit /b 1
+
 "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_ExecuteFreezeCommand::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))"
-exit /b !errorlevel!
+set "_FREEZE_ERR=!errorlevel!"
+call :ReleaseStateLock
+exit /b !_FREEZE_ERR!
 ::PS_ExecuteFreezeCommand::$ErrorActionPreference = 'Stop';
 ::PS_ExecuteFreezeCommand::$lockFile = $env:TARGET_LOCK_PATH;
 ::PS_ExecuteFreezeCommand::$dryRun = ($env:FREEZE_DRY -eq '1');
 ::PS_ExecuteFreezeCommand::$jsonOut = ($env:OUTPUT_JSON -eq '1');
-::PS_ExecuteFreezeCommand::$data = $null;
-::PS_ExecuteFreezeCommand::if (Test-Path -LiteralPath $lockFile) {
-::PS_ExecuteFreezeCommand::    try { $data = Get-Content -LiteralPath $lockFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { Write-Verbose $_.Exception.Message; Write-Error ('Security violation (CWE-754): Failed to parse .jvm.lock: ' + $_.Exception.Message); exit 1 };
+::PS_ExecuteFreezeCommand::$stageLock = $lockFile + '.stage.' + [Guid]::NewGuid().ToString('N') + '.tmp';
+::PS_ExecuteFreezeCommand::function Test-OfficialVendorUrl([string]$vendor, [string]$url) {
+::PS_ExecuteFreezeCommand::    $u = $null;
+::PS_ExecuteFreezeCommand::    if (-not [System.Uri]::TryCreate($url, [System.UriKind]::Absolute, [ref]$u) -or $u.Scheme -ne 'https' -or $u.IsLoopback) { return $false };
+::PS_ExecuteFreezeCommand::    $h = $u.Host.ToLowerInvariant();
+::PS_ExecuteFreezeCommand::    $p = $u.AbsolutePath.ToLowerInvariant();
+::PS_ExecuteFreezeCommand::    if ($vendor -match '(?i)(Adoptium|Temurin)') {
+::PS_ExecuteFreezeCommand::        return (($h -eq 'api.adoptium.net' -or $h -eq 'github.com' -or $h.EndsWith('.githubusercontent.com')) -and ($p -match 'temurin|adoptium'));
+::PS_ExecuteFreezeCommand::    } elseif ($vendor -match '(?i)Oracle') {
+::PS_ExecuteFreezeCommand::        return ($h -eq 'download.oracle.com' -and $p -match '^/java/\d+/');
+::PS_ExecuteFreezeCommand::    } elseif ($vendor -match '(?i)(Corretto|Amazon)') {
+::PS_ExecuteFreezeCommand::        return ($h -eq 'corretto.aws' -or $h -match '^corretto(-downloads)?\.[a-z0-9\-]+\.amazonaws\.com$');
+::PS_ExecuteFreezeCommand::    } elseif ($vendor -match '(?i)(Zulu|Azul)') {
+::PS_ExecuteFreezeCommand::        return ($h -eq 'cdn.azul.com' -or $h -eq 'static.azul.com' -or $h -eq 'api.azul.com');
+::PS_ExecuteFreezeCommand::    } elseif ($vendor -match '(?i)Microsoft') {
+::PS_ExecuteFreezeCommand::        return ($h -eq 'aka.ms' -or $h.EndsWith('.microsoft.com'));
+::PS_ExecuteFreezeCommand::    } elseif ($vendor -match '(?i)(Liberica|BellSoft)') {
+::PS_ExecuteFreezeCommand::        return ($h -eq 'download.bell-sw.com' -or $h -eq 'api.bell-sw.com');
+::PS_ExecuteFreezeCommand::    } elseif ($vendor -match '(?i)SapMachine') {
+::PS_ExecuteFreezeCommand::        return (($h -eq 'github.com' -or $h.EndsWith('.githubusercontent.com')) -and $p -match '/sap/sapmachine/');
+::PS_ExecuteFreezeCommand::    } elseif ($vendor -match '(?i)GraalVM') {
+::PS_ExecuteFreezeCommand::        return (($h -eq 'github.com' -or $h.EndsWith('.githubusercontent.com')) -and $p -match '/graalvm/graalvm-ce-builds/');
+::PS_ExecuteFreezeCommand::    } elseif ($vendor -match '(?i)Semeru') {
+::PS_ExecuteFreezeCommand::        return (($h -eq 'github.com' -or $h.EndsWith('.githubusercontent.com')) -and $p -match '/ibmruntimes/semeru');
+::PS_ExecuteFreezeCommand::    } elseif ($vendor -match '(?i)Mandrel') {
+::PS_ExecuteFreezeCommand::        return (($h -eq 'github.com' -or $h.EndsWith('.githubusercontent.com')) -and $p -match '/graalvm/mandrel/');
+::PS_ExecuteFreezeCommand::    } elseif ($vendor -match '(?i)Dragonwell') {
+::PS_ExecuteFreezeCommand::        return (($h -eq 'github.com' -or $h.EndsWith('.githubusercontent.com')) -and $p -match '/dragonwell-project/');
+::PS_ExecuteFreezeCommand::    };
+::PS_ExecuteFreezeCommand::    return $false;
 ::PS_ExecuteFreezeCommand::};
-::PS_ExecuteFreezeCommand::if (-not $data) {
-::PS_ExecuteFreezeCommand::    $data = [ordered]@{ version = 1; platform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' }; generated = (Get-Date).ToUniversalTime().ToString('u'); tools = [ordered]@{} };
-::PS_ExecuteFreezeCommand::};
-::PS_ExecuteFreezeCommand::if (-not $data.tools) { $data.tools = [ordered]@{} };
-::PS_ExecuteFreezeCommand::$changes = [ordered]@{};
-::PS_ExecuteFreezeCommand::$appData = $env:LOCALAPPDATA;
-::PS_ExecuteFreezeCommand::$emptySha256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-::PS_ExecuteFreezeCommand::$toolList = [System.Collections.Generic.List[string]]::new();
-::PS_ExecuteFreezeCommand::if ($data.tools) { foreach ($p in $data.tools.PSObject.Properties) { if (-not $toolList.Contains($p.Name)) { $toolList.Add($p.Name) } } };
-::PS_ExecuteFreezeCommand::if (-not $toolList.Contains('java')) { $toolList.Insert(0, 'java') };
-::PS_ExecuteFreezeCommand::$tomlPath = Join-Path (Get-Location).Path '.jvm.toml';
-::PS_ExecuteFreezeCommand::if (Test-Path -LiteralPath $tomlPath) {
-::PS_ExecuteFreezeCommand::    try {
-::PS_ExecuteFreezeCommand::        $inTools = $false;
-::PS_ExecuteFreezeCommand::        foreach ($line in (Get-Content -LiteralPath $tomlPath -ErrorAction SilentlyContinue)) {
-::PS_ExecuteFreezeCommand::            $t = $line.Trim();
-::PS_ExecuteFreezeCommand::            if ($t -eq '[tools]') { $inTools = $true; continue };
-::PS_ExecuteFreezeCommand::            if ($t.StartsWith('[') -and $t.EndsWith(']')) { $inTools = $false; continue };
-::PS_ExecuteFreezeCommand::            if ($inTools -and $t -match '^([a-zA-Z0-9_\-]+)\s*=') { $tk = $matches[1]; if (-not $toolList.Contains($tk)) { $toolList.Add($tk) } };
-::PS_ExecuteFreezeCommand::        };
-::PS_ExecuteFreezeCommand::    } catch { Write-Verbose $_.Exception.Message };
-::PS_ExecuteFreezeCommand::};
-::PS_ExecuteFreezeCommand::foreach ($tName in $toolList) {
-::PS_ExecuteFreezeCommand::    if ($tName -eq 'java') {
-::PS_ExecuteFreezeCommand::        $jh = $env:JAVA_HOME;
-::PS_ExecuteFreezeCommand::        $jLink = Join-Path $appData 'DiamTek\JVM\current';
-::PS_ExecuteFreezeCommand::        $jDir = if (Test-Path -LiteralPath $jLink) { try { (Get-Item -LiteralPath $jLink -ErrorAction SilentlyContinue).Target } catch { Write-Verbose $_.Exception.Message; $null } } else { $null };
-::PS_ExecuteFreezeCommand::        if (-not $jDir -and $jh -and (Test-Path -LiteralPath $jh)) { $jDir = $jh };
-::PS_ExecuteFreezeCommand::        if (-not $jDir) {
-::PS_ExecuteFreezeCommand::            $wj = Get-Command java -ErrorAction SilentlyContinue;
-::PS_ExecuteFreezeCommand::            if ($wj -and $wj.Source) { $jDir = Split-Path (Split-Path $wj.Source -Parent) -Parent };
-::PS_ExecuteFreezeCommand::        };
-::PS_ExecuteFreezeCommand::        $exactJava = $null;
-::PS_ExecuteFreezeCommand::        $vendorJava = 'Unknown';
-::PS_ExecuteFreezeCommand::        if ($jDir -and (Test-Path -LiteralPath (Join-Path $jDir 'release'))) {
-::PS_ExecuteFreezeCommand::            foreach ($line in (Get-Content (Join-Path $jDir 'release') -ErrorAction SilentlyContinue)) {
-::PS_ExecuteFreezeCommand::                if ($line -match '^JAVA_VERSION=\x22?([^\x22]+)\x22?') { $exactJava = $matches[1] };
-::PS_ExecuteFreezeCommand::                if ($line -match '^IMPLEMENTOR=\x22?([^\x22]+)\x22?') { $vendorJava = $matches[1] };
+::PS_ExecuteFreezeCommand::try {
+::PS_ExecuteFreezeCommand::    $data = $null;
+::PS_ExecuteFreezeCommand::    if (Test-Path -LiteralPath $lockFile) {
+::PS_ExecuteFreezeCommand::        try { $data = Get-Content -LiteralPath $lockFile -Raw -Encoding UTF8 | ConvertFrom-Json } catch { Write-Verbose $_.Exception.Message; throw ('Security violation (CWE-754): Failed to parse .jvm.lock: ' + $_.Exception.Message) };
+::PS_ExecuteFreezeCommand::    };
+::PS_ExecuteFreezeCommand::    if (-not $data) {
+::PS_ExecuteFreezeCommand::        $nowIso = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ');
+::PS_ExecuteFreezeCommand::        $data = [ordered]@{ schema = 2; lockfile_version = 1; version = 1; platform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' }; generated_at = $nowIso; generated = $nowIso; tools = [ordered]@{} };
+::PS_ExecuteFreezeCommand::    };
+::PS_ExecuteFreezeCommand::    if (-not $data.tools) { $data.tools = [ordered]@{} };
+::PS_ExecuteFreezeCommand::    $changes = [ordered]@{};
+::PS_ExecuteFreezeCommand::    $jvmRoot = if ($env:JVM_DIR) { $env:JVM_DIR } else { Join-Path $env:LOCALAPPDATA 'DiamTek\JVM' };
+::PS_ExecuteFreezeCommand::    $emptySha256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+::PS_ExecuteFreezeCommand::    $toolList = [System.Collections.Generic.List[string]]::new();
+::PS_ExecuteFreezeCommand::    if ($data.tools) { foreach ($p in $data.tools.PSObject.Properties) { if (-not $toolList.Contains($p.Name)) { $toolList.Add($p.Name) } } };
+::PS_ExecuteFreezeCommand::    if (-not $toolList.Contains('java')) { $toolList.Insert(0, 'java') };
+::PS_ExecuteFreezeCommand::    $tomlPath = Join-Path (Get-Location).Path '.jvm.toml';
+::PS_ExecuteFreezeCommand::    if (Test-Path -LiteralPath $tomlPath) {
+::PS_ExecuteFreezeCommand::        try {
+::PS_ExecuteFreezeCommand::            $inTools = $false;
+::PS_ExecuteFreezeCommand::            foreach ($line in (Get-Content -LiteralPath $tomlPath -ErrorAction SilentlyContinue)) {
+::PS_ExecuteFreezeCommand::                $t = $line.Trim();
+::PS_ExecuteFreezeCommand::                if ($t -eq '[tools]') { $inTools = $true; continue };
+::PS_ExecuteFreezeCommand::                if ($t.StartsWith('[') -and $t.EndsWith(']')) { $inTools = $false; continue };
+::PS_ExecuteFreezeCommand::                if ($inTools -and $t -match '^([a-zA-Z0-9_\-]+)\s*=') { $tk = $matches[1]; if (-not $toolList.Contains($tk)) { $toolList.Add($tk) } };
 ::PS_ExecuteFreezeCommand::            };
-::PS_ExecuteFreezeCommand::        };
-::PS_ExecuteFreezeCommand::        if (-not $exactJava -and $jDir -and (Test-Path -LiteralPath (Join-Path $jDir 'bin\java.exe'))) {
-::PS_ExecuteFreezeCommand::            try {
-::PS_ExecuteFreezeCommand::                $vOut = & (Join-Path $jDir 'bin\java.exe') -version 2>&1;
-::PS_ExecuteFreezeCommand::                foreach ($vl in $vOut) { if ($vl -match 'version \x22([^\x22]+)\x22') { $exactJava = $matches[1]; break } };
-::PS_ExecuteFreezeCommand::            } catch { Write-Verbose $_.Exception.Message };
-::PS_ExecuteFreezeCommand::        };
-::PS_ExecuteFreezeCommand::        if (-not $exactJava) {
-::PS_ExecuteFreezeCommand::            throw 'Cannot freeze ''java'': unable to determine installed JDK version or metadata. Please activate a valid JDK with ''jvm use <version>'' first.';
-::PS_ExecuteFreezeCommand::        };
-::PS_ExecuteFreezeCommand::        $existing = if ($data.tools.PSObject.Properties['java']) { $data.tools.java } else { $null };
-::PS_ExecuteFreezeCommand::        $entry = [ordered]@{};
-::PS_ExecuteFreezeCommand::        if ($existing) { foreach ($prop in $existing.PSObject.Properties) { $entry[$prop.Name] = $prop.Value } };
-::PS_ExecuteFreezeCommand::        $prevJava = if ($entry.Contains('version')) { [string]$entry['version'] } else { 'unpinned' };
-::PS_ExecuteFreezeCommand::        $entry['version'] = $exactJava;
-::PS_ExecuteFreezeCommand::        $entry['vendor'] = $vendorJava;
-::PS_ExecuteFreezeCommand::        if (-not $entry['arch']) { $entry['arch'] = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' } };
-::PS_ExecuteFreezeCommand::        if (-not $entry['checksum_type']) { $entry['checksum_type'] = 'sha256' };
-::PS_ExecuteFreezeCommand::        $hasValidUrl = ($entry['url'] -and [string]$entry['url'] -match '^https://');
-::PS_ExecuteFreezeCommand::        $hasValidChk = (($entry['checksum_type'] -ieq 'sha256' -and ([string]$entry['checksum']) -match '^[a-fA-F0-9]{64}$') -or ($entry['checksum_type'] -ieq 'sha512' -and ([string]$entry['checksum']) -match '^[a-fA-F0-9]{128}$')) -and ([string]$entry['checksum'] -ne $emptySha256);
-::PS_ExecuteFreezeCommand::        $keepExisting = ($hasValidUrl -and $hasValidChk -and ($prevJava -eq $exactJava));
-::PS_ExecuteFreezeCommand::        if (-not $keepExisting) {
+::PS_ExecuteFreezeCommand::        } catch { Write-Verbose $_.Exception.Message };
+::PS_ExecuteFreezeCommand::    };
+::PS_ExecuteFreezeCommand::    foreach ($tName in $toolList) {
+::PS_ExecuteFreezeCommand::        if ($tName -eq 'java') {
+::PS_ExecuteFreezeCommand::            $jh = $env:JAVA_HOME;
+::PS_ExecuteFreezeCommand::            $jLink = Join-Path $jvmRoot 'current';
+::PS_ExecuteFreezeCommand::            $jDir = if (Test-Path -LiteralPath $jLink) { try { (Get-Item -LiteralPath $jLink -ErrorAction SilentlyContinue).Target } catch { Write-Verbose $_.Exception.Message; $null } } else { $null };
+::PS_ExecuteFreezeCommand::            if ($jDir -is [array]) { $jDir = $jDir[0] };
+::PS_ExecuteFreezeCommand::            if ($jDir) { $jDir = ([string]$jDir) -replace '^(\\\?\\|\\\?\?\\)', '' };
+::PS_ExecuteFreezeCommand::            if (-not $jDir -and $jh -and (Test-Path -LiteralPath $jh)) { $jDir = $jh };
+::PS_ExecuteFreezeCommand::            if (-not $jDir) {
+::PS_ExecuteFreezeCommand::                $wj = Get-Command java -ErrorAction SilentlyContinue;
+::PS_ExecuteFreezeCommand::                if ($wj -and $wj.Source) { $jDir = Split-Path (Split-Path $wj.Source -Parent) -Parent };
+::PS_ExecuteFreezeCommand::            };
+::PS_ExecuteFreezeCommand::            $exactJava = $null;
+::PS_ExecuteFreezeCommand::            $vendorJava = 'Unknown';
+::PS_ExecuteFreezeCommand::            if ($jDir -and (Test-Path -LiteralPath (Join-Path $jDir 'release'))) {
+::PS_ExecuteFreezeCommand::                foreach ($line in (Get-Content (Join-Path $jDir 'release') -ErrorAction SilentlyContinue)) {
+::PS_ExecuteFreezeCommand::                    if ($line -match '^JAVA_VERSION=\x22?([^\x22]+)\x22?') { $exactJava = $matches[1] };
+::PS_ExecuteFreezeCommand::                    if ($line -match '^IMPLEMENTOR=\x22?([^\x22]+)\x22?') { $vendorJava = $matches[1] };
+::PS_ExecuteFreezeCommand::                };
+::PS_ExecuteFreezeCommand::            };
+::PS_ExecuteFreezeCommand::            if (-not $exactJava -and $jDir -and (Test-Path -LiteralPath (Join-Path $jDir 'bin\java.exe'))) {
+::PS_ExecuteFreezeCommand::                try {
+::PS_ExecuteFreezeCommand::                    $vOut = & (Join-Path $jDir 'bin\java.exe') -version 2>&1;
+::PS_ExecuteFreezeCommand::                    foreach ($vl in $vOut) { if ($vl -match 'version \x22([^\x22]+)\x22') { $exactJava = $matches[1]; break } };
+::PS_ExecuteFreezeCommand::                } catch { Write-Verbose $_.Exception.Message };
+::PS_ExecuteFreezeCommand::            };
+::PS_ExecuteFreezeCommand::            if (-not $exactJava) {
+::PS_ExecuteFreezeCommand::                throw 'Cannot freeze ''java'': unable to determine installed JDK version or metadata. Please activate a valid JDK with ''jvm use <version>'' first.';
+::PS_ExecuteFreezeCommand::            };
+::PS_ExecuteFreezeCommand::            $existing = if ($data.tools.PSObject.Properties['java']) { $data.tools.java } else { $null };
+::PS_ExecuteFreezeCommand::            $entry = [ordered]@{};
+::PS_ExecuteFreezeCommand::            if ($existing) { foreach ($prop in $existing.PSObject.Properties) { $entry[$prop.Name] = $prop.Value } };
+::PS_ExecuteFreezeCommand::            $prevJava = if ($entry.Contains('version')) { [string]$entry['version'] } else { 'unpinned' };
+::PS_ExecuteFreezeCommand::            $prevVend = if ($entry.Contains('vendor')) { [string]$entry['vendor'] } else { '' };
+::PS_ExecuteFreezeCommand::            $expectedArch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' };
+::PS_ExecuteFreezeCommand::            $prevArch = if ($entry.Contains('arch')) { [string]$entry['arch'] } else { $expectedArch };
+::PS_ExecuteFreezeCommand::            $entry['version'] = $exactJava;
+::PS_ExecuteFreezeCommand::            $entry['vendor'] = $vendorJava;
+::PS_ExecuteFreezeCommand::            $entry['arch'] = $expectedArch;
+::PS_ExecuteFreezeCommand::            if (-not $entry['checksum_type']) { $entry['checksum_type'] = 'sha256' };
+::PS_ExecuteFreezeCommand::            $targetArch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'aarch64' } else { 'x64' };
 ::PS_ExecuteFreezeCommand::            $resolvedUrl = $null;
 ::PS_ExecuteFreezeCommand::            $resolvedChk = $null;
-::PS_ExecuteFreezeCommand::            if (-not $resolvedUrl -or -not $resolvedChk) {
-::PS_ExecuteFreezeCommand::                $targetArch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'aarch64' } else { 'x64' };
-::PS_ExecuteFreezeCommand::                if ($vendorJava -notmatch '(?i)(Adoptium|Temurin)') { throw ('Cannot freeze Java vendor ''' + $vendorJava + ''': no trusted upstream archive resolver is implemented for this vendor. Supply a verified URL and checksum in the lockfile or add a vendor-specific resolver.') };
+::PS_ExecuteFreezeCommand::            if ($vendorJava -match '(?i)(Adoptium|Temurin)') {
 ::PS_ExecuteFreezeCommand::                $wantedCoreVersion = ([string]$exactJava -split '\+')[0];
 ::PS_ExecuteFreezeCommand::                if ($wantedCoreVersion -match '^1\.8\.0_(\d+)') { $wantedCoreVersion = '8.0.' + $matches[1] };
 ::PS_ExecuteFreezeCommand::                if ($wantedCoreVersion -notmatch '^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$') { throw ('Cannot safely resolve exact Java release ''' + $exactJava + '''. Expected a numeric major.minor.patch version.') };
@@ -14490,34 +15526,47 @@ exit /b !errorlevel!
 ::PS_ExecuteFreezeCommand::                    };
 ::PS_ExecuteFreezeCommand::                } catch { Write-Verbose $_.Exception.Message };
 ::PS_ExecuteFreezeCommand::            };
-::PS_ExecuteFreezeCommand::            if (-not $resolvedUrl -or -not ($resolvedUrl -match '^https://') -or -not $resolvedChk -or -not ($resolvedChk -match '^[a-fA-F0-9]{64}$') -or $resolvedChk -eq $emptySha256) {
-::PS_ExecuteFreezeCommand::                throw ('Cannot freeze ''java'': unable to resolve distribution archive download URL and trusted checksum for version ''' + $exactJava + '''. Please specify an explicit URL and checksum or ensure network access.');
-::PS_ExecuteFreezeCommand::            };
-::PS_ExecuteFreezeCommand::            $entry['url'] = $resolvedUrl;
-::PS_ExecuteFreezeCommand::            $entry['checksum'] = $resolvedChk;
-::PS_ExecuteFreezeCommand::            $entry['checksum_type'] = 'sha256';
-::PS_ExecuteFreezeCommand::        };
-::PS_ExecuteFreezeCommand::        $prevChk = if ($existing -and $existing.checksum) { [string]$existing.checksum } else { $null };
-::PS_ExecuteFreezeCommand::        if ($prevJava -ne $exactJava -or $prevChk -ne $entry['checksum'] -or -not $existing.url) {
-::PS_ExecuteFreezeCommand::            $changes['java'] = [ordered]@{ previous = $prevJava; frozen = $exactJava; vendor = $vendorJava; checksum = $entry['checksum']; url = $entry['url'] };
-::PS_ExecuteFreezeCommand::            if (-not $dryRun) { $data.tools.java = $entry };
-::PS_ExecuteFreezeCommand::        };
-::PS_ExecuteFreezeCommand::    } else {
-::PS_ExecuteFreezeCommand::        $cLink = Join-Path $appData ('DiamTek\JVM\candidates\' + $tName + '\current');
-::PS_ExecuteFreezeCommand::        $cTarget = if (Test-Path -LiteralPath $cLink) { try { (Get-Item -LiteralPath $cLink -ErrorAction SilentlyContinue).Target } catch { Write-Verbose $_.Exception.Message; $null } } else { $null };
-::PS_ExecuteFreezeCommand::        if ($cTarget -and (Test-Path -LiteralPath $cTarget)) {
-::PS_ExecuteFreezeCommand::            $exactVer = Split-Path $cTarget -Leaf;
-::PS_ExecuteFreezeCommand::            $existing = if ($data.tools.PSObject.Properties[$tName]) { $data.tools.$tName } else { $null };
-::PS_ExecuteFreezeCommand::            $entry = [ordered]@{};
-::PS_ExecuteFreezeCommand::            if ($existing) { foreach ($prop in $existing.PSObject.Properties) { $entry[$prop.Name] = $prop.Value } };
-::PS_ExecuteFreezeCommand::            $prevVer = if ($entry.Contains('version')) { [string]$entry['version'] } else { 'unpinned' };
-::PS_ExecuteFreezeCommand::            $entry['version'] = $exactVer;
-::PS_ExecuteFreezeCommand::            if (-not $entry['arch']) { $entry['arch'] = 'all' };
-::PS_ExecuteFreezeCommand::            if (-not $entry['checksum_type']) { $entry['checksum_type'] = 'sha256' };
 ::PS_ExecuteFreezeCommand::            $hasValidUrl = ($entry['url'] -and [string]$entry['url'] -match '^https://');
 ::PS_ExecuteFreezeCommand::            $hasValidChk = (($entry['checksum_type'] -ieq 'sha256' -and ([string]$entry['checksum']) -match '^[a-fA-F0-9]{64}$') -or ($entry['checksum_type'] -ieq 'sha512' -and ([string]$entry['checksum']) -match '^[a-fA-F0-9]{128}$')) -and ([string]$entry['checksum'] -ne $emptySha256);
-::PS_ExecuteFreezeCommand::            $keepExisting = ($hasValidUrl -and $hasValidChk -and ($prevVer -eq $exactVer));
-::PS_ExecuteFreezeCommand::            if (-not $keepExisting) {
+::PS_ExecuteFreezeCommand::            if ($resolvedUrl -and $resolvedChk) {
+::PS_ExecuteFreezeCommand::                $entry['url'] = $resolvedUrl;
+::PS_ExecuteFreezeCommand::                $entry['checksum'] = $resolvedChk;
+::PS_ExecuteFreezeCommand::                $entry['checksum_type'] = 'sha256';
+::PS_ExecuteFreezeCommand::                $entry['provenance'] = 'upstream-verified';
+::PS_ExecuteFreezeCommand::                $entry['publisher_authenticated'] = $true;
+::PS_ExecuteFreezeCommand::            } elseif ($hasValidUrl -and $hasValidChk -and ($prevJava -eq $exactJava) -and ($prevArch -eq $expectedArch)) {
+::PS_ExecuteFreezeCommand::                $existingUrl = [string]$entry['url'];
+::PS_ExecuteFreezeCommand::                if ((Test-OfficialVendorUrl $vendorJava $existingUrl) -and ($prevVend -ieq $vendorJava) -and ($entry['provenance'] -eq 'upstream-verified')) {
+::PS_ExecuteFreezeCommand::                    $entry['provenance'] = 'upstream-verified';
+::PS_ExecuteFreezeCommand::                    $entry['publisher_authenticated'] = $true;
+::PS_ExecuteFreezeCommand::                } elseif ($entry['provenance'] -eq 'user-supplied' -or $entry['source_type'] -eq 'custom') {
+::PS_ExecuteFreezeCommand::                    $entry['provenance'] = 'user-supplied';
+::PS_ExecuteFreezeCommand::                    $entry['publisher_authenticated'] = $false;
+::PS_ExecuteFreezeCommand::                } else {
+::PS_ExecuteFreezeCommand::                    throw ('Security violation (CWE-494): Existing lockfile metadata for Java ''' + $exactJava + ''' (' + $vendorJava + ') has unverified provenance (' + $existingUrl + ') and could not be authenticated against official publisher metadata. To retain a custom repository, set provenance=''user-supplied'' in .jvm.lock.');
+::PS_ExecuteFreezeCommand::                };
+::PS_ExecuteFreezeCommand::            } else {
+::PS_ExecuteFreezeCommand::                throw ('Cannot freeze ''java'' (' + $vendorJava + ' ' + $exactJava + '): unable to resolve official publisher download URL and checksum. Supply a verified upstream release or explicitly mark custom repository metadata with provenance=''user-supplied''.');
+::PS_ExecuteFreezeCommand::            };
+::PS_ExecuteFreezeCommand::            $prevChk = if ($existing -and $existing.checksum) { [string]$existing.checksum } else { $null };
+::PS_ExecuteFreezeCommand::            if ($prevJava -ne $exactJava -or $prevChk -ne $entry['checksum'] -or -not $existing.url -or $existing.provenance -ne $entry['provenance']) {
+::PS_ExecuteFreezeCommand::                $changes['java'] = [ordered]@{ previous = $prevJava; frozen = $exactJava; vendor = $vendorJava; checksum = $entry['checksum']; url = $entry['url']; provenance = $entry['provenance'] };
+::PS_ExecuteFreezeCommand::                if (-not $dryRun) { $data.tools.java = $entry };
+::PS_ExecuteFreezeCommand::            };
+::PS_ExecuteFreezeCommand::        } else {
+::PS_ExecuteFreezeCommand::            $cLink = Join-Path $jvmRoot ('candidates\' + $tName + '\current');
+::PS_ExecuteFreezeCommand::            $cTarget = if (Test-Path -LiteralPath $cLink) { try { (Get-Item -LiteralPath $cLink -ErrorAction SilentlyContinue).Target } catch { Write-Verbose $_.Exception.Message; $null } } else { $null };
+::PS_ExecuteFreezeCommand::            if ($cTarget -is [array]) { $cTarget = $cTarget[0] };
+::PS_ExecuteFreezeCommand::            if ($cTarget) { $cTarget = ([string]$cTarget) -replace '^(\\\?\\|\\\?\?\\)', '' };
+::PS_ExecuteFreezeCommand::            if ($cTarget -and (Test-Path -LiteralPath $cTarget)) {
+::PS_ExecuteFreezeCommand::                $exactVer = Split-Path $cTarget -Leaf;
+::PS_ExecuteFreezeCommand::                $existing = if ($data.tools.PSObject.Properties[$tName]) { $data.tools.$tName } else { $null };
+::PS_ExecuteFreezeCommand::                $entry = [ordered]@{};
+::PS_ExecuteFreezeCommand::                if ($existing) { foreach ($prop in $existing.PSObject.Properties) { $entry[$prop.Name] = $prop.Value } };
+::PS_ExecuteFreezeCommand::                $prevVer = if ($entry.Contains('version')) { [string]$entry['version'] } else { 'unpinned' };
+::PS_ExecuteFreezeCommand::                $entry['version'] = $exactVer;
+::PS_ExecuteFreezeCommand::                if (-not $entry['arch']) { $entry['arch'] = 'all' };
+::PS_ExecuteFreezeCommand::                if (-not $entry['checksum_type']) { $entry['checksum_type'] = 'sha256' };
 ::PS_ExecuteFreezeCommand::                $candUrls = @{
 ::PS_ExecuteFreezeCommand::                    'maven'     = @{ url = ('https://downloads.apache.org/maven/maven-3/' + $exactVer + '/binaries/apache-maven-' + $exactVer + '-bin.zip'); chkUrl = ('https://downloads.apache.org/maven/maven-3/' + $exactVer + '/binaries/apache-maven-' + $exactVer + '-bin.zip.sha512'); type = 'sha512' };
 ::PS_ExecuteFreezeCommand::                    'gradle'    = @{ url = ('https://services.gradle.org/distributions/gradle-' + $exactVer + '-bin.zip'); chkUrl = ('https://services.gradle.org/distributions/gradle-' + $exactVer + '-bin.zip.sha256'); type = 'sha256' };
@@ -14532,10 +15581,10 @@ exit /b !errorlevel!
 ::PS_ExecuteFreezeCommand::                    'micronaut' = @{ url = ('https://github.com/micronaut-projects/micronaut-starter/releases/download/v' + $exactVer + '/micronaut-cli-' + $exactVer + '.zip'); chkUrl = ('https://github.com/micronaut-projects/micronaut-starter/releases/download/v' + $exactVer + '/micronaut-cli-' + $exactVer + '.zip.sha256'); type = 'sha256' };
 ::PS_ExecuteFreezeCommand::                    'mn'        = @{ url = ('https://github.com/micronaut-projects/micronaut-starter/releases/download/v' + $exactVer + '/micronaut-cli-' + $exactVer + '.zip'); chkUrl = ('https://github.com/micronaut-projects/micronaut-starter/releases/download/v' + $exactVer + '/micronaut-cli-' + $exactVer + '.zip.sha256'); type = 'sha256' };
 ::PS_ExecuteFreezeCommand::                };
-::PS_ExecuteFreezeCommand::                $resolvedUrl = if ($candUrls.ContainsKey($tName)) { [string]$candUrls[$tName].url } else { $null };
-::PS_ExecuteFreezeCommand::                $resolvedChk = $null;
+::PS_ExecuteFreezeCommand::                $expectedOfficialUrl = if ($candUrls.ContainsKey($tName)) { [string]$candUrls[$tName].url } else { $null };
 ::PS_ExecuteFreezeCommand::                $chkType = if ($candUrls.ContainsKey($tName)) { [string]$candUrls[$tName].type } else { 'sha256' };
-::PS_ExecuteFreezeCommand::                if (-not $resolvedChk -and $candUrls.ContainsKey($tName) -and $candUrls[$tName].chkUrl) {
+::PS_ExecuteFreezeCommand::                $resolvedChk = $null;
+::PS_ExecuteFreezeCommand::                if ($candUrls.ContainsKey($tName) -and $candUrls[$tName].chkUrl) {
 ::PS_ExecuteFreezeCommand::                    try {
 ::PS_ExecuteFreezeCommand::                        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288;
 ::PS_ExecuteFreezeCommand::                        $req = [Net.HttpWebRequest]::Create($candUrls[$tName].chkUrl);
@@ -14546,7 +15595,7 @@ exit /b !errorlevel!
 ::PS_ExecuteFreezeCommand::                        $txt = $sr.ReadToEnd();
 ::PS_ExecuteFreezeCommand::                        $sr.Close(); $resp.Close();
 ::PS_ExecuteFreezeCommand::                        $sumPattern = if ($chkType -eq 'sha512') { '(?<![0-9a-fA-F])([0-9a-fA-F]{128})(?![0-9a-fA-F])' } else { '(?<![0-9a-fA-F])([0-9a-fA-F]{64})(?![0-9a-fA-F])' };
-::PS_ExecuteFreezeCommand::                        $expectedArchiveName = [System.IO.Path]::GetFileName([string]$candUrls[$tName].url);
+::PS_ExecuteFreezeCommand::                        $expectedArchiveName = [System.IO.Path]::GetFileName($expectedOfficialUrl);
 ::PS_ExecuteFreezeCommand::                        $resolvedSum = $null;
 ::PS_ExecuteFreezeCommand::                        foreach ($sumLine in ($txt -split '\r?\n')) {
 ::PS_ExecuteFreezeCommand::                            if ($sumLine -match ([regex]::Escape($expectedArchiveName)) -and $sumLine -match $sumPattern) { $resolvedSum = $matches[1]; break };
@@ -14560,48 +15609,84 @@ exit /b !errorlevel!
 ::PS_ExecuteFreezeCommand::                    } catch { Write-Verbose $_.Exception.Message };
 ::PS_ExecuteFreezeCommand::                };
 ::PS_ExecuteFreezeCommand::                $validResolvedChecksum = if ($chkType -eq 'sha512') { [string]$resolvedChk -match '^[a-fA-F0-9]{128}$' } else { [string]$resolvedChk -match '^[a-fA-F0-9]{64}$' };
-::PS_ExecuteFreezeCommand::                if (-not $resolvedUrl -or -not ($resolvedUrl -match '^https://') -or -not $validResolvedChecksum -or $resolvedChk -eq $emptySha256) {
+::PS_ExecuteFreezeCommand::                $hasValidUrl = ($entry['url'] -and [string]$entry['url'] -match '^https://');
+::PS_ExecuteFreezeCommand::                $hasValidChk = (($entry['checksum_type'] -ieq 'sha256' -and ([string]$entry['checksum']) -match '^[a-fA-F0-9]{64}$') -or ($entry['checksum_type'] -ieq 'sha512' -and ([string]$entry['checksum']) -match '^[a-fA-F0-9]{128}$')) -and ([string]$entry['checksum'] -ne $emptySha256);
+::PS_ExecuteFreezeCommand::                if ($expectedOfficialUrl -and $validResolvedChecksum -and $resolvedChk -ne $emptySha256) {
+::PS_ExecuteFreezeCommand::                    $entry['url'] = $expectedOfficialUrl;
+::PS_ExecuteFreezeCommand::                    $entry['checksum'] = $resolvedChk;
+::PS_ExecuteFreezeCommand::                    $entry['checksum_type'] = $chkType;
+::PS_ExecuteFreezeCommand::                    $entry['provenance'] = 'upstream-verified';
+::PS_ExecuteFreezeCommand::                    $entry['publisher_authenticated'] = $true;
+::PS_ExecuteFreezeCommand::                } elseif ($hasValidUrl -and $hasValidChk -and ($prevVer -eq $exactVer)) {
+::PS_ExecuteFreezeCommand::                    if ($expectedOfficialUrl -and ([string]$entry['url'] -ieq $expectedOfficialUrl) -and ($entry['provenance'] -eq 'upstream-verified')) {
+::PS_ExecuteFreezeCommand::                        $entry['provenance'] = 'upstream-verified';
+::PS_ExecuteFreezeCommand::                        $entry['publisher_authenticated'] = $true;
+::PS_ExecuteFreezeCommand::                    } elseif ($entry['provenance'] -eq 'user-supplied' -or $entry['source_type'] -eq 'custom') {
+::PS_ExecuteFreezeCommand::                        $entry['provenance'] = 'user-supplied';
+::PS_ExecuteFreezeCommand::                        $entry['publisher_authenticated'] = $false;
+::PS_ExecuteFreezeCommand::                    } else {
+::PS_ExecuteFreezeCommand::                        throw ('Security violation (CWE-494): Existing lockfile metadata for ''' + $tName + ''' (' + $exactVer + ') has unverified provenance (' + $entry['url'] + ') and could not be authenticated against official upstream metadata.');
+::PS_ExecuteFreezeCommand::                    };
+::PS_ExecuteFreezeCommand::                } else {
 ::PS_ExecuteFreezeCommand::                    throw ('Cannot freeze ''' + $tName + ''': unable to resolve distribution archive download URL and trusted checksum for version ''' + $exactVer + '''.');
 ::PS_ExecuteFreezeCommand::                };
-::PS_ExecuteFreezeCommand::                $entry['url'] = $resolvedUrl;
-::PS_ExecuteFreezeCommand::                $entry['checksum'] = $resolvedChk;
-::PS_ExecuteFreezeCommand::                $entry['checksum_type'] = $chkType;
-::PS_ExecuteFreezeCommand::            };
-::PS_ExecuteFreezeCommand::            $prevChk = if ($existing -and $existing.checksum) { [string]$existing.checksum } else { $null };
-::PS_ExecuteFreezeCommand::            if ($prevVer -ne $exactVer -or $prevChk -ne $entry['checksum'] -or -not $existing.url) {
-::PS_ExecuteFreezeCommand::                $changes[$tName] = [ordered]@{ previous = $prevVer; frozen = $exactVer; checksum = $entry['checksum']; url = $entry['url'] };
-::PS_ExecuteFreezeCommand::                if (-not $dryRun) { $data.tools.$tName = $entry };
-::PS_ExecuteFreezeCommand::            };
-::PS_ExecuteFreezeCommand::        } elseif ($data.tools.$tName -and $data.tools.$tName.version) {
-::PS_ExecuteFreezeCommand::            $v = [string]$data.tools.$tName.version;
-::PS_ExecuteFreezeCommand::            if ($v -notmatch '\d+\.\d+') {
-::PS_ExecuteFreezeCommand::                throw ('Cannot freeze ''' + $tName + ''': candidate is floating (''' + $v + ''') but toolchain is not active or installed locally.');
+::PS_ExecuteFreezeCommand::                $prevChk = if ($existing -and $existing.checksum) { [string]$existing.checksum } else { $null };
+::PS_ExecuteFreezeCommand::                if ($prevVer -ne $exactVer -or $prevChk -ne $entry['checksum'] -or -not $existing.url -or $existing.provenance -ne $entry['provenance']) {
+::PS_ExecuteFreezeCommand::                    $changes[$tName] = [ordered]@{ previous = $prevVer; frozen = $exactVer; checksum = $entry['checksum']; url = $entry['url']; provenance = $entry['provenance'] };
+::PS_ExecuteFreezeCommand::                    if (-not $dryRun) { $data.tools.$tName = $entry };
+::PS_ExecuteFreezeCommand::                };
+::PS_ExecuteFreezeCommand::            } elseif ($data.tools.$tName -and $data.tools.$tName.version) {
+::PS_ExecuteFreezeCommand::                $v = [string]$data.tools.$tName.version;
+::PS_ExecuteFreezeCommand::                if ($v -notmatch '\d+\.\d+') {
+::PS_ExecuteFreezeCommand::                    throw ('Cannot freeze ''' + $tName + ''': candidate is floating (''' + $v + ''') but toolchain is not active or installed locally.');
+::PS_ExecuteFreezeCommand::                };
 ::PS_ExecuteFreezeCommand::            };
 ::PS_ExecuteFreezeCommand::        };
 ::PS_ExecuteFreezeCommand::    };
-::PS_ExecuteFreezeCommand::};
-::PS_ExecuteFreezeCommand::if (-not $dryRun) {
-::PS_ExecuteFreezeCommand::    $data.generated = (Get-Date).ToUniversalTime().ToString('u');
-::PS_ExecuteFreezeCommand::    $jsonText = $data | ConvertTo-Json -Depth 5;
-::PS_ExecuteFreezeCommand::    [System.IO.File]::WriteAllText($lockFile, $jsonText, [System.Text.UTF8Encoding]::new($false));
-::PS_ExecuteFreezeCommand::};
-::PS_ExecuteFreezeCommand::if ($jsonOut) {
-::PS_ExecuteFreezeCommand::    [ordered]@{ ok = $true; command = 'freeze'; candidate = 'java'; resolved = $lockFile; changed = ($changes.Count -gt 0); status = 'frozen'; lockfile = $lockFile; dry_run = $dryRun; tools = $changes } | ConvertTo-Json -Depth 5;
-::PS_ExecuteFreezeCommand::} else {
-::PS_ExecuteFreezeCommand::    if ($dryRun) {
-::PS_ExecuteFreezeCommand::        Write-Host ('[ DRY-RUN ] Would freeze floating versions in ''' + $lockFile + ''':') -ForegroundColor Cyan;
-::PS_ExecuteFreezeCommand::    } else {
-::PS_ExecuteFreezeCommand::        Write-Host ('[   OK   ] Freezing dependencies to immutable builds in ''' + $lockFile + ''':') -ForegroundColor Green;
-::PS_ExecuteFreezeCommand::    };
-::PS_ExecuteFreezeCommand::    if ($changes.Count -eq 0) {
-::PS_ExecuteFreezeCommand::        Write-Host '  (All toolchains are already frozen to immutable builds)' -ForegroundColor DarkGray;
-::PS_ExecuteFreezeCommand::    } else {
-::PS_ExecuteFreezeCommand::        foreach ($k in $changes.Keys) {
-::PS_ExecuteFreezeCommand::            $info = $changes[$k];
-::PS_ExecuteFreezeCommand::            $vendStr = if ($info.vendor) { ' (' + $info.vendor + ')' } else { '' };
-::PS_ExecuteFreezeCommand::            Write-Host ('  - ' + $k + ': ' + $info.previous + ' -> ' + $info.frozen + $vendStr) -ForegroundColor White;
+::PS_ExecuteFreezeCommand::    if (-not $dryRun) {
+::PS_ExecuteFreezeCommand::        $nowIso = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ');
+::PS_ExecuteFreezeCommand::        if ($data.PSObject.Properties['generated_at']) { $data.generated_at = $nowIso } else { $data | Add-Member -NotePropertyName 'generated_at' -NotePropertyValue $nowIso -Force };
+::PS_ExecuteFreezeCommand::        if ($data.PSObject.Properties['generated']) { $data.generated = $nowIso } else { $data | Add-Member -NotePropertyName 'generated' -NotePropertyValue $nowIso -Force };
+::PS_ExecuteFreezeCommand::        if (-not $data.PSObject.Properties['schema']) { $data | Add-Member -NotePropertyName 'schema' -NotePropertyValue 2 -Force };
+::PS_ExecuteFreezeCommand::        if (-not $data.PSObject.Properties['lockfile_version']) { $data | Add-Member -NotePropertyName 'lockfile_version' -NotePropertyValue 1 -Force };
+::PS_ExecuteFreezeCommand::        $jsonText = $data | ConvertTo-Json -Depth 5;
+::PS_ExecuteFreezeCommand::        [System.IO.File]::WriteAllText($stageLock, $jsonText, [System.Text.UTF8Encoding]::new($false));
+::PS_ExecuteFreezeCommand::        $checkParsed = Get-Content -LiteralPath $stageLock -Raw -Encoding UTF8 | ConvertFrom-Json;
+::PS_ExecuteFreezeCommand::        if (-not $checkParsed -or -not $checkParsed.tools) { throw 'Atomic write validation failed for .jvm.lock.' };
+::PS_ExecuteFreezeCommand::        if (Test-Path -LiteralPath $lockFile) { Copy-Item -LiteralPath $lockFile -Destination ($lockFile + '.bak') -Force -ErrorAction SilentlyContinue };
+::PS_ExecuteFreezeCommand::        Move-Item -LiteralPath $stageLock -Destination $lockFile -Force;
+::PS_ExecuteFreezeCommand::        if ($changes.Count -gt 0 -and (Test-Path -LiteralPath ($lockFile + '.sig'))) {
+::PS_ExecuteFreezeCommand::            Remove-Item -LiteralPath ($lockFile + '.sig') -Force -ErrorAction SilentlyContinue;
 ::PS_ExecuteFreezeCommand::        };
 ::PS_ExecuteFreezeCommand::    };
+::PS_ExecuteFreezeCommand::    if ($jsonOut) {
+::PS_ExecuteFreezeCommand::        [ordered]@{ ok = $true; command = 'freeze'; candidate = 'java'; resolved = $lockFile; changed = ($changes.Count -gt 0); status = 'frozen'; lockfile = $lockFile; dry_run = $dryRun; tools = $changes } | ConvertTo-Json -Depth 5;
+::PS_ExecuteFreezeCommand::    } else {
+::PS_ExecuteFreezeCommand::        if ($dryRun) {
+::PS_ExecuteFreezeCommand::            Write-Host ('[ DRY-RUN ] Would freeze floating versions in ''' + $lockFile + ''':') -ForegroundColor Cyan;
+::PS_ExecuteFreezeCommand::        } else {
+::PS_ExecuteFreezeCommand::            Write-Host ('[   OK   ] Freezing dependencies to immutable builds in ''' + $lockFile + ''':') -ForegroundColor Green;
+::PS_ExecuteFreezeCommand::        };
+::PS_ExecuteFreezeCommand::        if ($changes.Count -eq 0) {
+::PS_ExecuteFreezeCommand::            Write-Host '  (All toolchains are already frozen to immutable builds)' -ForegroundColor DarkGray;
+::PS_ExecuteFreezeCommand::        } else {
+::PS_ExecuteFreezeCommand::            foreach ($k in $changes.Keys) {
+::PS_ExecuteFreezeCommand::                $info = $changes[$k];
+::PS_ExecuteFreezeCommand::                $vendStr = if ($info.vendor) { ' (' + $info.vendor + ')' } else { '' };
+::PS_ExecuteFreezeCommand::                Write-Host ('  - ' + $k + ': ' + $info.previous + ' -> ' + $info.frozen + $vendStr) -ForegroundColor White;
+::PS_ExecuteFreezeCommand::            };
+::PS_ExecuteFreezeCommand::        };
+::PS_ExecuteFreezeCommand::    };
+::PS_ExecuteFreezeCommand::    exit 0;
+::PS_ExecuteFreezeCommand::} catch {
+::PS_ExecuteFreezeCommand::    if ($jsonOut) {
+::PS_ExecuteFreezeCommand::        [ordered]@{ ok = $false; command = 'freeze'; candidate = 'java'; resolved = $lockFile; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress;
+::PS_ExecuteFreezeCommand::    } else {
+::PS_ExecuteFreezeCommand::        Write-Error $_.Exception.Message;
+::PS_ExecuteFreezeCommand::    };
+::PS_ExecuteFreezeCommand::    exit 1;
+::PS_ExecuteFreezeCommand::} finally {
+::PS_ExecuteFreezeCommand::    if (Test-Path -LiteralPath $stageLock) { Remove-Item -LiteralPath $stageLock -Force -ErrorAction SilentlyContinue };
 ::PS_ExecuteFreezeCommand::}
 
 rem ============================================================
@@ -14621,17 +15706,88 @@ if not defined TARGET_LOCK_PATH set "TARGET_LOCK_PATH=%INVOCATION_DIR%\.jvm.lock
 
 if not exist "!TARGET_LOCK_PATH!" (
     >&2 echo %cRED%[ ERROR  ]%cRESET% No .jvm.lock found to thaw.
+    if "%OUTPUT_JSON%"=="1" echo {"ok":false,"command":"thaw","candidate":"java","resolved":null,"changed":false,"error":"No .jvm.lock found to thaw"}
     exit /b 1
 )
 
+if exist "!TARGET_LOCK_PATH!\" (
+    >&2 echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): .jvm.lock is a directory.
+    exit /b 1
+)
 "%FSUTIL_BIN%" reparsepoint query "!TARGET_LOCK_PATH!" >nul 2>&1
 if not errorlevel 1 (
     >&2 echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Refusing to modify symlink or reparse point lockfile.
     exit /b 1
 )
 
-"%PS_BIN%" -NoProfile -EncodedCommand JABFAHIAcgBvAHIAQQBjAHQAaQBvAG4AUAByAGUAZgBlAHIAZQBuAGMAZQAgAD0AIAAnAFMAdABvAHAAJwAKACQAbABvAGMAawBGAGkAbABlACAAPQAgACQAZQBuAHYAOgBUAEEAUgBHAEUAVABfAEwATwBDAEsAXwBQAEEAVABIAAoAJABkAHIAeQBSAHUAbgAgAD0AIAAoACQAZQBuAHYAOgBUAEgAQQBXAF8ARABSAFkAIAAtAGUAcQAgACcAMQAnACkACgAkAGoAcwBvAG4ATwB1AHQAIAA9ACAAKAAkAGUAbgB2ADoATwBVAFQAUABVAFQAXwBKAFMATwBOACAALQBlAHEAIAAnADEAJwApAAoAdAByAHkAIAB7AAoAIAAgACAAIAAkAGQAYQB0AGEAIAA9ACAARwBlAHQALQBDAG8AbgB0AGUAbgB0ACAALQBMAGkAdABlAHIAYQBsAFAAYQB0AGgAIAAkAGwAbwBjAGsARgBpAGwAZQAgAC0AUgBhAHcAIAAtAEUAbgBjAG8AZABpAG4AZwAgAFUAVABGADgAIAB8ACAAQwBvAG4AdgBlAHIAdABGAHIAbwBtAC0ASgBzAG8AbgAKAH0AIABjAGEAdABjAGgAIAB7AAoAIAAgACAAIABXAHIAaQB0AGUALQBWAGUAcgBiAG8AcwBlACAAJABfAC4ARQB4AGMAZQBwAHQAaQBvAG4ALgBNAGUAcwBzAGEAZwBlAAoAIAAgACAAIABXAHIAaQB0AGUALQBFAHIAcgBvAHIAIAAoACcARgBhAGkAbABlAGQAIAB0AG8AIAByAGUAYQBkACAAbABvAGMAawBmAGkAbABlADoAIAAnACAAKwAgACQAXwAuAEUAeABjAGUAcAB0AGkAbwBuAC4ATQBlAHMAcwBhAGcAZQApAAoAIAAgACAAIABlAHgAaQB0ACAAMQAKAH0ACgBpAGYAIAAoAC0AbgBvAHQAIAAkAGQAYQB0AGEALgB0AG8AbwBsAHMAKQAgAHsACgAgACAAIAAgAFcAcgBpAHQAZQAtAE8AdQB0AHAAdQB0ACAAJwBOAG8AIAB0AG8AbwBsAHMAIABkAGUAZgBpAG4AZQBkACAAaQBuACAAbABvAGMAawBmAGkAbABlACcACgAgACAAIAAgAGUAeABpAHQAIAAwAAoAfQAKACQAYwBoAGEAbgBnAGUAcwAgAD0AIABbAG8AcgBkAGUAcgBlAGQAXQBAAHsAfQAKAGYAbwByAGUAYQBjAGgAIAAoACQAcAByAG8AcAAgAGkAbgAgACQAZABhAHQAYQAuAHQAbwBvAGwAcwAuAFAAUwBPAGIAagBlAGMAdAAuAFAAcgBvAHAAZQByAHQAaQBlAHMAKQAgAHsACgAgACAAIAAgACQAdABvAG8AbABOAGEAbQBlACAAPQAgACQAcAByAG8AcAAuAE4AYQBtAGUACgAgACAAIAAgACQAdAAgAD0AIAAkAHAAcgBvAHAALgBWAGEAbAB1AGUACgAgACAAIAAgACQAdgAgAD0AIABpAGYAIAAoACQAdAAuAHYAZQByAHMAaQBvAG4AKQAgAHsAIABbAHMAdAByAGkAbgBnAF0AJAB0AC4AdgBlAHIAcwBpAG8AbgAgAH0AIABlAGwAcwBlACAAewAgACcAJwAgAH0ACgAgACAAIAAgACQAbQBhAGoAbwByACAAPQAgACQAdgAKACAAIAAgACAAaQBmACAAKAAkAHYAIAAtAG0AYQB0AGMAaAAgACcAXgAoAFwAZAArACkAJwApACAAewAgACQAbQBhAGoAbwByACAAPQAgACQAbQBhAHQAYwBoAGUAcwBbADEAXQAgAH0ACgAgACAAIAAgAGkAZgAgACgAJABtAGEAagBvAHIAIAAtAGEAbgBkACAAJABtAGEAagBvAHIAIAAtAG4AZQAgACQAdgApACAAewAKACAAIAAgACAAIAAgACAAIAAkAGMAaABhAG4AZwBlAHMAWwAkAHQAbwBvAGwATgBhAG0AZQBdACAAPQAgAFsAbwByAGQAZQByAGUAZABdAEAAewAgAHAAcgBlAHYAaQBvAHUAcwAgAD0AIAAkAHYAOwAgAHQAaABhAHcAZQBkACAAPQAgACQAbQBhAGoAbwByADsAIAB2AGUAbgBkAG8AcgAgAD0AIABpAGYAIAAoACQAdAAuAHYAZQBuAGQAbwByACkAIAB7ACAAWwBzAHQAcgBpAG4AZwBdACQAdAAuAHYAZQBuAGQAbwByACAAfQAgAGUAbABzAGUAIAB7ACAAJwAnACAAfQAgAH0ACgAgACAAIAAgACAAIAAgACAAaQBmACAAKAAtAG4AbwB0ACAAJABkAHIAeQBSAHUAbgApACAAewAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgACQAdAAuAHYAZQByAHMAaQBvAG4AIAA9ACAAJABtAGEAagBvAHIACgAgACAAIAAgACAAIAAgACAAfQAKACAAIAAgACAAfQAKAH0ACgBpAGYAIAAoAC0AbgBvAHQAIAAkAGQAcgB5AFIAdQBuACAALQBhAG4AZAAgACQAYwBoAGEAbgBnAGUAcwAuAEMAbwB1AG4AdAAgAC0AZwB0ACAAMAApACAAewAKACAAIAAgACAAJABqAHMAbwBuAFQAZQB4AHQAIAA9ACAAJABkAGEAdABhACAAfAAgAEMAbwBuAHYAZQByAHQAVABvAC0ASgBzAG8AbgAgAC0ARABlAHAAdABoACAANQAKACAAIAAgACAAWwBTAHkAcwB0AGUAbQAuAEkATwAuAEYAaQBsAGUAXQA6ADoAVwByAGkAdABlAEEAbABsAFQAZQB4AHQAKAAkAGwAbwBjAGsARgBpAGwAZQAsACAAJABqAHMAbwBuAFQAZQB4AHQALAAgAFsAUwB5AHMAdABlAG0ALgBUAGUAeAB0AC4AVQBUAEYAOABFAG4AYwBvAGQAaQBuAGcAXQA6ADoAbgBlAHcAKAAkAGYAYQBsAHMAZQApACkACgB9AAoAaQBmACAAKAAkAGoAcwBvAG4ATwB1AHQAKQAgAHsACgAgACAAIAAgAFsAbwByAGQAZQByAGUAZABdAEAAewAgAHMAdABhAHQAdQBzACAAPQAgACcAdABoAGEAdwBlAGQAJwA7ACAAbABvAGMAawBmAGkAbABlACAAPQAgACQAbABvAGMAawBGAGkAbABlADsAIABkAHIAeQBfAHIAdQBuACAAPQAgACQAZAByAHkAUgB1AG4AOwAgAHQAbwBvAGwAcwAgAD0AIAAkAGMAaABhAG4AZwBlAHMAIAB9ACAAfAAgAEMAbwBuAHYAZQByAHQAVABvAC0ASgBzAG8AbgAKAH0AIABlAGwAcwBlACAAewAKACAAIAAgACAAaQBmACAAKAAkAGQAcgB5AFIAdQBuACkAIAB7AAoAIAAgACAAIAAgACAAIAAgAFcAcgBpAHQAZQAtAEgAbwBzAHQAIAAoACcAWwAgAEQAUgBZAC0AUgBVAE4AIABdACAAVwBvAHUAbABkACAAdABoAGEAdwAgAGUAeABhAGMAdAAgAHAAaQBuAG4AZQBkACAAdgBlAHIAcwBpAG8AbgBzACAAaQBuACAAJwAgACsAIAAkAGwAbwBjAGsARgBpAGwAZQAgACsAIAAnADoAJwApACAALQBGAG8AcgBlAGcAcgBvAHUAbgBkAEMAbwBsAG8AcgAgAEMAeQBhAG4ACgAgACAAIAAgAH0AIABlAGwAcwBlACAAewAKACAAIAAgACAAIAAgACAAIABXAHIAaQB0AGUALQBIAG8AcwB0ACAAKAAnAFsAIAAgACAATwBLACAAIAAgAF0AIABUAGgAYQB3AGkAbgBnACAAZABlAHAAZQBuAGQAZQBuAGMAaQBlAHMAIAB0AG8AIABtAGEAagBvAHIAIAB0AHIAYQBjAGsAcwAgAGkAbgAgACcAIAArACAAJABsAG8AYwBrAEYAaQBsAGUAIAArACAAJwA6ACcAKQAgAC0ARgBvAHIAZQBnAHIAbwB1AG4AZABDAG8AbABvAHIAIABHAHIAZQBlAG4ACgAgACAAIAAgAH0ACgAgACAAIAAgAGYAbwByAGUAYQBjAGgAIAAoACQAawAgAGkAbgAgACQAYwBoAGEAbgBnAGUAcwAuAEsAZQB5AHMAKQAgAHsACgAgACAAIAAgACAAIAAgACAAVwByAGkAdABlAC0ASABvAHMAdAAgACgAJwAgACAALQAgACcAIAArACAAJABrACAAKwAgACcAOgAgACcAIAArACAAJABjAGgAYQBuAGcAZQBzAFsAJABrAF0ALgBwAHIAZQB2AGkAbwB1AHMAIAArACAAJwAgAC0APgAgACcAIAArACAAJABjAGgAYQBuAGcAZQBzAFsAJABrAF0ALgB0AGgAYQB3AGUAZAApACAALQBGAG8AcgBlAGcAcgBvAHUAbgBkAEMAbwBsAG8AcgAgAFcAaABpAHQAZQAKACAAIAAgACAAfQAKAH0A
-exit /b !errorlevel!
+call :AcquireStateLock
+if errorlevel 1 exit /b 1
+
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_ExecuteThawCommand::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))"
+set "_THAW_ERR=!errorlevel!"
+call :ReleaseStateLock
+exit /b !_THAW_ERR!
+::PS_ExecuteThawCommand::$ErrorActionPreference = 'Stop';
+::PS_ExecuteThawCommand::$lockFile = $env:TARGET_LOCK_PATH;
+::PS_ExecuteThawCommand::$dryRun = ($env:THAW_DRY -eq '1');
+::PS_ExecuteThawCommand::$jsonOut = ($env:OUTPUT_JSON -eq '1');
+::PS_ExecuteThawCommand::$stageLock = $lockFile + '.stage.' + [Guid]::NewGuid().ToString('N') + '.tmp';
+::PS_ExecuteThawCommand::try {
+::PS_ExecuteThawCommand::    $data = Get-Content -LiteralPath $lockFile -Raw -Encoding UTF8 | ConvertFrom-Json;
+::PS_ExecuteThawCommand::    if (-not $data.tools) {
+::PS_ExecuteThawCommand::        if ($jsonOut) {
+::PS_ExecuteThawCommand::            [ordered]@{ ok = $true; command = 'thaw'; candidate = 'java'; resolved = $lockFile; changed = $false; status = 'thawed'; lockfile = $lockFile; dry_run = $dryRun; tools = @{} } | ConvertTo-Json -Compress;
+::PS_ExecuteThawCommand::        } else {
+::PS_ExecuteThawCommand::            Write-Output 'No tools defined in lockfile';
+::PS_ExecuteThawCommand::        };
+::PS_ExecuteThawCommand::        exit 0;
+::PS_ExecuteThawCommand::    };
+::PS_ExecuteThawCommand::    $changes = [ordered]@{};
+::PS_ExecuteThawCommand::    foreach ($prop in $data.tools.PSObject.Properties) {
+::PS_ExecuteThawCommand::        $toolName = $prop.Name;
+::PS_ExecuteThawCommand::        $t = $prop.Value;
+::PS_ExecuteThawCommand::        $v = if ($t.version) { [string]$t.version } else { '' };
+::PS_ExecuteThawCommand::        $major = $v;
+::PS_ExecuteThawCommand::        if ($v -match '^1\.(\d+)\.') { $major = $matches[1] } elseif ($v -match '^(\d+)') { $major = $matches[1] };
+::PS_ExecuteThawCommand::        if ($major -and $major -ne $v) {
+::PS_ExecuteThawCommand::            $changes[$toolName] = [ordered]@{ previous = $v; thawed = $major; vendor = if ($t.vendor) { [string]$t.vendor } else { '' } };
+::PS_ExecuteThawCommand::            if (-not $dryRun) { $t.version = $major };
+::PS_ExecuteThawCommand::        };
+::PS_ExecuteThawCommand::    };
+::PS_ExecuteThawCommand::    if (-not $dryRun -and $changes.Count -gt 0) {
+::PS_ExecuteThawCommand::        $jsonText = $data | ConvertTo-Json -Depth 5;
+::PS_ExecuteThawCommand::        [System.IO.File]::WriteAllText($stageLock, $jsonText, [System.Text.UTF8Encoding]::new($false));
+::PS_ExecuteThawCommand::        $checkParsed = Get-Content -LiteralPath $stageLock -Raw -Encoding UTF8 | ConvertFrom-Json;
+::PS_ExecuteThawCommand::        if (-not $checkParsed -or -not $checkParsed.tools) { throw 'Atomic write validation failed for .jvm.lock.' };
+::PS_ExecuteThawCommand::        Copy-Item -LiteralPath $lockFile -Destination ($lockFile + '.bak') -Force -ErrorAction SilentlyContinue;
+::PS_ExecuteThawCommand::        Move-Item -LiteralPath $stageLock -Destination $lockFile -Force;
+::PS_ExecuteThawCommand::        if (Test-Path -LiteralPath ($lockFile + '.sig')) {
+::PS_ExecuteThawCommand::            Remove-Item -LiteralPath ($lockFile + '.sig') -Force -ErrorAction SilentlyContinue;
+::PS_ExecuteThawCommand::        };
+::PS_ExecuteThawCommand::    };
+::PS_ExecuteThawCommand::    if ($jsonOut) {
+::PS_ExecuteThawCommand::        [ordered]@{ ok = $true; command = 'thaw'; candidate = 'java'; resolved = $lockFile; changed = ($changes.Count -gt 0); status = 'thawed'; lockfile = $lockFile; dry_run = $dryRun; tools = $changes } | ConvertTo-Json -Depth 5;
+::PS_ExecuteThawCommand::    } else {
+::PS_ExecuteThawCommand::        if ($dryRun) {
+::PS_ExecuteThawCommand::            Write-Host ('[ DRY-RUN ] Would thaw exact pinned versions in ' + $lockFile + ':') -ForegroundColor Cyan;
+::PS_ExecuteThawCommand::        } else {
+::PS_ExecuteThawCommand::            Write-Host ('[   OK   ] Thawing dependencies to major tracks in ' + $lockFile + ':') -ForegroundColor Green;
+::PS_ExecuteThawCommand::        };
+::PS_ExecuteThawCommand::        foreach ($k in $changes.Keys) {
+::PS_ExecuteThawCommand::            Write-Host ('  - ' + $k + ': ' + $changes[$k].previous + ' -> ' + $changes[$k].thawed) -ForegroundColor White;
+::PS_ExecuteThawCommand::        };
+::PS_ExecuteThawCommand::    };
+::PS_ExecuteThawCommand::    exit 0;
+::PS_ExecuteThawCommand::} catch {
+::PS_ExecuteThawCommand::    if ($jsonOut) {
+::PS_ExecuteThawCommand::        [ordered]@{ ok = $false; command = 'thaw'; candidate = 'java'; resolved = $lockFile; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress;
+::PS_ExecuteThawCommand::    } else {
+::PS_ExecuteThawCommand::        Write-Error ('Failed to thaw lockfile: ' + $_.Exception.Message);
+::PS_ExecuteThawCommand::    };
+::PS_ExecuteThawCommand::    exit 1;
+::PS_ExecuteThawCommand::} finally {
+::PS_ExecuteThawCommand::    if (Test-Path -LiteralPath $stageLock) { Remove-Item -LiteralPath $stageLock -Force -ErrorAction SilentlyContinue };
+::PS_ExecuteThawCommand::}
 
 rem ============================================================
 rem CRYPTOGRAPHIC LOCKFILE SIGNING (jvm lock --sign)
@@ -14643,15 +15799,20 @@ if not defined TARGET_LOCK_PATH set "TARGET_LOCK_PATH=%INVOCATION_DIR%\.jvm.lock
 
 if not exist "!TARGET_LOCK_PATH!" (
     >&2 echo %cRED%[ ERROR  ]%cRESET% No .jvm.lock found to sign.
+    if "%OUTPUT_JSON%"=="1" echo {"ok":false,"command":"lock","candidate":"java","resolved":null,"changed":false,"error":"No .jvm.lock found to sign"}
     exit /b 1
 )
 
 if not defined JVM_LOCK_SECRET if not defined FLAG_SECRET if not defined FLAG_KEY_FILE (
-    >&2 echo %cRED%[ ERROR  ]%cRESET% No HMAC secret key provided for lockfile signing ^(CWE-798^).
-    >&2 echo            To establish authentic provenance, a managed secret is required.
-    >&2 echo            Set the JVM_LOCK_SECRET environment variable or pass --secret ^<key^> / --key-file ^<file^>.
-    >&2 echo            Example: set "JVM_LOCK_SECRET=your-secure-secret" ^&^& jvm lock --sign
+    >&2 echo %cRED%[ ERROR  ]%cRESET% No signing key provided for lockfile signing ^(CWE-798^).
+    >&2 echo            To establish authentic provenance, a managed key is required.
+    >&2 echo            Prefer --key-file ^<file^> or the JVM_LOCK_SECRET environment variable.
+    if "%OUTPUT_JSON%"=="1" echo {"ok":false,"command":"lock","candidate":"java","resolved":"!TARGET_LOCK_PATH:\=\\!","changed":false,"error":"Signing key required"}
     exit /b 1
+)
+
+if defined FLAG_SECRET (
+    >&2 echo %cYELLOW%[ WARNING]%cRESET% Passing secrets via --secret on the command line may expose credentials in shell history or process inspection ^(CWE-214^). Prefer --key-file or JVM_LOCK_SECRET.
 )
 
 set "SIG_FILE=!TARGET_LOCK_PATH!.sig"
@@ -14668,8 +15829,91 @@ if exist "!SIG_FILE!" (
     )
 )
 
-"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $lockFile = $env:TARGET_LOCK_PATH; $sigFile = $env:SIG_FILE; $secret = if ($env:FLAG_SECRET) { $env:FLAG_SECRET } elseif ($env:FLAG_KEY_FILE -and (Test-Path -LiteralPath $env:FLAG_KEY_FILE)) { (Get-Content -LiteralPath $env:FLAG_KEY_FILE -Raw).Trim() } elseif ($env:JVM_LOCK_SECRET) { $env:JVM_LOCK_SECRET } else { throw 'Security violation (CWE-798): No HMAC secret key provided.' }; if ([string]::IsNullOrWhiteSpace($secret)) { throw 'Secret key cannot be empty (CWE-798).' }; try { $bytes = [System.IO.File]::ReadAllBytes($lockFile); $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($secret)); $hash = ($hmac.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') }) -join ''; $sigObj = [ordered]@{ version = 1; algorithm = 'HMAC-SHA256'; signature = $hash; timestamp = (Get-Date).ToUniversalTime().ToString('o') }; $json = $sigObj | ConvertTo-Json -Depth 3; [System.IO.File]::WriteAllText($sigFile, $json, [System.Text.UTF8Encoding]::new($false)); if ($env:OUTPUT_JSON -eq '1') { [ordered]@{ ok = $true; command = 'lock'; candidate = 'java'; resolved = $lockFile; changed = $true; version = 1; algorithm = 'HMAC-SHA256'; signature = $hash; timestamp = $sigObj.timestamp } | ConvertTo-Json } else { Write-Host ('[   OK   ] Cryptographically signed ' + (Split-Path $lockFile -Leaf) + ' -> ' + (Split-Path $sigFile -Leaf) + ' (HMAC-SHA256)') -ForegroundColor Green } } catch { Write-Verbose $_.Exception.Message; Write-Error ('Signing failed: ' + $_.Exception.Message); exit 1 }"
-exit /b !errorlevel!
+call :AcquireStateLock
+if errorlevel 1 exit /b 1
+
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_SignLockfile::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))"
+set "_SIGN_ERR=!errorlevel!"
+call :ReleaseStateLock
+exit /b !_SIGN_ERR!
+::PS_SignLockfile::$ErrorActionPreference = 'Stop';
+::PS_SignLockfile::$lockFile = $env:TARGET_LOCK_PATH;
+::PS_SignLockfile::$sigFile = $env:SIG_FILE;
+::PS_SignLockfile::$stageSig = $sigFile + '.stage.' + [Guid]::NewGuid().ToString('N') + '.tmp';
+::PS_SignLockfile::try {
+::PS_SignLockfile::    $rawLock = Get-Content -LiteralPath $lockFile -Raw -Encoding UTF8 | ConvertFrom-Json;
+::PS_SignLockfile::    if (-not $rawLock) { throw 'Lockfile is empty or invalid JSON.' };
+::PS_SignLockfile::    $bytes = [System.IO.File]::ReadAllBytes($lockFile);
+::PS_SignLockfile::    $sha = [System.Security.Cryptography.SHA256]::Create();
+::PS_SignLockfile::    $lockDigest = ([System.BitConverter]::ToString($sha.ComputeHash($bytes)) -replace '-','').ToLowerInvariant();
+::PS_SignLockfile::    $sha.Dispose();
+::PS_SignLockfile::    $alg = 'HMAC-SHA256';
+::PS_SignLockfile::    $hash = $null;
+::PS_SignLockfile::    if ($env:FLAG_KEY_FILE) {
+::PS_SignLockfile::        if (-not (Test-Path -LiteralPath $env:FLAG_KEY_FILE -PathType Leaf)) { throw 'Key file does not exist or is not a regular file.' };
+::PS_SignLockfile::        $kfItem = Get-Item -LiteralPath $env:FLAG_KEY_FILE -Force;
+::PS_SignLockfile::        $currCheck = $kfItem;
+::PS_SignLockfile::        while ($currCheck) {
+::PS_SignLockfile::            if ($currCheck.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+::PS_SignLockfile::                throw ('Security violation (CWE-59): Key file or parent directory is a reparse point: ' + $currCheck.FullName);
+::PS_SignLockfile::            };
+::PS_SignLockfile::            $currCheck = if ($currCheck -is [System.IO.FileInfo]) { $currCheck.Directory } else { $currCheck.Parent };
+::PS_SignLockfile::        };
+::PS_SignLockfile::        if ($kfItem.Length -le 0 -or $kfItem.Length -gt 65536) { throw 'Key file size is out of safe bounds.' };
+::PS_SignLockfile::        try {
+::PS_SignLockfile::            $acl = Get-Acl -LiteralPath $kfItem.FullName;
+::PS_SignLockfile::            foreach ($ace in $acl.Access) {
+::PS_SignLockfile::                $idRef = $ace.IdentityReference.Value;
+::PS_SignLockfile::                if ($ace.AccessControlType -eq 'Allow' -and ($idRef -match '(?i)(Everyone|ANONYMOUS|Guests)') -and ($ace.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::Write)) {
+::PS_SignLockfile::                    throw ('Security violation (CWE-732): Key file has insecure world-writable permissions: ' + $idRef);
+::PS_SignLockfile::                };
+::PS_SignLockfile::            };
+::PS_SignLockfile::        } catch { if ($_.Exception.Message -like 'Security violation*') { throw } };
+::PS_SignLockfile::        $keyRaw = (Get-Content -LiteralPath $kfItem.FullName -Raw -Encoding UTF8).Trim();
+::PS_SignLockfile::        if ($keyRaw.StartsWith('<RSAKeyValue>')) {
+::PS_SignLockfile::            $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider;
+::PS_SignLockfile::            $rsa.FromXmlString($keyRaw);
+::PS_SignLockfile::            $sigBytes = $rsa.SignData($bytes, [System.Security.Cryptography.CryptoConfig]::MapNameToOID('SHA256'));
+::PS_SignLockfile::            $rsa.Dispose();
+::PS_SignLockfile::            $alg = 'RSA-SHA256';
+::PS_SignLockfile::            $hash = ([System.BitConverter]::ToString($sigBytes) -replace '-','').ToLowerInvariant();
+::PS_SignLockfile::        } else {
+::PS_SignLockfile::            $secret = $keyRaw;
+::PS_SignLockfile::        };
+::PS_SignLockfile::    } elseif ($env:JVM_LOCK_SECRET) {
+::PS_SignLockfile::        $secret = $env:JVM_LOCK_SECRET;
+::PS_SignLockfile::    } elseif ($env:FLAG_SECRET) {
+::PS_SignLockfile::        $secret = $env:FLAG_SECRET;
+::PS_SignLockfile::    } else {
+::PS_SignLockfile::        throw 'Security violation (CWE-798): No signing key provided.';
+::PS_SignLockfile::    };
+::PS_SignLockfile::    if (-not $hash) {
+::PS_SignLockfile::        if ([string]::IsNullOrWhiteSpace($secret)) { throw 'Secret key cannot be empty (CWE-798).' };
+::PS_SignLockfile::        $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($secret));
+::PS_SignLockfile::        $hash = ($hmac.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') }) -join '';
+::PS_SignLockfile::        $hmac.Dispose();
+::PS_SignLockfile::    };
+::PS_SignLockfile::    $sigObj = [ordered]@{ version = 1; algorithm = $alg; lockfile_sha256 = $lockDigest; signature = $hash; timestamp = (Get-Date).ToUniversalTime().ToString('o') };
+::PS_SignLockfile::    $json = $sigObj | ConvertTo-Json -Depth 3;
+::PS_SignLockfile::    [System.IO.File]::WriteAllText($stageSig, $json, [System.Text.UTF8Encoding]::new($false));
+::PS_SignLockfile::    $null = Get-Content -LiteralPath $stageSig -Raw -Encoding UTF8 | ConvertFrom-Json;
+::PS_SignLockfile::    Move-Item -LiteralPath $stageSig -Destination $sigFile -Force;
+::PS_SignLockfile::    if ($env:OUTPUT_JSON -eq '1') {
+::PS_SignLockfile::        [ordered]@{ ok = $true; command = 'lock'; candidate = 'java'; resolved = $lockFile; changed = $true; version = 1; algorithm = $alg; signature = $hash; timestamp = $sigObj.timestamp } | ConvertTo-Json;
+::PS_SignLockfile::    } else {
+::PS_SignLockfile::        Write-Host ('[   OK   ] Cryptographically signed ' + (Split-Path $lockFile -Leaf) + ' -> ' + (Split-Path $sigFile -Leaf) + ' (' + $alg + ')') -ForegroundColor Green;
+::PS_SignLockfile::    };
+::PS_SignLockfile::    exit 0;
+::PS_SignLockfile::} catch {
+::PS_SignLockfile::    if ($env:OUTPUT_JSON -eq '1') {
+::PS_SignLockfile::        [ordered]@{ ok = $false; command = 'lock'; candidate = 'java'; resolved = $lockFile; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress;
+::PS_SignLockfile::    } else {
+::PS_SignLockfile::        Write-Error ('Signing failed: ' + $_.Exception.Message);
+::PS_SignLockfile::    };
+::PS_SignLockfile::    exit 1;
+::PS_SignLockfile::} finally {
+::PS_SignLockfile::    if (Test-Path -LiteralPath $stageSig) { Remove-Item -LiteralPath $stageSig -Force -ErrorAction SilentlyContinue };
+::PS_SignLockfile::}
 
 rem ============================================================
 rem CRYPTOGRAPHIC LOCKFILE VERIFICATION (jvm lock --verify)
@@ -14681,14 +15925,19 @@ if not defined TARGET_LOCK_PATH set "TARGET_LOCK_PATH=%INVOCATION_DIR%\.jvm.lock
 
 if not exist "!TARGET_LOCK_PATH!" (
     >&2 echo %cRED%[ ERROR  ]%cRESET% No .jvm.lock found to verify.
+    if "%OUTPUT_JSON%"=="1" echo {"ok":false,"command":"lock","candidate":"java","resolved":null,"changed":false,"status":"missing_lockfile","error":"No .jvm.lock found to verify"}
     exit /b 1
 )
 
 if not defined JVM_LOCK_SECRET if not defined FLAG_SECRET if not defined FLAG_KEY_FILE (
-    >&2 echo %cRED%[ ERROR  ]%cRESET% No HMAC secret key provided for lockfile verification ^(CWE-798^).
-    >&2 echo            Set the JVM_LOCK_SECRET environment variable or pass --secret ^<key^> / --key-file ^<file^>.
+    >&2 echo %cRED%[ ERROR  ]%cRESET% No verification key provided for lockfile verification ^(CWE-798^).
+    >&2 echo            Set the JVM_LOCK_SECRET environment variable or pass --key-file ^<file^>.
     if "%OUTPUT_JSON%"=="1" echo {"ok":false,"command":"lock","candidate":"java","resolved":"!TARGET_LOCK_PATH:\=\\!","changed":false,"status":"unverified","lockfile":"!TARGET_LOCK_PATH:\=\\!","error":"Secret key required for verification"}
     exit /b 1
+)
+
+if defined FLAG_SECRET (
+    >&2 echo %cYELLOW%[ WARNING]%cRESET% Passing secrets via --secret on the command line may expose credentials in shell history or process inspection ^(CWE-214^). Prefer --key-file or JVM_LOCK_SECRET.
 )
 
 set "SIG_FILE=!TARGET_LOCK_PATH!.sig"
@@ -14714,19 +15963,88 @@ exit /b !errorlevel!
 ::PS_VerifyLockfileSignature::$ErrorActionPreference = 'Stop';
 ::PS_VerifyLockfileSignature::$lockFile = $env:TARGET_LOCK_PATH;
 ::PS_VerifyLockfileSignature::$sigFile = $env:SIG_FILE;
-::PS_VerifyLockfileSignature::$secret = if ($env:FLAG_SECRET) { $env:FLAG_SECRET } elseif ($env:FLAG_KEY_FILE -and (Test-Path -LiteralPath $env:FLAG_KEY_FILE)) { (Get-Content -LiteralPath $env:FLAG_KEY_FILE -Raw).Trim() } elseif ($env:JVM_LOCK_SECRET) { $env:JVM_LOCK_SECRET } else { throw 'Security violation (CWE-798): No HMAC secret key provided.' };
-::PS_VerifyLockfileSignature::if ([string]::IsNullOrWhiteSpace($secret)) { throw 'Secret key cannot be empty (CWE-798).' };
+::PS_VerifyLockfileSignature::function Test-ConstantTimeHexEqual([string]$a, [string]$b) {
+::PS_VerifyLockfileSignature::    if ($null -eq $a -or $null -eq $b) { return $false };
+::PS_VerifyLockfileSignature::    $ba = [System.Text.Encoding]::ASCII.GetBytes($a.ToLowerInvariant());
+::PS_VerifyLockfileSignature::    $bb = [System.Text.Encoding]::ASCII.GetBytes($b.ToLowerInvariant());
+::PS_VerifyLockfileSignature::    $diff = $ba.Length -bxor $bb.Length;
+::PS_VerifyLockfileSignature::    $len = [math]::Min($ba.Length, $bb.Length);
+::PS_VerifyLockfileSignature::    for ($i = 0; $i -lt $len; $i++) { $diff = $diff -bor ($ba[$i] -bxor $bb[$i]) };
+::PS_VerifyLockfileSignature::    return ($diff -eq 0 -and $ba.Length -gt 0);
+::PS_VerifyLockfileSignature::};
 ::PS_VerifyLockfileSignature::try {
-::PS_VerifyLockfileSignature::    $bytes = [System.IO.File]::ReadAllBytes($lockFile);
-::PS_VerifyLockfileSignature::    $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($secret));
-::PS_VerifyLockfileSignature::    $expected = ($hmac.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') }) -join '';
 ::PS_VerifyLockfileSignature::    $sigData = Get-Content -LiteralPath $sigFile -Raw -Encoding UTF8 | ConvertFrom-Json;
-::PS_VerifyLockfileSignature::    $actual = [string]$sigData.signature;
-::PS_VerifyLockfileSignature::    if ($expected -eq $actual) {
-::PS_VerifyLockfileSignature::        if ($env:OUTPUT_JSON -eq '1') {
-::PS_VerifyLockfileSignature::            [ordered]@{ ok = $true; command = 'lock'; candidate = 'java'; resolved = $lockFile; changed = $false; status = 'verified'; algorithm = 'HMAC-SHA256'; signature = $actual } | ConvertTo-Json;
+::PS_VerifyLockfileSignature::    if (-not $sigData -or $sigData.version -ne 1 -or ($sigData.algorithm -notin @('HMAC-SHA256', 'RSA-SHA256')) -or [string]::IsNullOrWhiteSpace([string]$sigData.signature) -or [string]::IsNullOrWhiteSpace([string]$sigData.timestamp)) {
+::PS_VerifyLockfileSignature::        throw 'Security violation (CWE-347): Invalid or incomplete signature metadata in .jvm.lock.sig.';
+::PS_VerifyLockfileSignature::    };
+::PS_VerifyLockfileSignature::    $parsedTs = [DateTime]::MinValue;
+::PS_VerifyLockfileSignature::    if (-not [DateTime]::TryParse([string]$sigData.timestamp, [ref]$parsedTs)) {
+::PS_VerifyLockfileSignature::        throw 'Security violation (CWE-347): Malformed timestamp in .jvm.lock.sig.';
+::PS_VerifyLockfileSignature::    };
+::PS_VerifyLockfileSignature::    $actual = ([string]$sigData.signature).Trim().ToLowerInvariant();
+::PS_VerifyLockfileSignature::    $bytes = [System.IO.File]::ReadAllBytes($lockFile);
+::PS_VerifyLockfileSignature::    if ($sigData.lockfile_sha256) {
+::PS_VerifyLockfileSignature::        $sha = [System.Security.Cryptography.SHA256]::Create();
+::PS_VerifyLockfileSignature::        $actDigest = ([System.BitConverter]::ToString($sha.ComputeHash($bytes)) -replace '-','').ToLowerInvariant();
+::PS_VerifyLockfileSignature::        $sha.Dispose();
+::PS_VerifyLockfileSignature::        if (-not (Test-ConstantTimeHexEqual $actDigest ([string]$sigData.lockfile_sha256))) {
+::PS_VerifyLockfileSignature::            throw 'Lockfile SHA-256 digest mismatch against signed metadata.';
+::PS_VerifyLockfileSignature::        };
+::PS_VerifyLockfileSignature::    };
+::PS_VerifyLockfileSignature::    $verified = $false;
+::PS_VerifyLockfileSignature::    $expected = '';
+::PS_VerifyLockfileSignature::    if ($env:FLAG_KEY_FILE) {
+::PS_VerifyLockfileSignature::        if (-not (Test-Path -LiteralPath $env:FLAG_KEY_FILE -PathType Leaf)) { throw 'Key file does not exist or is not a regular file.' };
+::PS_VerifyLockfileSignature::        $kfItem = Get-Item -LiteralPath $env:FLAG_KEY_FILE -Force;
+::PS_VerifyLockfileSignature::        $currCheck = $kfItem;
+::PS_VerifyLockfileSignature::        while ($currCheck) {
+::PS_VerifyLockfileSignature::            if ($currCheck.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+::PS_VerifyLockfileSignature::                throw ('Security violation (CWE-59): Key file or parent directory is a reparse point: ' + $currCheck.FullName);
+::PS_VerifyLockfileSignature::            };
+::PS_VerifyLockfileSignature::            $currCheck = if ($currCheck -is [System.IO.FileInfo]) { $currCheck.Directory } else { $currCheck.Parent };
+::PS_VerifyLockfileSignature::        };
+::PS_VerifyLockfileSignature::        if ($kfItem.Length -le 0 -or $kfItem.Length -gt 65536) { throw 'Key file size is out of safe bounds.' };
+::PS_VerifyLockfileSignature::        try {
+::PS_VerifyLockfileSignature::            $acl = Get-Acl -LiteralPath $kfItem.FullName;
+::PS_VerifyLockfileSignature::            foreach ($ace in $acl.Access) {
+::PS_VerifyLockfileSignature::                $idRef = $ace.IdentityReference.Value;
+::PS_VerifyLockfileSignature::                if ($ace.AccessControlType -eq 'Allow' -and ($idRef -match '(?i)(Everyone|ANONYMOUS|Guests)') -and ($ace.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::Write)) {
+::PS_VerifyLockfileSignature::                    throw ('Security violation (CWE-732): Key file has insecure world-writable permissions: ' + $idRef);
+::PS_VerifyLockfileSignature::                };
+::PS_VerifyLockfileSignature::            };
+::PS_VerifyLockfileSignature::        } catch { if ($_.Exception.Message -like 'Security violation*') { throw } };
+::PS_VerifyLockfileSignature::        $keyRaw = (Get-Content -LiteralPath $kfItem.FullName -Raw -Encoding UTF8).Trim();
+::PS_VerifyLockfileSignature::        if ($sigData.algorithm -eq 'RSA-SHA256') {
+::PS_VerifyLockfileSignature::            if ($actual -notmatch '^[0-9a-f]{128,1024}$') { throw 'Malformed RSA signature hex.' };
+::PS_VerifyLockfileSignature::            $sigBytes = New-Object byte[] ($actual.Length / 2);
+::PS_VerifyLockfileSignature::            for ($i = 0; $i -lt $sigBytes.Length; $i++) { $sigBytes[$i] = [Convert]::ToByte($actual.Substring($i * 2, 2), 16) };
+::PS_VerifyLockfileSignature::            $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider;
+::PS_VerifyLockfileSignature::            $rsa.FromXmlString($keyRaw);
+::PS_VerifyLockfileSignature::            $verified = $rsa.VerifyData($bytes, [System.Security.Cryptography.CryptoConfig]::MapNameToOID('SHA256'), $sigBytes);
+::PS_VerifyLockfileSignature::            $rsa.Dispose();
 ::PS_VerifyLockfileSignature::        } else {
-::PS_VerifyLockfileSignature::            Write-Host ('[   OK   ] Lockfile cryptographic signature verified (HMAC-SHA256: ' + $actual.Substring(0, 16) + '...)') -ForegroundColor Green;
+::PS_VerifyLockfileSignature::            $secret = $keyRaw;
+::PS_VerifyLockfileSignature::        };
+::PS_VerifyLockfileSignature::    } elseif ($env:JVM_LOCK_SECRET) {
+::PS_VerifyLockfileSignature::        $secret = $env:JVM_LOCK_SECRET;
+::PS_VerifyLockfileSignature::    } elseif ($env:FLAG_SECRET) {
+::PS_VerifyLockfileSignature::        $secret = $env:FLAG_SECRET;
+::PS_VerifyLockfileSignature::    } else {
+::PS_VerifyLockfileSignature::        throw 'Security violation (CWE-798): No verification key provided.';
+::PS_VerifyLockfileSignature::    };
+::PS_VerifyLockfileSignature::    if ($sigData.algorithm -eq 'HMAC-SHA256') {
+::PS_VerifyLockfileSignature::        if ([string]::IsNullOrWhiteSpace($secret)) { throw 'Secret key cannot be empty (CWE-798).' };
+::PS_VerifyLockfileSignature::        if ($actual -notmatch '^[0-9a-f]{64}$') { throw 'Security violation (CWE-347): Signature does not match expected HMAC-SHA256 hex length.' };
+::PS_VerifyLockfileSignature::        $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($secret));
+::PS_VerifyLockfileSignature::        $expected = (($hmac.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') }) -join '').ToLowerInvariant();
+::PS_VerifyLockfileSignature::        $hmac.Dispose();
+::PS_VerifyLockfileSignature::        $verified = Test-ConstantTimeHexEqual $expected $actual;
+::PS_VerifyLockfileSignature::    };
+::PS_VerifyLockfileSignature::    if ($verified) {
+::PS_VerifyLockfileSignature::        if ($env:OUTPUT_JSON -eq '1') {
+::PS_VerifyLockfileSignature::            [ordered]@{ ok = $true; command = 'lock'; candidate = 'java'; resolved = $lockFile; changed = $false; status = 'verified'; version = $sigData.version; algorithm = $sigData.algorithm; signature = $actual } | ConvertTo-Json;
+::PS_VerifyLockfileSignature::        } else {
+::PS_VerifyLockfileSignature::            Write-Host ('[   OK   ] Lockfile cryptographic signature verified (' + $sigData.algorithm + ': ' + $actual.Substring(0, 16) + '...)') -ForegroundColor Green;
 ::PS_VerifyLockfileSignature::        };
 ::PS_VerifyLockfileSignature::        exit 0;
 ::PS_VerifyLockfileSignature::    } else {
@@ -14734,14 +16052,17 @@ exit /b !errorlevel!
 ::PS_VerifyLockfileSignature::            [ordered]@{ ok = $false; command = 'lock'; candidate = 'java'; resolved = $lockFile; changed = $false; status = 'invalid'; error = 'HMAC signature mismatch (tampering detected)'; expected = $expected; actual = $actual } | ConvertTo-Json;
 ::PS_VerifyLockfileSignature::        } else {
 ::PS_VerifyLockfileSignature::            Write-Host '[ FAIL ] Lockfile signature mismatch! Tampering detected (CWE-353 / CWE-494).' -ForegroundColor Red;
-::PS_VerifyLockfileSignature::            Write-Host ('  Expected: ' + $expected) -ForegroundColor Yellow;
+::PS_VerifyLockfileSignature::            if ($expected) { Write-Host ('  Expected: ' + $expected) -ForegroundColor Yellow };
 ::PS_VerifyLockfileSignature::            Write-Host ('  Found:    ' + $actual) -ForegroundColor Yellow;
 ::PS_VerifyLockfileSignature::        };
 ::PS_VerifyLockfileSignature::        exit 1;
 ::PS_VerifyLockfileSignature::    };
 ::PS_VerifyLockfileSignature::} catch {
-::PS_VerifyLockfileSignature::    Write-Verbose $_.Exception.Message;
-::PS_VerifyLockfileSignature::    Write-Error ('Signature verification failed: ' + $_.Exception.Message);
+::PS_VerifyLockfileSignature::    if ($env:OUTPUT_JSON -eq '1') {
+::PS_VerifyLockfileSignature::        [ordered]@{ ok = $false; command = 'lock'; candidate = 'java'; resolved = $lockFile; changed = $false; status = 'invalid'; error = $_.Exception.Message } | ConvertTo-Json -Compress;
+::PS_VerifyLockfileSignature::    } else {
+::PS_VerifyLockfileSignature::        Write-Error ('Signature verification failed: ' + $_.Exception.Message);
+::PS_VerifyLockfileSignature::    };
 ::PS_VerifyLockfileSignature::    exit 1;
 ::PS_VerifyLockfileSignature::}
 
@@ -14750,13 +16071,49 @@ rem CMD DOSKEY MACROS & ERGONOMICS (jvm aliases / jvm hook cmd)
 rem ============================================================
 :ExecuteAliasesCommand
 set "ALIAS_INSTALL=0"
-if /i "%~2"=="--install" set "ALIAS_INSTALL=1"
-if /i "%~3"=="--install" set "ALIAS_INSTALL=1"
-if /i "%~1"=="hook" if /i "%~2"=="cmd" if /i "%~3"=="--install" set "ALIAS_INSTALL=1"
+set "ALIAS_REMOVE=0"
+for %%A in (%*) do (
+    if /i "%%~A"=="--install" set "ALIAS_INSTALL=1"
+    if /i "%%~A"=="--uninstall" set "ALIAS_REMOVE=1"
+    if /i "%%~A"=="--remove" set "ALIAS_REMOVE=1"
+    if /i "%%~A"=="remove" set "ALIAS_REMOVE=1"
+    if /i "%%~A"=="uninstall" set "ALIAS_REMOVE=1"
+)
 
-set "ALIAS_FILE=%LOCALAPPDATA%\DiamTek\JVM\jvm_aliases.cmd"
+set "ALIAS_FILE=!JVM_DIR!\jvm_aliases.cmd"
 
-if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM" >nul 2>&1
+if not exist "!JVM_DIR!" mkdir "!JVM_DIR!" >nul 2>&1
+
+if "!ALIAS_REMOVE!"=="1" (
+    "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+        "$ErrorActionPreference = 'Stop';" ^
+        "$aliasPath = $env:ALIAS_FILE;" ^
+        "$regPath = 'HKCU:\Software\Microsoft\Command Processor';" ^
+        "if (Test-Path -LiteralPath $regPath) {" ^
+        "    $cur = (Get-ItemProperty -LiteralPath $regPath -Name 'AutoRun' -ErrorAction SilentlyContinue).AutoRun;" ^
+        "    if ($null -ne $cur) {" ^
+        "        $esc = [regex]::Escape($aliasPath);" ^
+        "        $updated = $cur -replace ('(?i)\s*&\s*if\s+exist\s+\x22?' + $esc + '\x22?\s+call\s+\x22?' + $esc + '\x22?'), '';" ^
+        "        $updated = $updated -replace ('(?i)if\s+exist\s+\x22?' + $esc + '\x22?\s+call\s+\x22?' + $esc + '\x22?\s*&\s*'), '';" ^
+        "        $updated = $updated -replace ('(?i)^\s*if\s+exist\s+\x22?' + $esc + '\x22?\s+call\s+\x22?' + $esc + '\x22?\s*$'), '';" ^
+        "        $updated = $updated -replace ('(?i)\s*&\s*\x22?' + $esc + '\x22?'), '';" ^
+        "        $updated = $updated -replace ('(?i)\x22?' + $esc + '\x22?\s*&\s*'), '';" ^
+        "        $updated = $updated -replace ('(?i)^\s*\x22?' + $esc + '\x22?\s*$'), '';" ^
+        "        $updated = $updated.Trim();" ^
+        "        if ([string]::IsNullOrWhiteSpace($updated)) {" ^
+        "            Remove-ItemProperty -LiteralPath $regPath -Name 'AutoRun' -ErrorAction SilentlyContinue;" ^
+        "        } else {" ^
+        "            Set-ItemProperty -LiteralPath $regPath -Name 'AutoRun' -Value $updated -Type String;" ^
+        "        };" ^
+        "    };" ^
+        "}"
+    if errorlevel 1 (
+        >&2 echo %cRED%[ ERROR  ]%cRESET% Failed to remove JVM hook from Command Processor AutoRun.
+        exit /b 1
+    )
+    echo %cGREEN%[   OK   ]%cRESET% Removed JVM DOSKEY hook from Command Prompt AutoRun ^(preserved any pre-existing user commands^).
+    exit /b 0
+)
 
 if exist "!ALIAS_FILE!" (
     "%FSUTIL_BIN%" reparsepoint query "!ALIAS_FILE!" >nul 2>&1
@@ -14769,6 +16126,10 @@ if exist "!ALIAS_FILE!" (
 (
     echo @echo off
     echo rem DiamTek JVM - Command Prompt DOSKEY Macro Aliases
+    echo rem Note: cmd.exe does not support automatic directory-change hooks; run 'jauto' in a project folder to sync its pinned JDK.
+    echo doskey jauto=jvm --session $*
+    echo doskey jinit=jvm init $*
+    echo doskey joutdated=jvm outdated $*
     echo doskey juse=jvm use $*
     echo doskey jstatus=jvm status $*
     echo doskey jproj=jvm project $*
@@ -14780,12 +16141,25 @@ if exist "!ALIAS_FILE!" (
 ) > "!ALIAS_FILE!"
 
 if !ALIAS_INSTALL! EQU 1 (
-    "%REG_BIN%" add "HKCU\Software\Microsoft\Command Processor" /v AutoRun /t REG_SZ /d "\"!ALIAS_FILE!\"" /f >nul 2>&1
+    "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
+        "$ErrorActionPreference = 'Stop';" ^
+        "$aliasPath = $env:ALIAS_FILE;" ^
+        "$hookSnippet = 'if exist ""' + $aliasPath + '"" call ""' + $aliasPath + '""';" ^
+        "$regPath = 'HKCU:\Software\Microsoft\Command Processor';" ^
+        "if (-not (Test-Path -LiteralPath $regPath)) { New-Item -Path $regPath -Force | Out-Null };" ^
+        "$cur = (Get-ItemProperty -LiteralPath $regPath -Name 'AutoRun' -ErrorAction SilentlyContinue).AutoRun;" ^
+        "if ([string]::IsNullOrWhiteSpace($cur)) {" ^
+        "    Set-ItemProperty -LiteralPath $regPath -Name 'AutoRun' -Value $hookSnippet -Type String;" ^
+        "} elseif ($cur.IndexOf($aliasPath, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {" ^
+        "    $newVal = $cur.Trim() + ' & ' + $hookSnippet;" ^
+        "    Set-ItemProperty -LiteralPath $regPath -Name 'AutoRun' -Value $newVal -Type String;" ^
+        "}"
     if not errorlevel 1 (
-        echo %cGREEN%[   OK   ]%cRESET% DOSKEY aliases successfully installed to Command Prompt AutoRun.
+        echo %cGREEN%[   OK   ]%cRESET% DOSKEY aliases successfully installed to Command Prompt AutoRun ^(preserving pre-existing AutoRun commands^).
         echo            Aliases will now load automatically in every new cmd.exe window.
     ) else (
         echo %cYELLOW%[ WARN   ]%cRESET% Failed to register AutoRun key in HKCU.
+        exit /b 1
     )
 ) else (
     echo %cGREEN%[   OK   ]%cRESET% Generated CMD DOSKEY aliases at: !ALIAS_FILE!
@@ -14795,6 +16169,8 @@ if !ALIAS_INSTALL! EQU 1 (
     echo.
     echo To load automatically in every new Command Prompt session, run:
     echo   jvm aliases --install
+    echo To remove from Command Prompt AutoRun while preserving existing commands, run:
+    echo   jvm aliases --uninstall
 )
 exit /b 0
 
@@ -15366,7 +16742,7 @@ if not errorlevel 1 (
 )
 
 if "!FLAG_DRY_RUN!"=="1" (
-    echo %cBLUE%[ DRY-RUN ]%cRESET% Simulated restoration of toolchain snapshot from: !TARGET_SNAP_FILE!
+    if not "!OUTPUT_JSON!"=="1" echo %cBLUE%[ DRY-RUN ]%cRESET% Simulated restoration of toolchain snapshot from: !TARGET_SNAP_FILE!
     if "!OUTPUT_JSON!"=="1" echo {"ok":true,"command":"snapshot","candidate":"java","resolved":"!SNAP_TARGET!","changed":false,"status":"dry-run"}
     exit /b 0
 )
@@ -15485,32 +16861,47 @@ rem ============================================================
 rem PORTABLE ENVIRONMENT BUNDLES (jvm bundle)
 rem ============================================================
 :ExecuteBundleCommand
-set "BUNDLE_ACTION=%~2"
-set "BUNDLE_TARGET=%~3"
-set "BUNDLE_EXTRA=%~4"
-
-if not defined BUNDLE_ACTION set "BUNDLE_ACTION=list"
-if /i "%BUNDLE_ACTION%"=="--json" (
-    set "BUNDLE_ACTION=list"
+set "BUNDLE_ACTION="
+set "BUNDLE_TARGET="
+:BUNDLE_ARG_LOOP
+if "%~1"=="" goto :BUNDLE_ARG_DONE
+if /i "%~1"=="bundle" (
+    shift
+    goto :BUNDLE_ARG_LOOP
+)
+if /i "%~1"=="--json" (
     set "OUTPUT_JSON=1"
+    shift
+    goto :BUNDLE_ARG_LOOP
 )
-if /i "%BUNDLE_ACTION%"=="--dry-run" (
-    set "BUNDLE_ACTION=list"
+if /i "%~1"=="--dry-run" (
     set "FLAG_DRY_RUN=1"
+    shift
+    goto :BUNDLE_ARG_LOOP
 )
-if /i "%BUNDLE_TARGET%"=="--json" set "OUTPUT_JSON=1"
-if /i "%BUNDLE_TARGET%"=="--dry-run" set "FLAG_DRY_RUN=1"
-if /i "%BUNDLE_EXTRA%"=="--json" set "OUTPUT_JSON=1"
-if /i "%BUNDLE_EXTRA%"=="--dry-run" set "FLAG_DRY_RUN=1"
+if not defined BUNDLE_ACTION (
+    set "BUNDLE_ACTION=%~1"
+    shift
+    goto :BUNDLE_ARG_LOOP
+)
+if not defined BUNDLE_TARGET (
+    set "BUNDLE_TARGET=%~1"
+    shift
+    goto :BUNDLE_ARG_LOOP
+)
+shift
+goto :BUNDLE_ARG_LOOP
 
+:BUNDLE_ARG_DONE
+if not defined BUNDLE_ACTION set "BUNDLE_ACTION=list"
 if /i "%BUNDLE_ACTION%"=="ls" set "BUNDLE_ACTION=list"
 if /i "%BUNDLE_ACTION%"=="restore" set "BUNDLE_ACTION=install"
 
-set "BUNDLES_ROOT=%LOCALAPPDATA%\DiamTek\JVM\bundles"
-if not exist "%LOCALAPPDATA%\DiamTek\JVM" mkdir "%LOCALAPPDATA%\DiamTek\JVM" >nul 2>&1
-if not exist "%BUNDLES_ROOT%" mkdir "%BUNDLES_ROOT%" >nul 2>&1
+set "BUNDLES_ROOT=!JVM_DIR!\bundles"
+if not exist "!JVM_DIR!" mkdir "!JVM_DIR!" >nul 2>&1
+if not exist "!BUNDLES_ROOT!" mkdir "!BUNDLES_ROOT!" >nul 2>&1
 
-"%FSUTIL_BIN%" reparsepoint query "%BUNDLES_ROOT%" >nul 2>&1
+"%FSUTIL_BIN%" reparsepoint query "!BUNDLES_ROOT!" >nul 2>&1
 if not errorlevel 1 (
     >&2 echo %cRED%[ ERROR  ]%cRESET% Security violation ^(CWE-59^): Bundles directory is a reparse point.
     exit /b 1
@@ -15528,32 +16919,38 @@ exit /b 1
 :BundleList
 "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
     "$ErrorActionPreference = 'Stop';" ^
-    "$dirs = @((Get-Location).Path, $env:BUNDLES_ROOT);" ^
-    "$bundles = [System.Collections.Generic.List[object]]::new();" ^
-    "foreach ($d in $dirs) {" ^
-    "    if (Test-Path -LiteralPath $d) {" ^
-    "        Get-ChildItem -LiteralPath $d -Filter '*.jvmbundle' -File -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 } | ForEach-Object {" ^
-    "            $mb = [math]::Round($_.Length / 1MB, 2);" ^
-    "            $bundles.Add([ordered]@{ name = $_.Name; path = $_.FullName; size_mb = $mb; created_at = $_.CreationTime.ToUniversalTime().ToString('o') });" ^
+    "try {" ^
+    "    $dirs = @((Get-Location).Path, $env:BUNDLES_ROOT);" ^
+    "    $bundles = [System.Collections.Generic.List[object]]::new();" ^
+    "    foreach ($d in $dirs) {" ^
+    "        if ($d -and (Test-Path -LiteralPath $d)) {" ^
+    "            Get-ChildItem -LiteralPath $d -Filter '*.jvmbundle' -File -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 } | ForEach-Object {" ^
+    "                $mb = [math]::Round($_.Length / 1MB, 2);" ^
+    "                $bundles.Add([ordered]@{ name = $_.Name; path = $_.FullName; size_mb = $mb; created_at = $_.CreationTime.ToUniversalTime().ToString('o') });" ^
+    "            };" ^
     "        };" ^
     "    };" ^
-    "};" ^
-    "if ($env:OUTPUT_JSON -eq '1') {" ^
-    "    [ordered]@{ ok = $true; command = 'bundle'; candidate = 'java'; resolved = $null; changed = $false; bundles = @($bundles) } | ConvertTo-Json -Depth 4;" ^
-    "} else {" ^
-    "    Write-Host '';" ^
-    "    Write-Host '[  INFO  ] Discovered Portable Toolchain Bundles (.jvmbundle):' -ForegroundColor Cyan;" ^
-    "    Write-Host '============================================================' -ForegroundColor DarkGray;" ^
-    "    if ($bundles.Count -eq 0) {" ^
-    "        Write-Host '  No bundles discovered. Create one using: jvm bundle create <file>' -ForegroundColor Yellow;" ^
+    "    if ($env:OUTPUT_JSON -eq '1') {" ^
+    "        [ordered]@{ ok = $true; command = 'bundle'; candidate = 'java'; resolved = $null; changed = $false; bundles = @($bundles) } | ConvertTo-Json -Depth 4;" ^
     "    } else {" ^
-    "        foreach ($b in $bundles) {" ^
-    "            Write-Host ('  - ' + $b.name.PadRight(30) + ' ' + ('' + $b.size_mb + ' MB').PadRight(12) + ' ' + $b.path) -ForegroundColor White;" ^
+    "        Write-Host '';" ^
+    "        Write-Host '[  INFO  ] Discovered Portable Toolchain Bundles (.jvmbundle):' -ForegroundColor Cyan;" ^
+    "        Write-Host '================================================================================' -ForegroundColor DarkGray;" ^
+    "        if ($bundles.Count -eq 0) {" ^
+    "            Write-Host '  No bundles discovered. Create one using: jvm bundle create <file>' -ForegroundColor Yellow;" ^
+    "        } else {" ^
+    "            foreach ($b in $bundles) {" ^
+    "                Write-Host ('  - ' + $b.name.PadRight(30) + ' ' + ('' + $b.size_mb + ' MB').PadRight(12) + ' ' + $b.path) -ForegroundColor White;" ^
+    "            };" ^
     "        };" ^
+    "        Write-Host '================================================================================' -ForegroundColor DarkGray;" ^
     "    };" ^
-    "    Write-Host '============================================================' -ForegroundColor DarkGray;" ^
+    "    exit 0;" ^
+    "} catch {" ^
+    "    if ($env:OUTPUT_JSON -eq '1') { [ordered]@{ ok = $false; command = 'bundle'; candidate = 'java'; resolved = $null; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress };" ^
+    "    exit 1;" ^
     "}"
-exit /b 0
+exit /b !errorlevel!
 
 :BundleCreate
 set "BUNDLE_DEST=%BUNDLE_TARGET%"
@@ -15561,108 +16958,226 @@ if defined FLAG_OUT set "BUNDLE_DEST=%FLAG_OUT%"
 if not defined BUNDLE_DEST set "BUNDLE_DEST=.\environment.jvmbundle"
 
 if "!FLAG_DRY_RUN!"=="1" (
-    echo %cBLUE%[ DRY-RUN ]%cRESET% Would package current toolchains and lockfile into bundle: !BUNDLE_DEST!
-    if "!OUTPUT_JSON!"=="1" echo {"ok":true,"command":"bundle","candidate":"java","resolved":"!BUNDLE_DEST!","changed":false,"status":"dry-run"}
-    exit /b 0
+    "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_BundleCreatePlan::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))"
+    exit /b !errorlevel!
 )
 
-"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$ErrorActionPreference = 'Stop';" ^
-    "Add-Type -AssemblyName System.IO.Compression.FileSystem;" ^
-    "$dest = $env:BUNDLE_DEST;" ^
-    "$stage = Join-Path $env:TEMP ('jvm_bundle_stage_' + [Guid]::NewGuid().ToString('N'));" ^
-    "try {" ^
-    "    New-Item -ItemType Directory -Path $stage -Force | Out-Null;" ^
-    "    $jHome = $env:JAVA_HOME;" ^
-    "    $jVer = if ($env:CURR_JAVA_VER) { $env:CURR_JAVA_VER } else { '21' };" ^
-    "    $jVend = if ($env:CURR_JAVA_VENDOR) { $env:CURR_JAVA_VENDOR } else { 'Adoptium' };" ^
-    "    $tools = [ordered]@{ 'java' = [ordered]@{ version = $jVer; vendor = $jVend } };" ^
-    "    $payloadDir = Join-Path $stage 'payloads';" ^
-    "    $payloadEntries = [ordered]@{};" ^
-    "    $pCreated = $false;" ^
-    "    $jLink = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\current';" ^
-    "    $jPath = if (Test-Path -LiteralPath $jLink) { (Get-Item -LiteralPath $jLink -Force -ErrorAction SilentlyContinue).Target } else { $null };" ^
-    "    if ($jPath -is [array]) { $jPath = $jPath[0] };" ^
-    "    if ($jPath) { $jPath = ([string]$jPath) -replace '^(\\\?\\|\\\?\?\\)', '' };" ^
-    "    if (-not $jPath -and $jHome -and (Test-Path -LiteralPath $jHome)) { $jPath = $jHome };" ^
-    "    if ($jPath -and (Test-Path -LiteralPath $jPath)) {" ^
-    "        $jPath = (Resolve-Path -LiteralPath $jPath).Path.TrimEnd('\', '/');" ^
-    "        if (-not $pCreated) { New-Item -ItemType Directory -Path $payloadDir -Force | Out-Null; $pCreated = $true };" ^
-    "        $javaPayload = Join-Path $payloadDir 'java';" ^
-    "        New-Item -ItemType Directory -Path $javaPayload -Force | Out-Null;" ^
-    "        Get-ChildItem -LiteralPath $jPath -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 } | ForEach-Object {" ^
-    "            $rel = $_.FullName.Substring($jPath.Length).TrimStart('\', '/');" ^
-    "            $tgt = Join-Path $javaPayload $rel;" ^
-    "            if ($_.PSIsContainer) { if (-not (Test-Path -LiteralPath $tgt)) { New-Item -ItemType Directory -Path $tgt -Force | Out-Null } } else { $p = Split-Path $tgt -Parent; if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }; Copy-Item -LiteralPath $_.FullName -Destination $tgt -Force };" ^
-    "        };" ^
-    "        $payloadEntries['java'] = [ordered]@{ path = 'payloads/java'; version = $jVer; vendor = $jVend };" ^
-    "    };" ^
-    "    $cRoot = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\candidates';" ^
-    "    if (Test-Path -LiteralPath $cRoot) {" ^
-    "        Get-ChildItem -LiteralPath $cRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {" ^
-    "            $cName = $_.Name;" ^
-    "            $curLink = Join-Path $_.FullName 'current';" ^
-    "            if (Test-Path -LiteralPath $curLink) {" ^
-    "                $cTarget = (Get-Item -LiteralPath $curLink -Force -ErrorAction SilentlyContinue).Target;" ^
-    "                if ($cTarget -is [array]) { $cTarget = $cTarget[0] };" ^
-    "                if ($cTarget) { $cTarget = ([string]$cTarget) -replace '^(\\\?\\|\\\?\?\\)', '' };" ^
-    "                if ($cTarget -and (Test-Path -LiteralPath $cTarget)) {" ^
-    "                    $cTarget = (Resolve-Path -LiteralPath $cTarget).Path.TrimEnd('\', '/');" ^
-    "                    if (-not $pCreated) { New-Item -ItemType Directory -Path $payloadDir -Force | Out-Null; $pCreated = $true };" ^
-    "                    $cDest = Join-Path $payloadDir $cName;" ^
-    "                    New-Item -ItemType Directory -Path $cDest -Force | Out-Null;" ^
-    "                    Get-ChildItem -LiteralPath $cTarget -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 } | ForEach-Object {" ^
-    "                        $rel = $_.FullName.Substring($cTarget.Length).TrimStart('\', '/');" ^
-    "                        $tgt = Join-Path $cDest $rel;" ^
-    "                        if ($_.PSIsContainer) { if (-not (Test-Path -LiteralPath $tgt)) { New-Item -ItemType Directory -Path $tgt -Force | Out-Null } } else { $p = Split-Path $tgt -Parent; if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }; Copy-Item -LiteralPath $_.FullName -Destination $tgt -Force };" ^
-    "                    };" ^
-    "                    $cVer = Split-Path $cTarget -Leaf;" ^
-    "                    $tools[$cName] = [ordered]@{ version = $cVer };" ^
-    "                    $payloadEntries[$cName] = [ordered]@{ path = ('payloads/' + $cName); version = $cVer };" ^
-    "                };" ^
-    "            };" ^
-    "        };" ^
-    "    };" ^
-    "    $lockSrc = Join-Path (Get-Location).Path '.jvm.lock';" ^
-    "    if (Test-Path -LiteralPath $lockSrc) {" ^
-    "        Copy-Item -LiteralPath $lockSrc -Destination (Join-Path $stage '.jvm.lock') -Force;" ^
-    "    } else {" ^
-    "        $genLock = [ordered]@{ version = 1; platform = 'windows-x64'; tools = $tools } | ConvertTo-Json;" ^
-    "        [System.IO.File]::WriteAllText((Join-Path $stage '.jvm.lock'), $genLock, [System.Text.UTF8Encoding]::new($false));" ^
-    "    };" ^
-    "    $manifest = [ordered]@{" ^
-    "        bundle_format = '2.0';" ^
-    "        bundle_type = 'portable-toolchain-container';" ^
-    "        bundle_id = [Guid]::NewGuid().ToString('N');" ^
-    "        created_at = (Get-Date).ToUniversalTime().ToString('o');" ^
-    "        platform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' };" ^
-    "        tools = $tools;" ^
-    "        payloads = $payloadEntries;" ^
-    "    };" ^
-    "    $manJson = $manifest | ConvertTo-Json -Depth 5;" ^
-    "    [System.IO.File]::WriteAllText((Join-Path $stage 'manifest.json'), $manJson, [System.Text.UTF8Encoding]::new($false));" ^
-    "    $fullDest = [System.IO.Path]::GetFullPath($dest);" ^
-    "    $destDir = Split-Path $fullDest -Parent;" ^
-    "    if ($destDir -and -not (Test-Path -LiteralPath $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null };" ^
-    "    if (Test-Path -LiteralPath $fullDest) { Remove-Item -LiteralPath $fullDest -Force };" ^
-    "    [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $fullDest);" ^
-    "    if ($env:OUTPUT_JSON -eq '1') {" ^
-    "        [ordered]@{ ok = $true; command = 'bundle'; candidate = 'java'; resolved = $fullDest; changed = $true; status = 'created'; bundle_file = $fullDest; manifest = $manifest } | ConvertTo-Json -Depth 5;" ^
-    "    } else {" ^
-    "        Write-Host ('[   OK   ] Portable toolchain bundle created: ' + $fullDest) -ForegroundColor Green;" ^
-    "        if ($payloadEntries.Keys.Count -gt 0) {" ^
-    "            Write-Host ('         Packaged toolchain payloads: ' + [string]::Join(', ', $payloadEntries.Keys)) -ForegroundColor Cyan;" ^
-    "        } else {" ^
-    "            Write-Host '         Packaged lockfile & manifest (lockfile-transfer mode)' -ForegroundColor DarkGray;" ^
-    "        };" ^
-    "    };" ^
-    "} catch {" ^
-    "    Write-Host ('[ ERROR  ] Failed to create bundle: ' + $_.Exception.Message) -ForegroundColor Red;" ^
-    "    exit 1;" ^
-    "} finally {" ^
-    "    if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue };" ^
-    "}"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_BundleCreateBody::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))"
 exit /b !errorlevel!
+
+::PS_BundleCreateBody::$ErrorActionPreference = 'Stop';
+::PS_BundleCreateBody::Add-Type -AssemblyName System.IO.Compression.FileSystem;
+::PS_BundleCreateBody::$dest = $env:BUNDLE_DEST;
+::PS_BundleCreateBody::$jvmRoot = if ($env:JVM_DIR) { $env:JVM_DIR } else { Join-Path $env:LOCALAPPDATA 'DiamTek\JVM' };
+::PS_BundleCreateBody::$stage = Join-Path $env:JVM_SECURE_TEMP ('jvm_bundle_stage_' + [Guid]::NewGuid().ToString('N'));
+::PS_BundleCreateBody::try {
+::PS_BundleCreateBody::    New-Item -ItemType Directory -Path $stage -Force | Out-Null;
+::PS_BundleCreateBody::    $jHome = $env:JAVA_HOME;
+::PS_BundleCreateBody::    $jVer = if ($env:CURR_JAVA_VER) { $env:CURR_JAVA_VER } else { '21' };
+::PS_BundleCreateBody::    $jVend = if ($env:CURR_JAVA_VENDOR) { $env:CURR_JAVA_VENDOR } else { 'Adoptium' };
+::PS_BundleCreateBody::    $tools = [ordered]@{ 'java' = [ordered]@{ version = $jVer; vendor = $jVend } };
+::PS_BundleCreateBody::    $payloadDir = Join-Path $stage 'payloads';
+::PS_BundleCreateBody::    $payloadEntries = [ordered]@{};
+::PS_BundleCreateBody::    $payloadHashes = [ordered]@{};
+::PS_BundleCreateBody::    $pCreated = $false;
+::PS_BundleCreateBody::    $sha = [System.Security.Cryptography.SHA256]::Create();
+::PS_BundleCreateBody::    $jLink = Join-Path $jvmRoot 'current';
+::PS_BundleCreateBody::    $jPath = if (Test-Path -LiteralPath $jLink) { (Get-Item -LiteralPath $jLink -Force -ErrorAction SilentlyContinue).Target } else { $null };
+::PS_BundleCreateBody::    if ($jPath -is [array]) { $jPath = $jPath[0] };
+::PS_BundleCreateBody::    if ($jPath) { $jPath = ([string]$jPath) -replace '^(\\\?\\|\\\?\?\\)', '' };
+::PS_BundleCreateBody::    if (-not $jPath -and $jHome -and (Test-Path -LiteralPath $jHome)) { $jPath = $jHome };
+::PS_BundleCreateBody::    if ($jPath -and (Test-Path -LiteralPath $jPath)) {
+::PS_BundleCreateBody::        $jPath = (Resolve-Path -LiteralPath $jPath).Path.TrimEnd('\', '/');
+::PS_BundleCreateBody::        if (-not $pCreated) { New-Item -ItemType Directory -Path $payloadDir -Force | Out-Null; $pCreated = $true };
+::PS_BundleCreateBody::        $javaPayload = Join-Path $payloadDir 'java';
+::PS_BundleCreateBody::        New-Item -ItemType Directory -Path $javaPayload -Force | Out-Null;
+::PS_BundleCreateBody::        $jFileCount = 0;
+::PS_BundleCreateBody::        Get-ChildItem -LiteralPath $jPath -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 } | ForEach-Object {
+::PS_BundleCreateBody::            $rel = $_.FullName.Substring($jPath.Length).TrimStart('\', '/');
+::PS_BundleCreateBody::            $tgt = Join-Path $javaPayload $rel;
+::PS_BundleCreateBody::            if ($_.PSIsContainer) { if (-not (Test-Path -LiteralPath $tgt)) { New-Item -ItemType Directory -Path $tgt -Force | Out-Null } } else {
+::PS_BundleCreateBody::                $p = Split-Path $tgt -Parent; if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null };
+::PS_BundleCreateBody::                Copy-Item -LiteralPath $_.FullName -Destination $tgt -Force;
+::PS_BundleCreateBody::                $fs = [System.IO.File]::OpenRead($tgt); $h = try { ([System.BitConverter]::ToString($sha.ComputeHash($fs)) -replace '-','').ToLowerInvariant() } finally { $fs.Close(); $fs.Dispose() };
+::PS_BundleCreateBody::                $relKey = ('payloads/java/' + ($rel -replace '\\','/'));
+::PS_BundleCreateBody::                $payloadHashes[$relKey] = ('sha256:' + $h);
+::PS_BundleCreateBody::                $jFileCount++;
+::PS_BundleCreateBody::            };
+::PS_BundleCreateBody::        };
+::PS_BundleCreateBody::        $payloadEntries['java'] = [ordered]@{ path = 'payloads/java'; version = $jVer; vendor = $jVend; file_count = $jFileCount };
+::PS_BundleCreateBody::    };
+::PS_BundleCreateBody::    $cRoot = Join-Path $jvmRoot 'candidates';
+::PS_BundleCreateBody::    if (Test-Path -LiteralPath $cRoot) {
+::PS_BundleCreateBody::        Get-ChildItem -LiteralPath $cRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+::PS_BundleCreateBody::            $cName = $_.Name;
+::PS_BundleCreateBody::            $curLink = Join-Path $_.FullName 'current';
+::PS_BundleCreateBody::            if (Test-Path -LiteralPath $curLink) {
+::PS_BundleCreateBody::                $cTarget = (Get-Item -LiteralPath $curLink -Force -ErrorAction SilentlyContinue).Target;
+::PS_BundleCreateBody::                if ($cTarget -is [array]) { $cTarget = $cTarget[0] };
+::PS_BundleCreateBody::                if ($cTarget) { $cTarget = ([string]$cTarget) -replace '^(\\\?\\|\\\?\?\\)', '' };
+::PS_BundleCreateBody::                if ($cTarget -and (Test-Path -LiteralPath $cTarget)) {
+::PS_BundleCreateBody::                    $cTarget = (Resolve-Path -LiteralPath $cTarget).Path.TrimEnd('\', '/');
+::PS_BundleCreateBody::                    if (-not $pCreated) { New-Item -ItemType Directory -Path $payloadDir -Force | Out-Null; $pCreated = $true };
+::PS_BundleCreateBody::                    $cDest = Join-Path $payloadDir $cName;
+::PS_BundleCreateBody::                    New-Item -ItemType Directory -Path $cDest -Force | Out-Null;
+::PS_BundleCreateBody::                    $cFileCount = 0;
+::PS_BundleCreateBody::                    Get-ChildItem -LiteralPath $cTarget -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 } | ForEach-Object {
+::PS_BundleCreateBody::                        $rel = $_.FullName.Substring($cTarget.Length).TrimStart('\', '/');
+::PS_BundleCreateBody::                        $tgt = Join-Path $cDest $rel;
+::PS_BundleCreateBody::                        if ($_.PSIsContainer) { if (-not (Test-Path -LiteralPath $tgt)) { New-Item -ItemType Directory -Path $tgt -Force | Out-Null } } else {
+::PS_BundleCreateBody::                            $p = Split-Path $tgt -Parent; if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null };
+::PS_BundleCreateBody::                            Copy-Item -LiteralPath $_.FullName -Destination $tgt -Force;
+::PS_BundleCreateBody::                            $fs = [System.IO.File]::OpenRead($tgt); $h = try { ([System.BitConverter]::ToString($sha.ComputeHash($fs)) -replace '-','').ToLowerInvariant() } finally { $fs.Close(); $fs.Dispose() };
+::PS_BundleCreateBody::                            $relKey = ('payloads/' + $cName + '/' + ($rel -replace '\\','/'));
+::PS_BundleCreateBody::                            $payloadHashes[$relKey] = ('sha256:' + $h);
+::PS_BundleCreateBody::                            $cFileCount++;
+::PS_BundleCreateBody::                        };
+::PS_BundleCreateBody::                    };
+::PS_BundleCreateBody::                    $cVer = Split-Path $cTarget -Leaf;
+::PS_BundleCreateBody::                    $tools[$cName] = [ordered]@{ version = $cVer };
+::PS_BundleCreateBody::                    $payloadEntries[$cName] = [ordered]@{ path = ('payloads/' + $cName); version = $cVer; file_count = $cFileCount };
+::PS_BundleCreateBody::                };
+::PS_BundleCreateBody::            };
+::PS_BundleCreateBody::        };
+::PS_BundleCreateBody::    };
+::PS_BundleCreateBody::    $lockSrc = Join-Path (Get-Location).Path '.jvm.lock';
+::PS_BundleCreateBody::    $lockDest = Join-Path $stage '.jvm.lock';
+::PS_BundleCreateBody::    if (Test-Path -LiteralPath $lockSrc) {
+::PS_BundleCreateBody::        Copy-Item -LiteralPath $lockSrc -Destination $lockDest -Force;
+::PS_BundleCreateBody::    } else {
+::PS_BundleCreateBody::        $genLock = [ordered]@{ version = 1; platform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' }; tools = $tools } | ConvertTo-Json;
+::PS_BundleCreateBody::        [System.IO.File]::WriteAllText($lockDest, $genLock, [System.Text.UTF8Encoding]::new($false));
+::PS_BundleCreateBody::    };
+::PS_BundleCreateBody::    $lfs = [System.IO.File]::OpenRead($lockDest); $lockHash = try { ([System.BitConverter]::ToString($sha.ComputeHash($lfs)) -replace '-','').ToLowerInvariant() } finally { $lfs.Close(); $lfs.Dispose() };
+::PS_BundleCreateBody::    $payloadHashes['.jvm.lock'] = ('sha256:' + $lockHash);
+::PS_BundleCreateBody::    $manifest = [ordered]@{
+::PS_BundleCreateBody::        schema_version = 2;
+::PS_BundleCreateBody::        bundle_format = '2.0';
+::PS_BundleCreateBody::        bundle_type = 'portable-toolchain-container';
+::PS_BundleCreateBody::        bundle_id = [Guid]::NewGuid().ToString('N');
+::PS_BundleCreateBody::        created_at = (Get-Date).ToUniversalTime().ToString('o');
+::PS_BundleCreateBody::        platform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' };
+::PS_BundleCreateBody::        tools = $tools;
+::PS_BundleCreateBody::        payloads = $payloadEntries;
+::PS_BundleCreateBody::        payload_hashes = $payloadHashes;
+::PS_BundleCreateBody::    };
+::PS_BundleCreateBody::    $manJson = $manifest | ConvertTo-Json -Depth 6;
+::PS_BundleCreateBody::    $manPath = Join-Path $stage 'manifest.json';
+::PS_BundleCreateBody::    $utf8NoBom = [System.Text.UTF8Encoding]::new($false);
+::PS_BundleCreateBody::    [System.IO.File]::WriteAllText($manPath, $manJson, $utf8NoBom);
+::PS_BundleCreateBody::    $manBytes = [System.IO.File]::ReadAllBytes($manPath);
+::PS_BundleCreateBody::    $manDigest = ([System.BitConverter]::ToString($sha.ComputeHash($manBytes)) -replace '-','').ToLowerInvariant();
+::PS_BundleCreateBody::    [System.IO.File]::WriteAllText((Join-Path $stage 'manifest.sha256'), ('sha256:' + $manDigest), $utf8NoBom);
+::PS_BundleCreateBody::    $secret = if ($env:FLAG_KEY_FILE -and (Test-Path -LiteralPath $env:FLAG_KEY_FILE)) { (Get-Content -LiteralPath $env:FLAG_KEY_FILE -Raw).Trim() } elseif ($env:JVM_LOCK_SECRET) { $env:JVM_LOCK_SECRET } elseif ($env:FLAG_SECRET) { $env:FLAG_SECRET } else { $null };
+::PS_BundleCreateBody::    if (-not [string]::IsNullOrWhiteSpace($secret)) {
+::PS_BundleCreateBody::        $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($secret));
+::PS_BundleCreateBody::        $sigHex = ([System.BitConverter]::ToString($hmac.ComputeHash($manBytes)) -replace '-','').ToLowerInvariant();
+::PS_BundleCreateBody::        $sigObj = [ordered]@{ version = 1; algorithm = 'HMAC-SHA256'; manifest_sha256 = $manDigest; signature = $sigHex; timestamp = (Get-Date).ToUniversalTime().ToString('o') };
+::PS_BundleCreateBody::        [System.IO.File]::WriteAllText((Join-Path $stage 'manifest.sig'), ($sigObj | ConvertTo-Json -Depth 3), $utf8NoBom);
+::PS_BundleCreateBody::    };
+::PS_BundleCreateBody::    $sha.Dispose();
+::PS_BundleCreateBody::    $fullDest = [System.IO.Path]::GetFullPath($dest);
+::PS_BundleCreateBody::    $destDir = Split-Path $fullDest -Parent;
+::PS_BundleCreateBody::    if ($destDir -and -not (Test-Path -LiteralPath $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null };
+::PS_BundleCreateBody::    if (Test-Path -LiteralPath $fullDest) { Remove-Item -LiteralPath $fullDest -Force };
+::PS_BundleCreateBody::    [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $fullDest);
+::PS_BundleCreateBody::    [System.IO.File]::WriteAllText(($fullDest + '.sha256'), ('sha256:' + $manDigest), $utf8NoBom);
+::PS_BundleCreateBody::    if ($env:OUTPUT_JSON -eq '1') {
+::PS_BundleCreateBody::        [ordered]@{ ok = $true; command = 'bundle'; candidate = 'java'; resolved = $fullDest; changed = $true; status = 'created'; bundle_file = $fullDest; manifest_sha256 = $manDigest; manifest = $manifest } | ConvertTo-Json -Depth 6;
+::PS_BundleCreateBody::    } else {
+::PS_BundleCreateBody::        Write-Host ('[   OK   ] Portable toolchain bundle created: ' + $fullDest) -ForegroundColor Green;
+::PS_BundleCreateBody::        if ($payloadEntries.Keys.Count -gt 0) {
+::PS_BundleCreateBody::            Write-Host ('         Packaged toolchain payloads: ' + [string]::Join(', ', $payloadEntries.Keys)) -ForegroundColor Cyan;
+::PS_BundleCreateBody::        } else {
+::PS_BundleCreateBody::            Write-Host '         Packaged lockfile & manifest (lockfile-transfer mode)' -ForegroundColor DarkGray;
+::PS_BundleCreateBody::        };
+::PS_BundleCreateBody::    };
+::PS_BundleCreateBody::} catch {
+::PS_BundleCreateBody::    if ($env:OUTPUT_JSON -eq '1') { [ordered]@{ ok = $false; command = 'bundle'; candidate = 'java'; resolved = $null; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress } else { Write-Host ('[ ERROR  ] Failed to create bundle: ' + $_.Exception.Message) -ForegroundColor Red };
+::PS_BundleCreateBody::    exit 1;
+::PS_BundleCreateBody::} finally {
+::PS_BundleCreateBody::    if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue };
+::PS_BundleCreateBody::}
+
+::PS_BundleCreatePlan::$ErrorActionPreference = 'Stop';
+::PS_BundleCreatePlan::$dest = [System.IO.Path]::GetFullPath($env:BUNDLE_DEST);
+::PS_BundleCreatePlan::$jvmRoot = if ($env:JVM_DIR) { $env:JVM_DIR } else { Join-Path $env:LOCALAPPDATA 'DiamTek\JVM' };
+::PS_BundleCreatePlan::$plat = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' };
+::PS_BundleCreatePlan::$included = New-Object System.Collections.Generic.List[object];
+::PS_BundleCreatePlan::$missing = New-Object System.Collections.Generic.List[string];
+::PS_BundleCreatePlan::$totalBytes = 0L;
+::PS_BundleCreatePlan::$jLink = Join-Path $jvmRoot 'current';
+::PS_BundleCreatePlan::$jPath = if (Test-Path -LiteralPath $jLink) { (Get-Item -LiteralPath $jLink -Force -ErrorAction SilentlyContinue).Target } else { $null };
+::PS_BundleCreatePlan::if ($jPath -is [array]) { $jPath = $jPath[0] };
+::PS_BundleCreatePlan::if ($jPath) { $jPath = ([string]$jPath) -replace '^(\\\?\\|\\\?\?\\)', '' };
+::PS_BundleCreatePlan::if (-not $jPath -and $env:JAVA_HOME -and (Test-Path -LiteralPath $env:JAVA_HOME)) { $jPath = $env:JAVA_HOME };
+::PS_BundleCreatePlan::if ($jPath -and (Test-Path -LiteralPath $jPath)) {
+::PS_BundleCreatePlan::    $files = Get-ChildItem -LiteralPath $jPath -Recurse -File -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 };
+::PS_BundleCreatePlan::    $sz = ($files | Measure-Object -Property Length -Sum).Sum; if (-not $sz) { $sz = 0L };
+::PS_BundleCreatePlan::    $totalBytes += $sz;
+::PS_BundleCreatePlan::    $included.Add(([ordered]@{ tool = 'java'; path = $jPath; file_count = $files.Count; raw_mb = [math]::Round($sz / 1MB, 2) }));
+::PS_BundleCreatePlan::} else {
+::PS_BundleCreatePlan::    $missing.Add('java (no active JDK junction or JAVA_HOME found)');
+::PS_BundleCreatePlan::};
+::PS_BundleCreatePlan::$cRoot = Join-Path $jvmRoot 'candidates';
+::PS_BundleCreatePlan::if (Test-Path -LiteralPath $cRoot) {
+::PS_BundleCreatePlan::    Get-ChildItem -LiteralPath $cRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+::PS_BundleCreatePlan::        $cName = $_.Name;
+::PS_BundleCreatePlan::        $curLink = Join-Path $_.FullName 'current';
+::PS_BundleCreatePlan::        if (Test-Path -LiteralPath $curLink) {
+::PS_BundleCreatePlan::            $cTarget = (Get-Item -LiteralPath $curLink -Force -ErrorAction SilentlyContinue).Target;
+::PS_BundleCreatePlan::            if ($cTarget -is [array]) { $cTarget = $cTarget[0] };
+::PS_BundleCreatePlan::            if ($cTarget) { $cTarget = ([string]$cTarget) -replace '^(\\\?\\|\\\?\?\\)', '' };
+::PS_BundleCreatePlan::            if ($cTarget -and (Test-Path -LiteralPath $cTarget)) {
+::PS_BundleCreatePlan::                $cf = Get-ChildItem -LiteralPath $cTarget -Recurse -File -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 };
+::PS_BundleCreatePlan::                $csz = ($cf | Measure-Object -Property Length -Sum).Sum; if (-not $csz) { $csz = 0L };
+::PS_BundleCreatePlan::                $totalBytes += $csz;
+::PS_BundleCreatePlan::                $included.Add(([ordered]@{ tool = $cName; version = (Split-Path $cTarget -Leaf); path = $cTarget; file_count = $cf.Count; raw_mb = [math]::Round($csz / 1MB, 2) }));
+::PS_BundleCreatePlan::            };
+::PS_BundleCreatePlan::        };
+::PS_BundleCreatePlan::    };
+::PS_BundleCreatePlan::};
+::PS_BundleCreatePlan::$lockSrc = Join-Path (Get-Location).Path '.jvm.lock';
+::PS_BundleCreatePlan::$hasLock = Test-Path -LiteralPath $lockSrc -PathType Leaf;
+::PS_BundleCreatePlan::$checksumsVerified = $false;
+::PS_BundleCreatePlan::if ($hasLock) {
+::PS_BundleCreatePlan::    try {
+::PS_BundleCreatePlan::        $ld = Get-Content -LiteralPath $lockSrc -Raw -Encoding UTF8 | ConvertFrom-Json;
+::PS_BundleCreatePlan::        $allStrong = $true;
+::PS_BundleCreatePlan::        foreach ($p in $ld.tools.PSObject.Properties) {
+::PS_BundleCreatePlan::            $t = $p.Value;
+::PS_BundleCreatePlan::            if ($t.checksum_type -notin @('sha256','sha512') -or $t.checksum -notmatch '^[0-9a-fA-F]{64,128}$') { $allStrong = $false };
+::PS_BundleCreatePlan::        };
+::PS_BundleCreatePlan::        $checksumsVerified = $allStrong;
+::PS_BundleCreatePlan::    } catch { $checksumsVerified = $false };
+::PS_BundleCreatePlan::} else {
+::PS_BundleCreatePlan::    $missing.Add('.jvm.lock (will auto-generate minimal lockfile; run ''jvm freeze'' first for upstream checksums)');
+::PS_BundleCreatePlan::};
+::PS_BundleCreatePlan::$estCompressedMb = [math]::Round(($totalBytes * 0.45) / 1MB, 2);
+::PS_BundleCreatePlan::$estUncompressedMb = [double][math]::Round(($totalBytes / 1MB), 2);
+::PS_BundleCreatePlan::if ($env:OUTPUT_JSON -eq '1') {
+::PS_BundleCreatePlan::    $pOut = [ordered]@{ ok = $true; command = 'bundle'; candidate = 'java'; resolved = $dest; changed = $false; status = 'dry-run'; target_architecture = $plat; estimated_uncompressed_mb = $estUncompressedMb; estimated_bundle_mb = $estCompressedMb; lockfile_present = $hasLock; source_checksums_verified = $checksumsVerified; included_payloads = @($included.ToArray()); missing_items = @($missing.ToArray()) };
+::PS_BundleCreatePlan::    $pOut | ConvertTo-Json -Depth 5;
+::PS_BundleCreatePlan::} else {
+::PS_BundleCreatePlan::    Write-Host '';
+::PS_BundleCreatePlan::    Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_BundleCreatePlan::    Write-Host '  Offline Bundle Portability Report (Dry-Run)' -ForegroundColor Cyan;
+::PS_BundleCreatePlan::    Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_BundleCreatePlan::    Write-Host ('  Output Bundle         : ' + $dest);
+::PS_BundleCreatePlan::    Write-Host ('  Target Architecture   : ' + $plat);
+::PS_BundleCreatePlan::    Write-Host ('  Uncompressed Size     : ' + [math]::Round($totalBytes / 1MB, 2) + ' MB (Est. Archive: ~' + $estCompressedMb + ' MB)');
+::PS_BundleCreatePlan::    Write-Host ('  Source Checksums      : ' + $(if ($checksumsVerified) { 'VERIFIED (SHA-256/512 in .jvm.lock)' } else { 'UNVERIFIED (no frozen .jvm.lock)' })) -ForegroundColor $(if ($checksumsVerified) { 'Green' } else { 'Yellow' });
+::PS_BundleCreatePlan::    Write-Host '  Included Payloads:';
+::PS_BundleCreatePlan::    foreach ($inc in $included) {
+::PS_BundleCreatePlan::        Write-Host ('    + ' + $inc.tool.PadRight(12) + ': ' + $inc.file_count + ' files (' + $inc.raw_mb + ' MB) from ' + $inc.path) -ForegroundColor Green;
+::PS_BundleCreatePlan::    };
+::PS_BundleCreatePlan::    if ($missing.Count -gt 0) {
+::PS_BundleCreatePlan::        Write-Host '  Missing / Advisory Items:';
+::PS_BundleCreatePlan::        foreach ($m in $missing) { Write-Host ('    ! ' + $m) -ForegroundColor Yellow };
+::PS_BundleCreatePlan::    };
+::PS_BundleCreatePlan::    Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_BundleCreatePlan::};
+::PS_BundleCreatePlan::exit 0;
 
 :BundleInspect
 if not defined BUNDLE_TARGET (
@@ -15682,29 +17197,45 @@ if not errorlevel 1 (
 
 "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
     "$ErrorActionPreference = 'Stop';" ^
-    "$file = (Resolve-Path -LiteralPath $env:BUNDLE_TARGET).Path;" ^
-    "$bytes = [System.IO.File]::ReadAllBytes($file);" ^
-    "if ($bytes.Length -lt 4 -or $bytes[0] -ne 0x50 -or $bytes[1] -ne 0x4B) {" ^
-    "    throw 'Security violation (CWE-494): Invalid bundle format (missing ZIP magic bytes).';" ^
-    "};" ^
-    "Add-Type -AssemblyName System.IO.Compression.FileSystem;" ^
-    "$zip = [System.IO.Compression.ZipFile]::OpenRead($file);" ^
+    "$zip = $null;" ^
     "try {" ^
+    "    $file = (Resolve-Path -LiteralPath $env:BUNDLE_TARGET).Path;" ^
+    "    $fInfo = Get-Item -LiteralPath $file -Force;" ^
+    "    if ($fInfo.Length -lt 4 -or $fInfo.Length -gt 2147483648L) {" ^
+    "        throw ('Security violation (CWE-400): Bundle archive size out of bounds: ' + $fInfo.Length);" ^
+    "    };" ^
+    "    $magic = New-Object byte[] 4;" ^
+    "    $fs = [System.IO.File]::OpenRead($file);" ^
+    "    try { $read = $fs.Read($magic, 0, 4) } finally { $fs.Close(); $fs.Dispose() };" ^
+    "    if ($read -lt 4 -or $magic[0] -ne 0x50 -or $magic[1] -ne 0x4B) {" ^
+    "        throw 'Security violation (CWE-494): Invalid bundle format (missing ZIP magic bytes).';" ^
+    "    };" ^
+    "    Add-Type -AssemblyName System.IO.Compression.FileSystem;" ^
+    "    $zip = [System.IO.Compression.ZipFile]::OpenRead($file);" ^
+    "    if ($zip.Entries.Count -le 0 -or $zip.Entries.Count -gt 40000) {" ^
+    "        throw ('Security violation (CWE-409): Bundle entry count out of safe bounds: ' + $zip.Entries.Count);" ^
+    "    };" ^
+    "    $totalExpanded = 0L;" ^
+    "    foreach ($e in $zip.Entries) {" ^
+    "        if ($e.Length -gt 1610612736L) { throw ('Security violation (CWE-409): Oversized entry in bundle: ' + $e.FullName) };" ^
+    "        $totalExpanded += [math]::Max(0L, [int64]$e.Length);" ^
+    "        if ($totalExpanded -gt 2684354560L) { throw 'Security violation (CWE-409): Bundle total uncompressed size limit exceeded.' };" ^
+    "    };" ^
     "    $mEntry = $zip.Entries | Where-Object { $_.FullName -eq 'manifest.json' } | Select-Object -First 1;" ^
-    "    if (-not $mEntry) { throw 'Invalid bundle: Missing manifest.json in archive.' };" ^
+    "    if (-not $mEntry -or $mEntry.Length -gt 10485760L) { throw 'Invalid bundle: Missing or oversized manifest.json in archive.' };" ^
     "    $stream = $mEntry.Open();" ^
     "    $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8);" ^
-    "    $jsonText = $reader.ReadToEnd();" ^
-    "    $reader.Close();" ^
+    "    $jsonText = try { $reader.ReadToEnd() } finally { $reader.Close(); $reader.Dispose() };" ^
     "    $manifest = $jsonText | ConvertFrom-Json;" ^
     "    if ($env:OUTPUT_JSON -eq '1') {" ^
     "        [ordered]@{ ok = $true; command = 'bundle'; candidate = 'java'; resolved = $file; changed = $false; valid = $true; manifest = $manifest } | ConvertTo-Json -Depth 6;" ^
     "    } else {" ^
     "        Write-Host '';" ^
-    "        Write-Host '============================================================' -ForegroundColor DarkGray;" ^
+    "        Write-Host '================================================================================' -ForegroundColor DarkGray;" ^
     "        Write-Host ('  BUNDLE MANIFEST: ' + (Split-Path $file -Leaf)) -ForegroundColor Cyan;" ^
-    "        Write-Host '============================================================' -ForegroundColor DarkGray;" ^
+    "        Write-Host '================================================================================' -ForegroundColor DarkGray;" ^
     "        Write-Host ('  Bundle ID   : ' + $manifest.bundle_id);" ^
+    "        Write-Host ('  Schema Ver  : ' + $manifest.schema_version + ' (format ' + $manifest.bundle_format + ')');" ^
     "        Write-Host ('  Type        : ' + $(if ($manifest.bundle_type) { $manifest.bundle_type } else { 'portable-toolchain-container' }));" ^
     "        Write-Host ('  Platform    : ' + $manifest.platform);" ^
     "        Write-Host ('  Created     : ' + $manifest.created_at);" ^
@@ -15722,8 +17253,11 @@ if not errorlevel 1 (
     "        } else {" ^
     "            Write-Host '    (No binary payloads packaged; lockfile transfer mode)' -ForegroundColor DarkGray;" ^
     "        };" ^
-    "        Write-Host '============================================================' -ForegroundColor DarkGray;" ^
+    "        Write-Host '================================================================================' -ForegroundColor DarkGray;" ^
     "    };" ^
+    "} catch {" ^
+    "    if ($env:OUTPUT_JSON -eq '1') { [ordered]@{ ok = $false; command = 'bundle'; candidate = 'java'; resolved = $null; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress } else { Write-Host ('[ ERROR  ] ' + $_.Exception.Message) -ForegroundColor Red };" ^
+    "    exit 1;" ^
     "} finally {" ^
     "    if ($zip) { $zip.Dispose() };" ^
     "}"
@@ -15746,9 +17280,8 @@ if not errorlevel 1 (
 )
 
 if "!FLAG_DRY_RUN!"=="1" (
-    echo %cBLUE%[ DRY-RUN ]%cRESET% Would extract and verify bundle: !BUNDLE_TARGET!
-    if "!OUTPUT_JSON!"=="1" echo {"ok":true,"command":"bundle","candidate":"java","resolved":"!BUNDLE_TARGET!","changed":false,"status":"dry-run"}
-    exit /b 0
+    "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_BundleInstallPlan::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))"
+    exit /b !errorlevel!
 )
 
 call :AcquireStateLock
@@ -15757,18 +17290,52 @@ if errorlevel 1 exit /b 1
 "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
     "$ErrorActionPreference = 'Stop';" ^
     "$file = (Resolve-Path -LiteralPath $env:BUNDLE_TARGET).Path;" ^
-    "$bytes = [System.IO.File]::ReadAllBytes($file);" ^
-    "if ($bytes.Length -lt 4 -or $bytes[0] -ne 0x50 -or $bytes[1] -ne 0x4B) {" ^
+    "$fInfo = Get-Item -LiteralPath $file -Force;" ^
+    "if ($fInfo.Length -lt 4 -or $fInfo.Length -gt 2147483648L) {" ^
+    "    throw ('Security violation (CWE-400): Bundle compressed size out of safe bounds: ' + $fInfo.Length);" ^
+    "};" ^
+    "$magic = New-Object byte[] 4;" ^
+    "$mfs = [System.IO.File]::OpenRead($file);" ^
+    "try { $mRead = $mfs.Read($magic, 0, 4) } finally { $mfs.Close(); $mfs.Dispose() };" ^
+    "if ($mRead -lt 4 -or $magic[0] -ne 0x50 -or $magic[1] -ne 0x4B) {" ^
     "    throw 'Security violation (CWE-494): Invalid bundle format (missing ZIP magic bytes).';" ^
     "};" ^
     "Add-Type -AssemblyName System.IO.Compression.FileSystem;" ^
-    "$tempExt = Join-Path $env:TEMP ('jvm_binst_' + [Guid]::NewGuid().ToString('N'));" ^
+    "$jvmRoot = if ($env:JVM_DIR) { [System.IO.Path]::GetFullPath($env:JVM_DIR) } else { [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'DiamTek\JVM')) };" ^
+    "$tempExt = Join-Path $env:JVM_SECURE_TEMP ('jvm_binst_' + [Guid]::NewGuid().ToString('N'));" ^
+    "$backups = [System.Collections.Generic.List[hashtable]]::new();" ^
+    "$stagedDirs = [System.Collections.Generic.List[string]]::new();" ^
+    "$committedDirs = [System.Collections.Generic.List[string]]::new();" ^
+    "$prevJCurTarget = $null;" ^
+    "$jCurModified = $false;" ^
+    "$prevJavaHome = [System.Environment]::GetEnvironmentVariable('JAVA_HOME', 'User');" ^
+    "$prevCCurTargets = @{};" ^
+    "$lockBackup = $null;" ^
+    "$sw = [System.Diagnostics.Stopwatch]::StartNew();" ^
     "try {" ^
     "    New-Item -ItemType Directory -Path $tempExt -Force | Out-Null;" ^
-    "    $canonTemp = (Get-Item -LiteralPath $tempExt).FullName.TrimEnd('\', '/') + '\';" ^
+    "    $canonTemp = [System.IO.Path]::GetFullPath($tempExt).TrimEnd('\', '/') + '\';" ^
     "    $zip = [System.IO.Compression.ZipFile]::OpenRead($file);" ^
     "    try {" ^
+    "        if ($zip.Entries.Count -le 0 -or $zip.Entries.Count -gt 40000) {" ^
+    "            throw ('Security violation (CWE-409): Bundle entry count out of safe bounds: ' + $zip.Entries.Count);" ^
+    "        };" ^
+    "        $totalExpanded = 0L;" ^
     "        foreach ($entry in $zip.Entries) {" ^
+    "            if ($sw.Elapsed.TotalSeconds -gt 300) { throw 'Security violation (CWE-400): Bundle extraction time budget exceeded.' };" ^
+    "            if ((($entry.ExternalAttributes -shr 16) -band 0xF000) -eq 0xA000) {" ^
+    "                throw ('Security violation (CWE-59): Symbolic link entry detected in bundle: ' + $entry.FullName);" ^
+    "            };" ^
+    "            if ($entry.Length -gt 1610612736L) {" ^
+    "                throw ('Security violation (CWE-409): Bundle entry exceeds per-file size limit: ' + $entry.FullName);" ^
+    "            };" ^
+    "            if ($entry.CompressedLength -gt 0 -and $entry.Length -gt 10485760L -and (($entry.Length / $entry.CompressedLength) -gt 100)) {" ^
+    "                throw ('Security violation (CWE-409): Suspicious compression ratio detected in entry: ' + $entry.FullName);" ^
+    "            };" ^
+    "            $totalExpanded += [math]::Max(0L, [int64]$entry.Length);" ^
+    "            if ($totalExpanded -gt 2684354560L) {" ^
+    "                throw 'Security violation (CWE-409): Bundle total expanded size limit exceeded (Zip Bomb protection).';" ^
+    "            };" ^
     "            $entryName = $entry.FullName.Replace('/', '\');" ^
     "            if ($entryName.Contains('..') -or $entryName.StartsWith('\') -or $entryName.Contains(':')) {" ^
     "                throw ('Security violation (CWE-22): ZipSlip path traversal detected in entry: ' + $entry.FullName);" ^
@@ -15795,56 +17362,253 @@ if errorlevel 1 exit /b 1
     "        };" ^
     "    };" ^
     "    $manFile = Join-Path $tempExt 'manifest.json';" ^
-    "    $manifest = if (Test-Path -LiteralPath $manFile) { Get-Content -LiteralPath $manFile -Raw | ConvertFrom-Json } else { $null };" ^
-    "    $lockFile = Join-Path $tempExt '.jvm.lock';" ^
-    "    if (Test-Path -LiteralPath $lockFile) {" ^
-    "        Copy-Item -LiteralPath $lockFile -Destination (Join-Path (Get-Location).Path '.jvm.lock') -Force;" ^
+    "    if (-not (Test-Path -LiteralPath $manFile)) { throw 'Security violation (CWE-494): Missing manifest.json in bundle.' };" ^
+    "    $manBytes = [System.IO.File]::ReadAllBytes($manFile);" ^
+    "    $sha = [System.Security.Cryptography.SHA256]::Create();" ^
+    "    $actualManDigest = ([System.BitConverter]::ToString($sha.ComputeHash($manBytes)) -replace '-','').ToLowerInvariant();" ^
+    "    $manifest = [System.Text.Encoding]::UTF8.GetString($manBytes) | ConvertFrom-Json;" ^
+    "    if ($manifest.bundle_format -ne '2.0' -or [int]$manifest.schema_version -lt 2) {" ^
+    "        throw 'Security violation (CWE-494): Unsupported or unversioned bundle manifest schema (expected schema_version >= 2, bundle_format 2.0).';" ^
+    "    };" ^
+    "    $expectedPlatform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' };" ^
+    "    if ($manifest.platform -and $manifest.platform -ne $expectedPlatform) {" ^
+    "        throw ('Platform mismatch: Bundle targets ' + $manifest.platform + ' but current host is ' + $expectedPlatform);" ^
+    "    };" ^
+    "    $sigPath = Join-Path $tempExt 'manifest.sig';" ^
+    "    $extShaFile = $file + '.sha256';" ^
+    "    $secret = if ($env:FLAG_KEY_FILE -and (Test-Path -LiteralPath $env:FLAG_KEY_FILE)) { (Get-Content -LiteralPath $env:FLAG_KEY_FILE -Raw).Trim() } elseif ($env:JVM_LOCK_SECRET) { $env:JVM_LOCK_SECRET } elseif ($env:FLAG_SECRET) { $env:FLAG_SECRET } else { $null };" ^
+    "    $authenticated = $false;" ^
+    "    if (Test-Path -LiteralPath $sigPath) {" ^
+    "        if ([string]::IsNullOrWhiteSpace($secret)) {" ^
+    "            throw 'Security violation (CWE-347): Bundle contains manifest.sig; provide --key-file or JVM_LOCK_SECRET to authenticate manifest.';" ^
+    "        };" ^
+    "        $sigData = Get-Content -LiteralPath $sigPath -Raw -Encoding UTF8 | ConvertFrom-Json;" ^
+    "        if ($sigData.version -ne 1 -or $sigData.algorithm -ne 'HMAC-SHA256' -or -not $sigData.signature) {" ^
+    "            throw 'Security violation (CWE-347): Invalid manifest.sig metadata format.';" ^
+    "        };" ^
+    "        $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($secret));" ^
+    "        $expSig = ([System.BitConverter]::ToString($hmac.ComputeHash($manBytes)) -replace '-','').ToLowerInvariant();" ^
+    "        $actSig = ([string]$sigData.signature).ToLowerInvariant();" ^
+    "        $eBytes = [System.Text.Encoding]::ASCII.GetBytes($expSig);" ^
+    "        $aBytes = [System.Text.Encoding]::ASCII.GetBytes($actSig);" ^
+    "        $diff = $eBytes.Length -bxor $aBytes.Length;" ^
+    "        for ($i = 0; $i -lt [math]::Min($eBytes.Length, $aBytes.Length); $i++) { $diff = $diff -bor ($eBytes[$i] -bxor $aBytes[$i]) };" ^
+    "        if ($diff -ne 0) { throw 'Security violation (CWE-347): Bundle manifest signature verification failed (tampering detected).' };" ^
+    "        $authenticated = $true;" ^
+    "    } elseif (Test-Path -LiteralPath $extShaFile) {" ^
+    "        $extDigest = ((Get-Content -LiteralPath $extShaFile -Raw).Trim() -replace '\Asha256:','').ToLowerInvariant();" ^
+    "        if ($extDigest -ne $actualManDigest) { throw 'Security violation (CWE-494): Bundle manifest digest does not match external .sha256 file.' };" ^
+    "        $authenticated = $true;" ^
+    "    };" ^
+    "    if (-not $authenticated -and $env:SKIP_CHECKSUM -ne '1') {" ^
+    "        throw 'Security violation (CWE-494): Unauthenticated bundle manifest. Sign the bundle with --key-file / JVM_LOCK_SECRET, provide a trusted <bundle>.sha256 file, or pass --skip-checksum.';" ^
+    "    };" ^
+    "    if (-not $manifest.payload_hashes) {" ^
+    "        throw 'Security violation (CWE-494): Bundle manifest is missing per-file payload_hashes.';" ^
+    "    };" ^
+    "    $expectedHashes = @{};" ^
+    "    foreach ($hp in $manifest.payload_hashes.PSObject.Properties) { $expectedHashes[$hp.Name] = [string]$hp.Value };" ^
+    "    foreach ($rk in $expectedHashes.Keys) {" ^
+    "        $relWin = $rk.Replace('/', '\');" ^
+    "        if ($relWin.Contains('..') -or $relWin.StartsWith('\') -or $relWin.Contains(':')) { throw ('Security violation (CWE-22): Unsafe path in payload_hashes: ' + $rk) };" ^
+    "        $fPath = [System.IO.Path]::GetFullPath((Join-Path $tempExt $relWin));" ^
+    "        if (-not $fPath.StartsWith($canonTemp, [System.StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $fPath -PathType Leaf)) {" ^
+    "            throw ('Security violation (CWE-494): Missing expected payload file from bundle: ' + $rk);" ^
+    "        };" ^
+    "        $expVal = ($expectedHashes[$rk] -replace '\Asha256:','').ToLowerInvariant();" ^
+    "        $pfs = [System.IO.File]::OpenRead($fPath); $actVal = try { ([System.BitConverter]::ToString($sha.ComputeHash($pfs)) -replace '-','').ToLowerInvariant() } finally { $pfs.Close(); $pfs.Dispose() };" ^
+    "        if ($actVal -ne $expVal) { throw ('Security violation (CWE-494): Payload file hash mismatch for ' + $rk) };" ^
     "    };" ^
     "    $pRoot = Join-Path $tempExt 'payloads';" ^
-    "    $installedList = [System.Collections.Generic.List[string]]::new();" ^
     "    if (Test-Path -LiteralPath $pRoot) {" ^
-    "        $jvmRoot = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM';" ^
-    "        if (-not (Test-Path -LiteralPath $jvmRoot)) { New-Item -ItemType Directory -Path $jvmRoot -Force | Out-Null };" ^
+    "        Get-ChildItem -LiteralPath $pRoot -Recurse -File -Force | ForEach-Object {" ^
+    "            $relCheck = $_.FullName.Substring($canonTemp.Length).Replace('\', '/');" ^
+    "            if (-not $expectedHashes.ContainsKey($relCheck)) {" ^
+    "                throw ('Security violation (CWE-494): Unverified file in payloads directory not listed in manifest: ' + $relCheck);" ^
+    "            };" ^
+    "        };" ^
+    "    };" ^
+    "    $sha.Dispose();" ^
+    "    $allowedVendors = @('adoptium','temurin','oracle','corretto','zulu','microsoft','graalvm','liberica','bellsoft','semeru','ibm','openj9','sapmachine','sap','mandrel','dragonwell','alibaba','kona','tencent','custom','bundled');" ^
+    "    $allowedCands = @('maven','gradle','kotlin','scala','groovy','ant','sbt','jbang','quarkus','spring','micronaut');" ^
+    "    $installedList = [System.Collections.Generic.List[string]]::new();" ^
+    "    if (-not (Test-Path -LiteralPath $jvmRoot)) { New-Item -ItemType Directory -Path $jvmRoot -Force | Out-Null };" ^
+    "    $bundledJdksRoot = [System.IO.Path]::GetFullPath((Join-Path $jvmRoot 'bundled_jdks'));" ^
+    "    $bundledJdksPrefix = $bundledJdksRoot.TrimEnd('\') + '\';" ^
+    "    $candidatesRoot = [System.IO.Path]::GetFullPath((Join-Path $jvmRoot 'candidates'));" ^
+    "    $candidatesPrefix = $candidatesRoot.TrimEnd('\') + '\';" ^
+    "    $planJava = $null;" ^
+    "    $planCands = [System.Collections.Generic.List[hashtable]]::new();" ^
+    "    if (Test-Path -LiteralPath $pRoot) {" ^
     "        $pJava = Join-Path $pRoot 'java';" ^
     "        if (Test-Path -LiteralPath $pJava) {" ^
-    "            $jVer = if ($manifest.tools.java.version) { $manifest.tools.java.version } else { 'bundled' };" ^
-    "            $jVend = if ($manifest.tools.java.vendor) { $manifest.tools.java.vendor } else { 'bundled' };" ^
-    "            $jDestDir = Join-Path $jvmRoot ('bundled_jdks\' + $jVend + '-' + $jVer);" ^
-    "            if (-not (Test-Path -LiteralPath (Split-Path $jDestDir -Parent))) { New-Item -ItemType Directory -Path (Split-Path $jDestDir -Parent) -Force | Out-Null };" ^
-    "            if (Test-Path -LiteralPath $jDestDir) { Remove-Item -LiteralPath $jDestDir -Recurse -Force -ErrorAction SilentlyContinue };" ^
-    "            Copy-Item -LiteralPath $pJava -Destination $jDestDir -Recurse -Force;" ^
-    "            $jCur = Join-Path $jvmRoot 'current';" ^
-    "            if (Test-Path -LiteralPath $jCur) { & cmd.exe /c `"rmdir /q \`"`$jCur\`"`" 2>`$null; if (Test-Path -LiteralPath $jCur) { Remove-Item -LiteralPath $jCur -Force -ErrorAction SilentlyContinue } };" ^
-    "            & cmd.exe /c `"mklink /J \`"`$jCur\`" \`"`$jDestDir\`"`" >`$null 2>&1;" ^
-    "            [System.Environment]::SetEnvironmentVariable('JAVA_HOME', $jDestDir, 'User');" ^
-    "            $installedList.Add(('java ' + $jVer + ' (' + $jDestDir + ')'));" ^
+    "            $jVer = if ($manifest.tools -and $manifest.tools.java -and $manifest.tools.java.version) { [string]$manifest.tools.java.version } else { 'bundled' };" ^
+    "            $jVend = if ($manifest.tools -and $manifest.tools.java -and $manifest.tools.java.vendor) { [string]$manifest.tools.java.vendor } else { 'bundled' };" ^
+    "            if ($jVend -notmatch '\A[a-zA-Z0-9._+-]{1,64}$' -or $jVend.Contains('..') -or ($allowedVendors -notcontains $jVend.ToLowerInvariant())) {" ^
+    "                throw ('Security violation (CWE-22): Invalid or disallowed Java vendor in manifest: ' + $jVend);" ^
+    "            };" ^
+    "            if ($jVer -notmatch '\A[a-zA-Z0-9._+-]{1,64}$' -or $jVer.Contains('..') -or $jVer -eq '.' -or $jVer -ieq 'current') {" ^
+    "                throw ('Security violation (CWE-22): Invalid Java version identifier in manifest: ' + $jVer);" ^
+    "            };" ^
+    "            $jDestDir = [System.IO.Path]::GetFullPath((Join-Path $bundledJdksRoot ($jVend + '-' + $jVer)));" ^
+    "            if (-not $jDestDir.StartsWith($bundledJdksPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {" ^
+    "                throw ('Security violation (CWE-22): Java destination escapes bundled_jdks root: ' + $jDestDir);" ^
+    "            };" ^
+    "            $jStageDir = $jDestDir + '.stage_' + [Guid]::NewGuid().ToString('N');" ^
+    "            if (-not (Test-Path -LiteralPath $bundledJdksRoot)) { New-Item -ItemType Directory -Path $bundledJdksRoot -Force | Out-Null };" ^
+    "            Copy-Item -LiteralPath $pJava -Destination $jStageDir -Recurse -Force;" ^
+    "            $stagedDirs.Add($jStageDir);" ^
+    "            $planJava = @{ Ver = $jVer; Vend = $jVend; Stage = $jStageDir; Dest = $jDestDir };" ^
     "        };" ^
     "        Get-ChildItem -LiteralPath $pRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'java' } | ForEach-Object {" ^
     "            $candName = $_.Name;" ^
-    "            $candVer = if ($manifest.tools.$candName.version) { $manifest.tools.$candName.version } else { 'bundled' };" ^
-    "            $cDestDir = Join-Path $jvmRoot ('candidates\' + $candName + '\' + $candVer);" ^
-    "            if (-not (Test-Path -LiteralPath (Split-Path $cDestDir -Parent))) { New-Item -ItemType Directory -Path (Split-Path $cDestDir -Parent) -Force | Out-Null };" ^
-    "            if (Test-Path -LiteralPath $cDestDir) { Remove-Item -LiteralPath $cDestDir -Recurse -Force -ErrorAction SilentlyContinue };" ^
-    "            Copy-Item -LiteralPath $_.FullName -Destination $cDestDir -Recurse -Force;" ^
-    "            $cCur = Join-Path $jvmRoot ('candidates\' + $candName + '\current');" ^
-    "            if (Test-Path -LiteralPath $cCur) { & cmd.exe /c `"rmdir /q \`"`$cCur\`"`" 2>`$null; if (Test-Path -LiteralPath $cCur) { Remove-Item -LiteralPath $cCur -Force -ErrorAction SilentlyContinue } };" ^
-    "            & cmd.exe /c `"mklink /J \`"`$cCur\`" \`"`$cDestDir\`"`" >`$null 2>&1;" ^
-    "            $installedList.Add(($candName + ' ' + $candVer + ' (' + $cDestDir + ')'));" ^
+    "            if ($candName -notmatch '\A[a-zA-Z0-9_-]{1,32}$' -or ($allowedCands -notcontains $candName.ToLowerInvariant())) {" ^
+    "                throw ('Security violation (CWE-22): Disallowed ecosystem candidate in bundle: ' + $candName);" ^
+    "            };" ^
+    "            $candVer = if ($manifest.tools -and $manifest.tools.$candName -and $manifest.tools.$candName.version) { [string]$manifest.tools.$candName.version } else { 'bundled' };" ^
+    "            if ($candVer -notmatch '\A[a-zA-Z0-9._+-]{1,64}$' -or $candVer.Contains('..') -or $candVer -eq '.' -or $candVer -ieq 'current') {" ^
+    "                throw ('Security violation (CWE-22): Invalid candidate version in manifest: ' + $candVer);" ^
+    "            };" ^
+    "            $candParent = [System.IO.Path]::GetFullPath((Join-Path $candidatesRoot $candName));" ^
+    "            if (-not $candParent.StartsWith($candidatesPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {" ^
+    "                throw ('Security violation (CWE-22): Candidate parent escapes root: ' + $candParent);" ^
+    "            };" ^
+    "            $candParentPrefix = $candParent.TrimEnd('\') + '\';" ^
+    "            $cDestDir = [System.IO.Path]::GetFullPath((Join-Path $candParent $candVer));" ^
+    "            if (-not $cDestDir.StartsWith($candParentPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {" ^
+    "                throw ('Security violation (CWE-22): Candidate destination escapes candidate root: ' + $cDestDir);" ^
+    "            };" ^
+    "            if (-not (Test-Path -LiteralPath $candParent)) { New-Item -ItemType Directory -Path $candParent -Force | Out-Null };" ^
+    "            $cStageDir = $cDestDir + '.stage_' + [Guid]::NewGuid().ToString('N');" ^
+    "            Copy-Item -LiteralPath $_.FullName -Destination $cStageDir -Recurse -Force;" ^
+    "            $stagedDirs.Add($cStageDir);" ^
+    "            $planCands.Add(@{ Name = $candName; Ver = $candVer; Stage = $cStageDir; Dest = $cDestDir; Parent = $candParent });" ^
     "        };" ^
     "    };" ^
+    "    $lockSrc = Join-Path $tempExt '.jvm.lock';" ^
+    "    $projLock = Join-Path (Get-Location).Path '.jvm.lock';" ^
+    "    if (Test-Path -LiteralPath $lockSrc) {" ^
+    "        if (Test-Path -LiteralPath $projLock) {" ^
+    "            $plItem = Get-Item -LiteralPath $projLock -Force;" ^
+    "            if ($plItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw 'Security violation (CWE-59): Project .jvm.lock is a reparse point.' };" ^
+    "            if ($env:FORCE_YES -ne '1') {" ^
+    "                throw 'Refusing to overwrite existing project .jvm.lock without explicit overwrite confirmation (--yes).';" ^
+    "            };" ^
+    "            $lockBackup = $projLock + '.bak_' + [Guid]::NewGuid().ToString('N');" ^
+    "            Copy-Item -LiteralPath $projLock -Destination $lockBackup -Force;" ^
+    "        };" ^
+    "    };" ^
+    "    if ($planJava) {" ^
+    "        $jDestDir = $planJava.Dest;" ^
+    "        if (Test-Path -LiteralPath $jDestDir) {" ^
+    "            $jBak = $jDestDir + '.bak_' + [Guid]::NewGuid().ToString('N');" ^
+    "            Move-Item -LiteralPath $jDestDir -Destination $jBak -Force;" ^
+    "            $backups.Add(@{ Orig = $jDestDir; Bak = $jBak });" ^
+    "        };" ^
+    "        Move-Item -LiteralPath $planJava.Stage -Destination $jDestDir -Force;" ^
+    "        [void]$stagedDirs.Remove($planJava.Stage);" ^
+    "        $committedDirs.Add($jDestDir);" ^
+    "        $jCur = Join-Path $jvmRoot 'current';" ^
+    "        if (Test-Path -LiteralPath $jCur) {" ^
+    "            $jcItem = Get-Item -LiteralPath $jCur -Force -ErrorAction SilentlyContinue;" ^
+    "            if ($jcItem -and -not ($jcItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {" ^
+    "                throw ('Security violation (CWE-59): ' + $jCur + ' is a regular directory, not a junction.');" ^
+    "            };" ^
+    "            $prevJCurTarget = if ($jcItem.Target -is [array]) { $jcItem.Target[0] } else { $jcItem.Target };" ^
+    "            if ($prevJCurTarget) { $prevJCurTarget = ([string]$prevJCurTarget) -replace '\A(\\\?\\|\\\?\?\\)', '' };" ^
+    "            & $env:CMD_BIN /d /c ('rmdir /q ""' + $jCur + '""') >$null 2>&1;" ^
+    "            if (Test-Path -LiteralPath $jCur) { throw ('Failed to remove previous junction: ' + $jCur) };" ^
+    "        };" ^
+    "        $jCurModified = $true;" ^
+    "        & $env:CMD_BIN /d /c ('mklink /J ""' + $jCur + '"" ""' + $jDestDir + '""') >$null 2>&1;" ^
+    "        if ($LASTEXITCODE -ne 0) { throw ('Failed to create Java directory junction at ' + $jCur) };" ^
+    "        $newJc = Get-Item -LiteralPath $jCur -Force -ErrorAction SilentlyContinue;" ^
+    "        if (-not $newJc -or -not ($newJc.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -or -not (Test-Path -LiteralPath (Join-Path $jCur 'bin\java.exe'))) {" ^
+    "            throw ('Junction verification failed for ' + $jCur);" ^
+    "        };" ^
+    "        [System.Environment]::SetEnvironmentVariable('JAVA_HOME', $jCur, 'User');" ^
+    "        $installedList.Add(('java ' + $planJava.Ver + ' (' + $jDestDir + ')'));" ^
+    "    };" ^
+    "    foreach ($pc in $planCands) {" ^
+    "        $cDestDir = $pc.Dest;" ^
+    "        if (Test-Path -LiteralPath $cDestDir) {" ^
+    "            $cBak = $cDestDir + '.bak_' + [Guid]::NewGuid().ToString('N');" ^
+    "            Move-Item -LiteralPath $cDestDir -Destination $cBak -Force;" ^
+    "            $backups.Add(@{ Orig = $cDestDir; Bak = $cBak });" ^
+    "        };" ^
+    "        Move-Item -LiteralPath $pc.Stage -Destination $cDestDir -Force;" ^
+    "        [void]$stagedDirs.Remove($pc.Stage);" ^
+    "        $committedDirs.Add($cDestDir);" ^
+    "        $cCur = Join-Path $pc.Parent 'current';" ^
+    "        if (Test-Path -LiteralPath $cCur) {" ^
+    "            $ccItem = Get-Item -LiteralPath $cCur -Force -ErrorAction SilentlyContinue;" ^
+    "            if ($ccItem -and -not ($ccItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {" ^
+    "                throw ('Security violation (CWE-59): ' + $cCur + ' is a regular directory, not a junction.');" ^
+    "            };" ^
+    "            $pt = if ($ccItem.Target -is [array]) { $ccItem.Target[0] } else { $ccItem.Target };" ^
+    "            if ($pt) { $prevCCurTargets[$cCur] = (([string]$pt) -replace '\A(\\\?\\|\\\?\?\\)', '') };" ^
+    "            & $env:CMD_BIN /d /c ('rmdir /q ""' + $cCur + '""') >$null 2>&1;" ^
+    "            if (Test-Path -LiteralPath $cCur) { throw ('Failed to remove previous candidate junction: ' + $cCur) };" ^
+    "        } else {" ^
+    "            $prevCCurTargets[$cCur] = $null;" ^
+    "        };" ^
+    "        & $env:CMD_BIN /d /c ('mklink /J ""' + $cCur + '"" ""' + $cDestDir + '""') >$null 2>&1;" ^
+    "        if ($LASTEXITCODE -ne 0) { throw ('Failed to create candidate directory junction at ' + $cCur) };" ^
+    "        $newCc = Get-Item -LiteralPath $cCur -Force -ErrorAction SilentlyContinue;" ^
+    "        if (-not $newCc -or -not ($newCc.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {" ^
+    "            throw ('Candidate junction verification failed for ' + $cCur);" ^
+    "        };" ^
+    "        $installedList.Add(($pc.Name + ' ' + $pc.Ver + ' (' + $cDestDir + ')'));" ^
+    "    };" ^
+    "    if (Test-Path -LiteralPath $lockSrc) {" ^
+    "        $stageLock = $projLock + '.stage_' + [Guid]::NewGuid().ToString('N') + '.tmp';" ^
+    "        Copy-Item -LiteralPath $lockSrc -Destination $stageLock -Force;" ^
+    "        Move-Item -LiteralPath $stageLock -Destination $projLock -Force;" ^
+    "    };" ^
+    "    foreach ($b in $backups) {" ^
+    "        if (Test-Path -LiteralPath $b.Bak) { Remove-Item -LiteralPath $b.Bak -Recurse -Force -ErrorAction SilentlyContinue };" ^
+    "    };" ^
+    "    if ($lockBackup -and (Test-Path -LiteralPath $lockBackup)) { Remove-Item -LiteralPath $lockBackup -Force -ErrorAction SilentlyContinue };" ^
     "    if ($env:OUTPUT_JSON -eq '1') {" ^
     "        [ordered]@{ ok = $true; command = 'bundle'; candidate = 'java'; resolved = $file; changed = $true; status = 'installed'; installed_payloads = @($installedList); manifest = $manifest } | ConvertTo-Json -Depth 6;" ^
     "    } else {" ^
     "        Write-Host ('[   OK   ] Environment bundle installed successfully from ' + (Split-Path $file -Leaf)) -ForegroundColor Green;" ^
     "        if ($installedList.Count -gt 0) {" ^
-    "            Write-Host ('         Provisioned ' + $installedList.Count + ' toolchains into %LOCALAPPDATA%\DiamTek\JVM:') -ForegroundColor Cyan;" ^
+    "            Write-Host ('         Provisioned ' + $installedList.Count + ' toolchains into ' + $jvmRoot + ':') -ForegroundColor Cyan;" ^
     "            foreach ($it in $installedList) { Write-Host ('           * ' + $it) -ForegroundColor White };" ^
     "        } else {" ^
     "            Write-Host '         Lockfile transferred. (No binary toolchain payloads inside bundle)' -ForegroundColor DarkGray;" ^
     "        };" ^
     "    };" ^
     "} catch {" ^
-    "    Write-Host ('[ ERROR  ] Bundle installation failed: ' + $_.Exception.Message) -ForegroundColor Red;" ^
+    "    foreach ($sd in $stagedDirs) { if (Test-Path -LiteralPath $sd) { Remove-Item -LiteralPath $sd -Recurse -Force -ErrorAction SilentlyContinue } };" ^
+    "    foreach ($cd in $committedDirs) { if (Test-Path -LiteralPath $cd) { Remove-Item -LiteralPath $cd -Recurse -Force -ErrorAction SilentlyContinue } };" ^
+    "    foreach ($b in $backups) {" ^
+    "        if (Test-Path -LiteralPath $b.Bak) {" ^
+    "            if (Test-Path -LiteralPath $b.Orig) { Remove-Item -LiteralPath $b.Orig -Recurse -Force -ErrorAction SilentlyContinue };" ^
+    "            Move-Item -LiteralPath $b.Bak -Destination $b.Orig -Force -ErrorAction SilentlyContinue;" ^
+    "        };" ^
+    "    };" ^
+    "    if ($jCurModified) {" ^
+    "        $jCur = Join-Path $jvmRoot 'current';" ^
+    "        if (Test-Path -LiteralPath $jCur) { & $env:CMD_BIN /d /c ('rmdir /q ""' + $jCur + '""') >$null 2>&1 };" ^
+    "        if ($prevJCurTarget -and (Test-Path -LiteralPath $prevJCurTarget)) {" ^
+    "            & $env:CMD_BIN /d /c ('mklink /J ""' + $jCur + '"" ""' + $prevJCurTarget + '""') >$null 2>&1;" ^
+    "        };" ^
+    "        [System.Environment]::SetEnvironmentVariable('JAVA_HOME', $prevJavaHome, 'User');" ^
+    "    };" ^
+    "    foreach ($ck in $prevCCurTargets.Keys) {" ^
+    "        if (Test-Path -LiteralPath $ck) { & $env:CMD_BIN /d /c ('rmdir /q ""' + $ck + '""') >$null 2>&1 };" ^
+    "        $oldT = $prevCCurTargets[$ck];" ^
+    "        if ($oldT -and (Test-Path -LiteralPath $oldT)) {" ^
+    "            & $env:CMD_BIN /d /c ('mklink /J ""' + $ck + '"" ""' + $oldT + '""') >$null 2>&1;" ^
+    "        };" ^
+    "    };" ^
+    "    if ($lockBackup -and (Test-Path -LiteralPath $lockBackup)) {" ^
+    "        $projLock = Join-Path (Get-Location).Path '.jvm.lock';" ^
+    "        Move-Item -LiteralPath $lockBackup -Destination $projLock -Force -ErrorAction SilentlyContinue;" ^
+    "    };" ^
+    "    if ($env:OUTPUT_JSON -eq '1') { [ordered]@{ ok = $false; command = 'bundle'; candidate = 'java'; resolved = $null; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress } else { Write-Host ('[ ERROR  ] Bundle installation failed: ' + $_.Exception.Message) -ForegroundColor Red };" ^
     "    exit 1;" ^
     "} finally {" ^
     "    if (Test-Path -LiteralPath $tempExt) { Remove-Item -LiteralPath $tempExt -Recurse -Force -ErrorAction SilentlyContinue };" ^
@@ -15852,6 +17616,70 @@ if errorlevel 1 exit /b 1
 set "B_INST_ERR=!errorlevel!"
 call :ReleaseStateLock
 exit /b !B_INST_ERR!
+
+::PS_BundleInstallPlan::$ErrorActionPreference = 'Stop';
+::PS_BundleInstallPlan::$zip = $null;
+::PS_BundleInstallPlan::try {
+::PS_BundleInstallPlan::    $file = (Resolve-Path -LiteralPath $env:BUNDLE_TARGET).Path;
+::PS_BundleInstallPlan::    $fInfo = Get-Item -LiteralPath $file -Force;
+::PS_BundleInstallPlan::    if ($fInfo.Length -lt 4 -or $fInfo.Length -gt 2147483648L) { throw ('Security violation (CWE-400): Bundle size out of bounds: ' + $fInfo.Length) };
+::PS_BundleInstallPlan::    $magic = New-Object byte[] 4;
+::PS_BundleInstallPlan::    $fs = [System.IO.File]::OpenRead($file);
+::PS_BundleInstallPlan::    try { $r = $fs.Read($magic, 0, 4) } finally { $fs.Close(); $fs.Dispose() };
+::PS_BundleInstallPlan::    if ($r -lt 4 -or $magic[0] -ne 0x50 -or $magic[1] -ne 0x4B) { throw 'Security violation (CWE-494): Invalid bundle ZIP signature.' };
+::PS_BundleInstallPlan::    Add-Type -AssemblyName System.IO.Compression.FileSystem;
+::PS_BundleInstallPlan::    $zip = [System.IO.Compression.ZipFile]::OpenRead($file);
+::PS_BundleInstallPlan::    $mEntry = $zip.Entries | Where-Object { $_.FullName -eq 'manifest.json' } | Select-Object -First 1;
+::PS_BundleInstallPlan::    if (-not $mEntry) { throw 'Invalid bundle: Missing manifest.json.' };
+::PS_BundleInstallPlan::    $sr = New-Object System.IO.StreamReader($mEntry.Open(), [System.Text.Encoding]::UTF8);
+::PS_BundleInstallPlan::    $manTxt = try { $sr.ReadToEnd() } finally { $sr.Close(); $sr.Dispose() };
+::PS_BundleInstallPlan::    $manifest = $manTxt | ConvertFrom-Json;
+::PS_BundleInstallPlan::    $hasSig = [bool]($zip.Entries | Where-Object { $_.FullName -eq 'manifest.sig' });
+::PS_BundleInstallPlan::    $hasExtSha = Test-Path -LiteralPath ($file + '.sha256') -PathType Leaf;
+::PS_BundleInstallPlan::    $hostPlat = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' };
+::PS_BundleInstallPlan::    $platCompatible = (-not $manifest.platform -or $manifest.platform -eq $hostPlat);
+::PS_BundleInstallPlan::    $jvmRoot = if ($env:JVM_DIR) { [System.IO.Path]::GetFullPath($env:JVM_DIR) } else { [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'DiamTek\JVM')) };
+::PS_BundleInstallPlan::    $planSteps = [System.Collections.Generic.List[object]]::new();
+::PS_BundleInstallPlan::    if ($manifest.payloads) {
+::PS_BundleInstallPlan::        foreach ($p in $manifest.payloads.PSObject.Properties) {
+::PS_BundleInstallPlan::            $tName = $p.Name;
+::PS_BundleInstallPlan::            $tVal = $p.Value;
+::PS_BundleInstallPlan::            $destPath = if ($tName -eq 'java') { Join-Path $jvmRoot ('bundled_jdks\' + $tVal.vendor + '-' + $tVal.version) } else { Join-Path $jvmRoot ('candidates\' + $tName + '\' + $tVal.version) };
+::PS_BundleInstallPlan::            $juncPath = if ($tName -eq 'java') { Join-Path $jvmRoot 'current' } else { Join-Path $jvmRoot ('candidates\' + $tName + '\current') };
+::PS_BundleInstallPlan::            $planSteps.Add([ordered]@{ tool = $tName; version = $tVal.version; destination = $destPath; junction = $juncPath; overwrites_existing = (Test-Path -LiteralPath $destPath) });
+::PS_BundleInstallPlan::        };
+::PS_BundleInstallPlan::    };
+::PS_BundleInstallPlan::    $projLock = Join-Path (Get-Location).Path '.jvm.lock';
+::PS_BundleInstallPlan::    $lockConflict = (Test-Path -LiteralPath $projLock) -and ($env:FORCE_YES -ne '1');
+::PS_BundleInstallPlan::    $hashCount = if ($manifest.payload_hashes) { @($manifest.payload_hashes.PSObject.Properties).Count } else { 0 };
+::PS_BundleInstallPlan::    if ($env:OUTPUT_JSON -eq '1') {
+::PS_BundleInstallPlan::        [ordered]@{ ok = $platCompatible; command = 'bundle'; candidate = 'java'; resolved = $file; changed = $false; status = 'dry-run'; bundle_platform = $manifest.platform; host_platform = $hostPlat; platform_compatible = $platCompatible; has_signature = $hasSig; has_external_sha256 = $hasExtSha; verified_hash_entries = $hashCount; lockfile_conflict = $lockConflict; installation_plan = @($planSteps) } | ConvertTo-Json -Depth 6;
+::PS_BundleInstallPlan::    } else {
+::PS_BundleInstallPlan::        Write-Host '';
+::PS_BundleInstallPlan::        Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_BundleInstallPlan::        Write-Host ('  Bundle Import Dry-Run & Installation Plan: ' + (Split-Path $file -Leaf)) -ForegroundColor Cyan;
+::PS_BundleInstallPlan::        Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_BundleInstallPlan::        Write-Host ('  Bundle Platform     : ' + $manifest.platform + ' (Host: ' + $hostPlat + ' -> ' + $(if ($platCompatible) { 'COMPATIBLE' } else { 'MISMATCH' }) + ')') -ForegroundColor $(if ($platCompatible) { 'Green' } else { 'Red' });
+::PS_BundleInstallPlan::        Write-Host ('  Authentication      : ' + $(if ($hasSig) { 'HMAC-SHA256 (manifest.sig)' } elseif ($hasExtSha) { 'External Digest (.sha256)' } else { 'Unauthenticated (requires --skip-checksum)' }));
+::PS_BundleInstallPlan::        Write-Host ('  Payload File Hashes : ' + $hashCount + ' SHA-256 entries');
+::PS_BundleInstallPlan::        Write-Host '  Planned Toolchain Provisioning:';
+::PS_BundleInstallPlan::        foreach ($st in $planSteps) {
+::PS_BundleInstallPlan::            $ov = if ($st.overwrites_existing) { ' [REPLACES EXISTING]' } else { ' [NEW]' };
+::PS_BundleInstallPlan::            Write-Host ('    * ' + $st.tool + ' ' + $st.version + ' -> ' + $st.destination + $ov) -ForegroundColor White;
+::PS_BundleInstallPlan::            Write-Host ('      Junction: ' + $st.junction) -ForegroundColor DarkGray;
+::PS_BundleInstallPlan::        };
+::PS_BundleInstallPlan::        if ($lockConflict) {
+::PS_BundleInstallPlan::            Write-Host '  [ ADVISORY ] Project already has a .jvm.lock; pass --yes during install to allow overwrite.' -ForegroundColor Yellow;
+::PS_BundleInstallPlan::        };
+::PS_BundleInstallPlan::        Write-Host '================================================================================' -ForegroundColor DarkGray;
+::PS_BundleInstallPlan::    };
+::PS_BundleInstallPlan::    exit $(if ($platCompatible) { 0 } else { 1 });
+::PS_BundleInstallPlan::} catch {
+::PS_BundleInstallPlan::    if ($env:OUTPUT_JSON -eq '1') { [ordered]@{ ok = $false; command = 'bundle'; candidate = 'java'; resolved = $null; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress } else { Write-Host ('[ ERROR  ] Bundle dry-run failed: ' + $_.Exception.Message) -ForegroundColor Red };
+::PS_BundleInstallPlan::    exit 1;
+::PS_BundleInstallPlan::} finally {
+::PS_BundleInstallPlan::    if ($zip) { $zip.Dispose() };
+::PS_BundleInstallPlan::}
 
 rem ============================================================
 rem AIR-GAPPED DISTRIBUTION PACKAGER (jvm distro)
@@ -15892,100 +17720,125 @@ if not defined DISTRO_OUT set "DISTRO_OUT=.\jvm-offline-distro.zip"
 
 if "!FLAG_DRY_RUN!"=="1" (
     echo %cBLUE%[ DRY-RUN ]%cRESET% Would build standalone air-gapped distribution package into: !DISTRO_OUT!
-    if "!OUTPUT_JSON!"=="1" (
-        echo {"ok":true,"command":"distro","candidate":"java","resolved":"!DISTRO_OUT!","changed":false,"status":"dry-run","out":"!DISTRO_OUT!"}
-    )
+    if "!OUTPUT_JSON!"=="1" ( echo {"ok":true,"command":"distro","candidate":"java","resolved":"!DISTRO_OUT!","changed":false,"status":"dry-run","out":"!DISTRO_OUT!"} )
     exit /b 0
 )
 
-"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$ErrorActionPreference = 'Stop';" ^
-    "$outPath = $env:DISTRO_OUT;" ^
-    "$includePayloads = ($env:FLAG_INCLUDE_PAYLOADS -eq '1');" ^
-    "$stageDir = Join-Path $env:TEMP ('jvm_distro_' + [Guid]::NewGuid().ToString('N'));" ^
-    "try {" ^
-    "    New-Item -ItemType Directory -Path $stageDir -Force | Out-Null;" ^
-    "    $repoRoot = $env:SCRIPT_DIR;" ^
-    "    if (-not $repoRoot -or -not (Test-Path -LiteralPath (Join-Path $repoRoot 'jvm.bat'))) {" ^
-    "        $repoRoot = (Get-Location).Path;" ^
-    "    };" ^
-    "    $filesToCopy = @('jvm.bat', 'install.ps1', 'uninstall.ps1', 'README.md', 'LICENSE');" ^
-    "    $fileHashes = [ordered]@{};" ^
-    "    $copied = 0;" ^
-    "    $fullOutCheck = [System.IO.Path]::GetFullPath($outPath);" ^
-    "    if (Test-Path -LiteralPath $fullOutCheck) {" ^
-    "        $outItem = Get-Item -LiteralPath $fullOutCheck -Force -ErrorAction Stop;" ^
-    "        if ($outItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw 'Security violation (CWE-59): Output target cannot be a reparse point or symlink.' };" ^
-    "    };" ^
-    "    foreach ($f in $filesToCopy) {" ^
-    "        $src = Join-Path $repoRoot $f;" ^
-    "        if (Test-Path -LiteralPath $src) {" ^
-    "            $srcItem = Get-Item -LiteralPath $src -Force -ErrorAction Stop;" ^
-    "            if ($srcItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw ('Security violation (CWE-59): Source file is a reparse point: ' + $f) };" ^
-    "            $destFile = Join-Path $stageDir $f;" ^
-    "            Copy-Item -LiteralPath $src -Destination $destFile -Force;" ^
-    "            $sha = [System.Security.Cryptography.SHA256]::Create(); $fs = [System.IO.File]::OpenRead($destFile); $hashBytes = try { ([System.BitConverter]::ToString($sha.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $fs.Dispose(); $sha.Dispose() };" ^
-    "            $fileHashes[$f] = ('sha256:' + $hashBytes);" ^
-    "            $copied++;" ^
-    "        };" ^
-    "    };" ^
-    "    $payloadInfo = [ordered]@{};" ^
-    "    if ($includePayloads) {" ^
-    "        $pDir = Join-Path $stageDir 'payloads';" ^
-    "        New-Item -ItemType Directory -Path $pDir -Force | Out-Null;" ^
-    "        $jLink = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\current';" ^
-    "        $jPath = if (Test-Path -LiteralPath $jLink) { (Get-Item -LiteralPath $jLink -ErrorAction SilentlyContinue).Target } else { $null };" ^
-    "        if (-not $jPath -and $env:JAVA_HOME -and (Test-Path -LiteralPath $env:JAVA_HOME)) { $jPath = $env:JAVA_HOME };" ^
-    "        if ($jPath -and (Test-Path -LiteralPath $jPath)) {" ^
-    "            $jDest = Join-Path $pDir 'java';" ^
-    "            New-Item -ItemType Directory -Path $jDest -Force | Out-Null;" ^
-    "            Get-ChildItem -LiteralPath $jPath -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 } | ForEach-Object {" ^
-    "                $rel = $_.FullName.Substring($jPath.Length).TrimStart('\', '/');" ^
-    "                $tgt = Join-Path $jDest $rel;" ^
-    "                if ($_.PSIsContainer) { if (-not (Test-Path -LiteralPath $tgt)) { New-Item -ItemType Directory -Path $tgt -Force | Out-Null } } else { $p = Split-Path $tgt -Parent; if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }; Copy-Item -LiteralPath $_.FullName -Destination $tgt -Force };" ^
-    "            };" ^
-    "            $payloadInfo['java'] = 'payloads/java';" ^
-    "        };" ^
-    "    };" ^
-    "    $manifest = [ordered]@{" ^
-    "        name = 'DiamTek JVM Air-Gapped Distribution Kit';" ^
-    "        kit_type = 'manager-offline-kit';" ^
-    "        description = 'Air-gapped offline distribution kit for DiamTek JVM Manager files. For portable self-contained Java environments with JDKs, use bundle create.';" ^
-    "        version = $env:JVM_VERSION;" ^
-    "        build = $env:JVM_BUILD;" ^
-    "        created_at = (Get-Date).ToUniversalTime().ToString('o');" ^
-    "        offline_ready = $true;" ^
-    "        has_payloads = $includePayloads;" ^
-    "        files = $fileHashes;" ^
-    "        payloads = $payloadInfo;" ^
-    "    };" ^
-    "    $manJson = $manifest | ConvertTo-Json -Depth 5;" ^
-    "    [System.IO.File]::WriteAllText((Join-Path $stageDir 'distro-manifest.json'), $manJson, [System.Text.UTF8Encoding]::new($false));" ^
-    "    Add-Type -AssemblyName System.IO.Compression.FileSystem;" ^
-    "    $fullOut = [System.IO.Path]::GetFullPath($outPath);" ^
-    "    $parent = [System.IO.Path]::GetDirectoryName($fullOut);" ^
-    "    if ($parent -and -not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null };" ^
-    "    if ($fullOut.EndsWith('.zip', [System.StringComparison]::OrdinalIgnoreCase) -or $fullOut.EndsWith('.jvmbundle', [System.StringComparison]::OrdinalIgnoreCase)) {" ^
-    "        if (Test-Path -LiteralPath $fullOut) { Remove-Item -LiteralPath $fullOut -Force };" ^
-    "        [System.IO.Compression.ZipFile]::CreateFromDirectory($stageDir, $fullOut);" ^
-    "    } else {" ^
-    "        if (-not (Test-Path -LiteralPath $fullOut)) { New-Item -ItemType Directory -Path $fullOut -Force | Out-Null };" ^
-    "        Get-ChildItem -LiteralPath $stageDir | Copy-Item -Destination $fullOut -Recurse -Force;" ^
-    "    };" ^
-    "    if ($env:OUTPUT_JSON -eq '1') {" ^
-    "        [ordered]@{ ok = $true; command = 'distro'; candidate = 'java'; resolved = $fullOut; changed = $true; status = 'created'; out = $fullOut; manifest = $manifest } | ConvertTo-Json -Depth 6;" ^
-    "    } else {" ^
-    "        Write-Host ('[   OK   ] Air-gapped JVM Manager distribution created: ' + $fullOut) -ForegroundColor Green;" ^
-    "        Write-Host '         Type: Manager Offline Kit (distro)' -ForegroundColor Cyan;" ^
-    "        Write-Host '         To distribute self-contained portable Java environments with JDKs, use: jvm bundle create' -ForegroundColor DarkGray;" ^
-    "        Write-Host ('         Install offline via: powershell -ExecutionPolicy Bypass -File install.ps1 -Offline -DistroDir ' + $fullOut) -ForegroundColor Cyan;" ^
-    "    };" ^
-    "} catch {" ^
-    "    Write-Host ('[ ERROR  ] ' + $_.Exception.Message) -ForegroundColor Red;" ^
-    "    exit 1;" ^
-    "} finally {" ^
-    "    if (Test-Path -LiteralPath $stageDir) { Remove-Item -LiteralPath $stageDir -Recurse -Force -ErrorAction SilentlyContinue };" ^
-    "}"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_DistroCreateBody::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))"
 exit /b !errorlevel!
+
+::PS_DistroCreateBody::$ErrorActionPreference = 'Stop';
+::PS_DistroCreateBody::$outPath = $env:DISTRO_OUT;
+::PS_DistroCreateBody::$includePayloads = ($env:FLAG_INCLUDE_PAYLOADS -eq '1');
+::PS_DistroCreateBody::$stageDir = Join-Path $env:TEMP ('jvm_distro_' + [Guid]::NewGuid().ToString('N'));
+::PS_DistroCreateBody::try {
+::PS_DistroCreateBody::    New-Item -ItemType Directory -Path $stageDir -Force | Out-Null;
+::PS_DistroCreateBody::    $repoRoot = $env:SCRIPT_DIR;
+::PS_DistroCreateBody::    if (-not $repoRoot -or -not (Test-Path -LiteralPath (Join-Path $repoRoot 'jvm.bat'))) { $repoRoot = (Get-Location).Path; };
+::PS_DistroCreateBody::    $filesToCopy = @('jvm.bat','install.ps1','uninstall.ps1','README.md','LICENSE');
+::PS_DistroCreateBody::    $fileHashes = [ordered]@{};
+::PS_DistroCreateBody::    $fullOutCheck = [System.IO.Path]::GetFullPath($outPath);
+::PS_DistroCreateBody::    if (Test-Path -LiteralPath $fullOutCheck) {
+::PS_DistroCreateBody::        $outItem = Get-Item -LiteralPath $fullOutCheck -Force -ErrorAction Stop;
+::PS_DistroCreateBody::        if ($outItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw 'Security violation (CWE-59): Output target cannot be a reparse point or symlink.' };
+::PS_DistroCreateBody::    };
+::PS_DistroCreateBody::    foreach ($f in $filesToCopy) {
+::PS_DistroCreateBody::        $src = Join-Path $repoRoot $f;
+::PS_DistroCreateBody::        if (Test-Path -LiteralPath $src) {
+::PS_DistroCreateBody::            $srcItem = Get-Item -LiteralPath $src -Force -ErrorAction Stop;
+::PS_DistroCreateBody::            if ($srcItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw ('Security violation (CWE-59): Source file is a reparse point: ' + $f) };
+::PS_DistroCreateBody::            $destFile = Join-Path $stageDir $f;
+::PS_DistroCreateBody::            Copy-Item -LiteralPath $src -Destination $destFile -Force;
+::PS_DistroCreateBody::            $sha = [System.Security.Cryptography.SHA256]::Create();
+::PS_DistroCreateBody::            $fs = [System.IO.File]::OpenRead($destFile);
+::PS_DistroCreateBody::            $hashBytes = try { ([System.BitConverter]::ToString($sha.ComputeHash($fs)) -replace '-','').ToLower() } finally { $fs.Close(); $fs.Dispose(); $sha.Dispose() };
+::PS_DistroCreateBody::            $fileHashes[$f] = ('sha256:' + $hashBytes);
+::PS_DistroCreateBody::        };
+::PS_DistroCreateBody::    };
+::PS_DistroCreateBody::    $payloadInfo = [ordered]@{};
+::PS_DistroCreateBody::    if ($includePayloads) {
+::PS_DistroCreateBody::        $pDir = Join-Path $stageDir 'payloads';
+::PS_DistroCreateBody::        New-Item -ItemType Directory -Path $pDir -Force | Out-Null;
+::PS_DistroCreateBody::        $jLink = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\current';
+::PS_DistroCreateBody::        $jPath = if (Test-Path -LiteralPath $jLink) { (Get-Item -LiteralPath $jLink -ErrorAction SilentlyContinue).Target } else { $null };
+::PS_DistroCreateBody::        if (-not $jPath -and $env:JAVA_HOME -and (Test-Path -LiteralPath $env:JAVA_HOME)) { $jPath = $env:JAVA_HOME };
+::PS_DistroCreateBody::        if ($jPath -and (Test-Path -LiteralPath $jPath)) {
+::PS_DistroCreateBody::            $jDest = Join-Path $pDir 'java';
+::PS_DistroCreateBody::            New-Item -ItemType Directory -Path $jDest -Force | Out-Null;
+::PS_DistroCreateBody::            $shaP = [System.Security.Cryptography.SHA256]::Create();
+::PS_DistroCreateBody::            Get-ChildItem -LiteralPath $jPath -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0 } | ForEach-Object {
+::PS_DistroCreateBody::                $rel = $_.FullName.Substring($jPath.Length).TrimStart('\','/');
+::PS_DistroCreateBody::                $tgt = Join-Path $jDest $rel;
+::PS_DistroCreateBody::                if ($_.PSIsContainer) {
+::PS_DistroCreateBody::                    if (-not (Test-Path -LiteralPath $tgt)) { New-Item -ItemType Directory -Path $tgt -Force | Out-Null };
+::PS_DistroCreateBody::                } else {
+::PS_DistroCreateBody::                    $p = Split-Path $tgt -Parent;
+::PS_DistroCreateBody::                    if (-not (Test-Path -LiteralPath $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null };
+::PS_DistroCreateBody::                    Copy-Item -LiteralPath $_.FullName -Destination $tgt -Force;
+::PS_DistroCreateBody::                    $fsP = [System.IO.File]::OpenRead($tgt);
+::PS_DistroCreateBody::                    $hP = try { ([System.BitConverter]::ToString($shaP.ComputeHash($fsP)) -replace '-','').ToLowerInvariant() } finally { $fsP.Close(); $fsP.Dispose() };
+::PS_DistroCreateBody::                    $fileHashes[('payloads/java/' + ($rel -replace '\\','/'))] = ('sha256:' + $hP);
+::PS_DistroCreateBody::                };
+::PS_DistroCreateBody::            };
+::PS_DistroCreateBody::            $shaP.Dispose();
+::PS_DistroCreateBody::            $payloadInfo['java'] = 'payloads/java';
+::PS_DistroCreateBody::        };
+::PS_DistroCreateBody::    };
+::PS_DistroCreateBody::    $manifest = [ordered]@{
+::PS_DistroCreateBody::        schema_version = 2;
+::PS_DistroCreateBody::        name = 'DiamTek JVM Air-Gapped Distribution Kit';
+::PS_DistroCreateBody::        kit_type = 'manager-offline-kit';
+::PS_DistroCreateBody::        description = 'Air-gapped offline distribution kit for DiamTek JVM Manager files.';
+::PS_DistroCreateBody::        version = $env:JVM_VERSION;
+::PS_DistroCreateBody::        build = $env:JVM_BUILD;
+::PS_DistroCreateBody::        platform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' };
+::PS_DistroCreateBody::        created_at = (Get-Date).ToUniversalTime().ToString('o');
+::PS_DistroCreateBody::        offline_ready = $true;
+::PS_DistroCreateBody::        has_payloads = $includePayloads;
+::PS_DistroCreateBody::        files = $fileHashes;
+::PS_DistroCreateBody::        payloads = $payloadInfo;
+::PS_DistroCreateBody::    };
+::PS_DistroCreateBody::    $manJson = $manifest | ConvertTo-Json -Depth 5;
+::PS_DistroCreateBody::    $manFile = Join-Path $stageDir 'distro-manifest.json';
+::PS_DistroCreateBody::    $utf8NoBom = [System.Text.UTF8Encoding]::new($false);
+::PS_DistroCreateBody::    [System.IO.File]::WriteAllText($manFile, $manJson, $utf8NoBom);
+::PS_DistroCreateBody::    $shaM = [System.Security.Cryptography.SHA256]::Create();
+::PS_DistroCreateBody::    $manBytes = [System.IO.File]::ReadAllBytes($manFile);
+::PS_DistroCreateBody::    $manDigest = ([System.BitConverter]::ToString($shaM.ComputeHash($manBytes)) -replace '-','').ToLowerInvariant();
+::PS_DistroCreateBody::    $shaM.Dispose();
+::PS_DistroCreateBody::    [System.IO.File]::WriteAllText((Join-Path $stageDir 'distro-manifest.sha256'), ('sha256:' + $manDigest), $utf8NoBom);
+::PS_DistroCreateBody::    $secret = if ($env:FLAG_KEY_FILE -and (Test-Path -LiteralPath $env:FLAG_KEY_FILE)) { (Get-Content -LiteralPath $env:FLAG_KEY_FILE -Raw).Trim() } elseif ($env:JVM_LOCK_SECRET) { $env:JVM_LOCK_SECRET } elseif ($env:FLAG_SECRET) { $env:FLAG_SECRET } else { $null };
+::PS_DistroCreateBody::    if (-not [string]::IsNullOrWhiteSpace($secret)) {
+::PS_DistroCreateBody::        $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($secret));
+::PS_DistroCreateBody::        $sigHex = ([System.BitConverter]::ToString($hmac.ComputeHash($manBytes)) -replace '-','').ToLowerInvariant();
+::PS_DistroCreateBody::        $sigObj = [ordered]@{ version = 1; algorithm = 'HMAC-SHA256'; manifest_sha256 = $manDigest; signature = $sigHex; timestamp = (Get-Date).ToUniversalTime().ToString('o') };
+::PS_DistroCreateBody::        [System.IO.File]::WriteAllText((Join-Path $stageDir 'distro-manifest.sig'), ($sigObj | ConvertTo-Json -Depth 3), $utf8NoBom);
+::PS_DistroCreateBody::    };
+::PS_DistroCreateBody::    Add-Type -AssemblyName System.IO.Compression.FileSystem;
+::PS_DistroCreateBody::    $fullOut = [System.IO.Path]::GetFullPath($outPath);
+::PS_DistroCreateBody::    $parent = [System.IO.Path]::GetDirectoryName($fullOut);
+::PS_DistroCreateBody::    if ($parent -and -not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null };
+::PS_DistroCreateBody::    if ($fullOut.EndsWith('.zip', [System.StringComparison]::OrdinalIgnoreCase) -or $fullOut.EndsWith('.jvmbundle', [System.StringComparison]::OrdinalIgnoreCase)) {
+::PS_DistroCreateBody::        if (Test-Path -LiteralPath $fullOut) { Remove-Item -LiteralPath $fullOut -Force };
+::PS_DistroCreateBody::        [System.IO.Compression.ZipFile]::CreateFromDirectory($stageDir, $fullOut);
+::PS_DistroCreateBody::        [System.IO.File]::WriteAllText(($fullOut + '.sha256'), ('sha256:' + $manDigest), $utf8NoBom);
+::PS_DistroCreateBody::    } else {
+::PS_DistroCreateBody::        if (-not (Test-Path -LiteralPath $fullOut)) { New-Item -ItemType Directory -Path $fullOut -Force | Out-Null };
+::PS_DistroCreateBody::        Get-ChildItem -LiteralPath $stageDir | Copy-Item -Destination $fullOut -Recurse -Force;
+::PS_DistroCreateBody::    };
+::PS_DistroCreateBody::    if ($env:OUTPUT_JSON -eq '1') {
+::PS_DistroCreateBody::        [ordered]@{ ok = $true; command = 'distro'; candidate = 'java'; resolved = $fullOut; changed = $true; status = 'created'; out = $fullOut; manifest_sha256 = $manDigest; manifest = $manifest } | ConvertTo-Json -Depth 6;
+::PS_DistroCreateBody::    } else {
+::PS_DistroCreateBody::        Write-Host ('[   OK   ] Air-gapped JVM Manager distribution created: ' + $fullOut) -ForegroundColor Green;
+::PS_DistroCreateBody::        Write-Host '         Type: Manager Offline Kit (distro)' -ForegroundColor Cyan;
+::PS_DistroCreateBody::        Write-Host '         To distribute self-contained portable Java environments with JDKs, use: jvm bundle create' -ForegroundColor DarkGray;
+::PS_DistroCreateBody::        Write-Host ('         Install offline via: powershell -ExecutionPolicy Bypass -File install.ps1 -Offline -DistroDir ' + $fullOut) -ForegroundColor Cyan;
+::PS_DistroCreateBody::    };
+::PS_DistroCreateBody::} catch {
+::PS_DistroCreateBody::    if ($env:OUTPUT_JSON -eq '1') { [ordered]@{ ok = $false; command = 'distro'; candidate = 'java'; resolved = $null; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress } else { Write-Host ('[ ERROR  ] ' + $_.Exception.Message) -ForegroundColor Red };
+::PS_DistroCreateBody::    exit 1;
+::PS_DistroCreateBody::} finally {
+::PS_DistroCreateBody::    if (Test-Path -LiteralPath $stageDir) { Remove-Item -LiteralPath $stageDir -Recurse -Force -ErrorAction SilentlyContinue };
+::PS_DistroCreateBody::}
 
 rem END OF SCRIPT

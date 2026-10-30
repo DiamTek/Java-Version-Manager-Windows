@@ -6844,7 +6844,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
 
         $mdLines.Add("##  DiamTek JVM Security & Adversarial Test Suite -- $overallBadge")
         $mdLines.Add("")
-        $mdLines.Add("- **Total Executed:** $TotalExecuted (`$GlobalPassed` passed, `$GlobalFailed` failed, `$GlobalSkipped` skipped)")
+        $mdLines.Add("- **Total Executed:** $TotalExecuted ($GlobalPassed passed, $GlobalFailed failed, $GlobalSkipped skipped)")
         $mdLines.Add("- **Pass Rate:** $passRate%")
         $mdLines.Add("- **Execution Time:** $TotalElapsedMs ms (Wall clock: $($RunnerStopwatch.ElapsedMilliseconds) ms)")
         $mdLines.Add("")
