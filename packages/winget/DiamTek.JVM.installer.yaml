@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.28.0.schema.json
+
 PackageIdentifier: DiamTek.JVM
 PackageVersion: 1.0.1
 InstallerType: msi
@@ -16,4 +18,4 @@ Installers:
     InstallerSha256: AAA12573C161AFA89B17BE78DB09CC543D080931287AFB1227F48E6DF49FBC0D
     ProductCode: '{10532D08-C6D3-4E71-B719-51F23BCCC941}'
 ManifestType: installer
-ManifestVersion: 1.6.0
+ManifestVersion: 1.28.0
