@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 rem Java Version Manager
 rem Copyright (C) 2026 DiamTek / Alexéy Shishkin
 
@@ -61,7 +61,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261031.165"
+set "JVM_BUILD=20261031.166"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -9742,7 +9742,6 @@ rem Write args to a self-contained .cmd file — no cross-process quoting requir
   "  $cmd += ' ' + $v" ^
   "};" ^
   "$lines.Add($cmd);" ^
-    "$v=$v.Replace([string][char]37, [string][char]37+[string][char]37);" ^
   "$lines.Add('exit /b ' + [char]37 + 'ERRORLEVEL' + [char]37);" ^
   "[System.IO.File]::WriteAllLines($env:EXEC_CMDFILE,$lines,[System.Text.UTF8Encoding]::new($false))"
 
@@ -14924,7 +14923,7 @@ echo            The following redacted items will be collected:
 echo              - jvm-report.txt ^(redacted system ^& JDK environment summary^)
 echo              - config.json    ^(redacted settings; proxy credentials ^& user paths stripped^)
 echo            Excluded for privacy: ownership.json, secrets, and raw user profile paths.
-if not "!FORCE_YES!"=="1" if not defined JVM_NONINTERACTIVE (
+if not "!FORCE_YES!"=="1" if not defined JVM_NONINTERACTIVE if not defined CLI_COMMAND (
     "%CHOICE_BIN%" /C yn /N /M "Proceed with generating jvm-issue-bundle.zip? (y/N): "
     if errorlevel 2 (
         echo %cBLUE%[  INFO  ]%cRESET% Issue bundle collection cancelled.
@@ -14999,7 +14998,7 @@ echo              - report.txt        ^(redacted environment report^)
 echo              - doctor-output.txt ^(redacted health audit output^)
 echo              - config.json       ^(redacted configuration; credentials ^& user paths stripped^)
 echo            Excluded for privacy: ownership.json, secrets, and raw user profile paths.
-if not "!FORCE_YES!"=="1" if not defined JVM_NONINTERACTIVE (
+if not "!FORCE_YES!"=="1" if not defined JVM_NONINTERACTIVE if not defined CLI_COMMAND (
     "%CHOICE_BIN%" /C yn /N /M "Proceed with generating jvm-support-bundle.zip? (y/N): "
     if errorlevel 2 (
         echo %cBLUE%[  INFO  ]%cRESET% Support bundle collection cancelled.
