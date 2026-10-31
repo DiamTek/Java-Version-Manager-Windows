@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 rem Java Version Manager
 rem Copyright (C) 2026 DiamTek / Alexéy Shishkin
 
@@ -61,7 +61,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261030.164"
+set "JVM_BUILD=20261031.165"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -472,7 +472,7 @@ if /i "%~1"=="--skip-checksum" (
     if "!POLICY_ACTIVE!"=="1" if "!POLICY_ALLOW_SKIP_CHECKSUM!"=="0" (
         call :EmitContextualError "Security Policy Violation (CWE-353)" "Machine policy prohibits bypassing checksum verification (--skip-checksum/--no-verify)." "System policy is enforced via !POLICY_FILE_PATH!." "Operation aborted by enterprise policy."
         if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
-        exit /b 1
+        endlocal & exit /b 1
     )
     set "SKIP_CHECKSUM=1"
     shift
@@ -482,7 +482,7 @@ if /i "%~1"=="--no-verify" (
     if "!POLICY_ACTIVE!"=="1" if "!POLICY_ALLOW_SKIP_CHECKSUM!"=="0" (
         call :EmitContextualError "Security Policy Violation (CWE-353)" "Machine policy prohibits bypassing checksum verification (--skip-checksum/--no-verify)." "System policy is enforced via !POLICY_FILE_PATH!." "Operation aborted by enterprise policy."
         if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
-        exit /b 1
+        endlocal & exit /b 1
     )
     set "SKIP_CHECKSUM=1"
     shift
@@ -492,7 +492,7 @@ if /i "%~1"=="--allow-weak-checksum" (
     if "!POLICY_ACTIVE!"=="1" if "!POLICY_ALLOW_SKIP_CHECKSUM!"=="0" (
         call :EmitContextualError "Security Policy Violation (CWE-328)" "Machine policy prohibits weak cryptographic checksums (SHA-1/MD5)." "System policy is enforced via !POLICY_FILE_PATH!." "Operation aborted by enterprise policy."
         if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
-        exit /b 1
+        endlocal & exit /b 1
     )
     set "ALLOW_WEAK_CHECKSUM=1"
     shift
@@ -1406,7 +1406,7 @@ if "%SKIP_CHECKSUM%"=="1" (
     if "!POLICY_ACTIVE!"=="1" if "!POLICY_ALLOW_SKIP_CHECKSUM!"=="0" (
         call :EmitContextualError "Security Policy Violation (CWE-353)" "Machine policy prohibits bypassing checksum verification (--skip-checksum/--no-verify)." "System policy is enforced via !POLICY_FILE_PATH!." "Operation aborted by enterprise policy."
         if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
-        exit /b 1
+        endlocal & exit /b 1
     )
     if defined JVM_NONINTERACTIVE if not "!FORCE_YES!"=="1" (
         echo.
@@ -3961,8 +3961,8 @@ if "!CLI_VENDOR!"=="" (
     echo 13. Cancel
     echo.
 :GET_DL_VENDOR_CHOICE
-    set "V_CHOICE="
-    if defined CI (
+    if defined JVM_NONINTERACTIVE set "CLI_VENDOR=Adoptium" & goto :GOT_DL_VENDOR
+    if "!FORCE_YES!"=="1" set "CLI_VENDOR=Adoptium" & goto :GOT_DL_VENDOR
         echo %cRED%[ ERROR  ]%cRESET% No vendor specified. Pass --vendor ^<name^> explicitly when running non-interactively.
         exit /b 1
     )
@@ -3995,6 +3995,7 @@ if "!CLI_VENDOR!"=="" (
     if !V_CHOICE!==10 set "CLI_VENDOR=Mandrel"
     if !V_CHOICE!==11 set "CLI_VENDOR=Dragonwell"
     if !V_CHOICE!==12 set "CLI_VENDOR=Kona"
+:GOT_DL_VENDOR
 )
 
 rem Normalize vendor aliases
@@ -4433,11 +4434,11 @@ for %%A in (%*) do (
     )
 )
 if "!POLICY_ACTIVE!"=="1" if "!POLICY_ALLOW_USER_CONFIG!"=="0" (
-    if /i "%CFG_SUB%"=="set" (
+    if /i "!CFG_SUB!"=="set" (
         call :EmitContextualError "Policy Violation" "Machine policy disallows user configuration modifications." "System policy is enforced via !POLICY_FILE_PATH!." "Configuration was not modified."
         exit /b 1
     )
-    if /i "%CFG_SUB%"=="reset" (
+    if /i "!CFG_SUB!"=="reset" (
         call :EmitContextualError "Policy Violation" "Machine policy disallows user configuration modifications." "System policy is enforced via !POLICY_FILE_PATH!." "Configuration was not modified."
         exit /b 1
     )
@@ -4564,7 +4565,8 @@ for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypas
 )
 if "!CFG_HANDLED!"=="0" set "CFG_EXIT_CODE=1"
 if exist "!CFG_PS1!" del /f /q "!CFG_PS1!" >nul 2>&1
-exit /b !CFG_EXIT_CODE!
+if "!CFG_EXIT_CODE!"=="9" exit /b 9
+    exit /b !CFG_EXIT_CODE!
 
 rem ============================================================
 rem PROJECT CONFIGURATION (.jvm.toml / .jvmrc)
@@ -4572,6 +4574,7 @@ rem ============================================================
 :LoadProjectConfig
 set "CFG_FILE=%~1"
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "PRJ_RND=%%A"
+call :EnsureSecureTemp
 set "PRJ_PS1=%JVM_SECURE_TEMP%\jvm_prj_!PRJ_RND!.ps1"
 
 (
@@ -4615,6 +4618,7 @@ if not defined PRJ_FILE (
 )
 
 for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "PRJ_RND=%%A"
+call :EnsureSecureTemp
 set "PRJ_PS1=%JVM_SECURE_TEMP%\jvm_prj_view_!PRJ_RND!.ps1"
 
 (
@@ -9738,7 +9742,8 @@ rem Write args to a self-contained .cmd file — no cross-process quoting requir
   "  $cmd += ' ' + $v" ^
   "};" ^
   "$lines.Add($cmd);" ^
-  "$lines.Add('exit /b %ERRORLEVEL%');" ^
+    "$v=$v.Replace([string][char]37, [string][char]37+[string][char]37);" ^
+  "$lines.Add('exit /b ' + [char]37 + 'ERRORLEVEL' + [char]37);" ^
   "[System.IO.File]::WriteAllLines($env:EXEC_CMDFILE,$lines,[System.Text.UTF8Encoding]::new($false))"
 
 if errorlevel 1 (
@@ -15437,6 +15442,7 @@ exit /b !_FREEZE_ERR!
 ::PS_ExecuteFreezeCommand::        $data = [ordered]@{ schema = 2; lockfile_version = 1; version = 1; platform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' }; generated_at = $nowIso; generated = $nowIso; tools = [ordered]@{} };
 ::PS_ExecuteFreezeCommand::    };
 ::PS_ExecuteFreezeCommand::    if (-not $data.tools) { $data.tools = [ordered]@{} };
+::PS_ExecuteFreezeCommand::    if ($data.tools -and $data.tools.PSObject.Properties['java']) { $curJ = $data.tools.java; if ($curJ.url -and -not (Test-OfficialVendorUrl ([string]$curJ.vendor) ([string]$curJ.url)) -and $curJ.provenance -ne 'user-supplied') { throw ('Security violation (CWE-494): Lockfile metadata for Java has unverified provenance (' + $curJ.url + ') and could not be authenticated against official publisher metadata.') } };
 ::PS_ExecuteFreezeCommand::    $changes = [ordered]@{};
 ::PS_ExecuteFreezeCommand::    $jvmRoot = if ($env:JVM_DIR) { $env:JVM_DIR } else { Join-Path $env:LOCALAPPDATA 'DiamTek\JVM' };
 ::PS_ExecuteFreezeCommand::    $emptySha256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
@@ -17465,7 +17471,7 @@ if errorlevel 1 exit /b 1
     "            if ($candName -notmatch '\A[a-zA-Z0-9_-]{1,32}$' -or ($allowedCands -notcontains $candName.ToLowerInvariant())) {" ^
     "                throw ('Security violation (CWE-22): Disallowed ecosystem candidate in bundle: ' + $candName);" ^
     "            };" ^
-    "            $candVer = if ($manifest.tools -and $manifest.tools.$candName -and $manifest.tools.$candName.version) { [string]$manifest.tools.$candName.version } else { 'bundled' };" ^
+    "            $candVer = if ($manifest.tools -and $manifest.tools.PSObject.Properties[$candName].Value -and $manifest.tools.PSObject.Properties[$candName].Value.version) { [string]$manifest.tools.PSObject.Properties[$candName].Value.version } else { 'bundled' };" ^
     "            if ($candVer -notmatch '\A[a-zA-Z0-9._+-]{1,64}$' -or $candVer.Contains('..') -or $candVer -eq '.' -or $candVer -ieq 'current') {" ^
     "                throw ('Security violation (CWE-22): Invalid candidate version in manifest: ' + $candVer);" ^
     "            };" ^
