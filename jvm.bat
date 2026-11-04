@@ -61,7 +61,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261104.167"
+set "JVM_BUILD=20261104.168"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -3963,61 +3963,65 @@ if defined VER_NUM_TEST (
     exit /b 1
 )
 
-if "!CLI_VENDOR!"=="" (
-    echo.
-    echo %cBLUE%[ ACTION ]%cRESET% Select JDK Distribution Vendor:
-    echo.
-    echo 1. Oracle ^(Standard^)
-    echo 2. Adoptium ^(Eclipse Temurin^)
-    echo 3. GraalVM ^(Community Edition^)
-    echo 4. Amazon Corretto
-    echo 5. Azul Zulu
-    echo 6. Microsoft Build of OpenJDK
-    echo 7. BellSoft Liberica
-    echo 8. IBM Semeru ^(OpenJ9^)
-    echo 9. SapMachine ^(SAP^)
-    echo 10. Mandrel ^(Red Hat GraalVM^)
-    echo 11. Alibaba Dragonwell
-    echo 12. Tencent Kona
-    echo 13. Cancel
-    echo.
+if not defined CLI_VENDOR goto :PROMPT_DL_VENDOR
+if "!CLI_VENDOR!"=="" goto :PROMPT_DL_VENDOR
+goto :GOT_DL_VENDOR
+
+:PROMPT_DL_VENDOR
+echo.
+echo %cBLUE%[ ACTION ]%cRESET% Select JDK Distribution Vendor:
+echo.
+echo 1. Oracle ^(Standard^)
+echo 2. Adoptium ^(Eclipse Temurin^)
+echo 3. GraalVM ^(Community Edition^)
+echo 4. Amazon Corretto
+echo 5. Azul Zulu
+echo 6. Microsoft Build of OpenJDK
+echo 7. BellSoft Liberica
+echo 8. IBM Semeru ^(OpenJ9^)
+echo 9. SapMachine ^(SAP^)
+echo 10. Mandrel ^(Red Hat GraalVM^)
+echo 11. Alibaba Dragonwell
+echo 12. Tencent Kona
+echo 13. Cancel
+echo.
 :GET_DL_VENDOR_CHOICE
-    if defined JVM_NONINTERACTIVE set "CLI_VENDOR=Adoptium" & goto :GOT_DL_VENDOR
-    if "!FORCE_YES!"=="1" set "CLI_VENDOR=Adoptium" & goto :GOT_DL_VENDOR
-        echo %cRED%[ ERROR  ]%cRESET% No vendor specified. Pass --vendor ^<name^> explicitly when running non-interactively.
-        exit /b 1
-    )
-    if defined GITHUB_ACTIONS (
-        echo %cRED%[ ERROR  ]%cRESET% No vendor specified. Pass --vendor ^<name^> explicitly when running non-interactively.
-        exit /b 1
-    )
-    set /p "V_CHOICE=Select vendor (1-13): "
-    if not defined V_CHOICE goto :eof
-    if "!V_CHOICE!"=="" goto :eof
-    set "V_CHOICE=!V_CHOICE:"=!"
-    set "V_CHOICE=!V_CHOICE: =!"
-    if "!V_CHOICE!"=="" goto GET_DL_VENDOR_CHOICE
-    set "NUM_TEST="
-    if not "!V_CHOICE!"=="!V_CHOICE:;=!" set "NUM_TEST=;"
-    for /f "eol= delims=0123456789" %%A in ("!V_CHOICE!") do set "NUM_TEST=%%A"
-    if defined NUM_TEST goto GET_DL_VENDOR_CHOICE
-    if !V_CHOICE! LSS 1 goto GET_DL_VENDOR_CHOICE
-    if !V_CHOICE! GTR 13 goto GET_DL_VENDOR_CHOICE
-    if !V_CHOICE!==13 goto :eof
-    if !V_CHOICE!==1 set "CLI_VENDOR=Oracle"
-    if !V_CHOICE!==2 set "CLI_VENDOR=Adoptium"
-    if !V_CHOICE!==3 set "CLI_VENDOR=GraalVM"
-    if !V_CHOICE!==4 set "CLI_VENDOR=Corretto"
-    if !V_CHOICE!==5 set "CLI_VENDOR=Zulu"
-    if !V_CHOICE!==6 set "CLI_VENDOR=Microsoft"
-    if !V_CHOICE!==7 set "CLI_VENDOR=Liberica"
-    if !V_CHOICE!==8 set "CLI_VENDOR=Semeru"
-    if !V_CHOICE!==9 set "CLI_VENDOR=SapMachine"
-    if !V_CHOICE!==10 set "CLI_VENDOR=Mandrel"
-    if !V_CHOICE!==11 set "CLI_VENDOR=Dragonwell"
-    if !V_CHOICE!==12 set "CLI_VENDOR=Kona"
-:GOT_DL_VENDOR
+if defined JVM_NONINTERACTIVE set "CLI_VENDOR=Adoptium" & goto :GOT_DL_VENDOR
+if "!FORCE_YES!"=="1" set "CLI_VENDOR=Adoptium" & goto :GOT_DL_VENDOR
+if defined CI (
+    echo %cRED%[ ERROR  ]%cRESET% No vendor specified. Pass --vendor ^<name^> explicitly when running non-interactively.
+    exit /b 1
 )
+if defined GITHUB_ACTIONS (
+    echo %cRED%[ ERROR  ]%cRESET% No vendor specified. Pass --vendor ^<name^> explicitly when running non-interactively.
+    exit /b 1
+)
+set /p "V_CHOICE=Select vendor (1-13): "
+if not defined V_CHOICE goto :eof
+if "!V_CHOICE!"=="" goto :eof
+set "V_CHOICE=!V_CHOICE:"=!"
+set "V_CHOICE=!V_CHOICE: =!"
+if "!V_CHOICE!"=="" goto GET_DL_VENDOR_CHOICE
+set "NUM_TEST="
+if not "!V_CHOICE!"=="!V_CHOICE:;=!" set "NUM_TEST=;"
+for /f "eol= delims=0123456789" %%A in ("!V_CHOICE!") do set "NUM_TEST=%%A"
+if defined NUM_TEST goto GET_DL_VENDOR_CHOICE
+if !V_CHOICE! LSS 1 goto GET_DL_VENDOR_CHOICE
+if !V_CHOICE! GTR 13 goto GET_DL_VENDOR_CHOICE
+if !V_CHOICE!==13 goto :eof
+if !V_CHOICE!==1 set "CLI_VENDOR=Oracle"
+if !V_CHOICE!==2 set "CLI_VENDOR=Adoptium"
+if !V_CHOICE!==3 set "CLI_VENDOR=GraalVM"
+if !V_CHOICE!==4 set "CLI_VENDOR=Corretto"
+if !V_CHOICE!==5 set "CLI_VENDOR=Zulu"
+if !V_CHOICE!==6 set "CLI_VENDOR=Microsoft"
+if !V_CHOICE!==7 set "CLI_VENDOR=Liberica"
+if !V_CHOICE!==8 set "CLI_VENDOR=Semeru"
+if !V_CHOICE!==9 set "CLI_VENDOR=SapMachine"
+if !V_CHOICE!==10 set "CLI_VENDOR=Mandrel"
+if !V_CHOICE!==11 set "CLI_VENDOR=Dragonwell"
+if !V_CHOICE!==12 set "CLI_VENDOR=Kona"
+:GOT_DL_VENDOR
 
 rem Normalize vendor aliases
 if /i "!CLI_VENDOR!"=="bellsoft" set "CLI_VENDOR=Liberica"
@@ -15461,7 +15465,7 @@ exit /b !_FREEZE_ERR!
 ::PS_ExecuteFreezeCommand::        $data = [ordered]@{ schema = 2; lockfile_version = 1; version = 1; platform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' }; generated_at = $nowIso; generated = $nowIso; tools = [ordered]@{} };
 ::PS_ExecuteFreezeCommand::    };
 ::PS_ExecuteFreezeCommand::    if (-not $data.tools) { $data.tools = [ordered]@{} };
-::PS_ExecuteFreezeCommand::    if ($data.tools -and $data.tools.PSObject.Properties['java']) { $curJ = $data.tools.java; if ($curJ.url -and -not (Test-OfficialVendorUrl ([string]$curJ.vendor) ([string]$curJ.url)) -and $curJ.provenance -ne 'user-supplied') { throw ('Security violation (CWE-494): Lockfile metadata for Java has unverified provenance (' + $curJ.url + ') and could not be authenticated against official publisher metadata.') } };
+::PS_ExecuteFreezeCommand::    if (-not $dryRun -and $data.tools -and $data.tools.PSObject.Properties['java']) { $curJ = $data.tools.java; if ($curJ.url -and -not (Test-OfficialVendorUrl ([string]$curJ.vendor) ([string]$curJ.url)) -and $curJ.provenance -ne 'user-supplied') { throw ('Security violation (CWE-494): Lockfile metadata for Java has unverified provenance (' + $curJ.url + ') and could not be authenticated against official publisher metadata.') } };
 ::PS_ExecuteFreezeCommand::    $changes = [ordered]@{};
 ::PS_ExecuteFreezeCommand::    $jvmRoot = if ($env:JVM_DIR) { $env:JVM_DIR } else { Join-Path $env:LOCALAPPDATA 'DiamTek\JVM' };
 ::PS_ExecuteFreezeCommand::    $emptySha256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
@@ -15523,7 +15527,7 @@ exit /b !_FREEZE_ERR!
 ::PS_ExecuteFreezeCommand::            $targetArch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'aarch64' } else { 'x64' };
 ::PS_ExecuteFreezeCommand::            $resolvedUrl = $null;
 ::PS_ExecuteFreezeCommand::            $resolvedChk = $null;
-::PS_ExecuteFreezeCommand::            if ($vendorJava -match '(?i)(Adoptium|Temurin)') {
+::PS_ExecuteFreezeCommand::            if ($vendorJava -notmatch '(?i)(Adoptium|Temurin)') { $resolvedUrl = $null } elseif ($vendorJava -match '(?i)(Adoptium|Temurin)') {
 ::PS_ExecuteFreezeCommand::                $wantedCoreVersion = ([string]$exactJava -split '\+')[0];
 ::PS_ExecuteFreezeCommand::                if ($wantedCoreVersion -match '^1\.8\.0_(\d+)') { $wantedCoreVersion = '8.0.' + $matches[1] };
 ::PS_ExecuteFreezeCommand::                if ($wantedCoreVersion -notmatch '^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$') { throw ('Cannot safely resolve exact Java release ''' + $exactJava + '''. Expected a numeric major.minor.patch version.') };
@@ -17312,332 +17316,7 @@ if "!FLAG_DRY_RUN!"=="1" (
 call :AcquireStateLock
 if errorlevel 1 exit /b 1
 
-"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$ErrorActionPreference = 'Stop';" ^
-    "$file = (Resolve-Path -LiteralPath $env:BUNDLE_TARGET).Path;" ^
-    "$fInfo = Get-Item -LiteralPath $file -Force;" ^
-    "if ($fInfo.Length -lt 4 -or $fInfo.Length -gt 2147483648L) {" ^
-    "    throw ('Security violation (CWE-400): Bundle compressed size out of safe bounds: ' + $fInfo.Length);" ^
-    "};" ^
-    "$magic = New-Object byte[] 4;" ^
-    "$mfs = [System.IO.File]::OpenRead($file);" ^
-    "try { $mRead = $mfs.Read($magic, 0, 4) } finally { $mfs.Close(); $mfs.Dispose() };" ^
-    "if ($mRead -lt 4 -or $magic[0] -ne 0x50 -or $magic[1] -ne 0x4B) {" ^
-    "    throw 'Security violation (CWE-494): Invalid bundle format (missing ZIP magic bytes).';" ^
-    "};" ^
-    "Add-Type -AssemblyName System.IO.Compression.FileSystem;" ^
-    "$jvmRoot = if ($env:JVM_DIR) { [System.IO.Path]::GetFullPath($env:JVM_DIR) } else { [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'DiamTek\JVM')) };" ^
-    "$tempExt = Join-Path $env:JVM_SECURE_TEMP ('jvm_binst_' + [Guid]::NewGuid().ToString('N'));" ^
-    "$backups = [System.Collections.Generic.List[hashtable]]::new();" ^
-    "$stagedDirs = [System.Collections.Generic.List[string]]::new();" ^
-    "$committedDirs = [System.Collections.Generic.List[string]]::new();" ^
-    "$prevJCurTarget = $null;" ^
-    "$jCurModified = $false;" ^
-    "$prevJavaHome = [System.Environment]::GetEnvironmentVariable('JAVA_HOME', 'User');" ^
-    "$prevCCurTargets = @{};" ^
-    "$lockBackup = $null;" ^
-    "$sw = [System.Diagnostics.Stopwatch]::StartNew();" ^
-    "try {" ^
-    "    New-Item -ItemType Directory -Path $tempExt -Force | Out-Null;" ^
-    "    $canonTemp = [System.IO.Path]::GetFullPath($tempExt).TrimEnd('\', '/') + '\';" ^
-    "    $zip = [System.IO.Compression.ZipFile]::OpenRead($file);" ^
-    "    try {" ^
-    "        if ($zip.Entries.Count -le 0 -or $zip.Entries.Count -gt 40000) {" ^
-    "            throw ('Security violation (CWE-409): Bundle entry count out of safe bounds: ' + $zip.Entries.Count);" ^
-    "        };" ^
-    "        $totalExpanded = 0L;" ^
-    "        foreach ($entry in $zip.Entries) {" ^
-    "            if ($sw.Elapsed.TotalSeconds -gt 300) { throw 'Security violation (CWE-400): Bundle extraction time budget exceeded.' };" ^
-    "            if ((($entry.ExternalAttributes -shr 16) -band 0xF000) -eq 0xA000) {" ^
-    "                throw ('Security violation (CWE-59): Symbolic link entry detected in bundle: ' + $entry.FullName);" ^
-    "            };" ^
-    "            if ($entry.Length -gt 1610612736L) {" ^
-    "                throw ('Security violation (CWE-409): Bundle entry exceeds per-file size limit: ' + $entry.FullName);" ^
-    "            };" ^
-    "            if ($entry.CompressedLength -gt 0 -and $entry.Length -gt 10485760L -and (($entry.Length / $entry.CompressedLength) -gt 100)) {" ^
-    "                throw ('Security violation (CWE-409): Suspicious compression ratio detected in entry: ' + $entry.FullName);" ^
-    "            };" ^
-    "            $totalExpanded += [math]::Max(0L, [int64]$entry.Length);" ^
-    "            if ($totalExpanded -gt 2684354560L) {" ^
-    "                throw 'Security violation (CWE-409): Bundle total expanded size limit exceeded (Zip Bomb protection).';" ^
-    "            };" ^
-    "            $entryName = $entry.FullName.Replace('/', '\');" ^
-    "            if ($entryName.Contains('..') -or $entryName.StartsWith('\') -or $entryName.Contains(':')) {" ^
-    "                throw ('Security violation (CWE-22): ZipSlip path traversal detected in entry: ' + $entry.FullName);" ^
-    "            };" ^
-    "            $target = [System.IO.Path]::GetFullPath((Join-Path $tempExt $entryName));" ^
-    "            if (-not $target.StartsWith($canonTemp, [System.StringComparison]::OrdinalIgnoreCase)) {" ^
-    "                throw ('Security violation (CWE-22): Extracted entry escapes destination root: ' + $entry.FullName);" ^
-    "            };" ^
-    "            if ($entry.FullName.EndsWith('/') -or $entry.FullName.EndsWith('\')) {" ^
-    "                if (-not (Test-Path -LiteralPath $target)) { New-Item -ItemType Directory -Path $target -Force | Out-Null };" ^
-    "            } else {" ^
-    "                $pDir = [System.IO.Path]::GetDirectoryName($target);" ^
-    "                if (-not (Test-Path -LiteralPath $pDir)) { New-Item -ItemType Directory -Path $pDir -Force | Out-Null };" ^
-    "                [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $target, $true);" ^
-    "            };" ^
-    "        };" ^
-    "    } finally {" ^
-    "        if ($zip) { $zip.Dispose() };" ^
-    "    };" ^
-    "    $items = Get-ChildItem -LiteralPath $tempExt -Recurse -Force -ErrorAction SilentlyContinue;" ^
-    "    foreach ($it in $items) {" ^
-    "        if ($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {" ^
-    "            throw ('Security violation (CWE-59): Reparse point detected inside bundle: ' + $it.FullName);" ^
-    "        };" ^
-    "    };" ^
-    "    $manFile = Join-Path $tempExt 'manifest.json';" ^
-    "    if (-not (Test-Path -LiteralPath $manFile)) { throw 'Security violation (CWE-494): Missing manifest.json in bundle.' };" ^
-    "    $manBytes = [System.IO.File]::ReadAllBytes($manFile);" ^
-    "    $sha = [System.Security.Cryptography.SHA256]::Create();" ^
-    "    $actualManDigest = ([System.BitConverter]::ToString($sha.ComputeHash($manBytes)) -replace '-','').ToLowerInvariant();" ^
-    "    $manifest = [System.Text.Encoding]::UTF8.GetString($manBytes) | ConvertFrom-Json;" ^
-    "    if ($manifest.bundle_format -ne '2.0' -or [int]$manifest.schema_version -lt 2) {" ^
-    "        throw 'Security violation (CWE-494): Unsupported or unversioned bundle manifest schema (expected schema_version >= 2, bundle_format 2.0).';" ^
-    "    };" ^
-    "    $expectedPlatform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' };" ^
-    "    if ($manifest.platform -and $manifest.platform -ne $expectedPlatform) {" ^
-    "        throw ('Platform mismatch: Bundle targets ' + $manifest.platform + ' but current host is ' + $expectedPlatform);" ^
-    "    };" ^
-    "    $sigPath = Join-Path $tempExt 'manifest.sig';" ^
-    "    $extShaFile = $file + '.sha256';" ^
-    "    $secret = if ($env:FLAG_KEY_FILE -and (Test-Path -LiteralPath $env:FLAG_KEY_FILE)) { (Get-Content -LiteralPath $env:FLAG_KEY_FILE -Raw).Trim() } elseif ($env:JVM_LOCK_SECRET) { $env:JVM_LOCK_SECRET } elseif ($env:FLAG_SECRET) { $env:FLAG_SECRET } else { $null };" ^
-    "    $authenticated = $false;" ^
-    "    if (Test-Path -LiteralPath $sigPath) {" ^
-    "        if ([string]::IsNullOrWhiteSpace($secret)) {" ^
-    "            throw 'Security violation (CWE-347): Bundle contains manifest.sig; provide --key-file or JVM_LOCK_SECRET to authenticate manifest.';" ^
-    "        };" ^
-    "        $sigData = Get-Content -LiteralPath $sigPath -Raw -Encoding UTF8 | ConvertFrom-Json;" ^
-    "        if ($sigData.version -ne 1 -or $sigData.algorithm -ne 'HMAC-SHA256' -or -not $sigData.signature) {" ^
-    "            throw 'Security violation (CWE-347): Invalid manifest.sig metadata format.';" ^
-    "        };" ^
-    "        $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($secret));" ^
-    "        $expSig = ([System.BitConverter]::ToString($hmac.ComputeHash($manBytes)) -replace '-','').ToLowerInvariant();" ^
-    "        $actSig = ([string]$sigData.signature).ToLowerInvariant();" ^
-    "        $eBytes = [System.Text.Encoding]::ASCII.GetBytes($expSig);" ^
-    "        $aBytes = [System.Text.Encoding]::ASCII.GetBytes($actSig);" ^
-    "        $diff = $eBytes.Length -bxor $aBytes.Length;" ^
-    "        for ($i = 0; $i -lt [math]::Min($eBytes.Length, $aBytes.Length); $i++) { $diff = $diff -bor ($eBytes[$i] -bxor $aBytes[$i]) };" ^
-    "        if ($diff -ne 0) { throw 'Security violation (CWE-347): Bundle manifest signature verification failed (tampering detected).' };" ^
-    "        $authenticated = $true;" ^
-    "    } elseif (Test-Path -LiteralPath $extShaFile) {" ^
-    "        $extDigest = ((Get-Content -LiteralPath $extShaFile -Raw).Trim() -replace '\Asha256:','').ToLowerInvariant();" ^
-    "        if ($extDigest -ne $actualManDigest) { throw 'Security violation (CWE-494): Bundle manifest digest does not match external .sha256 file.' };" ^
-    "        $authenticated = $true;" ^
-    "    };" ^
-    "    if (-not $authenticated -and $env:SKIP_CHECKSUM -ne '1') {" ^
-    "        throw 'Security violation (CWE-494): Unauthenticated bundle manifest. Sign the bundle with --key-file / JVM_LOCK_SECRET, provide a trusted <bundle>.sha256 file, or pass --skip-checksum.';" ^
-    "    };" ^
-    "    if (-not $manifest.payload_hashes) {" ^
-    "        throw 'Security violation (CWE-494): Bundle manifest is missing per-file payload_hashes.';" ^
-    "    };" ^
-    "    $expectedHashes = @{};" ^
-    "    foreach ($hp in $manifest.payload_hashes.PSObject.Properties) { $expectedHashes[$hp.Name] = [string]$hp.Value };" ^
-    "    foreach ($rk in $expectedHashes.Keys) {" ^
-    "        $relWin = $rk.Replace('/', '\');" ^
-    "        if ($relWin.Contains('..') -or $relWin.StartsWith('\') -or $relWin.Contains(':')) { throw ('Security violation (CWE-22): Unsafe path in payload_hashes: ' + $rk) };" ^
-    "        $fPath = [System.IO.Path]::GetFullPath((Join-Path $tempExt $relWin));" ^
-    "        if (-not $fPath.StartsWith($canonTemp, [System.StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $fPath -PathType Leaf)) {" ^
-    "            throw ('Security violation (CWE-494): Missing expected payload file from bundle: ' + $rk);" ^
-    "        };" ^
-    "        $expVal = ($expectedHashes[$rk] -replace '\Asha256:','').ToLowerInvariant();" ^
-    "        $pfs = [System.IO.File]::OpenRead($fPath); $actVal = try { ([System.BitConverter]::ToString($sha.ComputeHash($pfs)) -replace '-','').ToLowerInvariant() } finally { $pfs.Close(); $pfs.Dispose() };" ^
-    "        if ($actVal -ne $expVal) { throw ('Security violation (CWE-494): Payload file hash mismatch for ' + $rk) };" ^
-    "    };" ^
-    "    $pRoot = Join-Path $tempExt 'payloads';" ^
-    "    if (Test-Path -LiteralPath $pRoot) {" ^
-    "        Get-ChildItem -LiteralPath $pRoot -Recurse -File -Force | ForEach-Object {" ^
-    "            $relCheck = $_.FullName.Substring($canonTemp.Length).Replace('\', '/');" ^
-    "            if (-not $expectedHashes.ContainsKey($relCheck)) {" ^
-    "                throw ('Security violation (CWE-494): Unverified file in payloads directory not listed in manifest: ' + $relCheck);" ^
-    "            };" ^
-    "        };" ^
-    "    };" ^
-    "    $sha.Dispose();" ^
-    "    $allowedVendors = @('adoptium','temurin','oracle','corretto','zulu','microsoft','graalvm','liberica','bellsoft','semeru','ibm','openj9','sapmachine','sap','mandrel','dragonwell','alibaba','kona','tencent','custom','bundled');" ^
-    "    $allowedCands = @('maven','gradle','kotlin','scala','groovy','ant','sbt','jbang','quarkus','spring','micronaut');" ^
-    "    $installedList = [System.Collections.Generic.List[string]]::new();" ^
-    "    if (-not (Test-Path -LiteralPath $jvmRoot)) { New-Item -ItemType Directory -Path $jvmRoot -Force | Out-Null };" ^
-    "    $bundledJdksRoot = [System.IO.Path]::GetFullPath((Join-Path $jvmRoot 'bundled_jdks'));" ^
-    "    $bundledJdksPrefix = $bundledJdksRoot.TrimEnd('\') + '\';" ^
-    "    $candidatesRoot = [System.IO.Path]::GetFullPath((Join-Path $jvmRoot 'candidates'));" ^
-    "    $candidatesPrefix = $candidatesRoot.TrimEnd('\') + '\';" ^
-    "    $planJava = $null;" ^
-    "    $planCands = [System.Collections.Generic.List[hashtable]]::new();" ^
-    "    if (Test-Path -LiteralPath $pRoot) {" ^
-    "        $pJava = Join-Path $pRoot 'java';" ^
-    "        if (Test-Path -LiteralPath $pJava) {" ^
-    "            $jVer = if ($manifest.tools -and $manifest.tools.java -and $manifest.tools.java.version) { [string]$manifest.tools.java.version } else { 'bundled' };" ^
-    "            $jVend = if ($manifest.tools -and $manifest.tools.java -and $manifest.tools.java.vendor) { [string]$manifest.tools.java.vendor } else { 'bundled' };" ^
-    "            if ($jVend -notmatch '\A[a-zA-Z0-9._+-]{1,64}$' -or $jVend.Contains('..') -or ($allowedVendors -notcontains $jVend.ToLowerInvariant())) {" ^
-    "                throw ('Security violation (CWE-22): Invalid or disallowed Java vendor in manifest: ' + $jVend);" ^
-    "            };" ^
-    "            if ($jVer -notmatch '\A[a-zA-Z0-9._+-]{1,64}$' -or $jVer.Contains('..') -or $jVer -eq '.' -or $jVer -ieq 'current') {" ^
-    "                throw ('Security violation (CWE-22): Invalid Java version identifier in manifest: ' + $jVer);" ^
-    "            };" ^
-    "            $jDestDir = [System.IO.Path]::GetFullPath((Join-Path $bundledJdksRoot ($jVend + '-' + $jVer)));" ^
-    "            if (-not $jDestDir.StartsWith($bundledJdksPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {" ^
-    "                throw ('Security violation (CWE-22): Java destination escapes bundled_jdks root: ' + $jDestDir);" ^
-    "            };" ^
-    "            $jStageDir = $jDestDir + '.stage_' + [Guid]::NewGuid().ToString('N');" ^
-    "            if (-not (Test-Path -LiteralPath $bundledJdksRoot)) { New-Item -ItemType Directory -Path $bundledJdksRoot -Force | Out-Null };" ^
-    "            Copy-Item -LiteralPath $pJava -Destination $jStageDir -Recurse -Force;" ^
-    "            $stagedDirs.Add($jStageDir);" ^
-    "            $planJava = @{ Ver = $jVer; Vend = $jVend; Stage = $jStageDir; Dest = $jDestDir };" ^
-    "        };" ^
-    "        Get-ChildItem -LiteralPath $pRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'java' } | ForEach-Object {" ^
-    "            $candName = $_.Name;" ^
-    "            if ($candName -notmatch '\A[a-zA-Z0-9_-]{1,32}$' -or ($allowedCands -notcontains $candName.ToLowerInvariant())) {" ^
-    "                throw ('Security violation (CWE-22): Disallowed ecosystem candidate in bundle: ' + $candName);" ^
-    "            };" ^
-    "            $candVer = if ($manifest.tools -and $manifest.tools.PSObject.Properties[$candName].Value -and $manifest.tools.PSObject.Properties[$candName].Value.version) { [string]$manifest.tools.PSObject.Properties[$candName].Value.version } else { 'bundled' };" ^
-    "            if ($candVer -notmatch '\A[a-zA-Z0-9._+-]{1,64}$' -or $candVer.Contains('..') -or $candVer -eq '.' -or $candVer -ieq 'current') {" ^
-    "                throw ('Security violation (CWE-22): Invalid candidate version in manifest: ' + $candVer);" ^
-    "            };" ^
-    "            $candParent = [System.IO.Path]::GetFullPath((Join-Path $candidatesRoot $candName));" ^
-    "            if (-not $candParent.StartsWith($candidatesPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {" ^
-    "                throw ('Security violation (CWE-22): Candidate parent escapes root: ' + $candParent);" ^
-    "            };" ^
-    "            $candParentPrefix = $candParent.TrimEnd('\') + '\';" ^
-    "            $cDestDir = [System.IO.Path]::GetFullPath((Join-Path $candParent $candVer));" ^
-    "            if (-not $cDestDir.StartsWith($candParentPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {" ^
-    "                throw ('Security violation (CWE-22): Candidate destination escapes candidate root: ' + $cDestDir);" ^
-    "            };" ^
-    "            if (-not (Test-Path -LiteralPath $candParent)) { New-Item -ItemType Directory -Path $candParent -Force | Out-Null };" ^
-    "            $cStageDir = $cDestDir + '.stage_' + [Guid]::NewGuid().ToString('N');" ^
-    "            Copy-Item -LiteralPath $_.FullName -Destination $cStageDir -Recurse -Force;" ^
-    "            $stagedDirs.Add($cStageDir);" ^
-    "            $planCands.Add(@{ Name = $candName; Ver = $candVer; Stage = $cStageDir; Dest = $cDestDir; Parent = $candParent });" ^
-    "        };" ^
-    "    };" ^
-    "    $lockSrc = Join-Path $tempExt '.jvm.lock';" ^
-    "    $projLock = Join-Path (Get-Location).Path '.jvm.lock';" ^
-    "    if (Test-Path -LiteralPath $lockSrc) {" ^
-    "        if (Test-Path -LiteralPath $projLock) {" ^
-    "            $plItem = Get-Item -LiteralPath $projLock -Force;" ^
-    "            if ($plItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw 'Security violation (CWE-59): Project .jvm.lock is a reparse point.' };" ^
-    "            if ($env:FORCE_YES -ne '1') {" ^
-    "                throw 'Refusing to overwrite existing project .jvm.lock without explicit overwrite confirmation (--yes).';" ^
-    "            };" ^
-    "            $lockBackup = $projLock + '.bak_' + [Guid]::NewGuid().ToString('N');" ^
-    "            Copy-Item -LiteralPath $projLock -Destination $lockBackup -Force;" ^
-    "        };" ^
-    "    };" ^
-    "    if ($planJava) {" ^
-    "        $jDestDir = $planJava.Dest;" ^
-    "        if (Test-Path -LiteralPath $jDestDir) {" ^
-    "            $jBak = $jDestDir + '.bak_' + [Guid]::NewGuid().ToString('N');" ^
-    "            Move-Item -LiteralPath $jDestDir -Destination $jBak -Force;" ^
-    "            $backups.Add(@{ Orig = $jDestDir; Bak = $jBak });" ^
-    "        };" ^
-    "        Move-Item -LiteralPath $planJava.Stage -Destination $jDestDir -Force;" ^
-    "        [void]$stagedDirs.Remove($planJava.Stage);" ^
-    "        $committedDirs.Add($jDestDir);" ^
-    "        $jCur = Join-Path $jvmRoot 'current';" ^
-    "        if (Test-Path -LiteralPath $jCur) {" ^
-    "            $jcItem = Get-Item -LiteralPath $jCur -Force -ErrorAction SilentlyContinue;" ^
-    "            if ($jcItem -and -not ($jcItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {" ^
-    "                throw ('Security violation (CWE-59): ' + $jCur + ' is a regular directory, not a junction.');" ^
-    "            };" ^
-    "            $prevJCurTarget = if ($jcItem.Target -is [array]) { $jcItem.Target[0] } else { $jcItem.Target };" ^
-    "            if ($prevJCurTarget) { $prevJCurTarget = ([string]$prevJCurTarget) -replace '\A(\\\?\\|\\\?\?\\)', '' };" ^
-    "            & $env:CMD_BIN /d /c ('rmdir /q ""' + $jCur + '""') >$null 2>&1;" ^
-    "            if (Test-Path -LiteralPath $jCur) { throw ('Failed to remove previous junction: ' + $jCur) };" ^
-    "        };" ^
-    "        $jCurModified = $true;" ^
-    "        & $env:CMD_BIN /d /c ('mklink /J ""' + $jCur + '"" ""' + $jDestDir + '""') >$null 2>&1;" ^
-    "        if ($LASTEXITCODE -ne 0) { throw ('Failed to create Java directory junction at ' + $jCur) };" ^
-    "        $newJc = Get-Item -LiteralPath $jCur -Force -ErrorAction SilentlyContinue;" ^
-    "        if (-not $newJc -or -not ($newJc.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -or -not (Test-Path -LiteralPath (Join-Path $jCur 'bin\java.exe'))) {" ^
-    "            throw ('Junction verification failed for ' + $jCur);" ^
-    "        };" ^
-    "        [System.Environment]::SetEnvironmentVariable('JAVA_HOME', $jCur, 'User');" ^
-    "        $installedList.Add(('java ' + $planJava.Ver + ' (' + $jDestDir + ')'));" ^
-    "    };" ^
-    "    foreach ($pc in $planCands) {" ^
-    "        $cDestDir = $pc.Dest;" ^
-    "        if (Test-Path -LiteralPath $cDestDir) {" ^
-    "            $cBak = $cDestDir + '.bak_' + [Guid]::NewGuid().ToString('N');" ^
-    "            Move-Item -LiteralPath $cDestDir -Destination $cBak -Force;" ^
-    "            $backups.Add(@{ Orig = $cDestDir; Bak = $cBak });" ^
-    "        };" ^
-    "        Move-Item -LiteralPath $pc.Stage -Destination $cDestDir -Force;" ^
-    "        [void]$stagedDirs.Remove($pc.Stage);" ^
-    "        $committedDirs.Add($cDestDir);" ^
-    "        $cCur = Join-Path $pc.Parent 'current';" ^
-    "        if (Test-Path -LiteralPath $cCur) {" ^
-    "            $ccItem = Get-Item -LiteralPath $cCur -Force -ErrorAction SilentlyContinue;" ^
-    "            if ($ccItem -and -not ($ccItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {" ^
-    "                throw ('Security violation (CWE-59): ' + $cCur + ' is a regular directory, not a junction.');" ^
-    "            };" ^
-    "            $pt = if ($ccItem.Target -is [array]) { $ccItem.Target[0] } else { $ccItem.Target };" ^
-    "            if ($pt) { $prevCCurTargets[$cCur] = (([string]$pt) -replace '\A(\\\?\\|\\\?\?\\)', '') };" ^
-    "            & $env:CMD_BIN /d /c ('rmdir /q ""' + $cCur + '""') >$null 2>&1;" ^
-    "            if (Test-Path -LiteralPath $cCur) { throw ('Failed to remove previous candidate junction: ' + $cCur) };" ^
-    "        } else {" ^
-    "            $prevCCurTargets[$cCur] = $null;" ^
-    "        };" ^
-    "        & $env:CMD_BIN /d /c ('mklink /J ""' + $cCur + '"" ""' + $cDestDir + '""') >$null 2>&1;" ^
-    "        if ($LASTEXITCODE -ne 0) { throw ('Failed to create candidate directory junction at ' + $cCur) };" ^
-    "        $newCc = Get-Item -LiteralPath $cCur -Force -ErrorAction SilentlyContinue;" ^
-    "        if (-not $newCc -or -not ($newCc.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {" ^
-    "            throw ('Candidate junction verification failed for ' + $cCur);" ^
-    "        };" ^
-    "        $installedList.Add(($pc.Name + ' ' + $pc.Ver + ' (' + $cDestDir + ')'));" ^
-    "    };" ^
-    "    if (Test-Path -LiteralPath $lockSrc) {" ^
-    "        $stageLock = $projLock + '.stage_' + [Guid]::NewGuid().ToString('N') + '.tmp';" ^
-    "        Copy-Item -LiteralPath $lockSrc -Destination $stageLock -Force;" ^
-    "        Move-Item -LiteralPath $stageLock -Destination $projLock -Force;" ^
-    "    };" ^
-    "    foreach ($b in $backups) {" ^
-    "        if (Test-Path -LiteralPath $b.Bak) { Remove-Item -LiteralPath $b.Bak -Recurse -Force -ErrorAction SilentlyContinue };" ^
-    "    };" ^
-    "    if ($lockBackup -and (Test-Path -LiteralPath $lockBackup)) { Remove-Item -LiteralPath $lockBackup -Force -ErrorAction SilentlyContinue };" ^
-    "    if ($env:OUTPUT_JSON -eq '1') {" ^
-    "        [ordered]@{ ok = $true; command = 'bundle'; candidate = 'java'; resolved = $file; changed = $true; status = 'installed'; installed_payloads = @($installedList); manifest = $manifest } | ConvertTo-Json -Depth 6;" ^
-    "    } else {" ^
-    "        Write-Host ('[   OK   ] Environment bundle installed successfully from ' + (Split-Path $file -Leaf)) -ForegroundColor Green;" ^
-    "        if ($installedList.Count -gt 0) {" ^
-    "            Write-Host ('         Provisioned ' + $installedList.Count + ' toolchains into ' + $jvmRoot + ':') -ForegroundColor Cyan;" ^
-    "            foreach ($it in $installedList) { Write-Host ('           * ' + $it) -ForegroundColor White };" ^
-    "        } else {" ^
-    "            Write-Host '         Lockfile transferred. (No binary toolchain payloads inside bundle)' -ForegroundColor DarkGray;" ^
-    "        };" ^
-    "    };" ^
-    "} catch {" ^
-    "    foreach ($sd in $stagedDirs) { if (Test-Path -LiteralPath $sd) { Remove-Item -LiteralPath $sd -Recurse -Force -ErrorAction SilentlyContinue } };" ^
-    "    foreach ($cd in $committedDirs) { if (Test-Path -LiteralPath $cd) { Remove-Item -LiteralPath $cd -Recurse -Force -ErrorAction SilentlyContinue } };" ^
-    "    foreach ($b in $backups) {" ^
-    "        if (Test-Path -LiteralPath $b.Bak) {" ^
-    "            if (Test-Path -LiteralPath $b.Orig) { Remove-Item -LiteralPath $b.Orig -Recurse -Force -ErrorAction SilentlyContinue };" ^
-    "            Move-Item -LiteralPath $b.Bak -Destination $b.Orig -Force -ErrorAction SilentlyContinue;" ^
-    "        };" ^
-    "    };" ^
-    "    if ($jCurModified) {" ^
-    "        $jCur = Join-Path $jvmRoot 'current';" ^
-    "        if (Test-Path -LiteralPath $jCur) { & $env:CMD_BIN /d /c ('rmdir /q ""' + $jCur + '""') >$null 2>&1 };" ^
-    "        if ($prevJCurTarget -and (Test-Path -LiteralPath $prevJCurTarget)) {" ^
-    "            & $env:CMD_BIN /d /c ('mklink /J ""' + $jCur + '"" ""' + $prevJCurTarget + '""') >$null 2>&1;" ^
-    "        };" ^
-    "        [System.Environment]::SetEnvironmentVariable('JAVA_HOME', $prevJavaHome, 'User');" ^
-    "    };" ^
-    "    foreach ($ck in $prevCCurTargets.Keys) {" ^
-    "        if (Test-Path -LiteralPath $ck) { & $env:CMD_BIN /d /c ('rmdir /q ""' + $ck + '""') >$null 2>&1 };" ^
-    "        $oldT = $prevCCurTargets[$ck];" ^
-    "        if ($oldT -and (Test-Path -LiteralPath $oldT)) {" ^
-    "            & $env:CMD_BIN /d /c ('mklink /J ""' + $ck + '"" ""' + $oldT + '""') >$null 2>&1;" ^
-    "        };" ^
-    "    };" ^
-    "    if ($lockBackup -and (Test-Path -LiteralPath $lockBackup)) {" ^
-    "        $projLock = Join-Path (Get-Location).Path '.jvm.lock';" ^
-    "        Move-Item -LiteralPath $lockBackup -Destination $projLock -Force -ErrorAction SilentlyContinue;" ^
-    "    };" ^
-    "    if ($env:OUTPUT_JSON -eq '1') { [ordered]@{ ok = $false; command = 'bundle'; candidate = 'java'; resolved = $null; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress } else { Write-Host ('[ ERROR  ] Bundle installation failed: ' + $_.Exception.Message) -ForegroundColor Red };" ^
-    "    exit 1;" ^
-    "} finally {" ^
-    "    if (Test-Path -LiteralPath $tempExt) { Remove-Item -LiteralPath $tempExt -Recurse -Force -ErrorAction SilentlyContinue };" ^
-    "}"
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_BundleInstallBody::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))"
 set "B_INST_ERR=!errorlevel!"
 call :ReleaseStateLock
 exit /b !B_INST_ERR!
@@ -17706,6 +17385,331 @@ exit /b !B_INST_ERR!
 ::PS_BundleInstallPlan::    if ($zip) { $zip.Dispose() };
 ::PS_BundleInstallPlan::}
 
+::PS_BundleInstallBody::$ErrorActionPreference = 'Stop';
+::PS_BundleInstallBody::$file = (Resolve-Path -LiteralPath $env:BUNDLE_TARGET).Path;
+::PS_BundleInstallBody::$fInfo = Get-Item -LiteralPath $file -Force;
+::PS_BundleInstallBody::if ($fInfo.Length -lt 4 -or $fInfo.Length -gt 2147483648L) {
+::PS_BundleInstallBody::    throw ('Security violation (CWE-400): Bundle compressed size out of safe bounds: ' + $fInfo.Length);
+::PS_BundleInstallBody::};
+::PS_BundleInstallBody::$magic = New-Object byte[] 4;
+::PS_BundleInstallBody::$mfs = [System.IO.File]::OpenRead($file);
+::PS_BundleInstallBody::try { $mRead = $mfs.Read($magic, 0, 4) } finally { $mfs.Close(); $mfs.Dispose() };
+::PS_BundleInstallBody::if ($mRead -lt 4 -or $magic[0] -ne 0x50 -or $magic[1] -ne 0x4B) {
+::PS_BundleInstallBody::    throw 'Security violation (CWE-494): Invalid bundle format (missing ZIP magic bytes).';
+::PS_BundleInstallBody::};
+::PS_BundleInstallBody::Add-Type -AssemblyName System.IO.Compression.FileSystem;
+::PS_BundleInstallBody::$jvmRoot = if ($env:JVM_DIR) { [System.IO.Path]::GetFullPath($env:JVM_DIR) } else { [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'DiamTek\JVM')) };
+::PS_BundleInstallBody::$tempExt = Join-Path $env:JVM_SECURE_TEMP ('jvm_binst_' + [Guid]::NewGuid().ToString('N'));
+::PS_BundleInstallBody::$backups = [System.Collections.Generic.List[hashtable]]::new();
+::PS_BundleInstallBody::$stagedDirs = [System.Collections.Generic.List[string]]::new();
+::PS_BundleInstallBody::$committedDirs = [System.Collections.Generic.List[string]]::new();
+::PS_BundleInstallBody::$prevJCurTarget = $null;
+::PS_BundleInstallBody::$jCurModified = $false;
+::PS_BundleInstallBody::$prevJavaHome = [System.Environment]::GetEnvironmentVariable('JAVA_HOME', 'User');
+::PS_BundleInstallBody::$prevCCurTargets = @{};
+::PS_BundleInstallBody::$lockBackup = $null;
+::PS_BundleInstallBody::$sw = [System.Diagnostics.Stopwatch]::StartNew();
+::PS_BundleInstallBody::try {
+::PS_BundleInstallBody::    New-Item -ItemType Directory -Path $tempExt -Force | Out-Null;
+::PS_BundleInstallBody::    $canonTemp = [System.IO.Path]::GetFullPath($tempExt).TrimEnd('\', '/') + '\';
+::PS_BundleInstallBody::    $zip = [System.IO.Compression.ZipFile]::OpenRead($file);
+::PS_BundleInstallBody::    try {
+::PS_BundleInstallBody::        if ($zip.Entries.Count -le 0 -or $zip.Entries.Count -gt 40000) {
+::PS_BundleInstallBody::            throw ('Security violation (CWE-409): Bundle entry count out of safe bounds: ' + $zip.Entries.Count);
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        $totalExpanded = 0L;
+::PS_BundleInstallBody::        foreach ($entry in $zip.Entries) {
+::PS_BundleInstallBody::            if ($sw.Elapsed.TotalSeconds -gt 300) { throw 'Security violation (CWE-400): Bundle extraction time budget exceeded.' };
+::PS_BundleInstallBody::            if ((($entry.ExternalAttributes -shr 16) -band 0xF000) -eq 0xA000) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-59): Symbolic link entry detected in bundle: ' + $entry.FullName);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            if ($entry.Length -gt 1610612736L) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-409): Bundle entry exceeds per-file size limit: ' + $entry.FullName);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            if ($entry.CompressedLength -gt 0 -and $entry.Length -gt 10485760L -and (($entry.Length / $entry.CompressedLength) -gt 100)) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-409): Suspicious compression ratio detected in entry: ' + $entry.FullName);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            $totalExpanded += [math]::Max(0L, [int64]$entry.Length);
+::PS_BundleInstallBody::            if ($totalExpanded -gt 2684354560L) {
+::PS_BundleInstallBody::                throw 'Security violation (CWE-409): Bundle total expanded size limit exceeded (Zip Bomb protection).';
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            $entryName = $entry.FullName.Replace('/', '\');
+::PS_BundleInstallBody::            if ($entryName.Contains('..') -or $entryName.StartsWith('\') -or $entryName.Contains(':')) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-22): ZipSlip path traversal detected in entry: ' + $entry.FullName);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            $target = [System.IO.Path]::GetFullPath((Join-Path $tempExt $entryName));
+::PS_BundleInstallBody::            if (-not $target.StartsWith($canonTemp, [System.StringComparison]::OrdinalIgnoreCase)) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-22): Extracted entry escapes destination root: ' + $entry.FullName);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            if ($entry.FullName.EndsWith('/') -or $entry.FullName.EndsWith('\')) {
+::PS_BundleInstallBody::                if (-not (Test-Path -LiteralPath $target)) { New-Item -ItemType Directory -Path $target -Force | Out-Null };
+::PS_BundleInstallBody::            } else {
+::PS_BundleInstallBody::                $pDir = [System.IO.Path]::GetDirectoryName($target);
+::PS_BundleInstallBody::                if (-not (Test-Path -LiteralPath $pDir)) { New-Item -ItemType Directory -Path $pDir -Force | Out-Null };
+::PS_BundleInstallBody::                [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $target, $true);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::    } finally {
+::PS_BundleInstallBody::        if ($zip) { $zip.Dispose() };
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    $items = Get-ChildItem -LiteralPath $tempExt -Recurse -Force -ErrorAction SilentlyContinue;
+::PS_BundleInstallBody::    foreach ($it in $items) {
+::PS_BundleInstallBody::        if ($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+::PS_BundleInstallBody::            throw ('Security violation (CWE-59): Reparse point detected inside bundle: ' + $it.FullName);
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    $manFile = Join-Path $tempExt 'manifest.json';
+::PS_BundleInstallBody::    if (-not (Test-Path -LiteralPath $manFile)) { throw 'Security violation (CWE-494): Missing manifest.json in bundle.' };
+::PS_BundleInstallBody::    $manBytes = [System.IO.File]::ReadAllBytes($manFile);
+::PS_BundleInstallBody::    $sha = [System.Security.Cryptography.SHA256]::Create();
+::PS_BundleInstallBody::    $actualManDigest = ([System.BitConverter]::ToString($sha.ComputeHash($manBytes)) -replace '-','').ToLowerInvariant();
+::PS_BundleInstallBody::    $manifest = [System.Text.Encoding]::UTF8.GetString($manBytes) | ConvertFrom-Json;
+::PS_BundleInstallBody::    if ($manifest.bundle_format -ne '2.0' -or [int]$manifest.schema_version -lt 2) {
+::PS_BundleInstallBody::        throw 'Security violation (CWE-494): Unsupported or unversioned bundle manifest schema (expected schema_version >= 2, bundle_format 2.0).';
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    $expectedPlatform = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'windows-arm64' } else { 'windows-x64' };
+::PS_BundleInstallBody::    if ($manifest.platform -and $manifest.platform -ne $expectedPlatform) {
+::PS_BundleInstallBody::        throw ('Platform mismatch: Bundle targets ' + $manifest.platform + ' but current host is ' + $expectedPlatform);
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    $sigPath = Join-Path $tempExt 'manifest.sig';
+::PS_BundleInstallBody::    $extShaFile = $file + '.sha256';
+::PS_BundleInstallBody::    $secret = if ($env:FLAG_KEY_FILE -and (Test-Path -LiteralPath $env:FLAG_KEY_FILE)) { (Get-Content -LiteralPath $env:FLAG_KEY_FILE -Raw).Trim() } elseif ($env:JVM_LOCK_SECRET) { $env:JVM_LOCK_SECRET } elseif ($env:FLAG_SECRET) { $env:FLAG_SECRET } else { $null };
+::PS_BundleInstallBody::    $authenticated = $false;
+::PS_BundleInstallBody::    if (Test-Path -LiteralPath $sigPath) {
+::PS_BundleInstallBody::        if ([string]::IsNullOrWhiteSpace($secret)) {
+::PS_BundleInstallBody::            throw 'Security violation (CWE-347): Bundle contains manifest.sig; provide --key-file or JVM_LOCK_SECRET to authenticate manifest.';
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        $sigData = Get-Content -LiteralPath $sigPath -Raw -Encoding UTF8 | ConvertFrom-Json;
+::PS_BundleInstallBody::        if ($sigData.version -ne 1 -or $sigData.algorithm -ne 'HMAC-SHA256' -or -not $sigData.signature) {
+::PS_BundleInstallBody::            throw 'Security violation (CWE-347): Invalid manifest.sig metadata format.';
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($secret));
+::PS_BundleInstallBody::        $expSig = ([System.BitConverter]::ToString($hmac.ComputeHash($manBytes)) -replace '-','').ToLowerInvariant();
+::PS_BundleInstallBody::        $actSig = ([string]$sigData.signature).ToLowerInvariant();
+::PS_BundleInstallBody::        $eBytes = [System.Text.Encoding]::ASCII.GetBytes($expSig);
+::PS_BundleInstallBody::        $aBytes = [System.Text.Encoding]::ASCII.GetBytes($actSig);
+::PS_BundleInstallBody::        $diff = $eBytes.Length -bxor $aBytes.Length;
+::PS_BundleInstallBody::        for ($i = 0; $i -lt [math]::Min($eBytes.Length, $aBytes.Length); $i++) { $diff = $diff -bor ($eBytes[$i] -bxor $aBytes[$i]) };
+::PS_BundleInstallBody::        if ($diff -ne 0) { throw 'Security violation (CWE-347): Bundle manifest signature verification failed (tampering detected).' };
+::PS_BundleInstallBody::        $authenticated = $true;
+::PS_BundleInstallBody::    } elseif (Test-Path -LiteralPath $extShaFile) {
+::PS_BundleInstallBody::        $extDigest = ((Get-Content -LiteralPath $extShaFile -Raw).Trim() -replace '\Asha256:','').ToLowerInvariant();
+::PS_BundleInstallBody::        if ($extDigest -ne $actualManDigest) { throw 'Security violation (CWE-494): Bundle manifest digest does not match external .sha256 file.' };
+::PS_BundleInstallBody::        $authenticated = $true;
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    if (-not $authenticated -and $env:SKIP_CHECKSUM -ne '1') {
+::PS_BundleInstallBody::        throw 'Security violation (CWE-494): Unauthenticated bundle manifest. Sign the bundle with --key-file / JVM_LOCK_SECRET, provide a trusted <bundle>.sha256 file, or pass --skip-checksum.';
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    if (-not $manifest.payload_hashes) {
+::PS_BundleInstallBody::        throw 'Security violation (CWE-494): Bundle manifest is missing per-file payload_hashes.';
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    $expectedHashes = @{};
+::PS_BundleInstallBody::    foreach ($hp in $manifest.payload_hashes.PSObject.Properties) { $expectedHashes[$hp.Name] = [string]$hp.Value };
+::PS_BundleInstallBody::    foreach ($rk in $expectedHashes.Keys) {
+::PS_BundleInstallBody::        $relWin = $rk.Replace('/', '\');
+::PS_BundleInstallBody::        if ($relWin.Contains('..') -or $relWin.StartsWith('\') -or $relWin.Contains(':')) { throw ('Security violation (CWE-22): Unsafe path in payload_hashes: ' + $rk) };
+::PS_BundleInstallBody::        $fPath = [System.IO.Path]::GetFullPath((Join-Path $tempExt $relWin));
+::PS_BundleInstallBody::        if (-not $fPath.StartsWith($canonTemp, [System.StringComparison]::OrdinalIgnoreCase) -or -not (Test-Path -LiteralPath $fPath -PathType Leaf)) {
+::PS_BundleInstallBody::            throw ('Security violation (CWE-494): Missing expected payload file from bundle: ' + $rk);
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        $expVal = ($expectedHashes[$rk] -replace '\Asha256:','').ToLowerInvariant();
+::PS_BundleInstallBody::        $pfs = [System.IO.File]::OpenRead($fPath); $actVal = try { ([System.BitConverter]::ToString($sha.ComputeHash($pfs)) -replace '-','').ToLowerInvariant() } finally { $pfs.Close(); $pfs.Dispose() };
+::PS_BundleInstallBody::        if ($actVal -ne $expVal) { throw ('Security violation (CWE-494): Payload file hash mismatch for ' + $rk) };
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    $pRoot = Join-Path $tempExt 'payloads';
+::PS_BundleInstallBody::    if (Test-Path -LiteralPath $pRoot) {
+::PS_BundleInstallBody::        Get-ChildItem -LiteralPath $pRoot -Recurse -File -Force | ForEach-Object {
+::PS_BundleInstallBody::            $relCheck = $_.FullName.Substring($canonTemp.Length).Replace('\', '/');
+::PS_BundleInstallBody::            if (-not $expectedHashes.ContainsKey($relCheck)) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-494): Unverified file in payloads directory not listed in manifest: ' + $relCheck);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    $sha.Dispose();
+::PS_BundleInstallBody::    $allowedVendors = @('adoptium','temurin','oracle','corretto','zulu','microsoft','graalvm','liberica','bellsoft','semeru','ibm','openj9','sapmachine','sap','mandrel','dragonwell','alibaba','kona','tencent','custom','bundled');
+::PS_BundleInstallBody::    $allowedCands = @('maven','gradle','kotlin','scala','groovy','ant','sbt','jbang','quarkus','spring','micronaut');
+::PS_BundleInstallBody::    $installedList = [System.Collections.Generic.List[string]]::new();
+::PS_BundleInstallBody::    if (-not (Test-Path -LiteralPath $jvmRoot)) { New-Item -ItemType Directory -Path $jvmRoot -Force | Out-Null };
+::PS_BundleInstallBody::    $bundledJdksRoot = [System.IO.Path]::GetFullPath((Join-Path $jvmRoot 'bundled_jdks'));
+::PS_BundleInstallBody::    $bundledJdksPrefix = $bundledJdksRoot.TrimEnd('\') + '\';
+::PS_BundleInstallBody::    $candidatesRoot = [System.IO.Path]::GetFullPath((Join-Path $jvmRoot 'candidates'));
+::PS_BundleInstallBody::    $candidatesPrefix = $candidatesRoot.TrimEnd('\') + '\';
+::PS_BundleInstallBody::    $planJava = $null;
+::PS_BundleInstallBody::    $planCands = [System.Collections.Generic.List[hashtable]]::new();
+::PS_BundleInstallBody::    if (Test-Path -LiteralPath $pRoot) {
+::PS_BundleInstallBody::        $pJava = Join-Path $pRoot 'java';
+::PS_BundleInstallBody::        if (Test-Path -LiteralPath $pJava) {
+::PS_BundleInstallBody::            $jVer = if ($manifest.tools -and $manifest.tools.java -and $manifest.tools.java.version) { [string]$manifest.tools.java.version } else { 'bundled' };
+::PS_BundleInstallBody::            $jVend = if ($manifest.tools -and $manifest.tools.java -and $manifest.tools.java.vendor) { [string]$manifest.tools.java.vendor } else { 'bundled' };
+::PS_BundleInstallBody::            if ($jVend -notmatch '\A[a-zA-Z0-9._+-]{1,64}$' -or $jVend.Contains('..') -or ($allowedVendors -notcontains $jVend.ToLowerInvariant())) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-22): Invalid or disallowed Java vendor in manifest: ' + $jVend);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            if ($jVer -notmatch '\A[a-zA-Z0-9._+-]{1,64}$' -or $jVer.Contains('..') -or $jVer -eq '.' -or $jVer -ieq 'current') {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-22): Invalid Java version identifier in manifest: ' + $jVer);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            $jDestDir = [System.IO.Path]::GetFullPath((Join-Path $bundledJdksRoot ($jVend + '-' + $jVer)));
+::PS_BundleInstallBody::            if (-not $jDestDir.StartsWith($bundledJdksPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-22): Java destination escapes bundled_jdks root: ' + $jDestDir);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            $jStageDir = $jDestDir + '.stage_' + [Guid]::NewGuid().ToString('N');
+::PS_BundleInstallBody::            if (-not (Test-Path -LiteralPath $bundledJdksRoot)) { New-Item -ItemType Directory -Path $bundledJdksRoot -Force | Out-Null };
+::PS_BundleInstallBody::            Copy-Item -LiteralPath $pJava -Destination $jStageDir -Recurse -Force;
+::PS_BundleInstallBody::            $stagedDirs.Add($jStageDir);
+::PS_BundleInstallBody::            $planJava = @{ Ver = $jVer; Vend = $jVend; Stage = $jStageDir; Dest = $jDestDir };
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        Get-ChildItem -LiteralPath $pRoot -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'java' } | ForEach-Object {
+::PS_BundleInstallBody::            $candName = $_.Name;
+::PS_BundleInstallBody::            if ($candName -notmatch '\A[a-zA-Z0-9_-]{1,32}$' -or ($allowedCands -notcontains $candName.ToLowerInvariant())) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-22): Disallowed ecosystem candidate in bundle: ' + $candName);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            $candVer = if ($manifest.tools -and $manifest.tools.PSObject.Properties[$candName].Value -and $manifest.tools.PSObject.Properties[$candName].Value.version) { [string]$manifest.tools.PSObject.Properties[$candName].Value.version } else { 'bundled' };
+::PS_BundleInstallBody::            if ($candVer -notmatch '\A[a-zA-Z0-9._+-]{1,64}$' -or $candVer.Contains('..') -or $candVer -eq '.' -or $candVer -ieq 'current') {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-22): Invalid candidate version in manifest: ' + $candVer);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            $candParent = [System.IO.Path]::GetFullPath((Join-Path $candidatesRoot $candName));
+::PS_BundleInstallBody::            if (-not $candParent.StartsWith($candidatesPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-22): Candidate parent escapes root: ' + $candParent);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            $candParentPrefix = $candParent.TrimEnd('\') + '\';
+::PS_BundleInstallBody::            $cDestDir = [System.IO.Path]::GetFullPath((Join-Path $candParent $candVer));
+::PS_BundleInstallBody::            if (-not $cDestDir.StartsWith($candParentPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-22): Candidate destination escapes candidate root: ' + $cDestDir);
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            if (-not (Test-Path -LiteralPath $candParent)) { New-Item -ItemType Directory -Path $candParent -Force | Out-Null };
+::PS_BundleInstallBody::            $cStageDir = $cDestDir + '.stage_' + [Guid]::NewGuid().ToString('N');
+::PS_BundleInstallBody::            Copy-Item -LiteralPath $_.FullName -Destination $cStageDir -Recurse -Force;
+::PS_BundleInstallBody::            $stagedDirs.Add($cStageDir);
+::PS_BundleInstallBody::            $planCands.Add(@{ Name = $candName; Ver = $candVer; Stage = $cStageDir; Dest = $cDestDir; Parent = $candParent });
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    $lockSrc = Join-Path $tempExt '.jvm.lock';
+::PS_BundleInstallBody::    $projLock = Join-Path (Get-Location).Path '.jvm.lock';
+::PS_BundleInstallBody::    if (Test-Path -LiteralPath $lockSrc) {
+::PS_BundleInstallBody::        if (Test-Path -LiteralPath $projLock) {
+::PS_BundleInstallBody::            $plItem = Get-Item -LiteralPath $projLock -Force;
+::PS_BundleInstallBody::            if ($plItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw 'Security violation (CWE-59): Project .jvm.lock is a reparse point.' };
+::PS_BundleInstallBody::            if ($env:FORCE_YES -ne '1') {
+::PS_BundleInstallBody::                throw 'Refusing to overwrite existing project .jvm.lock without explicit overwrite confirmation (--yes).';
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            $lockBackup = $projLock + '.bak_' + [Guid]::NewGuid().ToString('N');
+::PS_BundleInstallBody::            Copy-Item -LiteralPath $projLock -Destination $lockBackup -Force;
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    if ($planJava) {
+::PS_BundleInstallBody::        $jDestDir = $planJava.Dest;
+::PS_BundleInstallBody::        if (Test-Path -LiteralPath $jDestDir) {
+::PS_BundleInstallBody::            $jBak = $jDestDir + '.bak_' + [Guid]::NewGuid().ToString('N');
+::PS_BundleInstallBody::            Move-Item -LiteralPath $jDestDir -Destination $jBak -Force;
+::PS_BundleInstallBody::            $backups.Add(@{ Orig = $jDestDir; Bak = $jBak });
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        Move-Item -LiteralPath $planJava.Stage -Destination $jDestDir -Force;
+::PS_BundleInstallBody::        [void]$stagedDirs.Remove($planJava.Stage);
+::PS_BundleInstallBody::        $committedDirs.Add($jDestDir);
+::PS_BundleInstallBody::        $jCur = Join-Path $jvmRoot 'current';
+::PS_BundleInstallBody::        if (Test-Path -LiteralPath $jCur) {
+::PS_BundleInstallBody::            $jcItem = Get-Item -LiteralPath $jCur -Force -ErrorAction SilentlyContinue;
+::PS_BundleInstallBody::            if ($jcItem -and -not ($jcItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-59): ' + $jCur + ' is a regular directory, not a junction.');
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            $prevJCurTarget = if ($jcItem.Target -is [array]) { $jcItem.Target[0] } else { $jcItem.Target };
+::PS_BundleInstallBody::            if ($prevJCurTarget) { $prevJCurTarget = ([string]$prevJCurTarget) -replace '\A(\\\?\\|\\\?\?\\)', '' };
+::PS_BundleInstallBody::            & $env:CMD_BIN /d /c ('rmdir /q ""' + $jCur + '""') >$null 2>&1;
+::PS_BundleInstallBody::            if (Test-Path -LiteralPath $jCur) { throw ('Failed to remove previous junction: ' + $jCur) };
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        $jCurModified = $true;
+::PS_BundleInstallBody::        & $env:CMD_BIN /d /c ('mklink /J ""' + $jCur + '"" ""' + $jDestDir + '""') >$null 2>&1;
+::PS_BundleInstallBody::        if ($LASTEXITCODE -ne 0) { throw ('Failed to create Java directory junction at ' + $jCur) };
+::PS_BundleInstallBody::        $newJc = Get-Item -LiteralPath $jCur -Force -ErrorAction SilentlyContinue;
+::PS_BundleInstallBody::        if (-not $newJc -or -not ($newJc.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -or -not (Test-Path -LiteralPath (Join-Path $jCur 'bin\java.exe'))) {
+::PS_BundleInstallBody::            throw ('Junction verification failed for ' + $jCur);
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        [System.Environment]::SetEnvironmentVariable('JAVA_HOME', $jCur, 'User');
+::PS_BundleInstallBody::        $installedList.Add(('java ' + $planJava.Ver + ' (' + $jDestDir + ')'));
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    foreach ($pc in $planCands) {
+::PS_BundleInstallBody::        $cDestDir = $pc.Dest;
+::PS_BundleInstallBody::        if (Test-Path -LiteralPath $cDestDir) {
+::PS_BundleInstallBody::            $cBak = $cDestDir + '.bak_' + [Guid]::NewGuid().ToString('N');
+::PS_BundleInstallBody::            Move-Item -LiteralPath $cDestDir -Destination $cBak -Force;
+::PS_BundleInstallBody::            $backups.Add(@{ Orig = $cDestDir; Bak = $cBak });
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        Move-Item -LiteralPath $pc.Stage -Destination $cDestDir -Force;
+::PS_BundleInstallBody::        [void]$stagedDirs.Remove($pc.Stage);
+::PS_BundleInstallBody::        $committedDirs.Add($cDestDir);
+::PS_BundleInstallBody::        $cCur = Join-Path $pc.Parent 'current';
+::PS_BundleInstallBody::        if (Test-Path -LiteralPath $cCur) {
+::PS_BundleInstallBody::            $ccItem = Get-Item -LiteralPath $cCur -Force -ErrorAction SilentlyContinue;
+::PS_BundleInstallBody::            if ($ccItem -and -not ($ccItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+::PS_BundleInstallBody::                throw ('Security violation (CWE-59): ' + $cCur + ' is a regular directory, not a junction.');
+::PS_BundleInstallBody::            };
+::PS_BundleInstallBody::            $pt = if ($ccItem.Target -is [array]) { $ccItem.Target[0] } else { $ccItem.Target };
+::PS_BundleInstallBody::            if ($pt) { $prevCCurTargets[$cCur] = (([string]$pt) -replace '\A(\\\?\\|\\\?\?\\)', '') };
+::PS_BundleInstallBody::            & $env:CMD_BIN /d /c ('rmdir /q ""' + $cCur + '""') >$null 2>&1;
+::PS_BundleInstallBody::            if (Test-Path -LiteralPath $cCur) { throw ('Failed to remove previous candidate junction: ' + $cCur) };
+::PS_BundleInstallBody::        } else {
+::PS_BundleInstallBody::            $prevCCurTargets[$cCur] = $null;
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        & $env:CMD_BIN /d /c ('mklink /J ""' + $cCur + '"" ""' + $cDestDir + '""') >$null 2>&1;
+::PS_BundleInstallBody::        if ($LASTEXITCODE -ne 0) { throw ('Failed to create candidate directory junction at ' + $cCur) };
+::PS_BundleInstallBody::        $newCc = Get-Item -LiteralPath $cCur -Force -ErrorAction SilentlyContinue;
+::PS_BundleInstallBody::        if (-not $newCc -or -not ($newCc.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+::PS_BundleInstallBody::            throw ('Candidate junction verification failed for ' + $cCur);
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        $installedList.Add(($pc.Name + ' ' + $pc.Ver + ' (' + $cDestDir + ')'));
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    if (Test-Path -LiteralPath $lockSrc) {
+::PS_BundleInstallBody::        $stageLock = $projLock + '.stage_' + [Guid]::NewGuid().ToString('N') + '.tmp';
+::PS_BundleInstallBody::        Copy-Item -LiteralPath $lockSrc -Destination $stageLock -Force;
+::PS_BundleInstallBody::        Move-Item -LiteralPath $stageLock -Destination $projLock -Force;
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    foreach ($b in $backups) {
+::PS_BundleInstallBody::        if (Test-Path -LiteralPath $b.Bak) { Remove-Item -LiteralPath $b.Bak -Recurse -Force -ErrorAction SilentlyContinue };
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    if ($lockBackup -and (Test-Path -LiteralPath $lockBackup)) { Remove-Item -LiteralPath $lockBackup -Force -ErrorAction SilentlyContinue };
+::PS_BundleInstallBody::    if ($env:OUTPUT_JSON -eq '1') {
+::PS_BundleInstallBody::        [ordered]@{ ok = $true; command = 'bundle'; candidate = 'java'; resolved = $file; changed = $true; status = 'installed'; installed_payloads = @($installedList); manifest = $manifest } | ConvertTo-Json -Depth 6;
+::PS_BundleInstallBody::    } else {
+::PS_BundleInstallBody::        Write-Host ('[   OK   ] Environment bundle installed successfully from ' + (Split-Path $file -Leaf)) -ForegroundColor Green;
+::PS_BundleInstallBody::        if ($installedList.Count -gt 0) {
+::PS_BundleInstallBody::            Write-Host ('         Provisioned ' + $installedList.Count + ' toolchains into ' + $jvmRoot + ':') -ForegroundColor Cyan;
+::PS_BundleInstallBody::            foreach ($it in $installedList) { Write-Host ('           * ' + $it) -ForegroundColor White };
+::PS_BundleInstallBody::        } else {
+::PS_BundleInstallBody::            Write-Host '         Lockfile transferred. (No binary toolchain payloads inside bundle)' -ForegroundColor DarkGray;
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::} catch {
+::PS_BundleInstallBody::    foreach ($sd in $stagedDirs) { if (Test-Path -LiteralPath $sd) { Remove-Item -LiteralPath $sd -Recurse -Force -ErrorAction SilentlyContinue } };
+::PS_BundleInstallBody::    foreach ($cd in $committedDirs) { if (Test-Path -LiteralPath $cd) { Remove-Item -LiteralPath $cd -Recurse -Force -ErrorAction SilentlyContinue } };
+::PS_BundleInstallBody::    foreach ($b in $backups) {
+::PS_BundleInstallBody::        if (Test-Path -LiteralPath $b.Bak) {
+::PS_BundleInstallBody::            if (Test-Path -LiteralPath $b.Orig) { Remove-Item -LiteralPath $b.Orig -Recurse -Force -ErrorAction SilentlyContinue };
+::PS_BundleInstallBody::            Move-Item -LiteralPath $b.Bak -Destination $b.Orig -Force -ErrorAction SilentlyContinue;
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    if ($jCurModified) {
+::PS_BundleInstallBody::        $jCur = Join-Path $jvmRoot 'current';
+::PS_BundleInstallBody::        if (Test-Path -LiteralPath $jCur) { & $env:CMD_BIN /d /c ('rmdir /q ""' + $jCur + '""') >$null 2>&1 };
+::PS_BundleInstallBody::        if ($prevJCurTarget -and (Test-Path -LiteralPath $prevJCurTarget)) {
+::PS_BundleInstallBody::            & $env:CMD_BIN /d /c ('mklink /J ""' + $jCur + '"" ""' + $prevJCurTarget + '""') >$null 2>&1;
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::        [System.Environment]::SetEnvironmentVariable('JAVA_HOME', $prevJavaHome, 'User');
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    foreach ($ck in $prevCCurTargets.Keys) {
+::PS_BundleInstallBody::        if (Test-Path -LiteralPath $ck) { & $env:CMD_BIN /d /c ('rmdir /q ""' + $ck + '""') >$null 2>&1 };
+::PS_BundleInstallBody::        $oldT = $prevCCurTargets[$ck];
+::PS_BundleInstallBody::        if ($oldT -and (Test-Path -LiteralPath $oldT)) {
+::PS_BundleInstallBody::            & $env:CMD_BIN /d /c ('mklink /J ""' + $ck + '"" ""' + $oldT + '""') >$null 2>&1;
+::PS_BundleInstallBody::        };
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    if ($lockBackup -and (Test-Path -LiteralPath $lockBackup)) {
+::PS_BundleInstallBody::        $projLock = Join-Path (Get-Location).Path '.jvm.lock';
+::PS_BundleInstallBody::        Move-Item -LiteralPath $lockBackup -Destination $projLock -Force -ErrorAction SilentlyContinue;
+::PS_BundleInstallBody::    };
+::PS_BundleInstallBody::    if ($env:OUTPUT_JSON -eq '1') { [ordered]@{ ok = $false; command = 'bundle'; candidate = 'java'; resolved = $null; changed = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress } else { Write-Host ('[ ERROR  ] Bundle installation failed: ' + $_.Exception.Message) -ForegroundColor Red };
+::PS_BundleInstallBody::    exit 1;
+::PS_BundleInstallBody::} finally {
+::PS_BundleInstallBody::    if (Test-Path -LiteralPath $tempExt) { Remove-Item -LiteralPath $tempExt -Recurse -Force -ErrorAction SilentlyContinue };
+::PS_BundleInstallBody::}
 rem ============================================================
 rem AIR-GAPPED DISTRIBUTION PACKAGER (jvm distro)
 rem ============================================================

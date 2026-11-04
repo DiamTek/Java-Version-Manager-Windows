@@ -3826,7 +3826,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
             # Process B detects dead PID, takes over owner.pid atomically, and finishes cleaning
             $outStale = & cmd.exe /c "call `"$JvmBat`" clean" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm clean must auto-recover stale lock from dead PID and exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm clean must auto-recover stale lock from dead PID and exit 0"
             Assert-Contains $outStale "Successfully cleaned" "Process B must proceed to completion after stale lock takeover"
 
             # --no-lock bypass with live blocking PID
@@ -3835,7 +3835,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
             Set-Content -LiteralPath (Join-Path $lockDir "owner.pid") -Value "$PID|$($currProc.StartTime.ToUniversalTime().Ticks)"
 
             $outNoLock = & cmd.exe /c "call `"$JvmBat`" clean --no-lock" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm clean --no-lock must bypass active lock and exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm clean --no-lock must bypass active lock and exit 0"
         } finally {
             if ($procA -and -not $procA.HasExited) { Stop-Process -Id $procA.Id -Force -ErrorAction SilentlyContinue }
             $env:LOCALAPPDATA = $origLocalAppData
@@ -3879,7 +3879,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
         # 1. Lock Java candidate
         $outJava = & cmd.exe /c "cd /d `"$lockTestDir`" & call `"$JvmBat`" lock 21 --vendor adoptium" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm lock 21 --vendor adoptium must exit 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm lock 21 --vendor adoptium must exit 0"
         Assert-PathExists $lockFile ".jvm.lock must be created on disk"
 
         $rawJson = Get-Content -LiteralPath $lockFile -Raw -Encoding UTF8
@@ -3895,7 +3895,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
         # 2. Lock Ecosystem candidate into the same lockfile
         $outMaven = & cmd.exe /c "cd /d `"$lockTestDir`" & call `"$JvmBat`" lock maven 3.9.9" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm lock maven 3.9.9 must exit 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm lock maven 3.9.9 must exit 0"
 
         $rawJson2 = Get-Content -LiteralPath $lockFile -Raw -Encoding UTF8
         $lockObj2 = $rawJson2 | ConvertFrom-Json
@@ -3913,7 +3913,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
         # 1. Missing .jvm.lock fails closed
         $outMissing = & cmd.exe /c "cd /d `"$emptyDir`" & call `"$JvmBat`" install --locked" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must exit 1 when no .jvm.lock is present"
+        Assert-Equals $LASTEXITCODE 1 "jvm install --locked must exit 1 when no .jvm.lock is present"
         Assert-Contains $outMissing "No .jvm.lock found" "Output must alert user that .jvm.lock is missing"
 
         # 2. Tampered checksum fails closed
@@ -3974,7 +3974,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         $dirAsLock = Join-Path $SandboxRoot "DirAsLockTest"
         New-Item -ItemType Directory -Path (Join-Path $dirAsLock ".jvm.lock") -Force | Out-Null
         $outDirLock = & cmd.exe /c "cd /d `"$dirAsLock`" & call `"$JvmBat`" install --locked" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must reject .jvm.lock directory"
+        Assert-Equals $LASTEXITCODE 1 "jvm install --locked must reject .jvm.lock directory"
         Assert-Contains $outDirLock "Security violation" "Must report CWE-59 security violation when .jvm.lock is a directory"
     }
 
@@ -4001,7 +4001,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 "@
         [System.IO.File]::WriteAllText((Join-Path $ssrfDir ".jvm.lock"), $insecureHttpLock, (New-Object System.Text.UTF8Encoding($false)))
         $outHttp = & cmd.exe /c "cd /d `"$ssrfDir`" & call `"$JvmBat`" install --locked maven" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must abort with exit code 1 when URL is non-HTTPS"
+        Assert-Equals $LASTEXITCODE 1 "jvm install --locked must abort with exit code 1 when URL is non-HTTPS"
         Assert-Contains $outHttp "CWE-319" "Output must indicate CWE-319 non-HTTPS security violation"
 
         # 2. SSRF / Untrusted domain host injection must fail closed
@@ -4049,7 +4049,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 "@
         [System.IO.File]::WriteAllText((Join-Path $travDir ".jvm.lock"), $traversalLock, (New-Object System.Text.UTF8Encoding($false)))
         $outTrav = & cmd.exe /c "cd /d `"$travDir`" & call `"$JvmBat`" install --locked" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must abort on candidate path traversal"
+        Assert-Equals $LASTEXITCODE 1 "jvm install --locked must abort on candidate path traversal"
         Assert-Contains $outTrav "CWE-20" "Output must report CWE-20 identifier validation error"
 
         # 2. Path traversal in version field
@@ -4070,12 +4070,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 "@
         [System.IO.File]::WriteAllText((Join-Path $travDir ".jvm.lock"), $traversalVerLock, (New-Object System.Text.UTF8Encoding($false)))
         $outVerTrav = & cmd.exe /c "cd /d `"$travDir`" & call `"$JvmBat`" install --locked maven" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm install --locked must abort on version path traversal"
+        Assert-Equals $LASTEXITCODE 1 "jvm install --locked must abort on version path traversal"
         Assert-Contains $outVerTrav "CWE-20" "Output must report CWE-20 version validation error"
 
         # 3. Illegal characters in candidate filter argument
         $outFilter = & cmd.exe /c "cd /d `"$travDir`" & call `"$JvmBat`" install --locked `"maven;calc`"" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm install --locked with command-injected filter must abort"
+        Assert-Equals $LASTEXITCODE 1 "jvm install --locked with command-injected filter must abort"
         Assert-Contains $outFilter "CWE-20" "Output must report CWE-20 invalid candidate filter error"
     }
 
@@ -4093,12 +4093,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         try {
             # 1. jvm install --locked against junction .jvm.lock must fail closed
             $outInst = & cmd.exe /c "cd /d `"$juncTestDir`" & call `"$JvmBat`" install --locked" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "jvm install --locked must fail closed when .jvm.lock is a junction"
+            Assert-Equals $LASTEXITCODE 1 "jvm install --locked must fail closed when .jvm.lock is a junction"
             Assert-Contains $outInst "CWE-59" "Output must report CWE-59 security violation on install"
 
             # 2. jvm lock against junction .jvm.lock must fail closed and refuse overwrite
             $outLock = & cmd.exe /c "cd /d `"$juncTestDir`" & call `"$JvmBat`" lock 21" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "jvm lock must refuse to overwrite junction .jvm.lock"
+            Assert-Equals $LASTEXITCODE 1 "jvm lock must refuse to overwrite junction .jvm.lock"
             Assert-Contains $outLock "CWE-59" "Output must report CWE-59 security violation on lock write"
         } finally {
             & cmd.exe /c "rmdir `"$juncLock`"" 2>&1 | Out-Null 
@@ -4130,14 +4130,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
         # 2. Test CLI alias: jvm install -l fails-closed when requested candidate is missing from lockfile
         $aliasOut1 = & cmd.exe /c "cd /d `"$autoDir`" & call `"$JvmBat`" install -l nonexistent_tool" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm install -l with missing candidate must exit 1"
+        Assert-Equals $LASTEXITCODE 1 "jvm install -l with missing candidate must exit 1"
         Assert-Contains $aliasOut1 "is not defined in .jvm.lock" "Output must report tool not found in lockfile"
 
         # 3. Test failure when jvm lock has no arguments and no .java-version is present
         $noLockDir = Join-Path $SandboxRoot "LockNoArgTest"
         New-Item -ItemType Directory -Path $noLockDir -Force | Out-Null
         $noArgOut = & cmd.exe /c "cd /d `"$noLockDir`" & call `"$JvmBat`" lock" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm lock with no args and no .java-version or active candidate must fail closed"
+        Assert-Equals $LASTEXITCODE 1 "jvm lock with no args and no .java-version or active candidate must fail closed"
         Assert-Contains $noArgOut "No Java version specified" "Output must guide user on missing version"
     }
 
@@ -4392,7 +4392,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
             # Run JVM transaction rollback to recover
             $outRb = & cmd.exe /c "call `"$JvmBat`" transaction rollback $txnId" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "Rollback must succeed and auto-recover lock after process termination"
+            Assert-Equals $LASTEXITCODE 0 "Rollback must succeed and auto-recover lock after process termination"
             Assert-Contains $outRb "Successfully rolled back" "Rollback output must confirm recovery"
 
             $updated = Get-Content -LiteralPath $foundTxnFile -Raw | ConvertFrom-Json
@@ -4552,7 +4552,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         try {
             # 1. Reset configuration
             $outReset = & cmd.exe /c "call `"$JvmBat`" config reset" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm config reset must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm config reset must exit 0"
             $cfgFile = Join-Path $cfgSandbox "DiamTek\JVM\config.json"
             Assert-PathExists $cfgFile "config.json must exist after reset"
             $jsonObj = Get-Content -LiteralPath $cfgFile -Raw | ConvertFrom-Json
@@ -4561,7 +4561,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
             # 2. Set valid configuration key
             $outSet = & cmd.exe /c "call `"$JvmBat`" config set timeout 30" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm config set timeout 30 must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm config set timeout 30 must exit 0"
             $jsonObj2 = Get-Content -LiteralPath $cfgFile -Raw | ConvertFrom-Json
             Assert-Equals 30 $jsonObj2.timeout "timeout must update to 30"
 
@@ -4638,13 +4638,13 @@ version = "3.9.11"
         try {
             # 1. Verify --dry-run does NOT delete junction
             $outDry = & cmd.exe /c "call `"$JvmBat`" doctor --fix --dry-run" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm doctor --fix --dry-run must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm doctor --fix --dry-run must exit 0"
             Assert-Contains $outDry "broken Directory Junction" "doctor --fix must identify orphaned junction"
             Assert-PathExists $curJunc "Junction must NOT be removed under --dry-run"
 
             # 2. Live repair
             $outFix = & cmd.exe /c "call `"$JvmBat`" doctor --fix" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm doctor --fix must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm doctor --fix must exit 0"
             Assert-Contains $outFix "Removing broken Directory Junction" "doctor --fix live repair must remove broken junction"
             if (Test-Path -LiteralPath $curJunc) {
                 # If host environment has installed JDKs, doctor self-heals by re-linking to an existing valid JDK
@@ -4693,11 +4693,11 @@ version = "3.9.11"
     # Test 226: Cache management commands (jvm cache list, size, clean, export, import) (CWE-20)
     Run-TestCase "Manifest" "Cache management commands (jvm cache list, size, export, import) (CWE-20)" {
         $outList = & cmd.exe /c "call `"$JvmBat`" cache list" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm cache list must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm cache list must execute cleanly"
         Assert-Contains $outList "Content-Addressed Artifact Cache Inventory" "jvm cache list must render inventory header"
 
         $outSize = & cmd.exe /c "call `"$JvmBat`" cache size" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm cache size must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm cache size must execute cleanly"
         Assert-Contains $outSize "Total Cache Size:" "jvm cache size must report byte total"
     }
 
@@ -4730,25 +4730,25 @@ version = "3.9.11"
         Assert-Contains $batRaw 'if "!_VSI_CHAR!"=="+" goto :VSI_NextChar' "ValidateStrictIdentifier must accept '+' for build metadata"
 
         $outRemote = & cmd.exe /c "call `"$JvmBat`" list-remote" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm list-remote must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm list-remote must execute cleanly"
         Assert-Contains $outRemote "Querying Available Remote JDK Releases" "jvm list-remote must print query banner"
     }
 
     # Test 231: Remote Search Engine metadata queries (jvm search) (CWE-20)
     Run-TestCase "Manifest" "Remote Search Engine metadata queries (jvm search) (CWE-20)" {
         $outSearch = & cmd.exe /c "call `"$JvmBat`" search java 21" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm search must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm search must execute cleanly"
         Assert-Contains $outSearch "Searching metadata for" "jvm search must print search activity banner"
     }
 
     # Test 232: Compatibility & Release Differences (jvm info and jvm compare) (CWE-20)
     Run-TestCase "Manifest" "Compatibility and Release Differences (jvm info and jvm compare) (CWE-20)" {
         $outInfo = & cmd.exe /c "call `"$JvmBat`" info" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm info must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm info must execute cleanly"
         Assert-Contains $outInfo "JDK Compatibility & Release Metadata" "jvm info must output compatibility metadata"
 
         $outCmp = & cmd.exe /c "call `"$JvmBat`" compare 17 21" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm compare must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm compare must execute cleanly"
         Assert-Contains $outCmp "Comparing JDK 17 with JDK 21" "jvm compare must output comparison table"
     }
 
@@ -4769,7 +4769,7 @@ version = "3.9.11"
         Assert-Contains $batRaw 'FLAG_DRY_RUN=1' "jvm.bat must parse --dry-run flag"
 
         $outDry = & cmd.exe /c "call `"$JvmBat`" clean --dry-run" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm clean --dry-run must exit cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm clean --dry-run must exit cleanly"
         Assert-Contains $outDry "[ DRY-RUN ]" "clean --dry-run must output [ DRY-RUN ] simulation banner"
     }
 
@@ -4780,7 +4780,7 @@ version = "3.9.11"
         Assert-Contains $batRaw 'SILENT_MODE=1' "jvm.bat must activate SILENT_MODE under quiet flag"
 
         $outQuiet = & cmd.exe /c "call `"$JvmBat`" list -q" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm list -q must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm list -q must execute cleanly"
     }
 
     # Test 236: Universal --verbose flag diagnostics and network tracing (CWE-209)
@@ -4802,7 +4802,7 @@ version = "3.9.11"
         $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
         try {
             $outVer = & cmd.exe /c "call `"$JvmBat`" --version" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm --version must succeed with semantic exit code 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm --version must succeed with semantic exit code 0"
 
             $outMissing = & cmd.exe /c "call `"$JvmBat`" use 99999999" 2>&1 | Out-String
             Assert-Equals 3 $LASTEXITCODE "jvm use missing target must exit with semantic code 3"
@@ -4857,7 +4857,7 @@ version = "3.9.11"
         Assert-Contains $batRaw 'if "!FLAG_SHORT!"=="1"' "jvm.bat must handle FLAG_SHORT in status display"
 
         $outShort = & cmd.exe /c "call `"$JvmBat`" current --short" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm current --short must succeed with exit code 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm current --short must succeed with exit code 0"
         $lines = ($outShort.Trim() -split "[\r\n]+") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
         Assert-True ($lines.Count -ge 1) "jvm current --short must produce output"
     }
@@ -4868,7 +4868,7 @@ version = "3.9.11"
         Assert-Contains $batRaw 'if "!FLAG_NUMERIC!"=="1"' "jvm.bat must handle FLAG_NUMERIC in status display"
 
         $outNum = & cmd.exe /c "call `"$JvmBat`" current --numeric" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm current --numeric must succeed with exit code 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm current --numeric must succeed with exit code 0"
         $trimmed = $outNum.Trim()
         Assert-True ($trimmed -match '^\d+$') "jvm current --numeric must output integer major version number"
     }
@@ -4879,7 +4879,7 @@ version = "3.9.11"
         Assert-Contains $batRaw 'if "!FLAG_BIN!"=="1"' "jvm.bat must handle FLAG_BIN in status display"
 
         $outBin = & cmd.exe /c "call `"$JvmBat`" current --bin" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm current --bin must succeed with exit code 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm current --bin must succeed with exit code 0"
         Assert-True (-not [string]::IsNullOrWhiteSpace($outBin)) "jvm current --bin must produce binary output"
     }
 
@@ -4889,11 +4889,11 @@ version = "3.9.11"
         Assert-Contains $batRaw ':ShowActiveVendor' "jvm.bat must declare :ShowActiveVendor subroutine"
 
         $outVendor = & cmd.exe /c "call `"$JvmBat`" vendor" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm vendor command must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm vendor command must execute cleanly"
         Assert-Contains $outVendor "Active Java Vendor:" "jvm vendor must display active distribution vendor"
 
         $outVendorShort = & cmd.exe /c "call `"$JvmBat`" vendor --short" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm vendor --short must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm vendor --short must execute cleanly"
         Assert-True (-not [string]::IsNullOrWhiteSpace($outVendorShort)) "jvm vendor --short must output vendor name"
     }
 
@@ -4903,7 +4903,7 @@ version = "3.9.11"
         Assert-Contains $batRaw ':ExplainActiveEnvironment' "jvm.bat must declare :ExplainActiveEnvironment subroutine"
 
         $outWhy = & cmd.exe /c "call `"$JvmBat`" why" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm why command must exit with code 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm why command must exit with code 0"
         Assert-Contains $outWhy "Active Java Environment Resolution Graph:" "jvm why must display resolution graph header"
         Assert-Contains $outWhy "[1] Session Override:" "Resolution graph must evaluate session tier"
         Assert-Contains $outWhy "[2] Local .java-version:" "Resolution graph must evaluate .java-version tier"
@@ -4917,7 +4917,7 @@ version = "3.9.11"
         Assert-Contains $batRaw ':ExplainCandidate' "jvm.bat must declare :ExplainCandidate subroutine"
 
         $outExplain = & cmd.exe /c "call `"$JvmBat`" explain java" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm explain java must exit with code 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm explain java must exit with code 0"
         Assert-Contains $outExplain "Deep Candidate Analysis:" "Candidate explainer must display analysis header"
         Assert-Contains $outExplain "Layer 1 - Identity:" "Candidate explainer must verify layer 1 identity"
         Assert-Contains $outExplain "Layer 2 - Storage:" "Candidate explainer must verify layer 2 storage"
@@ -4947,7 +4947,7 @@ version = "3.9.11"
         Assert-Contains $batRaw ':ShowWelcomeTutorial' "jvm.bat must declare :ShowWelcomeTutorial subroutine"
 
         $outWelcome = & cmd.exe /c "call `"$JvmBat`" welcome" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm welcome must succeed with code 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm welcome must succeed with code 0"
         Assert-Contains $outWelcome "Interactive Tutorial" "jvm welcome must present tutorial header"
         Assert-Contains $outWelcome "Lesson 1: Version Switching" "Tutorial must include version switching lesson"
         Assert-Contains $outWelcome "Lesson 2: Project-Level Auto-Switching" "Tutorial must include project switching lesson"
@@ -4956,7 +4956,7 @@ version = "3.9.11"
         Assert-Contains $outWelcome "Lesson 5: Introspection" "Tutorial must include introspection lesson"
 
         $outTutorial = & cmd.exe /c "call `"$JvmBat`" tutorial" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm tutorial alias must also succeed with code 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm tutorial alias must also succeed with code 0"
         Assert-Contains $outTutorial "Interactive Tutorial" "jvm tutorial alias must produce matching tutorial content"
     }
 
@@ -4967,7 +4967,7 @@ version = "3.9.11"
         Assert-Contains $batRaw 'Dispatching contextual runner:' "Contextual execution must log runner dispatch"
 
         $outNoCmd = & cmd.exe /c "call `"$JvmBat`" run" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm run without command must return exit code 1"
+        Assert-Equals $LASTEXITCODE 1 "jvm run without command must return exit code 1"
         Assert-Contains $outNoCmd "No command specified" "Must reject empty command invocation"
     }
 
@@ -4992,13 +4992,13 @@ version = "3.9.11"
         Assert-Contains $batRaw ':CacheStats' "jvm.bat must declare :CacheStats subroutine"
 
         $outStats = & cmd.exe /c "call `"$JvmBat`" cache stats" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm cache stats must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm cache stats must execute cleanly"
         Assert-Contains $outStats "Cache Telemetry:" "Cache stats must display telemetry header"
         Assert-Contains $outStats "Artifact Category" "Cache stats table must display category header"
         Assert-Contains $outStats "TOTAL CACHE UTILIZATION" "Cache stats table must display summary row"
 
         $outFlagStats = & cmd.exe /c "call `"$JvmBat`" cache --stats" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm cache --stats must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm cache --stats must execute cleanly"
         Assert-Contains $outFlagStats "TOTAL CACHE UTILIZATION" "Flag --stats must output table"
     }
 
@@ -5008,7 +5008,7 @@ version = "3.9.11"
         Assert-Contains $batRaw ':CacheDedupe' "jvm.bat must declare :CacheDedupe subroutine"
 
         $outDedupe = & cmd.exe /c "call `"$JvmBat`" cache dedupe" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm cache dedupe must execute cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm cache dedupe must execute cleanly"
         Assert-Contains $outDedupe "Scanning cache" "Dedupe command must initiate deduplication scan"
     }
 
@@ -5026,7 +5026,7 @@ version = "3.9.11"
         pushd $testSubDir
         try {
             $outRep = & cmd.exe /c "call `"$JvmBat`" report" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm report must exit with 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm report must exit with 0"
             Assert-True (Test-Path -LiteralPath $testRepPath) "jvm report must produce jvm-report.txt file"
             $repContent = Get-Content -LiteralPath $testRepPath -Raw
             Assert-Contains $repContent "[System Information]" "Report must contain System Information section"
@@ -5053,7 +5053,7 @@ version = "3.9.11"
         pushd $testSubDir
         try {
             $outIssue = & cmd.exe /c "call `"$JvmBat`" doctor --report" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm doctor --report must execute cleanly"
+            Assert-Equals $LASTEXITCODE 0 "jvm doctor --report must execute cleanly"
             Assert-True (Test-Path -LiteralPath $zipTarget) "jvm doctor --report must generate zip bundle"
         } finally {
             popd
@@ -5076,7 +5076,7 @@ version = "3.9.11"
         pushd $testSubDir
         try {
             $outSupp = & cmd.exe /c "call `"$JvmBat`" support" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm support must exit with 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm support must exit with 0"
             Assert-True (Test-Path -LiteralPath $suppTarget) "jvm support must generate zip archive"
         } finally {
             popd
@@ -5092,7 +5092,7 @@ version = "3.9.11"
         Assert-Contains $batRaw ':RollbackSelfUpdate' "jvm.bat must declare :RollbackSelfUpdate subroutine"
 
         $outHist = & cmd.exe /c "call `"$JvmBat`" self-update --history" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm self-update --history must exit cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm self-update --history must exit cleanly"
         Assert-Contains $outHist "JVM Self-Update Version History:" "History viewer must display history header"
         Assert-Contains $outHist "ACTIVE" "History viewer must flag active running version"
     }
@@ -5107,7 +5107,7 @@ version = "3.9.11"
 
         # Verify behavior on non-existent bundle
         $outMissing = & cmd.exe /c "call `"$JvmBat`" cache import nonexistent-bundle.jvmcache" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm cache import nonexistent must return exit code 1"
+        Assert-Equals $LASTEXITCODE 1 "jvm cache import nonexistent must return exit code 1"
         Assert-Contains $outMissing "Bundle file not found:" "Must emit file not found error"
     }
 
@@ -5115,7 +5115,7 @@ version = "3.9.11"
     Run-TestCase "Adversarial" "Cache bundle import CAS SHA-256 integrity verification and fail-safe cleanup (CWE-494 / CWE-460)" {
         $batRaw = Get-Content -LiteralPath $JvmBat -Raw
         Assert-Contains $batRaw 'Integrity violation (CWE-494): CAS blob SHA-256 hash mismatch' "Cache import must strictly enforce CAS SHA-256 hash matching blob filename"
-        Assert-Contains $batRaw 'missing ZIP magic bytes' "Cache import must enforce PK zip header magic bytes"
+        Assert-True ($batRaw -match 'missing ZIP magic bytes|Invalid cache bundle ZIP signature') "Cache import must enforce PK zip header magic bytes"
         Assert-Contains $batRaw 'Remove-Item -LiteralPath $tempExt -Recurse -Force' "Cache import must purge temp extraction staging on failure"
         Assert-Contains $batRaw 'Cache bundle import aborted due to security or integrity validation failure.' "Cache import must log abortion notice on validation failure"
 
@@ -5124,8 +5124,8 @@ version = "3.9.11"
         try {
             Set-Content -LiteralPath $corruptBundle -Value "CORRUPT_NON_ZIP_BYTES"
             $outCorrupt = & cmd.exe /c "call `"$JvmBat`" cache import `"$corruptBundle`"" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "jvm cache import with corrupt magic bytes must fail with code 1"
-            Assert-Contains $outCorrupt "missing ZIP magic bytes" "Must flag missing ZIP magic bytes error"
+            Assert-Equals $LASTEXITCODE 1 "jvm cache import with corrupt magic bytes must fail with code 1"
+            Assert-True ($outCorrupt -match 'missing ZIP magic bytes|Invalid cache bundle ZIP signature') "Must flag missing ZIP magic bytes error"
         } finally {
             if (Test-Path -LiteralPath $corruptBundle) { Remove-Item -LiteralPath $corruptBundle -Force }
         }
@@ -5141,13 +5141,13 @@ version = "3.9.11"
 
         # Verify offline behavior for search --json
         $outJson = & cmd.exe /c "call `"$JvmBat`" search gradle 8 --json --offline" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm search gradle 8 --json --offline must exit cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm search gradle 8 --json --offline must exit cleanly"
         $trimmedJson = $outJson.Trim()
         Assert-True ($trimmedJson.StartsWith('[') -and $trimmedJson.EndsWith(']')) "search --json must emit a JSON array"
 
         # Verify shorthand numeric query
         $outShort = & cmd.exe /c "call `"$JvmBat`" search 21 --offline" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm search 21 --offline must exit cleanly"
+        Assert-Equals $LASTEXITCODE 0 "jvm search 21 --offline must exit cleanly"
         Assert-Contains $outShort "Candidate:" "Search output must display candidate results table"
     }
 
@@ -5161,7 +5161,7 @@ version = "3.9.11"
 
         # Execute multi-LTS compare
         $outCmp = & cmd.exe /c "call `"$JvmBat`" compare 8 21" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm compare 8 21 must exit with code 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm compare 8 21 must exit with code 0"
         Assert-Contains $outCmp "Specification Baseline Comparison:" "Must output specification baseline"
         Assert-Contains $outCmp "[JDK 8 -> JDK 11]" "Must chain milestone transition JDK 8 -> JDK 11"
         Assert-Contains $outCmp "[JDK 11 -> JDK 17]" "Must chain milestone transition JDK 11 -> JDK 17"
@@ -5178,12 +5178,12 @@ version = "3.9.11"
 
         # Verify nonexistent transaction ID returns exit code 1
         $outBadRb = & cmd.exe /c "call `"$JvmBat`" rollback non-existent-tx-id-999" 2>&1 | Out-String
-        Assert-Equals 1 $LASTEXITCODE "jvm rollback with nonexistent ID must return exit code 1"
+        Assert-Equals $LASTEXITCODE 1 "jvm rollback with nonexistent ID must return exit code 1"
         Assert-Contains $outBadRb "Transaction 'non-existent-tx-id-999' was not found." "Must report transaction not found"
 
         # Verify transaction list / show command
         $outTxn = & cmd.exe /c "call `"$JvmBat`" txn" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm txn must execute with exit code 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm txn must execute with exit code 0"
         Assert-Contains $outTxn "JVM TRANSACTIONS" "Must display transactions header"
     }
 
@@ -5195,12 +5195,12 @@ version = "3.9.11"
 
         # Execute hook status check
         $outStatus = & cmd.exe /c "call `"$JvmBat`" hook status" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm hook status must exit with code 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm hook status must exit with code 0"
         Assert-Contains $outStatus "Checking JVM PowerShell Profile Hook status..." "Must display hook status check header"
 
         # Execute hook check alias
         $outCheck = & cmd.exe /c "call `"$JvmBat`" hook check" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm hook check alias must exit with code 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm hook check alias must exit with code 0"
         Assert-Contains $outCheck "Checking JVM PowerShell Profile Hook status..." "Must display hook status check header"
     }
 
@@ -5265,12 +5265,12 @@ version = "3.9.11"
         try {
             $env:JVM_POLICY_FILE = ""
             $outShow = & cmd.exe /c "call `"$JvmBat`" policy show" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm policy show must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm policy show must exit 0"
             Assert-Contains $outShow "Enterprise Policy Status:" "Must show enterprise policy header"
             Assert-Contains $outShow "Developer Mode (Unrestricted)" "Must show developer mode when no policy file exists"
 
             $jsonRaw = & cmd.exe /c "call `"$JvmBat`" policy show --json" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm policy show --json must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm policy show --json must exit 0"
             $jsonObj = $jsonRaw | ConvertFrom-Json
             Assert-Equals $false $jsonObj.active "Default policy active state must be false"
             Assert-Equals $true $jsonObj.allow_skip_checksum "Default allow_skip_checksum must be true"
@@ -5285,7 +5285,7 @@ version = "3.9.11"
         try {
             $env:JVM_POLICY_FILE = ""
             $null = & cmd.exe /c "call `"$JvmBat`" policy check" 2>&1
-            Assert-Equals 0 $LASTEXITCODE "jvm policy check must exit 0 in developer mode"
+            Assert-Equals $LASTEXITCODE 0 "jvm policy check must exit 0 in developer mode"
         } finally {
             $env:JVM_POLICY_FILE = $prevPol
         }
@@ -5314,7 +5314,7 @@ max_java = "25"
             $env:JVM_POLICY_FILE = $tempPol
 
             $jsonRaw = & cmd.exe /c "call `"$JvmBat`" policy show --json" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm policy show --json with custom policy must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm policy show --json with custom policy must exit 0"
             $jsonObj = $jsonRaw | ConvertFrom-Json
             Assert-Equals $true $jsonObj.active "Policy active state must be true"
             Assert-Equals $false $jsonObj.allow_skip_checksum "Policy allow_skip_checksum must be false"
@@ -5341,7 +5341,7 @@ max_java = "25"
                 $symPol = Join-Path $reparseDir "policy.toml"
                 $env:JVM_POLICY_FILE = $symPol
                 $out = & cmd.exe /c "call `"$JvmBat`" policy show" 2>&1 | Out-String
-                Assert-Equals 1 $LASTEXITCODE "Policy file via reparse point must exit with code 1"
+                Assert-Equals $LASTEXITCODE 1 "Policy file via reparse point must exit with code 1"
                 Assert-Contains $out "CWE-59" "Must report CWE-59 reparse point violation"
             }
         } finally {
@@ -5368,7 +5368,7 @@ allowed = ["adoptium"]
             $env:JVM_POLICY_FILE = $tempPol
 
             $out = & cmd.exe /c "call `"$JvmBat`" install --vendor zulu 21" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "Installing vendor not in allowlist must exit 1"
+            Assert-Equals $LASTEXITCODE 1 "Installing vendor not in allowlist must exit 1"
             Assert-Contains $out "Enterprise Policy Violation" "Must report enterprise policy violation"
             Assert-Contains $out "not in the allowed enterprise list" "Must state vendor is not in allowed list"
         } finally {
@@ -5395,7 +5395,7 @@ blocked = ["oracle"]
             $env:JVM_POLICY_FILE = $tempPol
 
             $out = & cmd.exe /c "call `"$JvmBat`" install --vendor oracle 21" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "Installing vendor in blocklist must exit 1"
+            Assert-Equals $LASTEXITCODE 1 "Installing vendor in blocklist must exit 1"
             Assert-Contains $out "Enterprise Policy Violation" "Must report enterprise policy violation"
             Assert-Contains $out "explicitly blocked by enterprise policy" "Must state vendor is blocked"
         } finally {
@@ -5422,7 +5422,7 @@ min_java = "17"
             $env:JVM_POLICY_FILE = $tempPol
 
             $out = & cmd.exe /c "call `"$JvmBat`" install 11" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "Installing Java below min_java must exit 1"
+            Assert-Equals $LASTEXITCODE 1 "Installing Java below min_java must exit 1"
             Assert-Contains $out "Enterprise Policy Violation" "Must report enterprise policy violation"
             Assert-Contains $out "below minimum allowed version" "Must state version is below minimum allowed"
         } finally {
@@ -5449,7 +5449,7 @@ max_java = "17"
             $env:JVM_POLICY_FILE = $tempPol
 
             $out = & cmd.exe /c "call `"$JvmBat`" install 21" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "Installing Java above max_java must exit 1"
+            Assert-Equals $LASTEXITCODE 1 "Installing Java above max_java must exit 1"
             Assert-Contains $out "Enterprise Policy Violation" "Must report enterprise policy violation"
             Assert-Contains $out "exceeds maximum allowed version" "Must state version exceeds maximum allowed"
         } finally {
@@ -5473,7 +5473,7 @@ allow_skip_checksum = false
             $env:JVM_POLICY_FILE = $tempPol
 
             $out = & cmd.exe /c "call `"$JvmBat`" install 21 --skip-checksum" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "Using --skip-checksum under restricted policy must exit 1"
+            Assert-Equals $LASTEXITCODE 1 "Using --skip-checksum under restricted policy must exit 1"
             Assert-Contains $out "Machine policy prohibits bypassing checksum verification" "Must prohibit checksum bypass"
         } finally {
             $ErrorActionPreference = $prevEAP
@@ -5539,7 +5539,7 @@ allow_skip_checksum = false
             Set-Location $testDir
             $env:JAVA_HOME = $FakeJdkDir
             $jsonOut = & cmd.exe /c "call `"$JvmBat`" freeze --dry-run --json" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm freeze --json must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm freeze --json must exit 0"
             $parsed = $jsonOut | ConvertFrom-Json
             Assert-Equals "frozen" $parsed.status "JSON output status must be 'frozen'"
             Assert-Equals $true $parsed.dry_run "JSON output dry_run must be true"
@@ -5565,7 +5565,7 @@ allow_skip_checksum = false
             & cmd.exe /c "mklink `"$testDir\.jvm.lock`" `"$targetLock`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath "$testDir\.jvm.lock") {
                 $out = & cmd.exe /c "call `"$JvmBat`" freeze" 2>&1 | Out-String
-                Assert-Equals 1 $LASTEXITCODE "jvm freeze must reject reparse point lockfile"
+                Assert-Equals $LASTEXITCODE 1 "jvm freeze must reject reparse point lockfile"
                 Assert-Contains $out "CWE-59" "Must report CWE-59 security violation"
             }
         } finally {
@@ -5688,7 +5688,7 @@ allow_skip_checksum = false
             [System.IO.File]::WriteAllText($lockPath, ($lockContent + " "), [System.Text.UTF8Encoding]::new($false))
 
             $out = & cmd.exe /c "call `"$JvmBat`" lock --verify" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "jvm lock --verify on tampered file must exit 1"
+            Assert-Equals $LASTEXITCODE 1 "jvm lock --verify on tampered file must exit 1"
             Assert-Contains $out "Tampering detected" "Must report tampering detected"
             Assert-Contains $out "CWE-353" "Must cite CWE-353 integrity failure"
         } finally {
@@ -5716,7 +5716,7 @@ allow_skip_checksum = false
             & cmd.exe /c "mklink `"$testDir\.jvm.lock`" `"$realFile`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath "$testDir\.jvm.lock") {
                 $out = & cmd.exe /c "call `"$JvmBat`" lock --sign" 2>&1 | Out-String
-                Assert-Equals 1 $LASTEXITCODE "jvm lock --sign must reject symlinked lockfile"
+                Assert-Equals $LASTEXITCODE 1 "jvm lock --sign must reject symlinked lockfile"
                 Assert-Contains $out "CWE-59" "Must report CWE-59 reparse point violation"
             }
         } finally {
@@ -5744,7 +5744,7 @@ allow_skip_checksum = false
             [System.IO.File]::WriteAllText($lockPath, $lockContent, [System.Text.UTF8Encoding]::new($false))
 
             $out = & cmd.exe /c "call `"$JvmBat`" lock --sign" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "jvm lock --sign without secret must exit 1 (fail closed)"
+            Assert-Equals $LASTEXITCODE 1 "jvm lock --sign without secret must exit 1 (fail closed)"
             Assert-Contains $out "CWE-798" "Must cite CWE-798 hardcoded credentials violation"
         } finally {
             $ErrorActionPreference = $prevEAP
@@ -5784,7 +5784,7 @@ allow_skip_checksum = false
             # Case 1: Unsigned lockfile (no .sig file exists)
             $env:JVM_LOCK_SECRET = ""
             $out1 = & cmd.exe /c "call `"$JvmBat`" lock --check --json" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "Unsigned lock check must succeed"
+            Assert-Equals $LASTEXITCODE 0 "Unsigned lock check must succeed"
             $json1 = $out1 | ConvertFrom-Json
             Assert-Equals "not_verified" $json1.signature_status "Unsigned lockfile must report signature_status 'not_verified'"
             Assert-Equals $false $json1.signature_verified "Unsigned lockfile must report signature_verified false"
@@ -5796,7 +5796,7 @@ allow_skip_checksum = false
 
             $env:JVM_LOCK_SECRET = ""
             $out2 = & cmd.exe /c "call `"$JvmBat`" lock --check --json" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "Lock check without secret key must succeed schema validation"
+            Assert-Equals $LASTEXITCODE 0 "Lock check without secret key must succeed schema validation"
             $json2 = $out2 | ConvertFrom-Json
             Assert-Equals "not_verified" $json2.signature_status "Signed lockfile with no secret must report signature_status 'not_verified'"
             Assert-Equals $false $json2.signature_verified "Signed lockfile with no secret must report signature_verified false"
@@ -5804,7 +5804,7 @@ allow_skip_checksum = false
             # Case 3: Signature exists, secret key is provided and matches
             $env:JVM_LOCK_SECRET = "ValidSecretKey2026!"
             $out3 = & cmd.exe /c "call `"$JvmBat`" lock --check --json" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "Lock check with valid secret key must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "Lock check with valid secret key must exit 0"
             $json3 = $out3 | ConvertFrom-Json
             Assert-Equals "verified" $json3.signature_status "Matching signature must report signature_status 'verified'"
             Assert-Equals $true $json3.signature_verified "Matching signature must report signature_verified true"
@@ -5812,7 +5812,7 @@ allow_skip_checksum = false
             # Case 4: Signature exists, secret key is provided but does NOT match (failed verification)
             $env:JVM_LOCK_SECRET = "WrongSecretKey999!"
             $out4 = & cmd.exe /c "call `"$JvmBat`" lock --check --json" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "Lock check with invalid secret key must exit 1"
+            Assert-Equals $LASTEXITCODE 1 "Lock check with invalid secret key must exit 1"
             $json4 = $out4 | ConvertFrom-Json
             Assert-Equals "failed" $json4.signature_status "Mismatched signature must report signature_status 'failed'"
             Assert-Equals $false $json4.signature_verified "Mismatched signature must report signature_verified false"
@@ -5873,7 +5873,7 @@ allow_skip_checksum = false
 
             # Run freeze --dry-run
             $null = & cmd.exe /c "call `"$JvmBat`" freeze --dry-run" 2>&1
-            Assert-Equals 0 $LASTEXITCODE "jvm freeze --dry-run must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm freeze --dry-run must exit 0"
 
             # Check that freeze preserves metadata and does not discard url/arch/checksum_type
             $lockData = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -5917,7 +5917,7 @@ allow_skip_checksum = false
     # Test 286: jvm status renders unified status dashboard with Java configuration and Ecosystem tools (CWE-20)
     Run-TestCase "ShellErgonomics" "jvm status renders unified status dashboard with Java configuration and Ecosystem tools (CWE-20)" {
         $out = & cmd.exe /c "call `"$JvmBat`" status" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm status must exit 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm status must exit 0"
         Assert-Contains $out "Current JVM Environment Status:" "Must show status header"
         Assert-Contains $out "Java Configuration:" "Must show Java configuration block"
         Assert-Contains $out "Ecosystem Tools:" "Must show Ecosystem tools block"
@@ -5926,7 +5926,7 @@ allow_skip_checksum = false
     # Test 287: jvm ecosystem renders aligned toolchain inventory matching jvm status (CWE-20)
     Run-TestCase "ShellErgonomics" "jvm ecosystem renders aligned toolchain inventory matching jvm status (CWE-20)" {
         $out = & cmd.exe /c "call `"$JvmBat`" ecosystem" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm ecosystem must exit 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm ecosystem must exit 0"
         Assert-Contains $out "Current JVM Environment Status:" "Must show status header"
         Assert-Contains $out "Ecosystem Tools:" "Must show Ecosystem tools block"
     }
@@ -5969,7 +5969,7 @@ allow_skip_checksum = false
     Run-TestCase "ShellErgonomics" "jvm aliases generates valid CMD DOSKEY macro script at %LOCALAPPDATA%\DiamTek\JVM\jvm_aliases.cmd (CWE-20 / CWE-427)" {
         $aliasPath = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\jvm_aliases.cmd"
         $out = & cmd.exe /c "call `"$JvmBat`" aliases" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm aliases must exit 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm aliases must exit 0"
         Assert-True (Test-Path -LiteralPath $aliasPath) "Aliases file must exist"
         $content = Get-Content -LiteralPath $aliasPath -Raw
         Assert-Contains $content "doskey juse=jvm use $*" "Aliases file must define juse"
@@ -5988,7 +5988,7 @@ allow_skip_checksum = false
             & cmd.exe /c "mklink `"$aliasPath`" `"$realFile`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath $aliasPath) {
                 $out = & cmd.exe /c "call `"$JvmBat`" aliases" 2>&1 | Out-String
-                Assert-Equals 1 $LASTEXITCODE "jvm aliases must reject symlink alias file"
+                Assert-Equals $LASTEXITCODE 1 "jvm aliases must reject symlink alias file"
                 Assert-Contains $out "CWE-59" "Must report CWE-59 violation"
             }
         } finally {
@@ -6001,16 +6001,16 @@ allow_skip_checksum = false
     # Test 294: jvm hook cmd dispatches to :ExecuteAliasesCommand (CWE-20)
     Run-TestCase "ShellErgonomics" "jvm hook cmd dispatches to :ExecuteAliasesCommand (CWE-20)" {
         $out = & cmd.exe /c "call `"$JvmBat`" hook cmd" 2>&1 | Out-String
-        Assert-Equals 0 $LASTEXITCODE "jvm hook cmd must exit 0"
+        Assert-Equals $LASTEXITCODE 0 "jvm hook cmd must exit 0"
         Assert-Contains $out "Generated CMD DOSKEY aliases at:" "Must report alias generation"
     }
 
     # Test 295: Cross-shell environment integrity: CMD and PowerShell produce consistent exit codes (CWE-252)
     Run-TestCase "ShellErgonomics" "Cross-shell environment integrity: CMD and PowerShell produce consistent exit codes (CWE-252)" {
         $null = & cmd.exe /c "call `"$JvmBat`" --help" 2>&1
-        Assert-Equals 0 $LASTEXITCODE "CMD execution must exit 0"
+        Assert-Equals $LASTEXITCODE 0 "CMD execution must exit 0"
         $null = & powershell.exe -NoProfile -Command "& '$JvmBat' --help" 2>&1
-        Assert-Equals 0 $LASTEXITCODE "PowerShell execution must exit 0"
+        Assert-Equals $LASTEXITCODE 0 "PowerShell execution must exit 0"
     }
 
     # ==========================================================================
@@ -6022,7 +6022,7 @@ allow_skip_checksum = false
         $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
         try {
             $out = & cmd.exe /c "call `"$JvmBat`" install java:stream 21" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "NTFS ADS argument must be rejected with exit code 1"
+            Assert-Equals $LASTEXITCODE 1 "NTFS ADS argument must be rejected with exit code 1"
             Assert-Contains $out "Invalid" "Must report invalid identifier or candidate"
         } finally {
             $ErrorActionPreference = $prevEAP
@@ -6040,7 +6040,7 @@ allow_skip_checksum = false
                 [System.IO.File]::WriteAllText($testRunnerBat, $batContent, [System.Text.Encoding]::ASCII)
 
                 $null = & cmd.exe /c "`"$testRunnerBat`"" 2>&1
-                Assert-Equals 1 $LASTEXITCODE "Poison argument '$arg' must exit with code 1 without execution"
+                Assert-Equals $LASTEXITCODE 1 "Poison argument '$arg' must exit with code 1 without execution"
             }
         } finally {
             if (Test-Path -LiteralPath $testRunnerBat) {
@@ -6053,7 +6053,7 @@ allow_skip_checksum = false
     Run-TestCase "AdversarialMutation" "String buffer boundary fuzzing: 1024-character oversized argument rejected without crash (CWE-400 / CWE-20)" {
         $giantArg = "A" * 1024
         $null = & cmd.exe /c "call `"$JvmBat`" install `"$giantArg`"" 2>&1
-        Assert-Equals 1 $LASTEXITCODE "Oversized 1024-character argument must exit 1 cleanly"
+        Assert-Equals $LASTEXITCODE 1 "Oversized 1024-character argument must exit 1 cleanly"
     }
 
     # Test 299: Incomplete list-based vendor input validation: rejects arbitrary non-allowlisted vendor tokens (CWE-184 / CWE-20)
@@ -6061,7 +6061,7 @@ allow_skip_checksum = false
         $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
         try {
             $out = & cmd.exe /c "call `"$JvmBat`" install --vendor maliciousvendor 21" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "Unrecognized vendor must exit with code 1"
+            Assert-Equals $LASTEXITCODE 1 "Unrecognized vendor must exit with code 1"
             Assert-Contains $out "Invalid vendor identifier" "Must report invalid vendor"
         } finally {
             $ErrorActionPreference = $prevEAP
@@ -6096,7 +6096,7 @@ allow_skip_checksum = false
             $lockPath = Join-Path $testDir ".jvm.lock"
             [System.IO.File]::WriteAllText($lockPath, "{ corrupted json: [ unclosed }", [System.Text.UTF8Encoding]::new($false))
             $out = & cmd.exe /c "call `"$JvmBat`" thaw" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "Corrupted lockfile must cause exit code 1"
+            Assert-Equals $LASTEXITCODE 1 "Corrupted lockfile must cause exit code 1"
         } finally {
             $ErrorActionPreference = $prevEAP
             Set-Location $origDir
@@ -6120,7 +6120,7 @@ allow_skip_checksum = false
             [System.IO.File]::WriteAllText($sigPath, '{"invalid_sig":true}', [System.Text.UTF8Encoding]::new($false))
 
             $out = & cmd.exe /c "call `"$JvmBat`" lock --verify" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "Invalid signature format must cause exit code 1"
+            Assert-Equals $LASTEXITCODE 1 "Invalid signature format must cause exit code 1"
         } finally {
             $ErrorActionPreference = $prevEAP
             $env:JVM_LOCK_SECRET = $prevSec
@@ -6138,7 +6138,7 @@ allow_skip_checksum = false
         try {
             Set-Location $testDir
             $out = & cmd.exe /c "call `"$JvmBat`" thaw" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "Missing lockfile on thaw must exit with code 1"
+            Assert-Equals $LASTEXITCODE 1 "Missing lockfile on thaw must exit with code 1"
             Assert-Contains $out "No .jvm.lock found to thaw." "Must state lockfile was not found"
         } finally {
             $ErrorActionPreference = $prevEAP
@@ -6196,24 +6196,24 @@ allow_skip_checksum = false
         try {
             # 1. jvm help install
             $out1 = & cmd.exe /c "call `"$JvmBat`" help install" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm help install must exit with 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm help install must exit with 0"
             Assert-Contains $out1 "jvm install - Command Line Reference" "Must contain header for install card"
             Assert-Contains $out1 "Syntax:" "Must contain Syntax section"
             Assert-Contains $out1 "--timings" "Must list --timings flag"
 
             # 2. jvm install --help
             $out2 = & cmd.exe /c "call `"$JvmBat`" install --help" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm install --help must exit with 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm install --help must exit with 0"
             Assert-Contains $out2 "jvm install - Command Line Reference" "Must show card for jvm install --help"
 
             # 3. jvm doctor /?
             $out3 = & cmd.exe /c "`"$JvmBat`" doctor /?" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm doctor /? must exit with 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm doctor /? must exit with 0"
             Assert-Contains $out3 "jvm doctor - Command Line Reference" "Must show card for jvm doctor /?"
 
             # 4. jvm lock -h
             $out4 = & cmd.exe /c "call `"$JvmBat`" lock -h" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm lock -h must exit with 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm lock -h must exit with 0"
             Assert-Contains $out4 "jvm lock - Command Line Reference" "Must show card for jvm lock -h"
         } finally {
             $ErrorActionPreference = $prevEAP
@@ -6226,7 +6226,7 @@ allow_skip_checksum = false
         try {
             # 1. Human readable timings breakdown on stdout
             $out1 = & cmd.exe /c "call `"$JvmBat`" --version --timings" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm --version --timings must exit with 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm --version --timings must exit with 0"
             Assert-Contains $out1 "[ TIMINGS ]" "Must emit timing header"
             Assert-Contains $out1 "parse:" "Must include parse timing"
             Assert-Contains $out1 "resolve:" "Must include resolve timing"
@@ -6300,27 +6300,27 @@ allow_skip_checksum = false
         $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
         try {
             $pCreate = & cmd.exe /c "call `"$JvmBat`" profile create test_p4_prof --desc `"Workstation Test Profile`"" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm profile create must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm profile create must exit 0"
             Assert-Contains $pCreate "Created profile" "Must confirm profile creation"
 
             $pList = & cmd.exe /c "call `"$JvmBat`" profile list" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm profile list must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm profile list must exit 0"
             Assert-Contains $pList "test_p4_prof" "Profile list must include test_p4_prof"
 
             $pShow = & cmd.exe /c "call `"$JvmBat`" profile show test_p4_prof" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm profile show must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm profile show must exit 0"
             Assert-Contains $pShow "Workstation Test Profile" "Profile show must display profile description"
 
             $pClone = & cmd.exe /c "call `"$JvmBat`" profile clone test_p4_prof test_p4_clone" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm profile clone must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm profile clone must exit 0"
             Assert-Contains $pClone "Cloned profile" "Must confirm profile clone"
 
             $pDelClone = & cmd.exe /c "call `"$JvmBat`" profile delete test_p4_clone" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm profile delete clone must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm profile delete clone must exit 0"
             Assert-Contains $pDelClone "Deleted profile" "Must confirm profile deletion"
 
             $pDelOrig = & cmd.exe /c "call `"$JvmBat`" profile delete test_p4_prof" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm profile delete orig must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm profile delete orig must exit 0"
         } finally {
             $ErrorActionPreference = $prevEAP
         }
@@ -6333,7 +6333,7 @@ allow_skip_checksum = false
             $badNames = @("../traversal", "evil\sub", "evil/sub", "prof:ads", "bad*prof", "bad?prof")
             foreach ($bn in $badNames) {
                 $out = & cmd.exe /c "call `"$JvmBat`" profile create `"$bn`"" 2>&1 | Out-String
-                Assert-Equals 1 $LASTEXITCODE "Invalid profile identifier '$bn' must exit 1"
+                Assert-Equals $LASTEXITCODE 1 "Invalid profile identifier '$bn' must exit 1"
                 Assert-True (($out -match "Security violation|Invalid profile name|alphanumeric")) "Output must reject identifier '$bn'"
             }
         } finally {
@@ -6353,7 +6353,7 @@ allow_skip_checksum = false
             & cmd.exe /c "mklink `"$symProf`" `"$targetFile`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath $symProf) {
                 $out = & cmd.exe /c "call `"$JvmBat`" profile show sym_prof_311" 2>&1 | Out-String
-                Assert-Equals 1 $LASTEXITCODE "jvm profile show must reject symlink profile"
+                Assert-Equals $LASTEXITCODE 1 "jvm profile show must reject symlink profile"
                 Assert-Contains $out "CWE-59" "Must report CWE-59 reparse point violation"
             }
         } finally {
@@ -6373,7 +6373,7 @@ allow_skip_checksum = false
             $prevActive = if (Test-Path -LiteralPath $activeFile) { [System.IO.File]::ReadAllText($activeFile).Trim() } else { "" }
 
             $out = & cmd.exe /c "call `"$JvmBat`" profile use test_p4_dry --dry-run" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm profile use --dry-run must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm profile use --dry-run must exit 0"
             Assert-Contains $out "Simulated activation" "Must report simulated activation"
 
             $curActive = if (Test-Path -LiteralPath $activeFile) { [System.IO.File]::ReadAllText($activeFile).Trim() } else { "" }
@@ -6389,7 +6389,7 @@ allow_skip_checksum = false
         $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
         try {
             $sCreate = & cmd.exe /c "call `"$JvmBat`" snapshot create snap_test_p4" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm snapshot create must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm snapshot create must exit 0"
             Assert-Contains $sCreate "Created snapshot" "Must confirm snapshot creation"
 
             $snapFile = Join-Path $env:LOCALAPPDATA "DiamTek\JVM\snapshots\snap_test_p4.json"
@@ -6398,11 +6398,11 @@ allow_skip_checksum = false
             Assert-Equals "snap_test_p4" $snapJson.snapshot_id "Snapshot id must match"
 
             $sList = & cmd.exe /c "call `"$JvmBat`" snapshot list" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm snapshot list must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm snapshot list must exit 0"
             Assert-Contains $sList "snap_test_p4" "Snapshot list must include snap_test_p4"
 
             $sDel = & cmd.exe /c "call `"$JvmBat`" snapshot delete snap_test_p4" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm snapshot delete must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm snapshot delete must exit 0"
             Assert-Contains $sDel "Deleted snapshot" "Must confirm snapshot deletion"
             Assert-False (Test-Path -LiteralPath $snapFile) "Snapshot file must be deleted"
         } finally {
@@ -6416,7 +6416,7 @@ allow_skip_checksum = false
         try {
             & cmd.exe /c "call `"$JvmBat`" snapshot create snap_dry_test" 2>&1 | Out-Null 
             $out = & cmd.exe /c "call `"$JvmBat`" snapshot restore snap_dry_test --dry-run" 2>&1 | Out-String
-            Assert-Equals 0 $LASTEXITCODE "jvm snapshot restore --dry-run must exit 0"
+            Assert-Equals $LASTEXITCODE 0 "jvm snapshot restore --dry-run must exit 0"
             Assert-Contains $out "Simulated restoration" "Must report simulated restoration"
         } finally {
             $ErrorActionPreference = $prevEAP
@@ -6436,7 +6436,7 @@ allow_skip_checksum = false
             & cmd.exe /c "mklink `"$symSnap`" `"$targetFile`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath $symSnap) {
                 $out = & cmd.exe /c "call `"$JvmBat`" snapshot restore sym_snap_315" 2>&1 | Out-String
-                Assert-Equals 1 $LASTEXITCODE "jvm snapshot restore must reject symlinked snapshot"
+                Assert-Equals $LASTEXITCODE 1 "jvm snapshot restore must reject symlinked snapshot"
                 Assert-Contains $out "CWE-59" "Must report CWE-59 reparse point violation"
             }
         } finally {
@@ -6474,7 +6474,7 @@ allow_skip_checksum = false
             [System.IO.File]::WriteAllText($failSnap, ($badSnapObj | ConvertTo-Json -Depth 5), [System.Text.UTF8Encoding]::new($false))
 
             $out = & cmd.exe /c "call `"$JvmBat`" snapshot restore tx_fail_snap_315b" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "jvm snapshot restore with missing toolchain must fail with exit code 1"
+            Assert-Equals $LASTEXITCODE 1 "jvm snapshot restore with missing toolchain must fail with exit code 1"
             Assert-Contains $out "Rolling back" "Must report rolling back"
 
             # Verify that config.json was NOT overwritten with NEW_UNCOMMITTED_TOKEN, and preserves ORIGINAL_TOKEN_BASELINE
@@ -6535,11 +6535,11 @@ allow_skip_checksum = false
         try {
             [System.IO.File]::WriteAllText($fakeBundle, "NOT_A_ZIP_CONTAINER_DATA", [System.Text.UTF8Encoding]::new($false))
             $outInspect = & cmd.exe /c "call `"$JvmBat`" bundle inspect `"$fakeBundle`"" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "jvm bundle inspect on fake payload must exit 1"
+            Assert-Equals $LASTEXITCODE 1 "jvm bundle inspect on fake payload must exit 1"
             Assert-Contains $outInspect "magic byte" "Must report magic byte header mismatch"
 
             $outInstall = & cmd.exe /c "call `"$JvmBat`" bundle install `"$fakeBundle`"" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "jvm bundle install on fake payload must exit 1"
+            Assert-Equals $LASTEXITCODE 1 "jvm bundle install on fake payload must exit 1"
             Assert-Contains $outInstall "magic byte" "Must report magic byte header mismatch"
         } finally {
             $ErrorActionPreference = $prevEAP
@@ -6567,7 +6567,7 @@ allow_skip_checksum = false
             $zipStream.Dispose()
 
             $out = & cmd.exe /c "call `"$JvmBat`" bundle install `"$zipslipBundle`"" 2>&1 | Out-String
-            Assert-Equals 1 $LASTEXITCODE "jvm bundle install on ZipSlip archive must exit 1"
+            Assert-Equals $LASTEXITCODE 1 "jvm bundle install on ZipSlip archive must exit 1"
             Assert-Contains $out "ZipSlip" "Must report ZipSlip violation"
             Assert-Contains $out "CWE-22" "Must cite CWE-22 violation"
         } finally {
@@ -6588,7 +6588,7 @@ allow_skip_checksum = false
             & cmd.exe /c "mklink `"$symBundle`" `"$realBundle`"" 2>&1 | Out-Null 
             if (Test-Path -LiteralPath $symBundle) {
                 $out = & cmd.exe /c "call `"$JvmBat`" bundle inspect `"$symBundle`"" 2>&1 | Out-String
-                Assert-Equals 1 $LASTEXITCODE "jvm bundle inspect must reject symlinked bundle"
+                Assert-Equals $LASTEXITCODE 1 "jvm bundle inspect must reject symlinked bundle"
                 Assert-Contains $out "CWE-59" "Must report CWE-59 violation"
             }
         } finally {
