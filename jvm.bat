@@ -61,7 +61,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261031.166"
+set "JVM_BUILD=20261104.167"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -255,7 +255,7 @@ set "SCRIPT_DIR=%~dp0"
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
 setlocal disabledelayedexpansion
-rem call :RejectExclamationArg %*
+call :RejectExclamationArg %*
 if errorlevel 1 (
     endlocal
     echo %cRED%[ ERROR  ]%cRESET% Invalid link name or argument: poison character '!' is forbidden.
@@ -1238,21 +1238,42 @@ if /i "!PIN_CONTENT!"=="current" (
     exit /b 1
 )
 
-rem Only validate against installed JDKs if the inventory has been populated.
-rem During early CLI dispatch JDK_COUNT is 0, so treat the pin as a declarative marker.
+set "PIN_FOUND=0"
 if defined JDK_COUNT if !JDK_COUNT! GTR 0 (
-    set "PIN_FOUND=0"
     for /l %%k in (1,1,!JDK_COUNT!) do (
         if "!JDK_MAJOR_%%k!"=="!PIN_CONTENT!" set "PIN_FOUND=1"
         if /i "!JDK_NAME_%%k!"=="!PIN_CONTENT!" set "PIN_FOUND=1"
     )
-    if "!PIN_FOUND!"=="0" (
-        call :ReleaseStateLock
-        echo.
-        echo %cRED%[ ERROR  ]%cRESET% JDK '!PIN_CONTENT!' not found among installed JDKs.
-        if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
-        exit /b 1
+) else (
+    for /l %%i in (0,1,!MAX_LOC!) do (
+        if exist "!LOCATIONS[%%i]!" (
+            pushd "!LOCATIONS[%%i]!" 2>nul
+            if not errorlevel 1 (
+                for /d %%j in (*) do (
+                    if exist "%%j\bin\java.exe" (
+                        set "CUR_VER="
+                        if exist "%%j\release" (
+                            for /f "tokens=2 delims==" %%R in ('%FINDSTR_BIN% /b "JAVA_VERSION=" "%%j\release" 2^>nul') do (
+                                set "CUR_VER=%%~R"
+                                for /f "tokens=1 delims=." %%V in ("!CUR_VER!") do set "CUR_VER=%%V"
+                            )
+                        )
+                        if "!CUR_VER!"=="!PIN_CONTENT!" set "PIN_FOUND=1"
+                        if /i "%%j"=="!PIN_CONTENT!" set "PIN_FOUND=1"
+                        if /i "%%j"=="jdk-!PIN_CONTENT!" set "PIN_FOUND=1"
+                    )
+                )
+                popd
+            )
+        )
     )
+)
+if "!PIN_FOUND!"=="0" (
+    call :ReleaseStateLock
+    echo.
+    echo %cRED%[ ERROR  ]%cRESET% JDK '!PIN_CONTENT!' not found among installed JDKs.
+    if defined ORIG_CP "%CHCP_BIN%" !ORIG_CP! >nul
+    exit /b 1
 )
 if exist "%INVOCATION_DIR%\.java-version\" (
     call :ReleaseStateLock
@@ -2544,7 +2565,7 @@ if defined CLI_COMMAND (
     if /i "!CLI_COMMAND!"=="exec" (
         call :ExecuteEphemeralCommand
         set "CMD_EXIT_CODE=!errorlevel!"
-        exit /b !CMD_EXIT_CODE!
+        goto :CLI_DONE
     )
     if /i "!CLI_COMMAND!"=="hook" (
         if /i "!CLI_TARGET!"=="remove" (
@@ -6940,7 +6961,7 @@ set "JVM_TOML_PARSE=                                $targetVer = ($l.Split('=')[
     echo(                    $sdkrc = Join-Path $dir '.sdkmanrc'
     echo(                    if ^(Test-Path -LiteralPath $sdkrc -PathType Leaf^) {
     echo(                        foreach ^($l in ^(Get-Content -LiteralPath $sdkrc -ErrorAction SilentlyContinue^)^) {
-    echo(                            if ^($l -match '^^\s*java\s*=\s*([0-9A-Za-z._+-]+)'^) {
+    echo(                            if ^($l -match '^^\s*java\s*=\s*^([0-9A-Za-z._+-]+^)'^) {
     echo(                                $targetVer = ^($matches[1] -split '[.-]'^)[0]
     echo(                                $sourceFile = '.sdkmanrc'
     echo(                                break
@@ -6957,9 +6978,9 @@ set "JVM_TOML_PARSE=                                $targetVer = ($l.Split('=')[
     echo(                        $global:__jvm_active_project_ver = $targetVer
     echo(                        $null = jvm use $targetVer --session --quiet 2^>^&1
     echo(                        if ^($LASTEXITCODE -eq 0^) {
-    echo(                            Write-Host "[jvm] Auto-switched session to Java $targetVer ($sourceFile)" -ForegroundColor DarkGray
+    echo(                            Write-Host "[jvm] Auto-switched session to Java $targetVer ^($sourceFile^)" -ForegroundColor DarkGray
     echo(                        } else {
-    echo(                            Write-Host "[jvm] Warning: Project requires Java $targetVer ($sourceFile), which is not installed. Run: jvm install $targetVer" -ForegroundColor Yellow
+    echo(                            Write-Host "[jvm] Warning: Project requires Java $targetVer ^($sourceFile^), which is not installed. Run: jvm install $targetVer" -ForegroundColor Yellow
     echo(                        }
     echo(                    }
     echo(                } else {
@@ -13308,7 +13329,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo     }
     echo     if ^($env:POLICY_ENFORCED_MIRROR^) {
     echo         $enfMirror = $env:POLICY_ENFORCED_MIRROR.Trim^(^)
-    echo         Write-Host '[  INFO  ] Routing download strictly through enforced enterprise policy mirror (fail-closed)...' -ForegroundColor Cyan
+    echo         Write-Host '[  INFO  ] Routing download strictly through enforced enterprise policy mirror ^(fail-closed^)...' -ForegroundColor Cyan
     echo         $enfChk = if ^($env:POLICY_ENFORCED_MIRROR_CHECKSUM^) { $env:POLICY_ENFORCED_MIRROR_CHECKSUM } elseif ^(-not $env:DL_CHKSUM_VAL^) { $enfMirror + '.sha256' } else { $null }
     echo         $dlUrls = @^($enfMirror^)
     echo         $dlChks = @^($enfChk^)
@@ -13334,7 +13355,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo         if ^($cfgJson -and $cfgJson.mirror^) {
     echo             $mirror = [string]$cfgJson.mirror
     echo             if ^($mirror -match '^^https://'^) {
-    echo                 Write-Host '[  INFO  ] Routing download through configured mirror...' -ForegroundColor Cyan
+    echo                 Write-Host '[  INFO  ] Routing download through mirror ^(configured^)...' -ForegroundColor Cyan
     echo                 $mChk = if ^(-not $env:DL_CHKSUM_VAL^) { $mirror + '.sha256' } else { $null }
     echo                 $dlUrls = @^($mirror^) + $dlUrls
     echo                 $dlChks = @^($mChk^) + $dlChks
@@ -13442,7 +13463,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo                                 $speedMBs = [math]::Round^(^($downloaded / 1MB^) / $sec, 1^)
     echo                                 $remainMB = [math]::Max^(0.0, $tMB - $dMB^)
     echo                                 $etaSec = if ^($speedMBs -gt 0^) { [math]::Round^($remainMB / $speedMBs, 1^) } else { 0.0 }
-    echo                                 Write-Host "`r[3/6] Streaming payload: $bar $percent%% ($dMB / $tMB MB | $speedMBs MB/s | ETA ${etaSec}s) " -NoNewline -ForegroundColor Cyan
+    echo                                 Write-Host "`r[3/6] Streaming payload: $bar $percent%% ^($dMB / $tMB MB | $speedMBs MB/s | ETA ${etaSec}s^) " -NoNewline -ForegroundColor Cyan
     echo                                 $lastPercent = $percent
     echo                             }
     echo                         }
@@ -13463,8 +13484,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo                 $resp = $_.Exception.Response
     echo                 $statusCode = if ^($resp^) { [int]$resp.StatusCode } else { 0 }
     echo                 if ^($statusCode -eq 404^) {
-    echo                     Write-Error 'HTTP 404: Artifact not found'
-    echo                     break
+    echo                     if ^($dlUrls.Length -gt 1 -and $mi -lt ^($dlUrls.Length - 1^)^) { break } else { Write-Error 'HTTP 404: Artifact not found'; break }
     echo                 } elseif ^($statusCode -eq 429^) {
     echo                     Write-Warning 'HTTP 429 Rate limited'
     echo                     $backoffSec = [math]::Pow^(2, $retryCount^)
@@ -13491,7 +13511,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo     if ^($totalLength -gt 0^) {
     echo         $tMB = [math]::Round^($totalLength / 1MB, 1^)
     echo         $fullBar = '[' + ^('=' * 50^) + ']'
-    echo         Write-Host "`r[3/6] Streaming payload: $fullBar 100%% ($tMB / $tMB MB | Completed) " -NoNewline -ForegroundColor Cyan
+    echo         Write-Host "`r[3/6] Streaming payload: $fullBar 100%% ^($tMB / $tMB MB | Completed^) " -NoNewline -ForegroundColor Cyan
     echo     }
     echo     Write-Host "`n"
     echo     $cryptoType = if ^($env:DL_CHKSUM_TYPE^) { $env:DL_CHKSUM_TYPE } else { 'SHA256' }
@@ -13511,7 +13531,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo         if ^(Test-Path $out^) { Remove-Item $out -Force -ErrorAction SilentlyContinue }
     echo         exit 1
     echo     } else {
-    echo         Write-Host "[4/6] Verifying cryptographic checksum ($cryptoType)..." -ForegroundColor Cyan
+    echo         Write-Host "[4/6] Verifying cryptographic checksum ^($cryptoType^)..." -ForegroundColor Cyan
     echo         function Get-TrustedChecksumText^([string]$chkUrl^) {
     echo             $u = $null
     echo             if ^(-not [System.Uri]::TryCreate^($chkUrl, [System.UriKind]::Absolute, [ref]$u^) -or $u.Scheme -ne 'https'^) {
@@ -13550,7 +13570,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo             } catch {
     echo                 if ^($_.Exception.Message -like 'Security policy violation*'^) { throw }
     echo                 if ^($env:DL_CHKSUM_URL -match '\.sha512$' -and $env:ALLOW_WEAK_CHECKSUM -eq '1'^) {
-    echo                     Write-Host "[ WARNING] SHA512 checksum not found, falling back to SHA1 (--allow-weak-checksum active)..." -ForegroundColor Yellow
+    echo                     Write-Host "[ WARNING] SHA512 checksum not found, falling back to SHA1 ^(--allow-weak-checksum active^)..." -ForegroundColor Yellow
     echo                     $fallbackUrl = $env:DL_CHKSUM_URL -replace '\.sha512$', '.sha1'
     echo                     try {
     echo                         $expectedHash = Get-TrustedChecksumText $fallbackUrl
@@ -13707,11 +13727,11 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo                 $percent = [math]::Round^(^($extracted / $totalEntries^) * 100^)
     echo                 if ^($percent -ne $lastPercent^) {
     echo                     $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
-    echo                     Write-Host "`r[4/6] Extracting: $bar $percent%% ($extracted / $totalEntries) " -NoNewline -ForegroundColor Cyan
+    echo                     Write-Host "`r[4/6] Extracting: $bar $percent%% ^($extracted / $totalEntries^) " -NoNewline -ForegroundColor Cyan
     echo                     $lastPercent = $percent
     echo                 }
     echo             }
-    echo             Write-Host "`r[4/6] Extracting: [==================================================] 100%% ($totalEntries / $totalEntries) " -NoNewline -ForegroundColor Cyan
+    echo             Write-Host "`r[4/6] Extracting: [==================================================] 100%% ^($totalEntries / $totalEntries^) " -NoNewline -ForegroundColor Cyan
     echo         } finally {
     echo             if ^($zip^) { $zip.Dispose^(^) }
     echo         }
