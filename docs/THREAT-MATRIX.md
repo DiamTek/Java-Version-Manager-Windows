@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[Overview](../README.md) &nbsp;•&nbsp; [Installation](INSTALLATION.md) &nbsp;•&nbsp; [Usage](USAGE.md) &nbsp;•&nbsp; [Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [Locking](LOCKING.md) &nbsp;•&nbsp; [Networking](NETWORKING.md) &nbsp;•&nbsp; [Shells](SHELLS.md) &nbsp;•&nbsp; [Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [FAQ](FAQ.md) &nbsp;•&nbsp; [SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [Changelog](CHANGELOG.md) &nbsp;•&nbsp; [Security](SECURITY.md) &nbsp;•&nbsp; [Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [Support](SUPPORT.md)
 
 </div>
 
@@ -12,7 +12,7 @@ DiamTek Java Version Manager (JVM) is engineered under a **Zero-Trust, Assume-Br
 
 This document publishes the formal **Threat Matrix**, analyzing the system through the **STRIDE** framework and providing an exhaustive mapping of all **41 Common Weakness Enumerations (CWEs)** continuously validated by the automated test suite (`tests/Test-JvmSecurity.ps1`).
 
-### 🔍 Quick Jump
+### Quick Jump
 - [Threat Model Overview](#threat-model-overview)
 - [STRIDE Threat Analysis](#stride-threat-analysis)
   - [STRIDE Security Architecture](#stride-security-architecture)
@@ -49,12 +49,12 @@ DiamTek JVM treats every external input—repository configuration files (`.java
 ```mermaid
 flowchart TD
     subgraph STRIDE["STRIDE Security Threat Surface"]
-        S["🛡️ Spoofing<br>• Forged JDK archives (CWE-494)<br>• Tampered .jvm.lock.sig (CWE-345/354)<br>• MitM downgrade attacks"]
-        T["🔒 Tampering<br>• ZipSlip path traversal (CWE-22)<br>• Command injection in .sdkmanrc (CWE-78)<br>• Junction hijacking (CWE-59)"]
-        R["📜 Repudiation<br>• Unchecked registry mutations<br>• Solved via ownership.json audit logging"]
-        I["👁️ Information Disclosure<br>• Path / stack trace leaks (CWE-209)<br>• Secret redaction in jvm doctor (CWE-532)"]
-        D["⚡ Denial of Service<br>• Zip bombs (CWE-409)<br>• Concurrent execution races (CWE-362)<br>• Buffer overflows in PATH"]
-        E["🚀 Elevation of Privilege<br>• UAC TOCTOU race windows (CWE-367)<br>• SystemRoot environment poisoning (CWE-73)<br>• Unquoted application paths (CWE-428)"]
+        S["Spoofing<br>• Forged JDK archives (CWE-494)<br>• Tampered .jvm.lock.sig (CWE-345/354)<br>• MitM downgrade attacks"]
+        T["Tampering<br>• ZipSlip path traversal (CWE-22)<br>• Command injection in .sdkmanrc (CWE-78)<br>• Junction hijacking (CWE-59)"]
+        R["Repudiation<br>• Unchecked registry mutations<br>• Solved via ownership.json audit logging"]
+        I["Information Disclosure<br>• Path / stack trace leaks (CWE-209)<br>• Secret redaction in jvm doctor (CWE-532)"]
+        D["Denial of Service<br>• Zip bombs (CWE-409)<br>• Concurrent execution races (CWE-362)<br>• Buffer overflows in PATH"]
+        E["Elevation of Privilege<br>• UAC TOCTOU race windows (CWE-367)<br>• SystemRoot environment poisoning (CWE-73)<br>• Unquoted application paths (CWE-428)"]
     end
 
     subgraph Defenses["DiamTek JVM Hardened Architecture"]

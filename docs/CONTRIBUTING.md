@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[Overview](../README.md) &nbsp;•&nbsp; [Installation](INSTALLATION.md) &nbsp;•&nbsp; [Usage](USAGE.md) &nbsp;•&nbsp; [Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [Locking](LOCKING.md) &nbsp;•&nbsp; [Networking](NETWORKING.md) &nbsp;•&nbsp; [Shells](SHELLS.md) &nbsp;•&nbsp; [Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [FAQ](FAQ.md) &nbsp;•&nbsp; [SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [Changelog](CHANGELOG.md) &nbsp;•&nbsp; [Security](SECURITY.md) &nbsp;•&nbsp; [Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [Support](SUPPORT.md)
 
 </div>
 
@@ -12,7 +12,7 @@ First off, thank you for considering contributing! It's developers like you that
 
 ---
 
-## 🛠️ Local Development & Sandbox Testing
+## Local Development & Sandbox Testing
 
 Because `jvm.bat` actively modifies system and user environment variables (`PATH`, `JAVA_HOME`), testing changes directly in your primary environment can disrupt your local development workflow. Follow these sandbox testing practices:
 
@@ -51,7 +51,7 @@ set "LOCALAPPDATA=%TEMP%\JVM_Sandbox"
 
 ---
 
-## 🧪 Automated Test Suite Execution
+## Automated Test Suite Execution
 
 All contributions are subject to two automated test suites before being merged into `main`:
 
@@ -115,7 +115,7 @@ powershell -ExecutionPolicy Bypass -File packages\choco\build-choco.ps1
 
 ---
 
-## 📐 Windows Scripting Rules & Pitfalls
+## Windows Scripting Rules & Pitfalls
 
 The core `jvm.bat` engine is over 500 KB of mathematically optimized Windows Batch script. When contributing code, you **must** adhere to these battle-tested rules:
 
@@ -153,9 +153,9 @@ The core `jvm.bat` engine is over 500 KB of mathematically optimized Windows Bat
 
 ---
 
-## 🔄 Pull Request Workflow
+## Pull Request Workflow
 
-We actively welcome contributions! Follow this workflow for a seamless review:
+We welcome contributions! Follow this workflow for review:
 
 1. **Fork** the repository on GitHub.
 2. **Create a topic branch** from `main`:
@@ -182,7 +182,7 @@ We actively welcome contributions! Follow this workflow for a seamless review:
 
 ---
 
-## 🤝 Code of Conduct
+## Code of Conduct
 
 This project adheres to the [Contributor Covenant](CODE_OF_CONDUCT.md). By participating, you agree to uphold a welcoming, respectful, and inclusive environment for everyone.
 

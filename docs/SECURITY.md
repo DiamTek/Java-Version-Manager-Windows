@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[Overview](../README.md) &nbsp;•&nbsp; [Installation](INSTALLATION.md) &nbsp;•&nbsp; [Usage](USAGE.md) &nbsp;•&nbsp; [Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [Locking](LOCKING.md) &nbsp;•&nbsp; [Networking](NETWORKING.md) &nbsp;•&nbsp; [Shells](SHELLS.md) &nbsp;•&nbsp; [Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [FAQ](FAQ.md) &nbsp;•&nbsp; [SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [Changelog](CHANGELOG.md) &nbsp;•&nbsp; [Security](SECURITY.md) &nbsp;•&nbsp; [Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [Support](SUPPORT.md)
 
 </div>
 
@@ -161,7 +161,7 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
       $PSDefaultParameterValues['Invoke-WebRequest:ProxyUseDefaultCredentials'] = $true
       $PSDefaultParameterValues['Invoke-RestMethod:ProxyUseDefaultCredentials'] = $true
       ```
-    - This allows seamless downloads from vendor endpoints (Adoptium, GitHub, Azul) across enterprise proxy gateways without credential prompts or plaintext credential storage.
+    - This allows direct downloads from vendor endpoints (Adoptium, GitHub, Azul) across enterprise proxy gateways without credential prompts or plaintext credential storage.
 
 ### 11. Atomic Failure-Path Rollback, Deterministic Resource Hygiene & Zero Silent Exceptions
 - **Vulnerabilities Mitigated:** Broken filesystem states, orphaned junctions, dangling registry entries, leaked Win32/COM handles, silent exception swallowing (`CWE-390`), untracked command failures (`CWE-252`), incomplete partial downloads (`CWE-459`), and sensitive path leakage in error logs (`CWE-209`).

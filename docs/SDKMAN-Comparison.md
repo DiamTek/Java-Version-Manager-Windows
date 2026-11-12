@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[Overview](../README.md) &nbsp;•&nbsp; [Installation](INSTALLATION.md) &nbsp;•&nbsp; [Usage](USAGE.md) &nbsp;•&nbsp; [Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [Locking](LOCKING.md) &nbsp;•&nbsp; [Networking](NETWORKING.md) &nbsp;•&nbsp; [Shells](SHELLS.md) &nbsp;•&nbsp; [Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [FAQ](FAQ.md) &nbsp;•&nbsp; [SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [Changelog](CHANGELOG.md) &nbsp;•&nbsp; [Security](SECURITY.md) &nbsp;•&nbsp; [Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [Support](SUPPORT.md)
 
 </div>
 
@@ -48,7 +48,7 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **Installation Atomicity** | Basic unzips | **`jvm transaction`** (Atomic journaling & rollback engine) |
 | **CPU Architecture** | Manual configuration | **Native x64 / ARM64 Auto-Detection** |
 | **Bulk Maintenance** | Manual, tool-by-tool | **1-Click Bulk Updater** (`jvm update --all`) |
-| **Self-Updater & Channels** | Single-channel script pull (`sdk selfupdate`) | **Dual Channels (🟢 Stable / 🟣 Nightly)** with SHA-256 integrity, ahead-of-remote block & rate-limit fallback |
+| **Self-Updater & Channels** | Single-channel script pull (`sdk selfupdate`) | **Dual Channels ([Stable] / [Nightly])** with SHA-256 integrity, ahead-of-remote block & rate-limit fallback |
 | **Engine History & Rollback** | None (manual re-install) | **`jvm self-update --history` & `--rollback`** (integrity-verified rollback engine) |
 | **OS Conflict Handling**| Passive | **Active Phantom-Path Scrubbing** |
 | **Status & Binary Inspection**| `sdk current` (POSIX shell string) | **`jvm current` & `jvm which`** (Full status card + binary resolver) |
@@ -104,7 +104,7 @@ You get 100% perfect environment synchronization with your Linux teammates, with
 
 ---
 
-## ⚡ Ergonomic Switching (Shorthand vs Slugs)
+## Ergonomic Switching (Shorthand vs Slugs)
 In SDKMAN!, switching versions requires knowing and typing the exact candidate slug:
 ```bash
 # SDKMAN! (POSIX syntax)
@@ -134,7 +134,7 @@ JVM automatically inspects your installed versions and routes to the best instal
 
 ---
 
-## 🚀 Ephemeral Subshell Runner vs Manual SDK Toggling (`jvm exec`)
+## Ephemeral Subshell Runner vs Manual SDK Toggling (`jvm exec`)
 In SDKMAN!, running a one-off build or test against a different JDK requires switching your current shell (`sdk use java 17...`), executing the build, and then manually switching back (`sdk use java 21...`). If the build crashes or you forget to revert, your shell remains stuck on the wrong Java version.
 
 DiamTek JVM provides native, one-line ephemeral execution:
@@ -148,7 +148,7 @@ jvm exec 17 -- mvn clean test
 
 ---
 
-## 🩺 Proactive Health Audits vs Silent Breakages (`jvm doctor`)
+## Proactive Health Audits vs Silent Breakages (`jvm doctor`)
 Windows developers frequently face silent environment breaks caused by rogue MSI installers, broken directory junctions, or mismatched User/Machine registries. SDKMAN! has no diagnostic command to analyze underlying OS health or identify why a tool is malfunctioning.
 
 DiamTek JVM includes `jvm doctor`—an automated 7-point health auditor:
@@ -164,7 +164,7 @@ jvm doctor
 
 ---
 
-## 📌 Instant Project Pinning (`jvm pin` / `jvm local`)
+## Instant Project Pinning (`jvm pin` / `jvm local`)
 In SDKMAN!, locking a project to a specific runtime requires manually writing or updating a `.sdkmanrc` file by hand.
 
 DiamTek JVM provides dedicated CLI commands for project pinning:
@@ -183,7 +183,7 @@ Whenever a developer runs `jvm` inside that directory, JVM automatically reads t
 
 ---
 
-## 📂 Direct Windows File Explorer Navigation (`jvm open` / `jvm home`)
+## Direct Windows File Explorer Navigation (`jvm open` / `jvm home`)
 Finding where a JDK or build tool is physically stored on disk in Windows usually requires traversing hidden `AppData` directories or system folders.
 
 With DiamTek JVM, you can jump directly to any installed runtime or candidate folder in Windows File Explorer:
@@ -202,7 +202,7 @@ jvm open root
 
 ---
 
-## ⚡ Automated Shell Hook Management (`jvm hook` vs POSIX `source`)
+## Automated Shell Hook Management (`jvm hook` vs POSIX `source`)
 In SDKMAN!, integrating with developer shells requires manually maintaining a `source "$HOME/.sdkman/bin/sdkman-init.sh"` block inside `.bashrc` or `.zshrc`. If that initialization script becomes corrupted, debugging it requires manual text editing.
 
 DiamTek JVM provides dedicated, one-command shell hook lifecycle management:
@@ -221,12 +221,12 @@ jvm hook remove
 
 ---
 
-## 🔍 Native Inspection & Binary Resolution (`jvm current` & `jvm which`)
+## Native Inspection & Binary Resolution (`jvm current` & `jvm which`)
 When configuring Windows IDEs (IntelliJ IDEA, Eclipse, VS Code), native scripts, or CI/CD pipelines, you need to know where the actual Windows executable is located. Under WSL or Git Bash, `which java` returns a virtualized Linux path (`/home/user/.sdkman/candidates/java/current/bin/java`) that Windows applications cannot resolve without conversion bridges like `wslpath -w`.
 
 DiamTek JVM provides native Windows inspection tools:
 * **`jvm current` (or `jvm status`):** Displays a comprehensive overview card detailing the active JDK version, vendor, `JAVA_HOME`, resolved executable, switching mode (`[Symlink Mode]` vs `[Registry Mode]`), junction link, and active ecosystem tools (Maven, Gradle, Kotlin, Scala, Groovy, Ant, sbt, JBang, Quarkus, Spring Boot, Micronaut).
-* **`jvm which [candidate]` (or `jvm path`):** Prints the absolute Windows filesystem path to the active binary directly to `stdout`. Works seamlessly for Java (`jvm which`) and ecosystem build tools (`jvm which maven`, `jvm which gradle`). Ideal for automation scripts and IDE path configurations:
+* **`jvm which [candidate]` (or `jvm path`):** Prints the absolute Windows filesystem path to the active binary directly to `stdout`. Works for Java (`jvm which`) and ecosystem build tools (`jvm which maven`, `jvm which gradle`). Ideal for automation scripts and IDE path configurations:
   ```powershell
   # PowerShell automation
   $javaExe = (jvm which)
@@ -235,7 +235,7 @@ DiamTek JVM provides native Windows inspection tools:
 
 ---
 
-## 🧹 Dual Maintenance: Cache Pruning (`jvm clean`) vs Slate Reset (`jvm clear`)
+## Dual Maintenance: Cache Pruning (`jvm clean`) vs Slate Reset (`jvm clear`)
 Managing development environments requires both disk space hygiene and environment sanitization. In SDKMAN!, cache cleanup is limited to `sdk flush`, while de-activating an environment requires manually editing `.bashrc` and deleting symlinks.
 
 DiamTek JVM cleanly decouples these two maintenance workflows:
@@ -244,13 +244,13 @@ DiamTek JVM cleanly decouples these two maintenance workflows:
 
 ---
 
-## 🛡️ Zero-Risk Backups & 100% Offline Execution
+## Zero-Risk Backups & 100% Offline Execution
 * **Pre-Change Safety:** Unlike POSIX shell scripts that directly overwrite `.bashrc` or `.zshrc`, DiamTek JVM automatically creates a timestamped `.reg` backup in `%LOCALAPPDATA%\DiamTek\JVM\backups\` before making destructive registry modifications or clearing paths. If you ever need to roll back, simply double-click the `.reg` file to restore your previous environment state.
 * **Zero-Ping Local Switching:** SDKMAN! can occasionally lag or stall on poor network connections when running version queries against remote servers. DiamTek JVM executes local version switches 100% offline with zero network latency, making it completely reliable in air-gapped corporate environments, remote locations, and on planes.
 
 ---
 
-## 🧠 Observability, Toolchain Automation & Diagnostic Telemetry vs SDKMAN!
+## Observability, Toolchain Automation & Diagnostic Telemetry vs SDKMAN!
 
 Beyond candidate installation, DiamTek JVM provides systems engineering, observability, and toolchain automation capabilities with zero SDKMAN! equivalent:
 
@@ -263,7 +263,7 @@ Beyond candidate installation, DiamTek JVM provides systems engineering, observa
 
 ---
 
-## 📦 Multi-Tool Profiles, Portable Bundles & Air-Gapped Distros vs SDKMAN!
+## Multi-Tool Profiles, Portable Bundles & Air-Gapped Distros vs SDKMAN!
 
 While SDKMAN! requires switching candidates one-by-one or relying solely on directory-level `.sdkmanrc` files, DiamTek JVM introduces enterprise portability primitives:
 

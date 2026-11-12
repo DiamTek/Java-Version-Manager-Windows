@@ -61,7 +61,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261112.172"
+set "JVM_BUILD=20261112.173"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -2271,17 +2271,37 @@ if "!SKIP_HEADER!"=="0" (
 
     echo Current Java information:
     echo ============================================================
-    set "DISCOVERED_JAVA="
-    for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do (
-        if not defined DISCOVERED_JAVA set "DISCOVERED_JAVA=%%A"
+    if not defined CACHED_JAVA_INFO (
+        set "DISCOVERED_JAVA="
+        for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do (
+            if not defined DISCOVERED_JAVA set "DISCOVERED_JAVA=%%A"
+        )
+        if not defined DISCOVERED_JAVA (
+            set "CACHED_JAVA_DISC=NONE"
+        ) else (
+            set "CACHED_JAVA_DISC=!DISCOVERED_JAVA!"
+            set "CACHED_JAVA_INFO=OK"
+            set "CACHED_JAVA_L1="
+            set "CACHED_JAVA_L2="
+            set "CACHED_JAVA_L3="
+            set "C_LIDX=0"
+            for /f "delims=" %%A in ('"!DISCOVERED_JAVA!" -version 2^>^&1') do (
+                set /a C_LIDX+=1
+                if !C_LIDX!==1 set "CACHED_JAVA_L1=%%A"
+                if !C_LIDX!==2 set "CACHED_JAVA_L2=%%A"
+                if !C_LIDX!==3 set "CACHED_JAVA_L3=%%A"
+            )
+        )
     )
-    if not defined DISCOVERED_JAVA (
+    if "!CACHED_JAVA_DISC!"=="NONE" (
         echo %cYELLOW%[ WARNING]%cRESET% Java is NOT in PATH or not installed
         echo %cBLUE%[  INFO  ]%cRESET% This is normal if Java was just removed from PATH
     ) else (
-        echo %cGREEN%[   OK   ]%cRESET% Java is in PATH: !DISCOVERED_JAVA!
+        echo %cGREEN%[   OK   ]%cRESET% Java is in PATH: !CACHED_JAVA_DISC!
         echo.
-        for /f "delims=" %%A in ('"!DISCOVERED_JAVA!" -version 2^>^&1') do echo %%A
+        if defined CACHED_JAVA_L1 echo !CACHED_JAVA_L1!
+        if defined CACHED_JAVA_L2 echo !CACHED_JAVA_L2!
+        if defined CACHED_JAVA_L3 echo !CACHED_JAVA_L3!
     )
     echo ============================================================
     echo.
@@ -2307,6 +2327,41 @@ set "LATEST_JDK_NAME="
 set "ORACLE_LATEST_FEATURE="
 set "ORACLE_LATEST_LTS="
 
+set "CACHE_FILE=%LOCALAPPDATA%\DiamTek\JVM\cache\inventory.cache"
+set "LOADED_FROM_CACHE=0"
+if exist "!CACHE_FILE!" if "!NEEDS_RESCAN!"=="0" (
+    rem Fast-path: Load cached inventory
+    for /f "usebackq tokens=1-6 delims=|" %%1 in ("!CACHE_FILE!") do (
+        if "%%1"=="JDK" (
+            set /a JDK_COUNT+=1
+            set "JDK_PATH_!JDK_COUNT!=%%2"
+            set "JDK_MAJOR_!JDK_COUNT!=%%3"
+            set "JDK_NAME_!JDK_COUNT!=%%4"
+            set "JDK_VENDOR_!JDK_COUNT!=%%5"
+            set "JDK_TYPE_!JDK_COUNT!=%%6"
+            if %%3 GTR !LATEST_VER_NUM! (
+                set "LATEST_VER_NUM=%%3"
+                set "LATEST_JDK_PATH=%%2"
+                set "LATEST_JDK_NAME=%%4"
+            )
+            set "IS_LTS="
+            if %%3==8 set "IS_LTS=1"
+            if %%3==11 set "IS_LTS=1"
+            if %%3==17 set "IS_LTS=1"
+            if %%3==21 set "IS_LTS=1"
+            if %%3==25 set "IS_LTS=1"
+            if %%3==29 set "IS_LTS=1"
+            if defined IS_LTS (
+                if %%3 GTR !LATEST_LTS_NUM! (
+                    set "LATEST_LTS_NUM=%%3"
+                )
+            )
+        )
+    )
+    if !JDK_COUNT! GTR 0 set "LOADED_FROM_CACHE=1"
+)
+
+if "!LOADED_FROM_CACHE!"=="0" (
 rem The LOCATIONS array is populated at the top of the script to prevent delayed expansion corruption
 
 rem Find all JDK folders
@@ -2488,6 +2543,18 @@ if !JDK_COUNT! GTR 1 (
             )
         )
     )
+)
+
+rem Write to inventory cache for instant subsequent loads
+if !JDK_COUNT! GTR 0 (
+    if not exist "%LOCALAPPDATA%\DiamTek\JVM\cache" mkdir "%LOCALAPPDATA%\DiamTek\JVM\cache" >nul 2>&1
+    (
+        for /l %%k in (1,1,!JDK_COUNT!) do (
+            echo JDK^|!JDK_PATH_%%k!^|!JDK_MAJOR_%%k!^|!JDK_NAME_%%k!^|!JDK_VENDOR_%%k!^|!JDK_TYPE_%%k!
+        )
+    ) > "!CACHE_FILE!.tmp" 2>nul
+    if exist "!CACHE_FILE!.tmp" move /y "!CACHE_FILE!.tmp" "!CACHE_FILE!" >nul 2>&1
+)
 )
 
 if "!FLAG_LOCKED!"=="1" (
@@ -5678,18 +5745,38 @@ if not defined JAVA_HOME (
 echo.
 echo Current Java information:
 echo ============================================================
-set "DISCOVERED_JAVA="
-    for /f "delims=" %%A in ('%WHERE_BIN% java 2^>nul') do (
+if not defined CACHED_JAVA_INFO (
+    set "DISCOVERED_JAVA="
+    for /f "delims=" %%A in ('%WHERE_BIN% $PATH:java 2^>nul') do (
         if not defined DISCOVERED_JAVA set "DISCOVERED_JAVA=%%A"
     )
     if not defined DISCOVERED_JAVA (
-        echo %cYELLOW%[ WARNING]%cRESET% Java is NOT in PATH or not installed
-        echo %cBLUE%[  INFO  ]%cRESET% This is normal if Java was just removed from PATH
+        set "CACHED_JAVA_DISC=NONE"
     ) else (
-        echo %cGREEN%[   OK   ]%cRESET% Java is in PATH: !DISCOVERED_JAVA!
-        echo.
-        for /f "delims=" %%A in ('"!DISCOVERED_JAVA!" -version 2^>^&1') do echo %%A
+        set "CACHED_JAVA_DISC=!DISCOVERED_JAVA!"
+        set "CACHED_JAVA_INFO=OK"
+        set "CACHED_JAVA_L1="
+        set "CACHED_JAVA_L2="
+        set "CACHED_JAVA_L3="
+        set "C_LIDX=0"
+        for /f "delims=" %%A in ('"!DISCOVERED_JAVA!" -version 2^>^&1') do (
+            set /a C_LIDX+=1
+            if !C_LIDX!==1 set "CACHED_JAVA_L1=%%A"
+            if !C_LIDX!==2 set "CACHED_JAVA_L2=%%A"
+            if !C_LIDX!==3 set "CACHED_JAVA_L3=%%A"
+        )
     )
+)
+if "!CACHED_JAVA_DISC!"=="NONE" (
+    echo %cYELLOW%[ WARNING]%cRESET% Java is NOT in PATH or not installed
+    echo %cBLUE%[  INFO  ]%cRESET% This is normal if Java was just removed from PATH
+) else (
+    echo %cGREEN%[   OK   ]%cRESET% Java is in PATH: !CACHED_JAVA_DISC!
+    echo.
+    if defined CACHED_JAVA_L1 echo !CACHED_JAVA_L1!
+    if defined CACHED_JAVA_L2 echo !CACHED_JAVA_L2!
+    if defined CACHED_JAVA_L3 echo !CACHED_JAVA_L3!
+)
 echo ============================================================
 echo.
 
@@ -9444,6 +9531,7 @@ call :AcquireStateLock
 if errorlevel 1 exit /b 1
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Scanning temporary files, installer archives, and cache...
+if exist "%LOCALAPPDATA%\DiamTek\JVM\cache\inventory.cache" del /f /q "%LOCALAPPDATA%\DiamTek\JVM\cache\inventory.cache" >nul 2>&1
 set "FREED_MB=0"
 set "FREED_COUNT=0"
 set "CLEAN_CMD=$temp = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM\temp'); $appdata = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM'); $patterns = @((Join-Path $temp 'jdk_*_download.*'), (Join-Path $temp 'jdk_*_extract'), (Join-Path $temp 'jvm_*_*.zip'), (Join-Path $temp 'jvm_*_*_temp'), (Join-Path $temp 'verify_*.txt'), (Join-Path $temp 'jvm_remote_build_*.txt'), (Join-Path $temp 'jvm_dl_*.ps1'), (Join-Path $temp 'jvm_updater_*.bat'), (Join-Path $temp 'jvm_install_*.ps1'), (Join-Path $temp 'jvm_uninstall_*.bat'), (Join-Path $temp 'jvm_uninstall_*.ps1'), (Join-Path $temp '.jvm_session_target*'), (Join-Path $appdata 'downloads\*'), (Join-Path $appdata 'candidates\*\temp_*')); $totalBytes = 0; $fileCount = 0; foreach ($p in $patterns) { Get-Item $p -Force -ErrorAction SilentlyContinue | ForEach-Object { if (($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { $fileCount++; if ($_.PSIsContainer) { try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { Write-Verbose $_.Exception.Message } } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } elseif ($_.PSIsContainer) { Get-ChildItem -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { Write-Verbose $_.Exception.Message } } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } }; $subFiles = Get-ChildItem -LiteralPath $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue; foreach ($sf in $subFiles) { $totalBytes += $sf.Length; $fileCount++ }; Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } else { $totalBytes += $_.Length; $fileCount++; Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }; $mb = [math]::Round($totalBytes / 1MB, 2); Write-Output ('FREED_MB=' + $mb); Write-Output ('FREED_COUNT=' + $fileCount)"

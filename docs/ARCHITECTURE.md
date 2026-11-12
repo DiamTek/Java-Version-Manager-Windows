@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[Overview](../README.md) &nbsp;•&nbsp; [Installation](INSTALLATION.md) &nbsp;•&nbsp; [Usage](USAGE.md) &nbsp;•&nbsp; [Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [Locking](LOCKING.md) &nbsp;•&nbsp; [Networking](NETWORKING.md) &nbsp;•&nbsp; [Shells](SHELLS.md) &nbsp;•&nbsp; [Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [FAQ](FAQ.md) &nbsp;•&nbsp; [SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [Changelog](CHANGELOG.md) &nbsp;•&nbsp; [Security](SECURITY.md) &nbsp;•&nbsp; [Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [Support](SUPPORT.md)
 
 </div>
 
@@ -11,7 +11,7 @@
 
 This project is a zero-dependency, lightweight, native Windows implementation designed to bypass the traditional complexities of virtualized bash scripts (like SDKMAN!) on Windows operating systems.
 
-### 🔍 Quick Jump
+### Quick Jump
 - [The Core Mechanism: Directory Junctions](#the-core-mechanism-directory-junctions)
 - [Directory Junction Lifecycle & Safe Unbinding](#directory-junction-lifecycle--safe-unbinding)
 - [Dual-Architecture Core (Symlink Mode vs. Legacy Registry Mode)](#dual-architecture-core-symlink-mode-vs-legacy-registry-mode)
@@ -180,7 +180,7 @@ flowchart TD
     
     ReadChannel --> ChannelCheck{"Target Channel?"}
     
-    subgraph StableChannel["🟢 Stable Channel Pipeline (Official Releases)"]
+    subgraph StableChannel["Stable Channel Pipeline (Official Releases)"]
         ChannelCheck -->|Stable| QueryRel["Query GitHub Releases API<br/>/repos/.../releases/latest"]
         QueryRel -->|HTTP 403 / 429 Rate Limited| FallbackRedirect["HTTP 302 Location Header Sniffer<br/>HttpWebRequest to releases/latest (Zero API Quota)"]
         FallbackRedirect --> ParseTag["Extract Latest SemVer Tag & Assets"]
@@ -194,7 +194,7 @@ flowchart TD
         VerifySHA -->|Integrity Verified| SpawnRunner["Handoff to Decoupled Update Runner"]
     end
 
-    subgraph NightlyChannel["🟣 Nightly Channel Pipeline (Cutting-Edge Main Branch)"]
+    subgraph NightlyChannel["Nightly Channel Pipeline (Cutting-Edge Main Branch)"]
         ChannelCheck -->|Nightly| QueryCommits["Query GitHub Commits API<br/>/repos/.../commits/main"]
         QueryCommits -->|HTTP 403 / 429 Rate Limited| FastlyCDN["Stream tip from raw.githubusercontent.com<br/>(Fastly Anycast Global CDN)"]
         QueryCommits -->|HTTP 200 OK| ExtractCommit["Extract Short Commit SHA & Date"]

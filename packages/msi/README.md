@@ -22,7 +22,7 @@ An enterprise build automation script supporting dual compilation pipelines:
 - **Strategy 1 (WiX v4/v5)**: Uses the modern `.NET` toolchain (`dotnet tool run wix build` or global `wix.exe`).
 - **Strategy 2 (WiX v3 Fallback)**: Automatically falls back to WiX v3 (`candle.exe` and `light.exe`) if WiX v4 is unavailable.
 - **Multi-Architecture**: Generates distinct, optimized packages for both `x64` (`x64` / `Win64="yes"`) and `arm64` (`arm64` / `Win64="yes"`).
-- **Deterministic GUID Generation**: Dynamically derives reproducible UUIDv5 / SHA-1 component GUIDs based on stable repository namespaces, ensuring seamless in-place upgrades.
+- **Deterministic GUID Generation**: Dynamically derives reproducible UUIDv5 / SHA-1 component GUIDs based on stable repository namespaces, ensuring in-place upgrades without component collisions.
 - **Embedded PowerShell Custom Actions**: Emits deeply hardened custom action scripts embedded into the MSI table:
   - `msiInstallHook.ps1`: Registers JVM in the per-user or machine PATH (preserving `REG_EXPAND_SZ` and checking the 8191-character boundary), configures Windows Terminal profile integrations, and builds Start Menu shortcuts.
   - `msiUninstallHook.ps1`: Safely cleans up PATH entries, unbinds ecosystem directory junctions without traversing targets, removes Windows Terminal configurations, and cleans up registry keys.
@@ -87,4 +87,4 @@ powershell.exe -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1 -MsiPat
 
 ---
 
-[← Back to Main Repository Documentation](../../README.md) &nbsp;•&nbsp; [📦 Installation Guide](../../docs/INSTALLATION.md)
+[Back to Main Repository Documentation](../../README.md) &nbsp;•&nbsp; [Installation Guide](../../docs/INSTALLATION.md)

@@ -1,8 +1,8 @@
-<h1 align="center">Usage Guide</h1>
+﻿<h1 align="center">Usage Guide</h1>
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[Overview](../README.md) &nbsp;•&nbsp; [Installation](INSTALLATION.md) &nbsp;•&nbsp; [Usage](USAGE.md) &nbsp;•&nbsp; [Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [Locking](LOCKING.md) &nbsp;•&nbsp; [Networking](NETWORKING.md) &nbsp;•&nbsp; [Shells](SHELLS.md) &nbsp;•&nbsp; [Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [FAQ](FAQ.md) &nbsp;•&nbsp; [SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [Changelog](CHANGELOG.md) &nbsp;•&nbsp; [Security](SECURITY.md) &nbsp;•&nbsp; [Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [Support](SUPPORT.md)
 
 </div>
 
@@ -13,7 +13,7 @@ The Java Version Manager for Windows is designed to accommodate both casual deve
 
 This document outlines every command, flag override, and semantic route available in the engine.
 
-### 🔍 Quick Jump
+### Quick Jump
 - [Interactive UI Mode](#interactive-ui-mode)
 - [Command Reference Cheat Sheet](#command-reference-cheat-sheet)
 - [PowerShell Dynamic Tab-Completion](#powershell-dynamic-tab-completion)
@@ -61,7 +61,7 @@ This document outlines every command, flag override, and semantic route availabl
 ---
 
 <a id="interactive-ui-mode"></a>
-## 🖥️ Interactive UI Mode
+## Interactive UI Mode
 
 For the easiest, most visually appealing experience, you can rely entirely on the interactive menus.
 
@@ -80,7 +80,7 @@ From here, you can visually explore installed JDKs, fetch new versions, manage e
 If you have just downloaded the script manually, navigate to **Settings (Global Command & Setup)** (Option `3`) and select **Install Global Command** (Option `1`). Once installed globally, you can use the `jvm` command from anywhere on your system.
 
 <a id="command-reference-cheat-sheet"></a>
-## 📋 Command Reference Cheat Sheet
+## Command Reference Cheat Sheet
 
 | Command Syntax | Scope | Description |
 |----------------|-------|-------------|
@@ -236,7 +236,7 @@ This inspects all standard PowerShell profile locations (`WindowsPowerShell\Micr
 ---
 
 <a id="cli-ergonomics--shorthand-aliases"></a>
-## 🏎️ CLI Ergonomics & Shorthand Aliases
+## CLI Ergonomics & Shorthand Aliases
 
 To maximize developer velocity and eliminate muscle-memory friction when switching between Linux, macOS, and Windows environments, DiamTek JVM includes built-in ergonomic aliases for all primary operations.
 
@@ -262,7 +262,7 @@ All aliases support the full spectrum of CLI flags (`--session`, `--symlink`, `-
 ---
 
 <a id="quick-switching-cli"></a>
-## ⚡ Quick-Switching (CLI)
+## Quick-Switching (CLI)
 
 You do not need to open the menu to change your active Java version. You can instantly update your `JAVA_HOME` and system `PATH` directly from the command line.
 
@@ -304,7 +304,7 @@ Semantic routing combined with a vendor override (switches to the newest install
 jvm lts --vendor corretto
 ```
 
-### 🏷️ Recognized Vendor Reference Table
+### Recognized Vendor Reference Table
 
 When multiple distributions of the same major version are installed, JVM prompts for your preference. You can bypass the prompt by passing `--vendor <name>`:
 
@@ -349,7 +349,7 @@ jvm use 21 --session
 ---
 
 <a id="ephemeral-command-execution"></a>
-## 🚀 Ephemeral Command Execution (`jvm exec` / `jvm run`)
+## Ephemeral Command Execution (`jvm exec` / `jvm run`)
 
 Sometimes you need to run a single build, compile a test class, or invoke a diagnostic utility against a specific JDK **without** modifying your active environment, altering Directory Junctions, or changing the Windows Registry.
 
@@ -376,7 +376,7 @@ jvm exec latest -- java -jar target/app.jar
 ---
 
 <a id="headless-installations"></a>
-## 📥 Headless Installations
+## Headless Installations
 
 The installation engine supports deep headless automation, allowing you to bypass menus incrementally—perfect for DevOps scripts and automated machine provisioning.
 
@@ -444,7 +444,7 @@ DiamTek JVM connects directly to official upstream vendor APIs to resolve, downl
 ---
 
 <a id="universal-candidate-engine-ecosystem-tools"></a>
-## 📦 Ecosystem Build Tools (SDKMAN! Parity)
+## Ecosystem Build Tools (SDKMAN! Parity)
 
 JVM supports downloading, switching, and managing modern build tools natively alongside Java. You can manage these via the command line or through the interactive **Ecosystem Management** sub-menu. Supported candidates include `maven`, `gradle`, `kotlin`, `scala`, `groovy`, `ant`, `sbt`, `jbang`, `quarkus`, `spring`, and `micronaut` (`mn`).
 
@@ -500,7 +500,7 @@ jvm uninstall scala
 ---
 
 <a id="updates--uninstalls"></a>
-## 🔄 Updates & Uninstalls
+## Updates & Uninstalls
 
 ### Updating Tools
 Update a specific installed JDK to its latest vendor patch release:
@@ -554,7 +554,7 @@ jvm uninstall maven 3.9.6
 ---
 
 <a id="directory-based-auto-switching"></a>
-## 📂 Directory-Based Auto-Switching
+## Directory-Based Auto-Switching
 
 Instantly configure a project's required environment by simply running the tool inside any directory containing a `.java-version` or SDKMAN `.sdkmanrc` file.
 
@@ -607,7 +607,7 @@ When reading a `.sdkmanrc` file, JVM dynamically translates Unix SDKMAN! vendor 
 
 
 <a id="project-version-pinning"></a>
-### 📌 Project Version Pinning (`jvm pin` / `jvm local`)
+### Project Version Pinning (`jvm pin` / `jvm local`)
 Instead of manually creating and editing `.java-version` files by hand, you can use the `jvm pin` command (or `jvm local`) to lock the required JDK version for your repository or view the current directory lock:
 
 ```powershell
@@ -628,7 +628,7 @@ When you or a teammate runs `jvm` inside that directory, JVM immediately activat
 ---
 
 <a id="reproducible-lockfiles"></a>
-## 🔒 Reproducible Lockfiles (`.jvm.lock` & `jvm install --locked`)
+## Reproducible Lockfiles (`.jvm.lock` & `jvm install --locked`)
 
 While `.java-version` and `.sdkmanrc` pin semantic versions, production systems, enterprise teams, and deterministic CI/CD environments often require **100% byte-for-byte reproducibility** across developer laptops and build machines.
 
@@ -697,7 +697,7 @@ When generated, `.jvm.lock` is written in UTF-8 without BOM using atomic staged 
 ---
 
 <a id="cryptographic-provenance-verification"></a>
-## 🔐 Cryptographic Provenance Verification (`jvm verify`)
+## Cryptographic Provenance Verification (`jvm verify`)
 
 Audit the local integrity and cryptographic chain of trust for any installed runtime or ecosystem tool:
 
@@ -723,13 +723,13 @@ The verification checklist evaluates 6 criteria with explicit status reporting:
 2. `[OK]` **HTTPS verified:** Payload downloaded via encrypted TLS 1.2/1.3 transport.
 3. `[OK]` **Host trusted:** Origin matched against `Test-TrustedJvmUri` domain whitelist.
 4. `[OK]` **SHA-256 verified:** Byte-for-byte integrity verified against release checksums.
-5. `[OK]` / `[⚠]` **Signature status:** Verified Authenticode signature, or flagged as unavailable if unsigned.
-6. `[OK]` / `[⚠]` **Provenance status:** Cryptographically attested build provenance (SLSA/in-toto), or flagged as unavailable if vendor attestation is not published.
+5. `[OK]` / `[WARNING]` **Signature status:** Verified Authenticode signature, or flagged as unavailable if unsigned.
+6. `[OK]` / `[WARNING]` **Provenance status:** Cryptographically attested build provenance (SLSA/in-toto), or flagged as unavailable if vendor attestation is not published.
 
 ---
 
 <a id="transactional-installations"></a>
-## 🔄 Transactional Installations (`jvm transaction`)
+## Transactional Installations (`jvm transaction`)
 
 DiamTek JVM operates as a crash-safe state machine across downloads, extractions, and activations (`VM-TXN-XXXXXXXXXXXX`). Transactions remain `IN_PROGRESS` through candidate activation and only reach `COMMITTED` once the final runtime verification succeeds:
 
@@ -754,7 +754,7 @@ jvm transaction rollback <transaction-id>
 ---
 
 <a id="ide--build-tool-integration"></a>
-## 🛠️ IDE & Build Tool Integration
+## IDE & Build Tool Integration
 
 Because DiamTek JVM maintains a stable Windows Directory Junction at `%LOCALAPPDATA%\DiamTek\JVM\current`, you can configure modern Windows IDEs and build systems to point directly to this junction. Switching versions via `jvm <version>` dynamically updates your development runtime without re-indexing your IDE projects.
 
@@ -818,7 +818,7 @@ If you manage your JetBrains IDEs or JDKs using JetBrains Toolbox, Toolbox store
 ---
 
 <a id="global-environment-management"></a>
-## 🧹 Global Environment Management
+## Global Environment Management
 
 ### Inspection & Status Commands
 
@@ -911,7 +911,7 @@ jvm list --json
 ```
 
 <a id="diagnostic-health-audit"></a>
-#### 🩺 Diagnostic Health Audit & Self-Healing (`jvm doctor`)
+#### Diagnostic Health Audit & Self-Healing (`jvm doctor`)
 Runs a comprehensive, automated 7-point health check across your entire Windows operating system and JVM installation environment:
 ```cmd
 jvm doctor
@@ -943,7 +943,7 @@ jvm doctor --fix
 ---
 
 <a id="unified-configuration-engine"></a>
-## ⚙️ Unified Configuration Engine (`jvm config`)
+## Unified Configuration Engine (`jvm config`)
 
 DiamTek JVM manages persistent user configuration settings in `%LOCALAPPDATA%\DiamTek\JVM\config.json`. This eliminates the need to specify command-line flags on every run:
 
@@ -982,7 +982,7 @@ jvm config reset
 ---
 
 <a id="project-toolchain-configuration"></a>
-## 📁 Project Toolchains (.jvm.toml / .jvmrc & jvm project)
+## Project Toolchains (.jvm.toml / .jvmrc & jvm project)
 
 In addition to `.java-version` files, JVM supports multi-tool project configuration files (`.jvm.toml` and `.jvmrc`).
 
@@ -1022,7 +1022,7 @@ When you enter a directory containing `.jvm.toml` or `.jvmrc`, JVM automatically
 ---
 
 <a id="environment-diff-inspection"></a>
-## 🔍 Environment Diff Inspection (jvm env --diff)
+## Environment Diff Inspection (jvm env --diff)
 
 Inspect live process overrides against system registry baselines without changing state:
 
@@ -1043,7 +1043,7 @@ Environment Changes ────────────────────
 ---
 
 <a id="automated-doctor-self-healing"></a>
-## 🩹 Automated Doctor Self-Healing (jvm doctor --fix)
+## Automated Doctor Self-Healing (jvm doctor --fix)
 
 Repair broken directory junctions and purge stale PATH shadows automatically:
 
@@ -1062,7 +1062,7 @@ jvm doctor --fix
 ---
 
 <a id="content-addressed-artifact-cache--bundling"></a>
-## 📦 Content-Addressed Artifact Cache & Bundling (`jvm cache`)
+## Content-Addressed Artifact Cache & Bundling (`jvm cache`)
 
 DiamTek JVM indexes all downloads inside a Content-Addressed Storage (CAS) layout at `%LOCALAPPDATA%\DiamTek\JVM\cache\` (`sha256\xx\xxxx...`):
 
@@ -1103,7 +1103,7 @@ When operating with `--offline`, `jvm install <version> --offline` bypasses remo
 ---
 
 <a id="remote-search-engine--catalog-queries"></a>
-## 🔎 Remote Search Engine & Catalog Queries (`jvm search` & `jvm list-remote`)
+## Remote Search Engine & Catalog Queries (`jvm search` & `jvm list-remote`)
 
 Query upstream vendor distribution repositories without opening a web browser:
 
@@ -1133,7 +1133,7 @@ The search engine respects custom mirrors configured via `jvm config set mirror 
 ---
 
 <a id="compatibility--release-differences"></a>
-## ⚖️ Compatibility & Release Differences (`jvm info` & `jvm compare`)
+## Compatibility & Release Differences (`jvm info` & `jvm compare`)
 
 Inspect release metadata and evaluate feature deltas between major Java platform specifications:
 
@@ -1155,7 +1155,7 @@ jvm compare 8 21
 ---
 
 <a id="security-aware-update-channel"></a>
-## 🛡️ Security-Aware Update Channel (`jvm update --security`)
+## Security-Aware Update Channel (`jvm update --security`)
 
 Restrict automated update routines strictly to explicit CVE security patches (Critical Patch Updates), ignoring standard maintenance builds:
 
@@ -1172,7 +1172,7 @@ When no CVE security update is detected, JVM informs the caller and safely bypas
 ---
 
 <a id="explorer-directory-navigation"></a>
-#### 📂 Explorer Directory Navigation (`jvm open` / `jvm home`)
+#### Explorer Directory Navigation (`jvm open` / `jvm home`)
 Instantly open any JVM candidate directory or storage root in Windows File Explorer without manually typing or searching long paths:
 ```powershell
 # Open active JDK directory in File Explorer
@@ -1248,7 +1248,7 @@ jvm hook status
 jvm hook remove
 # Alias: jvm hook uninstall
 ```
-* **Seamless Terminal Synchronization:** Once installed, whenever you switch JDKs via `jvm <version>`, the wrapper automatically synchronizes `$env:JAVA_HOME` and `$env:Path` in the active terminal session without requiring you to restart your PowerShell window or launch a new subshell.
+* **Terminal Synchronization:** Once installed, whenever you switch JDKs via `jvm <version>`, the wrapper automatically synchronizes `$env:JAVA_HOME` and `$env:Path` in the active terminal session without requiring you to restart your PowerShell window or launch a new subshell.
 
 <a id="bring-your-own-jdk-byo-jdk"></a>
 ### Bring Your Own JDK (BYO-JDK)
@@ -1292,8 +1292,8 @@ Inspect or toggle the active update channel. The `Stable` (green) channel target
 
 | Channel | Badge Color | Target | Verification Model | Recommended For |
 | :--- | :--- | :--- | :--- | :--- |
-| **🟢 `[Stable]`** | Green | `releases/latest` (Git Tag) | Strict SHA-256 vs `SHA256SUMS.txt` | Primary workstations, production, enterprise |
-| **🟣 `[Nightly]`** | Bright Purple | `main` branch (`HEAD`) | Commit SHA & SHA-256 audit log | Contributors, beta testers, previewing new features |
+| **`[Stable]`** | Green | `releases/latest` (Git Tag) | Strict SHA-256 vs `SHA256SUMS.txt` | Primary workstations, production, enterprise |
+| **`[Nightly]`** | Bright Purple | `main` branch (`HEAD`) | Commit SHA & SHA-256 audit log | Contributors, beta testers, previewing new features |
 
 ```powershell
 # View active update channel, description, and available options:
@@ -1350,7 +1350,7 @@ jvm doctor /?
 ---
 
 <a id="machine-readable-json--offline-modes"></a>
-## ⚙️ Machine-Readable JSON & Offline Modes
+## Machine-Readable JSON & Offline Modes
 
 ### 1. JSON Automation Contract (`--json`)
 Designed for IDE plugins, custom statusline generators, and orchestration tools. Emits pure JSON to `stdout` without decorative text. All commands follow a universal, backwards-compatible envelope contract:
@@ -1479,7 +1479,7 @@ Output format:
 * **Isolated JSON Output:** When used together with `--json` (e.g. `jvm version --json --timings`), the timing telemetry string is written to `stderr` (`>&2`), ensuring `stdout` remains pure, valid, and immediately parseable JSON.
 
 <a id="environment-resolution-graph"></a>
-## 🧭 Environment Resolution Graph (`jvm why`)
+## Environment Resolution Graph (`jvm why`)
 
 Ever wonder why a specific Java runtime is active in your terminal? `jvm why` inspects the entire 7-tier precedence hierarchy in real-time, pinpointing the exact origin and rule that selected the active JDK:
 
@@ -1519,7 +1519,7 @@ jvm why
 ---
 
 <a id="deep-candidate-analysis"></a>
-## 🔬 Deep Candidate Analysis (`jvm explain`)
+## Deep Candidate Analysis (`jvm explain`)
 
 Perform deep 7-layer architectural inspection across any installed candidate runtime or ecosystem tool:
 
@@ -1541,7 +1541,7 @@ jvm explain gradle
 ---
 
 <a id="guided-onboarding--tutorial"></a>
-## 🎓 Guided Onboarding & Interactive Tutorial (`jvm welcome` / `jvm tutorial`)
+## Guided Onboarding & Interactive Tutorial (`jvm welcome` / `jvm tutorial`)
 
 New to DiamTek JVM or setting up a developer workstation? Launch the built-in interactive tutorial and onboarding guide:
 
@@ -1562,7 +1562,7 @@ The guided tour walks developers through:
 ---
 
 <a id="smart-contextual-execution"></a>
-## ⚡ Smart Contextual Execution & Toolchain Conflict Detection (`jvm run`)
+## Smart Contextual Execution & Toolchain Conflict Detection (`jvm run`)
 
 Streamline your build tasks without remembering which wrapper script or build tool is configured in the current project:
 
@@ -1588,7 +1588,7 @@ Before dispatching builds, `jvm run` audits your toolchain for version incompati
 ---
 
 <a id="script-friendly-single-values"></a>
-## 🏎️ Script-Friendly Single Values (`--short`, `--numeric`, `--bin`, `jvm vendor`)
+## Script-Friendly Single Values (`--short`, `--numeric`, `--bin`, `jvm vendor`)
 
 Integrate DiamTek JVM directly into starship prompt widgets, PowerShell profile statuslines, bash/zsh prompts, and CI/CD matrix generators without complex regex parsing:
 
@@ -1619,7 +1619,7 @@ function prompt {
 ---
 
 <a id="cache-telemetry--deduplication"></a>
-## 📊 Cache Telemetry & Deduplication (`jvm cache stats` & `jvm cache dedupe`)
+## Cache Telemetry & Deduplication (`jvm cache stats` & `jvm cache dedupe`)
 
 Gain full visibility into your local Content-Addressed Storage (CAS) footprint and eliminate duplicate JDK binaries across candidate installations:
 
@@ -1638,7 +1638,7 @@ jvm cache dedupe
 ---
 
 <a id="diagnostic-environment-report--support-bundles"></a>
-## 🩺 Diagnostic Environment Report & Support Bundles (`jvm report`, `jvm doctor --report`, `jvm support`)
+## Diagnostic Environment Report & Support Bundles (`jvm report`, `jvm doctor --report`, `jvm support`)
 
 When troubleshooting complex workstation issues or submitting bug reports on GitHub, generate complete, sanitized diagnostic packages with a single command:
 
@@ -1683,7 +1683,7 @@ jvm self-update --rollback
 ---
 
 <a id="named-environment-profiles"></a>
-## 👥 Named Environment Profiles (jvm profile)
+## Named Environment Profiles (jvm profile)
 
 Named Environment Profiles allow you to save, activate, inspect, clone, and delete comprehensive workstation toolchain environments (e.g. `work`, `legacy-java8`, `cloud-native`, `ci`). A profile bundles the active state across Java, Maven, Gradle, Kotlin, Scala, and associated JVM configuration.
 
@@ -1720,7 +1720,7 @@ jvm profile delete work-dev
 ---
 
 <a id="toolchain-snapshots"></a>
-## 📸 Toolchain Snapshots (jvm snapshot)
+## Toolchain Snapshots (jvm snapshot)
 
 Toolchain Snapshots provide lightweight, point-in-time state captures of your entire installed environment, including active JDK and ecosystem tool targets, `config.json` preferences, and environment variables.
 
@@ -1744,7 +1744,7 @@ jvm snapshot delete milestone-2026-10
 ```
 
 ### Snapshot Guarantees
-- **State Capture & Config Restoration:** Stored in `%LOCALAPPDATA%\DiamTek\JVM\snapshots\<name>.json` (or any custom file path) with UTC timestamps, active tool versions, and system metadata. Restoration seamlessly restores `config.json` preferences alongside active JDK and ecosystem tool junctions.
+- **State Capture & Config Restoration:** Stored in `%LOCALAPPDATA%\DiamTek\JVM\snapshots\<name>.json` (or any custom file path) with UTC timestamps, active tool versions, and system metadata. Restoration recovers `config.json` preferences alongside active JDK and ecosystem tool junctions.
 - **Direct File Path & Strict Identifier Support:** Supports either named snapshot IDs (alphanumeric with hyphens/underscores) or direct absolute/relative `.json` file paths (`<name|path>`), allowing snapshots to be committed to repositories or shared across storage volumes.
 - **Transactional Consistency & Atomic Rollback (`CWE-460`):** `--dry-run` validates all candidate directories exist before attempting restoration. During live restoration, all candidate toolchain junctions are switched first, and `config.json` is committed only after all junction repoints succeed. If any junction switch fails mid-flight, all switched junctions are atomically rolled back to their previous targets AND `config.json` is restored to its pre-restoration state (or deleted if previously absent), guaranteeing transactional consistency.
 - **Symlink Defense (`CWE-59`):** Rejects any snapshot files or directories that are symlinks or reparse points.
@@ -1752,7 +1752,7 @@ jvm snapshot delete milestone-2026-10
 ---
 
 <a id="portable-environment-bundles"></a>
-## 📦 Portable Environment Bundles (jvm bundle)
+## Portable Environment Bundles (jvm bundle)
 
 Portable Environment Bundles pack real toolchain binaries (active JDK runtime in `payloads/java` and installed ecosystem tools in `payloads/<candidate>`), companion `.jvm.lock` manifests, and cryptographic metadata into a single, self-contained `.jvmbundle` ZIP container for offline transfer between air-gapped workstations, labs, and CI agents.
 
@@ -1781,7 +1781,7 @@ jvm bundle list
 ---
 
 <a id="zero-network-air-gapped-toolchain-distros"></a>
-## 🌐 Zero-Network Air-Gapped Toolchain Distros (jvm distro & install.ps1 -Offline)
+## Zero-Network Air-Gapped Toolchain Distros (jvm distro & install.ps1 -Offline)
 
 For secure enterprise factory floors, classrooms, and air-gapped defense networks with zero outbound Internet access, DiamTek JVM provides end-to-end air-gapped distribution generation and offline installation.
 
@@ -1821,7 +1821,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Offline -
 ---
 
 <a id="common-workflow-recipes"></a>
-## 💡 Common Developer Workflow Recipes
+## Common Developer Workflow Recipes
 
 ### 1. Setting Up a Fresh Developer Workstation
 Install the latest long-term support JDK and build tools in seconds without clicking through web portals:
@@ -1880,7 +1880,7 @@ jvm doctor
 ---
 
 <a id="cicd-integration-recipes"></a>
-## 🤖 CI/CD Automation Recipes
+## CI/CD Automation Recipes
 
 Because DiamTek JVM is 100% native Windows with zero Bash or WSL dependencies, it integrates cleanly into Windows CI runners (such as GitHub Actions `windows-latest` or Azure DevOps pipelines).
 

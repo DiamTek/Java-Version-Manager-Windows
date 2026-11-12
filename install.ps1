@@ -1,4 +1,4 @@
-# Java Version Manager
+﻿# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -759,7 +759,7 @@ if ($installDir -ne $repoRoot) {
 }
 $channelFile = Join-Path $repoRoot "channel.txt"
 Remove-ReparsePointOrFail -FilePath $channelFile
-if (-not (Test-Path -LiteralPath $channelFile)) {
+if ($PSBoundParameters.ContainsKey('Channel') -or -not (Test-Path -LiteralPath $channelFile)) {
     $cVal = if ($Channel -eq "Nightly") { "NIGHTLY" } else { "STABLE" }
     [System.IO.File]::WriteAllText($channelFile, "$cVal`r`n", (New-Object System.Text.UTF8Encoding($false)))
 }
@@ -782,14 +782,19 @@ if (-not (Test-Path -LiteralPath $configFile)) {
         offline_mode      = [bool]$Offline
     } | ConvertTo-Json -Depth 4
     [System.IO.File]::WriteAllText($configFile, "$defaultCfg`r`n", (New-Object System.Text.UTF8Encoding($false)))
-} elseif ($Offline) {
+} else {
     try {
         $cfgJson = Get-Content -LiteralPath $configFile -Raw -Encoding UTF8 | ConvertFrom-Json
-        $cfgJson | Add-Member -NotePropertyName "offline_mode" -NotePropertyValue $true -Force
-        $cfgJson.auto_update_check = $false
+        if ($PSBoundParameters.ContainsKey('Channel')) {
+            $cfgJson.channel = $Channel.ToLower()
+        }
+        if ($Offline) {
+            $cfgJson | Add-Member -NotePropertyName "offline_mode" -NotePropertyValue $true -Force
+            $cfgJson.auto_update_check = $false
+        }
         [System.IO.File]::WriteAllText($configFile, ($cfgJson | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding($false)))
     } catch {
-        Write-Verbose "Could not update offline_mode in existing config.json: $($_.Exception.Message)"
+        Write-Verbose "Could not update config.json: $($_.Exception.Message)"
     }
 }
 

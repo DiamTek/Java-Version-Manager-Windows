@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[Overview](../README.md) &nbsp;•&nbsp; [Installation](INSTALLATION.md) &nbsp;•&nbsp; [Usage](USAGE.md) &nbsp;•&nbsp; [Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [Locking](LOCKING.md) &nbsp;•&nbsp; [Networking](NETWORKING.md) &nbsp;•&nbsp; [Shells](SHELLS.md) &nbsp;•&nbsp; [Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [FAQ](FAQ.md) &nbsp;•&nbsp; [SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [Changelog](CHANGELOG.md) &nbsp;•&nbsp; [Security](SECURITY.md) &nbsp;•&nbsp; [Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [Support](SUPPORT.md)
 
 </div>
 
@@ -11,7 +11,7 @@
 
 Getting started with the Java Version Manager for Windows takes less than 10 seconds. There are no external dependencies required.
 
-### 🔍 Quick Jump
+### Quick Jump
 - [Standard Installation (PowerShell)](#standard-installation-powershell)
 - [Choosing Your Update Channel (Stable vs Nightly)](#choosing-your-update-channel-stable-vs-nightly)
 - [Manual Installation](#manual-installation)
@@ -31,12 +31,12 @@ Getting started with the Java Version Manager for Windows takes less than 10 sec
 
 Open Windows PowerShell (you do not need Administrator privileges) and run the one-liner for your preferred channel:
 
-**🟢 Stable Channel (Official Releases — Recommended for production/workstations):**
+**Stable Channel (Official Releases — Recommended for production/workstations):**
 ```powershell
 irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1 | iex
 ```
 
-**🟣 Nightly Channel (Cutting-Edge — Latest commits directly from main branch):**
+**Nightly Channel (Cutting-Edge — Latest commits directly from main branch):**
 ```powershell
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/DiamTek/Java-Version-Manager-Windows/main/install.ps1).TrimStart([char]0xFEFF))) -Channel Nightly
 ```
@@ -54,13 +54,13 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DiamTek/Java-Version-M
 
 DiamTek JVM supports two distinct update channels to match your workflow:
 
-* **🟢 `[Stable]` Channel (Default / Recommended):**
+* **`[Stable]` Channel (Default / Recommended):**
   - Targets official GitHub release tags (`releases/latest`).
   - Downloads are cryptographically verified against official `SHA256SUMS.txt` digests before execution.
   - Guarantees thoroughly vetted releases and complete changelogs.
   - Recommended for primary workstations, production environments, and enterprise fleets.
 
-* **🟣 `[Nightly]` Channel (Cutting-Edge):**
+* **`[Nightly]` Channel (Cutting-Edge):**
   - Targets the latest commit on the `main` branch (`HEAD`).
   - Delivers unreleased features, immediate bug patches, and the newest vendor scrapers.
   - Allows previewing capabilities days or weeks before general release.
@@ -177,14 +177,14 @@ msiexec /i jvm-windows-1.0.1-x64.msi /qn /norestart /l*v "%TEMP%\jvm-install.log
 
 DiamTek JVM is built with a standard per-user Windows Installer architecture (`Scope="perUser"`), making it ideal for self-service engineering workstations or managed enterprise fleet distribution without requiring local administrator rights.
 
-### 🏢 Corporate Zero-Admin & Standard User Strategy (Zero IT Tickets)
+### Corporate Zero-Admin & Standard User Strategy (Zero IT Tickets)
 
 In enterprise environments with strictly locked-down corporate laptops, developers do not possess local administrator (`UAC`) credentials:
 * **The Traditional IT Pain Point:** Standard software installations and JDK setups write to `C:\Program Files` and `HKLM`, necessitating an IT helpdesk ticket, security exception, or technician intervention for every routine Java or build tool update.
 * **The Zero-Admin JVM Architecture:** DiamTek JVM installs into the current user's local application store (`%LOCALAPPDATA%\DiamTek\JVM`) and modifies user environment variables (`HKCU`).
 * **0-UAC Version Switching:** JDK version switching leverages NTFS Directory Junctions (`%LOCALAPPDATA%\DiamTek\JVM\current`), an unprivileged user-space operation requiring **0 UAC prompts**. Developers switch between JDK 11, 17, 21, and modern build tools independently without filing IT tickets or compromising corporate endpoint security.
 
-### ⚙️ Enterprise Endpoint Management Configuration Matrix
+### Enterprise Endpoint Management Configuration Matrix
 
 Deploy silently fleet-wide via Microsoft Intune, Microsoft Endpoint Configuration Manager (MECM / SCCM), or Active Directory Group Policy (GPO):
 
@@ -199,7 +199,7 @@ Deploy silently fleet-wide via Microsoft Intune, Microsoft Endpoint Configuratio
 | **Detection Rule (File)** | Path: `%LOCALAPPDATA%\DiamTek\JVM\bin`<br/>File: `jvm.bat` |
 | **Return Codes** | `0` (Success), `1602` (User Canceled), `1603` (Fatal Error), `3010` (Reboot - Handled gracefully) |
 
-### 🔒 Corporate Proxies, SSL Inspection & Internal Artifact Repositories
+### Corporate Proxies, SSL Inspection & Internal Artifact Repositories
 
 Deploying inside corporate enterprise perimeters with deep packet inspection (Zscaler, Netskope, Palo Alto) or internal artifact repositories (Artifactory, Nexus):
 - **WinINet & System Proxy Auto-Traversal:** JVM's internal `.NET` networking stack automatically detects and routes through corporate system proxies configured in Windows Settings or deployed via PAC scripts.
@@ -218,7 +218,7 @@ Deploying inside corporate enterprise perimeters with deep packet inspection (Zs
   jvm link "C:\Corporate\Java\zulu-21-approved" zulu-21
   ```
 
-### 📦 Air-Gapped & Offline Corporate Environments
+### Air-Gapped & Offline Corporate Environments
 For secure air-gapped workstations or offline development networks with zero external internet connectivity:
 1. **Self-Contained Offline Distro Creation (Connected Host):** On an internet-connected build station, generate a standalone offline distribution containing `jvm.bat`, build tools, pre-cached runtimes, and SHA-256 integrity digests:
    ```powershell
@@ -357,7 +357,7 @@ Verification succeeded!
 ---
 
 <a id="windows-terminal-integration"></a>
-## 🪟 Windows Terminal Integration
+## Windows Terminal Integration
 
 During installation via `install.ps1` or the official WiX MSI installer, DiamTek JVM automatically inspects your Windows Terminal settings across Stable, Preview, and Unpackaged installations (`settings.json`).
 

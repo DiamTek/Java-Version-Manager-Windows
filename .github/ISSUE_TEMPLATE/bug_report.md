@@ -6,7 +6,7 @@ labels: 'bug'
 assignees: ''
 ---
 
-## 🛑 Before Submitting
+## Before Submitting
 
 Please ensure you have checked the following to help us diagnose the issue quickly:
 - [ ] I have reviewed the [FAQ](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/docs/FAQ.md) and [Troubleshooting Guide](https://github.com/DiamTek/Java-Version-Manager-Windows/blob/main/docs/INSTALLATION.md#troubleshooting--windows-security).
@@ -18,11 +18,11 @@ Please ensure you have checked the following to help us diagnose the issue quick
 
 ---
 
-## 🐛 Bug Description
+## Bug Description
 
 A clear and concise description of the bug or unexpected behavior.
 
-## 🔁 Reproduction Steps
+## Reproduction Steps
 
 Steps to reproduce the behavior:
 1. Open terminal `[e.g., Windows Terminal / PowerShell / CMD]`
@@ -33,15 +33,15 @@ Steps to reproduce the behavior:
 [Paste error output, stack trace, and exit code ($LASTEXITCODE / %ERRORLEVEL%) here]
 ```
 
-## 🎯 Expected Behavior
+## Expected Behavior
 
 A clear and concise description of what you expected to happen.
 
-## 💻 Environment & Diagnostics
+## Environment & Diagnostics
 
 Please provide as much information about your environment as possible:
 
-- **JVM Version & Build**: `[Run 'jvm version' or 'jvm.bat --version', e.g., 1.0.2, Build 20261112.172]`
+- **JVM Version & Build**: `[Run 'jvm version' or 'jvm.bat --version', e.g., 1.0.2, Build 20261112.173]`
 - **Update Channel**: `[Run 'jvm channel', e.g., Stable or Nightly]`
 - **OS Version & Build**: `[e.g., Windows 11 25H2 / 26H2 (Build 26340.9616), Windows 10 22H2]`
 - **CPU Architecture**: `[e.g., x64, ARM64]`
@@ -50,10 +50,10 @@ Please provide as much information about your environment as possible:
 - **Switching Mode**: `[e.g., Symlink Mode (Default / UAC-Free) or Registry Mode (Legacy / HKLM)]`
 - **User Privilege Level**: `[e.g., Standard User (Non-Admin), Elevated Administrator, Corporate Managed Laptop]`
 
-### 🔍 Diagnostic Output
+### Diagnostic Output
 
 > [!TIP]
-> **🚀 Fast Track (Recommended):** Generate an automated diagnostic bundle or sanitized environment report and attach it directly to this issue. Usernames, tokens, and credentials are automatically redacted!
+> **Recommended:** Generate an automated diagnostic bundle or sanitized environment report and attach it directly to this issue. Usernames, tokens, and credentials are automatically redacted.
 > ```powershell
 > # Option A: Generate complete ZIP issue bundle (contains doctor health audit, environment report, and config):
 > jvm doctor --report
@@ -131,6 +131,6 @@ Alternatively, paste the output of the individual commands below:
 ```
 </details>
 
-## 📎 Additional Context
+## Additional Context
 
 Add any other context, screenshots, or corporate network constraints (e.g., authenticating proxy, Zscaler, offline air-gapped system) here.

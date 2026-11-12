@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[Overview](../README.md) &nbsp;•&nbsp; [Installation](INSTALLATION.md) &nbsp;•&nbsp; [Usage](USAGE.md) &nbsp;•&nbsp; [Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [Locking](LOCKING.md) &nbsp;•&nbsp; [Networking](NETWORKING.md) &nbsp;•&nbsp; [Shells](SHELLS.md) &nbsp;•&nbsp; [Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [FAQ](FAQ.md) &nbsp;•&nbsp; [SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [Changelog](CHANGELOG.md) &nbsp;•&nbsp; [Security](SECURITY.md) &nbsp;•&nbsp; [Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [Support](SUPPORT.md)
 
 </div>
 
@@ -12,7 +12,7 @@ Developers on Windows work across a diverse spectrum of terminal environments: c
 
 DiamTek Java Version Manager (JVM) is engineered to provide a first-class, ergonomic, and consistent developer experience across all of these environments without requiring complex shell configurations, fragile subshells, or invasive environment variable modifications.
 
-### 🔍 Quick Jump
+### Quick Jump
 - [Cross-Shell Philosophy](#cross-shell-philosophy)
 - [PowerShell Dynamic Tab Completions](#powershell-dynamic-tab-completions)
   - [Setting Up Completions](#setting-up-completions)
@@ -33,7 +33,7 @@ DiamTek Java Version Manager (JVM) is engineered to provide a first-class, ergon
 <a id="cross-shell-philosophy"></a>
 ## Cross-Shell Philosophy
 
-DiamTek JVM adapts seamlessly to whatever shell developers prefer, mapping terminal inputs directly to the underlying atomic Windows junction engine:
+DiamTek JVM adapts directly to whichever shell developers prefer, mapping terminal inputs to the underlying atomic Windows junction engine:
 
 ```mermaid
 flowchart TD
@@ -251,13 +251,13 @@ DiamTek JVM is continuously tested and validated across all Windows execution ta
 
 | Terminal / Shell | Version | Interactive Support | Non-Interactive / CI | Completion Type |
 | :--- | :--- | :---: | :---: | :--- |
-| **Windows Terminal** | 1.18+ | ✅ First-Class | N/A | Rich Shell-Dependent |
-| **PowerShell 7 (Core)** | 7.0 - 7.5+ | ✅ First-Class | ✅ Supported | Dynamic Context-Aware |
-| **Windows PowerShell** | 5.1 (Desktop) | ✅ First-Class | ✅ Supported | Dynamic Context-Aware |
-| **Command Prompt** | `cmd.exe` | ✅ First-Class | ✅ Supported | DOSKEY Macros |
-| **Git Bash (MSYS2)** | 2.40+ | ✅ Supported | ✅ Supported | Standard CLI |
-| **GitHub Actions** | Windows-2022/2025 | N/A | ✅ First-Class | Headless Mode |
-| **Azure DevOps** | Windows Hosted | N/A | ✅ First-Class | Headless Mode |
+| **Windows Terminal** | 1.18+ | First-Class | N/A | Rich Shell-Dependent |
+| **PowerShell 7 (Core)** | 7.0 - 7.5+ | First-Class | Supported | Dynamic Context-Aware |
+| **Windows PowerShell** | 5.1 (Desktop) | First-Class | Supported | Dynamic Context-Aware |
+| **Command Prompt** | `cmd.exe` | First-Class | Supported | DOSKEY Macros |
+| **Git Bash (MSYS2)** | 2.40+ | Supported | Supported | Standard CLI |
+| **GitHub Actions** | Windows-2022/2025 | N/A | First-Class | Headless Mode |
+| **Azure DevOps** | Windows Hosted | N/A | First-Class | Headless Mode |
 
 ---
 

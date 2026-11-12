@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Automated version bumper and release coordinator for DiamTek Java Version Manager (Windows).
 
@@ -1764,9 +1764,9 @@ Update-FileContent "README.md" {
     })
     $targetTag = "* **v$cleanVersion"
     if ($c -notmatch [regex]::Escape($targetTag)) {
-        $vhAnchor = "## 📜 Version History`r`n`r`n"
+        $vhAnchor = "## Version History`r`n`r`n"
         $isCrlf = $c.Contains("`r`n")
-        if (-not $isCrlf) { $vhAnchor = "## 📜 Version History`n`n" }
+        if (-not $isCrlf) { $vhAnchor = "## Version History`n`n" }
         $idx = $c.IndexOf($vhAnchor)
         if ($idx -ge 0) {
             $summaryLine = if ($detectedChangelogBody) {

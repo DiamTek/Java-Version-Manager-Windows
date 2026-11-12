@@ -2,14 +2,14 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[Overview](../README.md) &nbsp;•&nbsp; [Installation](INSTALLATION.md) &nbsp;•&nbsp; [Usage](USAGE.md) &nbsp;•&nbsp; [Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [Locking](LOCKING.md) &nbsp;•&nbsp; [Networking](NETWORKING.md) &nbsp;•&nbsp; [Shells](SHELLS.md) &nbsp;•&nbsp; [Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [FAQ](FAQ.md) &nbsp;•&nbsp; [SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [Changelog](CHANGELOG.md) &nbsp;•&nbsp; [Security](SECURITY.md) &nbsp;•&nbsp; [Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [Support](SUPPORT.md)
 
 </div>
 
 
 ---
 
-### 🔍 Quick Jump
+### Quick Jump
 - [Why use this over SDKMAN! on Windows?](#why-use-this-over-sdkman-on-windows)
 - [Why isn't `java` recognized immediately after I switch versions?](#why-isnt-java-recognized-immediately-after-i-switch-versions)
 - [Why does `java -version` still show an old version after I switch? (PATH Shadowing)](#why-does-java--version-still-show-an-old-java-version-after-i-switch-path-shadowing)
@@ -224,7 +224,7 @@ Yes! DiamTek JVM provides clean options depending on whether you want one-off ep
 
 <a id="does-it-support-custom-jdks-or-private-binaries"></a>
 ### Does it support custom JDKs or private binaries?
-Yes! You can use `jvm link <path> [name]` to register any custom or private JDK into the manager. It will integrate seamlessly into the dynamic menus and CLI routing.
+Yes! You can use `jvm link <path> [name]` to register any custom or private JDK into the manager. It will integrate directly into the dynamic menus and CLI routing.
 
 To view an inventory of all currently linked custom JDKs (including junction targets and integrity status), run:
 ```powershell
@@ -476,7 +476,7 @@ Running `jvm clean` executes a thorough, automated garbage-collection sweep acro
 jvm clean
 ```
 
-##### 🧹 Complete Artifact Purge Scope:
+##### Complete Artifact Purge Scope:
 * **Temporary Installer Archives:** Purges all cached `.zip` and `.tar.gz` downloads in `%TEMP%\jdk_*_download.*`.
 * **Intermediate Extraction Workspaces:** Recursively removes orphaned `%TEMP%\jdk_*_extract` extraction directory trees left behind from completed or interrupted unpack operations.
 * **Transient Helper Scripts:** Sweeps temporary PowerShell download runners and handoff batch scripts (`%TEMP%\jvm_dl_*.ps1`, `%TEMP%\jvm_install_*.ps1`, `%TEMP%\jvm_updater_*.bat`, `%TEMP%\jvm_uninstall_*.bat`, `%TEMP%\jvm_uninstall_*.ps1`).
@@ -484,7 +484,7 @@ jvm clean
 * **Candidate Staging Directories:** Cleans transient extraction workspaces in `%LOCALAPPDATA%\DiamTek\JVM\candidates\*\temp_*`.
 * **Process Communication Files:** Removes stale `%TEMP%\.jvm_session_target` process session exchange files.
 
-##### 🛡️ Safety & Non-Destructive Guarantee:
+##### Safety & Non-Destructive Guarantee:
 * **100% Non-Destructive:** `jvm clean` never deletes installed JDK runtimes (`C:\Program Files\Java`), never removes registered ecosystem tools (`%LOCALAPPDATA%\DiamTek\JVM\candidates`), never breaks active Directory Junctions (`%LOCALAPPDATA%\DiamTek\JVM\current`), and never alters your Windows Registry (`PATH`, `JAVA_HOME`).
 * **Live Storage Reclamation Reporting:** Dynamically calculates and displays the exact number of files deleted and total megabytes (MB) of storage reclaimed on disk.
 
@@ -497,7 +497,7 @@ Use `jvm clear` when you need to completely de-activate Java from your system en
 jvm clear
 ```
 
-##### 🎯 Key Problems Solved: PATH Shadowing & Ghost Registries:
+##### Key Problems Solved: PATH Shadowing & Ghost Registries:
 * **Phantom Oracle Path Elimination:** Legacy MSI installers from Oracle Java frequently inject hardcoded shortcut directories into the front of the Machine `PATH` (such as `C:\Program Files\Common Files\Oracle\Java\javapath` or `C:\ProgramData\Oracle\Java\javapath`). Because Windows evaluates Machine paths before User environment variables, `java -version` can remain stuck on an obsolete JRE even after switching versions in JVM. `jvm clear` actively hunts down and scrubs these rogue Oracle paths from both Machine and User registries.
 * **Directory Junction Teardown:** Cleanly removes the `%LOCALAPPDATA%\DiamTek\JVM\current\bin` directory junction from your User and System `PATH`.
 * **JAVA_HOME Unsetting:** Completely unbinds and wipes `JAVA_HOME` across both User (`HKCU\Environment`) and Machine (`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`) scopes.
@@ -505,7 +505,7 @@ jvm clear
 
 ---
 
-#### 📊 Architectural Comparison: `jvm clean` vs `jvm clear`
+#### Architectural Comparison: `jvm clean` vs `jvm clear`
 
 | Feature / Attribute | `jvm clean` (Disk Cache Pruner) | `jvm clear` (Environment Slate Wipe) |
 |---|---|---|
@@ -521,7 +521,7 @@ jvm clear
 
 ---
 
-#### 💾 Automated Safety Backups & Rollback Walkthrough
+#### Automated Safety Backups & Rollback Walkthrough
 To guarantee total peace of mind before executing any destructive registry modifications, `jvm clear` automatically exports full timestamped `.reg` backup files before touching a single environment variable:
 
 * **Backup Destination:** `%LOCALAPPDATA%\DiamTek\JVM\backups\`
@@ -656,7 +656,7 @@ Because a child process in Windows cannot directly alter its parent shell's envi
 The **PowerShell Profile hook** eliminates this friction. It adds a lightweight, non-invasive wrapper function to your `$PROFILE` that intercepts `jvm` commands:
 1. When you switch versions (`jvm 21`), the engine writes the target environment variables to a temporary session file.
 2. The PowerShell wrapper reads the session file, calls `Set-JvmVar`, and updates `$env:JAVA_HOME` and `$env:Path` **live in memory** inside your current PowerShell session.
-3. This provides instantaneous, seamless runtime updates across all your open PowerShell tabs with zero restarts.
+3. This provides instantaneous runtime updates across all your open PowerShell tabs without requiring a restart.
 
 #### Managing the Hook (`jvm hook`)
 You can inspect, install, or remove the wrapper function at any time without touching your global User `PATH`:
@@ -871,12 +871,12 @@ Vendors that only distribute complete JDK suites (such as Oracle, Microsoft, and
 DiamTek JVM features a **Dual Update Channel Engine** that gives developers complete control over update stability and release cadences.
 
 #### 1. The Two Update Channels
-* **🟢 `[Stable]` (Official Releases — Recommended):**
+* **`[Stable]` (Official Releases — Recommended):**
   - Resolves updates against official, tagged GitHub releases (`releases/latest`).
   - Marked with a distinctive **green** `[Stable]` badge in the CLI, status cards, and TUI menus.
   - Guarantees thoroughly vetted releases, semantic versioning milestones, and complete changelog documentation.
   - Recommended for primary workstations, production environments, enterprise fleets, and CI/CD pipelines.
-* **🟣 `[Nightly]` (Cutting-edge `main` Branch):**
+* **`[Nightly]` (Cutting-edge `main` Branch):**
   - Resolves updates against the latest git commit (`HEAD`) on the repository's `main` branch.
   - Marked with a distinctive **purple** `[Nightly]` badge in the CLI, status cards, and TUI menus.
   - Delivers unreleased features, immediate bug patches, and the newest vendor API scrapers days or weeks before a general release.
@@ -899,7 +899,7 @@ Usage:
 You can also see your active channel on the system status card (`jvm current` / `jvm info`) or in the **About** menu (`jvm version` / `jvm -v`).
 
 #### 3. Switching Channels
-You can switch channels seamlessly using the CLI, flags, the interactive TUI, or the installer:
+You can switch channels directly using the CLI, flags, the interactive TUI, or the installer:
 
 * **Command Line:**
   ```cmd
@@ -1021,7 +1021,7 @@ Set-Item -Path "env:$Name" -Value $NewValue -Force
 $old = (Get-Item -Path "env:$key" -ErrorAction SilentlyContinue).Value
 $new = (Get-ItemProperty -Path 'HKCU:\Environment' -Name $v -ErrorAction SilentlyContinue).$v
 ```
-This enables seamless, real-time `JAVA_HOME` and session `PATH` synchronization inside locked-down corporate PowerShell terminals without violating CLM policies.
+This enables real-time `JAVA_HOME` and session `PATH` synchronization inside locked-down corporate PowerShell terminals without violating CLM policies.
 
 #### 3. Core Engine Runs Outside PowerShell (`cmd.exe`)
 The primary CLI and version-switching engine (`jvm.bat`) is written in native Windows Command Prompt batch script (`cmd.exe`). Because `cmd.exe` does not host the PowerShell runtime, `jvm` CLI execution is completely decoupled from PowerShell execution policies (`Restricted`, `RemoteSigned`, `AllSigned`) and PowerShell language constraints.
@@ -1042,12 +1042,12 @@ DiamTek JVM resolves this fundamental Windows limitation through its **NTFS Dire
 #### 1. NTFS Directory Junctions (`mklink /J`) vs Symbolic Links (`mklink /D`)
 | Capability / Characteristic | NTFS Directory Junction (`mklink /J`) | Symbolic Link (`mklink /D`) |
 |:---|:---:|:---:|
-| **Administrator (UAC) Required?** | ❌ **No (0 UAC Prompts)** | ⚠️ Yes (Unless Developer Mode is active) |
-| **`SeCreateSymbolicLinkPrivilege` Needed?** | ❌ **No** | ⚠️ Yes |
-| **Developer Mode Required?** | ❌ **No** | ⚠️ Yes |
-| **Standard User Space Operation?** | ✅ **Full Support (`%LOCALAPPDATA%`)** | ❌ Restricted |
+| **Administrator (UAC) Required?** | **No (0 UAC Prompts)** | Yes (Unless Developer Mode is active) |
+| **`SeCreateSymbolicLinkPrivilege` Needed?** | **No** | Yes |
+| **Developer Mode Required?** | **No** | Yes |
+| **Standard User Space Operation?** | **Full Support (`%LOCALAPPDATA%`)** | Restricted |
 | **Windows Kernel Reparse Point Tag** | `IO_REPARSE_TAG_MOUNT_POINT` | `IO_REPARSE_TAG_SYMLINK` |
-| **Cross-Process Live Synchronization** | ✅ **Instant across all shells** | ✅ Instant across all shells |
+| **Cross-Process Live Synchronization** | **Instant across all shells** | Instant across all shells |
 
 Under NTFS, a **Directory Junction** is an unprivileged soft mount point. Any standard user who possesses write permissions to a local folder (such as `%LOCALAPPDATA%\DiamTek\JVM`) can create, point, and delete directory junctions without administrative credentials.
 

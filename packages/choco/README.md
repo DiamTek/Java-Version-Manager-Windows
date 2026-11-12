@@ -27,7 +27,7 @@ The package specification conforming to the NuGet / Chocolatey v2 schema.
 - **Files**: Packages the `tools/` folder containing lifecycle automation scripts.
 
 ### 2. `tools/chocolateyInstall.ps1`
-Handles seamless, secure installation of DiamTek JVM on target systems:
+Handles secure installation of DiamTek JVM on target systems:
 - Resolves upstream release binary assets from official GitHub releases.
 - **Strict HTTPS & Host Allowlist (`CWE-918`)**: Validates download URIs to ensure payloads originate exclusively from `github.com` or `objects.githubusercontent.com`.
 - **Cryptographic Hash Verification (`CWE-354`)**: Enforces 64-character lowercase hex SHA-256 validation prior to running installation payloads.
@@ -101,4 +101,4 @@ choco uninstall jvm-windows -y
 
 ---
 
-[← Back to Main Repository Documentation](../../README.md) &nbsp;•&nbsp; [📦 Installation Guide](../../docs/INSTALLATION.md)
+[Back to Main Repository Documentation](../../README.md) &nbsp;•&nbsp; [Installation Guide](../../docs/INSTALLATION.md)

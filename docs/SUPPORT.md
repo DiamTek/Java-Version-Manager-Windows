@@ -2,7 +2,7 @@
 
 <div align="center" markdown="1">
 
-[🏠 Overview](../README.md) &nbsp;•&nbsp; [📦 Installation](INSTALLATION.md) &nbsp;•&nbsp; [📖 Usage](USAGE.md) &nbsp;•&nbsp; [🏗️ Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [🏢 Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [🔒 Locking](LOCKING.md) &nbsp;•&nbsp; [🌐 Networking](NETWORKING.md) &nbsp;•&nbsp; [🐚 Shells](SHELLS.md) &nbsp;•&nbsp; [🎯 Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [❓ FAQ](FAQ.md) &nbsp;•&nbsp; [⚖️ SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [📜 Changelog](CHANGELOG.md) &nbsp;•&nbsp; [🛡️ Security](SECURITY.md) &nbsp;•&nbsp; [🤝 Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [💬 Support](SUPPORT.md)
+[Overview](../README.md) &nbsp;•&nbsp; [Installation](INSTALLATION.md) &nbsp;•&nbsp; [Usage](USAGE.md) &nbsp;•&nbsp; [Architecture](ARCHITECTURE.md) &nbsp;•&nbsp; [Enterprise](ENTERPRISE.md) &nbsp;•&nbsp; [Locking](LOCKING.md) &nbsp;•&nbsp; [Networking](NETWORKING.md) &nbsp;•&nbsp; [Shells](SHELLS.md) &nbsp;•&nbsp; [Threat Matrix](THREAT-MATRIX.md) &nbsp;•&nbsp; [FAQ](FAQ.md) &nbsp;•&nbsp; [SDKMAN! Comparison](SDKMAN-Comparison.md) &nbsp;•&nbsp; [Changelog](CHANGELOG.md) &nbsp;•&nbsp; [Security](SECURITY.md) &nbsp;•&nbsp; [Contributing](CONTRIBUTING.md) &nbsp;•&nbsp; [Support](SUPPORT.md)
 
 </div>
 
@@ -12,7 +12,7 @@ Thank you for using Java Version Manager! We want to ensure you have the best po
 
 ---
 
-## 🔍 Self-Service Diagnostic Triage
+## Self-Service Diagnostic Triage
 
 Before opening a support ticket, check this rapid decision tree for the most common operational scenarios:
 
@@ -137,7 +137,7 @@ Before opening a support ticket, check this rapid decision tree for the most com
 
 ---
 
-## ⚡ Troubleshooting Quick-Reference Table
+## Troubleshooting Quick-Reference Table
 
 | Symptom | Probable Cause | Diagnostic Command | Remediation Command |
 |---|---|---|---|
@@ -164,7 +164,7 @@ Before opening a support ticket, check this rapid decision tree for the most com
 
 ---
 
-## 📋 Standard Diagnostic Bundle
+## Standard Diagnostic Bundle
 
 When opening a support request or asking for assistance on Discord or GitHub, generating a pre-packaged support bundle will accelerate resolution by 10x:
 
@@ -200,7 +200,7 @@ where.exe java
 
 ---
 
-## 💬 Community & Direct Maintainer Support
+## Community & Direct Maintainer Support
 
 If self-service triage doesn't solve your issue, we are here to help:
 
@@ -210,7 +210,7 @@ If self-service triage doesn't solve your issue, we are here to help:
 
 ---
 
-## 🛡️ Security Vulnerabilities
+## Security Vulnerabilities
 
 Please **do not** file public GitHub issues for security vulnerabilities. Review our [Security Policy](SECURITY.md) and report privately via [GitHub Security Advisories](https://github.com/DiamTek/Java-Version-Manager-Windows/security/advisories/new) or directly via email.
 
