@@ -498,7 +498,16 @@ function Invoke-TrustedGitHubDownload([string]$Uri, [string]$OutFile, [int]$MaxB
 function Test-GitBlobSha1([string]$FilePath, [string]$RemoteRelPath, [string]$RefName) {
     $sha1 = $null
     try {
-        $meta = Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/$RemoteRelPath`?ref=$RefName" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -TimeoutSec 5
+        $meta = $null
+        for ($attempt = 1; $attempt -le 3; $attempt++) {
+            try {
+                $meta = Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/$RemoteRelPath`?ref=$RefName" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -TimeoutSec 15
+                if ($meta -and $meta.sha) { break }
+            } catch {
+                if ($attempt -eq 3) { throw }
+                Start-Sleep -Milliseconds (500 * $attempt)
+            }
+        }
         if ($meta -and $meta.sha) {
             $expectedGitSha = ([string]$meta.sha).ToLower()
             $sha1 = [System.Security.Cryptography.SHA1]::Create()
@@ -563,7 +572,16 @@ try {
             $verifiedNightly = $false
             $nightlyErr = ""
             try {
-                $meta = Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=$rawBranch" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -TimeoutSec 5
+                $meta = $null
+                for ($attempt = 1; $attempt -le 3; $attempt++) {
+                    try {
+                        $meta = Invoke-RestMethod -Uri "https://api.github.com/repos/DiamTek/Java-Version-Manager-Windows/contents/jvm.bat?ref=$rawBranch" -Headers $noCacheHeaders -UserAgent "DiamTek-JVM" -TimeoutSec 15
+                        if ($meta -and $meta.sha) { break }
+                    } catch {
+                        if ($attempt -eq 3) { throw }
+                        Start-Sleep -Milliseconds (500 * $attempt)
+                    }
+                }
                 if ($meta -and $meta.sha) {
                     $expectedGitSha = ([string]$meta.sha).ToLower()
                     $sha1 = [System.Security.Cryptography.SHA1]::Create()
