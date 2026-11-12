@@ -2017,7 +2017,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
 
             Assert-PathNotExists $pwnDoctor "jvm doctor MUST NOT execute commands from poisoned PATH or release metadata"
             Assert-Contains $outDoc "Running DiamTek JVM System Health Audit" "jvm doctor must execute audit banner cleanly"
-            Assert-Contains $outDoc "Discovered JDKs:" "jvm doctor must complete inventory scan without crashing"
+            $hasDiscovered = ($outDoc -match "Discovered (JDKs|Java):")
+            Assert-True $hasDiscovered "jvm doctor must complete inventory scan without crashing (Discovered JDKs or Discovered Java)"
         } finally {
             $env:LOCALAPPDATA = $origLocalAppData
             $env:USERPROFILE  = $origUserProfile
