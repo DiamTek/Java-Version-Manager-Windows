@@ -61,7 +61,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261112.174"
+set "JVM_BUILD=20261112.175"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -6530,7 +6530,7 @@ if not defined CLI_COMMAND (
 goto :TriggerUpdateDownload
 
 :Update_OracleLegacy
-set "PS_CMD=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $req = [Net.HttpWebRequest]::Create('https://download.oracle.com/java/!UP_MAJOR!/latest/jdk-!UP_MAJOR!_windows-!SYS_ARCH!_bin.zip'); $req.Method = 'HEAD'; $req.Timeout = 5000; $req.AllowAutoRedirect = $false; try { $res = $req.GetResponse(); $d = $res.LastModified.ToString('yyyy-MM-dd'); $res.Close(); $d } catch { 'ERROR|' + $_.Exception.Message }"
+set "PS_CMD=[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor 12288; $wc = New-Object Net.WebClient; $wc.Headers.Add('User-Agent', 'Mozilla/5.0'); try { $s = $wc.OpenRead('https://download.oracle.com/java/!UP_MAJOR!/latest/jdk-!UP_MAJOR!_windows-!SYS_ARCH!_bin.zip'); $lm = $wc.ResponseHeaders['Last-Modified']; $s.Close(); if ($lm) { [DateTime]::Parse($lm).ToString('yyyy-MM-dd') } else { 'UNKNOWN' } } catch { 'ERROR|' + $_.Exception.Message }"
 set "REMOTE_DATE=UNKNOWN" & set "API_ERROR="
 for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -Command "!PS_CMD!"') do (
     if "%%A"=="ERROR" ( set "API_ERROR=%%B" ) else ( set "REMOTE_DATE=%%A" )
@@ -6539,6 +6539,9 @@ if defined API_ERROR (
     if not "!API_ERROR:404=!"=="!API_ERROR!" (
         echo %cYELLOW%[ WARNING]%cRESET% No remote release found for Oracle JDK !UP_MAJOR! ^(HTTP 404^).
         echo %cBLUE%[  INFO  ]%cRESET% Oracle has not published a GA update build for JDK !UP_MAJOR!.
+    ) else if not "!API_ERROR:timed out=!"=="!API_ERROR!" (
+        echo %cYELLOW%[ WARNING]%cRESET% Request to Oracle download servers timed out.
+        echo %cBLUE%[  INFO  ]%cRESET% Oracle CDN may be experiencing high latency or rate limiting.
     ) else (
         echo %cRED%[ ERROR  ]%cRESET% Network connection failed. You appear to be offline.
         echo %cYELLOW%[ DETAIL ]%cRESET% !API_ERROR!
@@ -7433,7 +7436,7 @@ set "STATUS_PS1=%JVM_SECURE_TEMP%\jvm_status_hook_!ST_RANDOM_NAME!.ps1"
     echo             Write-Host "$esc[92m[   OK   ]$esc[0m Active in: $prof"
     echo             $foundCount++
     echo         } else {
-    echo             Write-Host "$esc[96m[  INFO  ]$esc[0m Profile exists ^(hook not present^): $prof"
+    echo             Write-Host "$esc[96m[  INFO  ]$esc[0m Profile exists (hook not present): $prof"
     echo         }
     echo     } else {
     echo         Write-Host "$esc[96m[  INFO  ]$esc[0m Profile file not yet created: $prof"
@@ -13596,7 +13599,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo     }
     echo     if ^($env:POLICY_ENFORCED_MIRROR^) {
     echo         $enfMirror = $env:POLICY_ENFORCED_MIRROR.Trim^(^)
-    echo         Write-Host '[  INFO  ] Routing download strictly through enforced enterprise policy mirror ^(fail-closed^)...' -ForegroundColor Cyan
+    echo         Write-Host ^('[  INFO  ] Routing download strictly through enforced enterprise policy mirror ' + [char]40 + 'fail-closed' + [char]41 + '...'^) -ForegroundColor Cyan
     echo         $enfChk = if ^($env:POLICY_ENFORCED_MIRROR_CHECKSUM^) { $env:POLICY_ENFORCED_MIRROR_CHECKSUM } elseif ^(-not $env:DL_CHKSUM_VAL^) { $enfMirror + '.sha256' } else { $null }
     echo         $dlUrls = @^($enfMirror^)
     echo         $dlChks = @^($enfChk^)
@@ -13622,7 +13625,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo         if ^($cfgJson -and $cfgJson.mirror^) {
     echo             $mirror = [string]$cfgJson.mirror
     echo             if ^($mirror -match '^^https://'^) {
-    echo                 Write-Host '[  INFO  ] Routing download through mirror ^(configured^)...' -ForegroundColor Cyan
+    echo                 Write-Host ^('[  INFO  ] Routing download through mirror ' + [char]40 + 'configured' + [char]41 + '...'^) -ForegroundColor Cyan
     echo                 $mChk = if ^(-not $env:DL_CHKSUM_VAL^) { $mirror + '.sha256' } else { $null }
     echo                 $dlUrls = @^($mirror^) + $dlUrls
     echo                 $dlChks = @^($mChk^) + $dlChks
@@ -13714,6 +13717,11 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo                     $respStream = $res.GetResponseStream^(^)
     echo                     $totalLen = $res.ContentLength
     echo                     if ^($isPartial^) { $totalLen += $existingLen }
+    echo                     $w = try { [Console]::BufferWidth } catch { 80 }
+    echo                     if ^(-not $w -or $w -lt 40^) { $w = 80 }
+    echo                     $barLen = if ^($w -ge 120^) { 26 } elseif ^($w -ge 100^) { 18 } elseif ^($w -ge 80^) { 12 } else { 8 }
+    echo                     $eChar = [char]27
+    echo                     $lp = [char]40; $rp = [char]41
     echo                     $buffer = New-Object byte[] 65536
     echo                     $downloaded = if ^($isPartial^) {$existingLen } else { 0 }
     echo                     $lastPercent = -1
@@ -13723,14 +13731,22 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo                         if ^($totalLen -gt 0^) {
     echo                             $percent = [math]::Floor^( ^($downloaded / $totalLen^) * 100 ^)
     echo                             if ^($percent -ne $lastPercent^) {
-    echo                                 $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
+    echo                                 $filled = [math]::Floor^(^($percent / 100^) * $barLen^)
+    echo                                 $bar = '[' + ^('=' * $filled^) + ^(' ' * ^($barLen - $filled^)^) + ']'
     echo                                 $dMB = [math]::Round^($downloaded / 1MB, 1^)
     echo                                 $tMB = [math]::Round^($totalLen / 1MB, 1^)
     echo                                 $sec = [math]::Max^(0.001, $sw.Elapsed.TotalSeconds^)
     echo                                 $speedMBs = [math]::Round^(^($downloaded / 1MB^) / $sec, 1^)
     echo                                 $remainMB = [math]::Max^(0.0, $tMB - $dMB^)
     echo                                 $etaSec = if ^($speedMBs -gt 0^) { [math]::Round^($remainMB / $speedMBs, 1^) } else { 0.0 }
-    echo                                 Write-Host "`r[3/6] Streaming payload: $bar $percent%% ^($dMB / $tMB MB | $speedMBs MB/s | ETA ${etaSec}s^) " -NoNewline -ForegroundColor Cyan
+    echo                                 $metrics = if ^($w -ge 110^) {
+    echo                                     $bar + ' ' + $percent + '%% ' + $lp + $dMB + '/' + $tMB + ' MB ^| ' + $speedMBs + ' MB/s ^| ETA ' + $etaSec + 's' + $rp
+    echo                                 } elseif ^($w -ge 80^) {
+    echo                                     $bar + ' ' + $percent + '%% ' + $lp + $dMB + '/' + $tMB + ' MB ^| ' + $speedMBs + ' MB/s' + $rp
+    echo                                 } else {
+    echo                                     $bar + ' ' + $percent + '%% ' + $lp + $dMB + '/' + $tMB + ' MB' + $rp
+    echo                                 }
+    echo                                 Write-Host ^("`r[3/6] Streaming payload: " + $metrics + $eChar + '[K'^) -NoNewline -ForegroundColor Cyan
     echo                                 $lastPercent = $percent
     echo                             }
     echo                         }
@@ -13775,12 +13791,6 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo     if ^(-not $downloadStarted^) {
     echo         throw ^('Failed to download from any trusted mirror: ' + $url^)
     echo     }
-    echo     if ^($totalLength -gt 0^) {
-    echo         $tMB = [math]::Round^($totalLength / 1MB, 1^)
-    echo         $fullBar = '[' + ^('=' * 50^) + ']'
-    echo         Write-Host "`r[3/6] Streaming payload: $fullBar 100%% ^($tMB / $tMB MB | Completed^) " -NoNewline -ForegroundColor Cyan
-    echo     }
-    echo     Write-Host "`n"
     echo     $cryptoType = if ^($env:DL_CHKSUM_TYPE^) { $env:DL_CHKSUM_TYPE } else { 'SHA256' }
     echo     if ^($env:SKIP_CHECKSUM -eq '1'^) {
     echo         if ^(^($env:CI -or $env:GITHUB_ACTIONS -or $env:JVM_NONINTERACTIVE -eq '1'^) -and $env:FORCE_YES -ne '1'^) {
@@ -13798,7 +13808,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo         if ^(Test-Path $out^) { Remove-Item $out -Force -ErrorAction SilentlyContinue }
     echo         exit 1
     echo     } else {
-    echo         Write-Host "[4/6] Verifying cryptographic checksum ^($cryptoType^)..." -ForegroundColor Cyan
+    echo         Write-Host ^('[4/6] Verifying cryptographic checksum ' + [char]40 + $cryptoType + [char]41 + '...'^) -ForegroundColor Cyan
     echo         function Get-TrustedChecksumText^([string]$chkUrl^) {
     echo             $u = $null
     echo             if ^(-not [System.Uri]::TryCreate^($chkUrl, [System.UriKind]::Absolute, [ref]$u^) -or $u.Scheme -ne 'https'^) {
@@ -13837,7 +13847,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo             } catch {
     echo                 if ^($_.Exception.Message -like 'Security policy violation*'^) { throw }
     echo                 if ^($env:DL_CHKSUM_URL -match '\.sha512$' -and $env:ALLOW_WEAK_CHECKSUM -eq '1'^) {
-    echo                     Write-Host "[ WARNING] SHA512 checksum not found, falling back to SHA1 ^(--allow-weak-checksum active^)..." -ForegroundColor Yellow
+    echo                     Write-Host ^('[ WARNING] SHA512 checksum not found, falling back to SHA1 ' + [char]40 + '--allow-weak-checksum active' + [char]41 + '...'^) -ForegroundColor Yellow
     echo                     $fallbackUrl = $env:DL_CHKSUM_URL -replace '\.sha512$', '.sha1'
     echo                     try {
     echo                         $expectedHash = Get-TrustedChecksumText $fallbackUrl
@@ -13993,12 +14003,14 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo                 $extracted++
     echo                 $percent = [math]::Round^(^($extracted / $totalEntries^) * 100^)
     echo                 if ^($percent -ne $lastPercent^) {
-    echo                     $bar = '[' + ^('=' * [math]::Floor^($percent / 2^)^) + ^(' ' * ^(50 - [math]::Floor^($percent / 2^)^)^) + ']'
-    echo                     Write-Host "`r[4/6] Extracting: $bar $percent%% ^($extracted / $totalEntries^) " -NoNewline -ForegroundColor Cyan
+    echo                     $filled = [math]::Floor^(^($percent / 100^) * $barLen^)
+    echo                     $bar = '[' + ^('=' * $filled^) + ^(' ' * ^($barLen - $filled^)^) + ']'
+    echo                     Write-Host ^("`r[4/6] Extracting: $bar $percent%% " + [char]40 + "$extracted/$totalEntries" + [char]41 + $eChar + '[K'^) -NoNewline -ForegroundColor Cyan
     echo                     $lastPercent = $percent
     echo                 }
     echo             }
-    echo             Write-Host "`r[4/6] Extracting: [==================================================] 100%% ^($totalEntries / $totalEntries^) " -NoNewline -ForegroundColor Cyan
+    echo             $fullBarExt = '[' + ^('=' * $barLen^) + ']'
+    echo             Write-Host ^("`r[4/6] Extracting: $fullBarExt 100%% " + [char]40 + "$totalEntries/$totalEntries" + [char]41 + $eChar + '[K'^) -NoNewline -ForegroundColor Cyan
     echo         } finally {
     echo             if ^($zip^) { $zip.Dispose^(^) }
     echo         }
