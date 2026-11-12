@@ -61,7 +61,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261112.175"
+set "JVM_BUILD=20261112.176"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -2332,7 +2332,7 @@ set "LOADED_FROM_CACHE=0"
 if exist "!CACHE_FILE!" if "!NEEDS_RESCAN!"=="0" (
     rem Fast-path: Load cached inventory
     for /f "usebackq tokens=1-6 delims=|" %%1 in ("!CACHE_FILE!") do (
-        if "%%1"=="JDK" (
+        if "%%1"=="JDK" if exist "%%2\bin\java.exe" (
             set /a JDK_COUNT+=1
             set "JDK_PATH_!JDK_COUNT!=%%2"
             set "JDK_MAJOR_!JDK_COUNT!=%%3"
@@ -5483,6 +5483,19 @@ if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
     echo.
     echo %cGREEN%[   OK   ]%cRESET% !DL_VENDOR! JDK !DL_VERSION! successfully installed!
     call :CommitTransaction
+    if defined UPDATER_OLD_PATH if exist "!UPDATER_OLD_PATH!" (
+        set "NORM_OLD=" & set "NORM_NEW="
+        for %%O in ("!UPDATER_OLD_PATH!") do set "NORM_OLD=%%~fO"
+        for %%N in ("!DEST_DIR!\!NEW_FOLDER!") do set "NORM_NEW=%%~fN"
+        if /i not "!NORM_OLD!"=="!NORM_NEW!" (
+            echo %cBLUE%[ ACTION ]%cRESET% Cleaning up outdated predecessor build: !UPDATER_OLD_PATH!...
+            "%PS_BIN%" -NoProfile -Command "$old = $env:UPDATER_OLD_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($old)); $script = '$old = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); if (Test-Path -LiteralPath $old) { Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($old, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; $it = Get-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue; if ($it -and (($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { [System.IO.Directory]::Delete($it.FullName, $false) } else { Get-ChildItem -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } }; Remove-Item -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue } }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; try { $p = Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -PassThru -ArgumentList @('-NoProfile', '-EncodedCommand', $enc); try { if ($p.ExitCode -ne 0) { exit $p.ExitCode } } finally { if ($null -ne $p) { $p.Dispose() } } } catch { exit 1 }" 2>nul
+            if not exist "!UPDATER_OLD_PATH!" (
+                echo %cGREEN%[   OK   ]%cRESET% Outdated predecessor build cleaned up successfully.
+            )
+        )
+        set "UPDATER_OLD_PATH="
+    )
     if "!FLAG_CREATE_LOCK!"=="1" (
         set "ENTRY_CANDIDATE=java"
         set "ENTRY_VENDOR=!DL_VENDOR!"
@@ -6238,6 +6251,7 @@ goto :eof
 :ProcessSingleUpdate
 set "UP_IDX=%1"
 set "UP_PATH=!JDK_PATH_%UP_IDX%!"
+if not exist "!UP_PATH!\bin\java.exe" goto :eof
 set "UP_MAJOR=!JDK_MAJOR_%UP_IDX%!"
 set "UP_NAME=!JDK_NAME_%UP_IDX%!"
 set "UP_VENDOR=!JDK_VENDOR_%UP_IDX%!"
@@ -6592,7 +6606,7 @@ if not defined VENDOR_SUPPORTED (
 )
 echo.
 echo %cGREEN%[DOWNLOAD]%cRESET% Fetching newest JDK !UP_MAJOR! from !UP_VENDOR!...
-set "CLI_VENDOR=!UP_VENDOR!" & set "DL_VERSION=!UP_MAJOR!" & set "IS_UPDATER=1"
+set "CLI_VENDOR=!UP_VENDOR!" & set "DL_VERSION=!UP_MAJOR!" & set "IS_UPDATER=1" & set "UPDATER_OLD_PATH=!UP_PATH!"
 goto :Resolve_!UP_VENDOR!
 
 rem ============================================================
