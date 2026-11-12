@@ -61,7 +61,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261104.168"
+set "JVM_BUILD=20261112.169"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -361,6 +361,7 @@ if /i "%~1"=="unlink" goto :HANDLE_LINKS
 set "CLI_COMMAND="
 set "CLI_VENDOR="
 set "TARGET_CANDIDATE=java"
+set "FLAG_JRE=0"
 :PARSE_CLI_ARGS
 if "%~1"=="" goto :PARSE_DONE
 if /i "%~1"=="--timings" (
@@ -443,6 +444,16 @@ if /i "%~1"=="--stats" (
 )
 if /i "%~1"=="--report" (
     set "FLAG_REPORT=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--jre" (
+    set "FLAG_JRE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--jdk" (
+    set "FLAG_JRE=0"
     shift
     goto :PARSE_CLI_ARGS
 )
@@ -2403,6 +2414,13 @@ for /l %%i in (0,1,!MAX_LOC!) do (
                         )
                         set "JDK_VENDOR_!JDK_COUNT!=!VENDOR_STR!"
                         
+                        rem Detect whether installation is a JDK or JRE-only runtime
+                        if exist "%%j\bin\javac.exe" (
+                            set "JDK_TYPE_!JDK_COUNT!=JDK"
+                        ) else (
+                            set "JDK_TYPE_!JDK_COUNT!=JRE"
+                        )
+                        
                         if /i "%%j"=="current" (
                             for %%D in ("!LOCATIONS[%%i]!") do set "APP_NAME=%%~nxD"
                             set "JDK_NAME_!JDK_COUNT!=Scoop !APP_NAME! (!NUM_VER!)"
@@ -2453,16 +2471,19 @@ if !JDK_COUNT! GTR 1 (
                     set "TEMP_MAJOR=!JDK_MAJOR_%%i!"
                     set "TEMP_NAME=!JDK_NAME_%%i!"
                     set "TEMP_VENDOR=!JDK_VENDOR_%%i!"
+                    set "TEMP_TYPE=!JDK_TYPE_%%i!"
                     
                     set "JDK_PATH_%%i=!JDK_PATH_%%j!"
                     set "JDK_MAJOR_%%i=!JDK_MAJOR_%%j!"
                     set "JDK_NAME_%%i=!JDK_NAME_%%j!"
                     set "JDK_VENDOR_%%i=!JDK_VENDOR_%%j!"
+                    set "JDK_TYPE_%%i=!JDK_TYPE_%%j!"
                     
                     set "JDK_PATH_%%j=!TEMP_PATH!"
                     set "JDK_MAJOR_%%j=!TEMP_MAJOR!"
                     set "JDK_NAME_%%j=!TEMP_NAME!"
                     set "JDK_VENDOR_%%j=!TEMP_VENDOR!"
+                    set "JDK_TYPE_%%j=!TEMP_TYPE!"
                 )
             )
         )
@@ -2491,18 +2512,20 @@ if defined CLI_COMMAND (
             goto :CLI_DONE
         )
         echo. 
-        echo %cBLUE%[  INFO  ]%cRESET% Installed JDKs:
+        echo %cBLUE%[  INFO  ]%cRESET% Installed Java Runtimes:
         echo ============================================================
         for /l %%k in (1,1,!JDK_COUNT!) do (
             set "ACTIVE_TAG="
             if /i "!JDK_PATH_%%k!"=="!RESOLVED_JAVA_HOME!" set "ACTIVE_TAG= %cGREEN%[ACTIVE]%cRESET%"
-            echo  %%k. JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^) - !JDK_VENDOR_%%k!!ACTIVE_TAG!
+            set "TYPE_TAG="
+            if /i "!JDK_TYPE_%%k!"=="JRE" set "TYPE_TAG= %cYELLOW%[JRE]%cRESET%"
+            echo  %%k. JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^) - !JDK_VENDOR_%%k!!TYPE_TAG!!ACTIVE_TAG!
             echo     Path: !JDK_PATH_%%k!
             echo.
         )
         echo ============================================================
         call :ListEcosystemCandidates
-        goto :eof
+        goto :CLI_DONE
     )
     if /i "!CLI_COMMAND!"=="env" (
         call :ShowCurrentStatus
@@ -2639,6 +2662,21 @@ if defined CLI_COMMAND (
                 if "!MATCH_FOUND!"=="1" (
                     if defined CLI_VENDOR (
                         if /i "!JDK_VENDOR_%%k!" NEQ "!CLI_VENDOR!" set "MATCH_FOUND=0"
+                    )
+                    if "!FLAG_JRE!"=="1" (
+                        if /i "!JDK_TYPE_%%k!" NEQ "JRE" set "MATCH_FOUND=0"
+                    ) else (
+                        rem If --jre is not specified, prefer JDK over JRE if both exist
+                        if /i "!JDK_TYPE_%%k!"=="JRE" (
+                            for /l %%m in (1,1,!JDK_COUNT!) do (
+                                if /i "!JDK_TYPE_%%m!"=="JDK" (
+                                    if "!JDK_MAJOR_%%m!"=="!JDK_MAJOR_%%k!" (
+                                        if not defined CLI_VENDOR set "MATCH_FOUND=0"
+                                        if defined CLI_VENDOR if /i "!JDK_VENDOR_%%m!"=="!CLI_VENDOR!" set "MATCH_FOUND=0"
+                                    )
+                                )
+                            )
+                        )
                     )
                 )
                 if "!MATCH_FOUND!"=="1" (
@@ -2896,6 +2934,21 @@ if defined CLI_COMMAND (
                     if defined CLI_VENDOR (
                         if /i "!JDK_VENDOR_%%k!" NEQ "!CLI_VENDOR!" set "MATCH_FOUND=0"
                     )
+                    if "!FLAG_JRE!"=="1" (
+                        if /i "!JDK_TYPE_%%k!" NEQ "JRE" set "MATCH_FOUND=0"
+                    ) else (
+                        rem If --jre is not specified, prefer JDK over JRE if both exist
+                        if /i "!JDK_TYPE_%%k!"=="JRE" (
+                            for /l %%m in (1,1,!JDK_COUNT!) do (
+                                if /i "!JDK_TYPE_%%m!"=="JDK" (
+                                    if "!JDK_MAJOR_%%m!"=="!JDK_MAJOR_%%k!" (
+                                        if not defined CLI_VENDOR set "MATCH_FOUND=0"
+                                        if defined CLI_VENDOR if /i "!JDK_VENDOR_%%m!"=="!CLI_VENDOR!" set "MATCH_FOUND=0"
+                                    )
+                                )
+                            )
+                        )
+                    )
                 )
                 if "!MATCH_FOUND!"=="1" (
                     set /a RESOLVE_COUNT+=1
@@ -3055,11 +3108,27 @@ if defined CLI_TARGET (
                     set "MATCH_FOUND=0"
                 )
             )
+            if "!FLAG_JRE!"=="1" (
+                if /i "!JDK_TYPE_%%k!" NEQ "JRE" set "MATCH_FOUND=0"
+            ) else (
+                rem When --jre is not specified, prefer JDK over JRE if both exist for the same version
+                if /i "!JDK_TYPE_%%k!"=="JRE" (
+                    rem Check if a JDK of the same target and vendor exists
+                    for /l %%m in (1,1,!JDK_COUNT!) do (
+                        if /i "!JDK_TYPE_%%m!"=="JDK" (
+                            if "!JDK_MAJOR_%%m!"=="!JDK_MAJOR_%%k!" (
+                                if not defined CLI_VENDOR set "MATCH_FOUND=0"
+                                if defined CLI_VENDOR if /i "!JDK_VENDOR_%%m!"=="!CLI_VENDOR!" set "MATCH_FOUND=0"
+                            )
+                        )
+                    )
+                )
+            )
         )
 
         if "!MATCH_FOUND!"=="1" (
             echo.
-            echo %cBLUE%[ ACTION ]%cRESET% Quick-Switching to JDK !JDK_NAME_%%k! ^(!JDK_MAJOR_%%k!^)...
+            echo %cBLUE%[ ACTION ]%cRESET% Quick-Switching to !JDK_TYPE_%%k! !JDK_NAME_%%k! ^(!JDK_MAJOR_%%k!^)...
             set "CURRENT_JDK_PATH=!JDK_PATH_%%k!"
             rem Return to MAIN_LOOP to apply the changes
             for /f "delims=" %%P in ("!CURRENT_JDK_PATH!") do (
@@ -4102,6 +4171,21 @@ if "!DL_VERSION!"=="17" (
     )
 )
 
+if "!FLAG_JRE!"=="1" (
+    set "_IS_SUPPORTED_JRE=0"
+    if /i "!CLI_VENDOR!"=="adoptium" set "_IS_SUPPORTED_JRE=1"
+    if /i "!CLI_VENDOR!"=="zulu" set "_IS_SUPPORTED_JRE=1"
+    if /i "!CLI_VENDOR!"=="liberica" set "_IS_SUPPORTED_JRE=1"
+    if /i "!CLI_VENDOR!"=="semeru" set "_IS_SUPPORTED_JRE=1"
+    if "!_IS_SUPPORTED_JRE!"=="0" (
+        echo %cRED%[ ERROR  ]%cRESET% Vendor '!CLI_VENDOR!' does not publish standalone Windows JRE packages.
+        echo            Supported JRE vendors: Adoptium, Zulu, Liberica, Semeru.
+        if "!CLI_COMMAND!"=="" pause
+        set "JVM_EXIT_CODE=1"
+        exit /b 1
+    )
+)
+
 if /i "!CLI_VENDOR!"=="oracle" goto :Resolve_Oracle
 if /i "!CLI_VENDOR!"=="adoptium" goto :Resolve_Adoptium
 if /i "!CLI_VENDOR!"=="graalvm" goto :Resolve_GraalVM
@@ -4145,9 +4229,15 @@ goto :FetchAndExtract
 
 :Resolve_Adoptium
 set "DL_VENDOR=Adoptium"
+set "ADOPT_IMG_TYPE=jdk"
+if "!FLAG_JRE!"=="1" set "ADOPT_IMG_TYPE=jre"
 echo.
-echo %cBLUE%[ ACTION ]%cRESET% Querying Adoptium API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/assets/feature_releases/!DL_VERSION!/ga?architecture=!SYS_ARCH!&image_type=jdk&jvm_impl=hotspot&os=windows&page=0&page_size=1' -UseBasicParsing -TimeoutSec 15; if ($res[0].binaries[0].package.link -and $res[0].binaries[0].package.checksum) { Write-Output ('API_URL='+$res[0].binaries[0].package.link); Write-Output ('API_SHA256='+$res[0].binaries[0].package.checksum) } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+if "!FLAG_JRE!"=="1" (
+    echo %cBLUE%[ ACTION ]%cRESET% Querying Adoptium API for latest JRE !DL_VERSION! release...
+) else (
+    echo %cBLUE%[ ACTION ]%cRESET% Querying Adoptium API for latest JDK !DL_VERSION! release...
+)
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.adoptium.net/v3/assets/feature_releases/!DL_VERSION!/ga?architecture=!SYS_ARCH!&image_type=!ADOPT_IMG_TYPE!&jvm_impl=hotspot&os=windows&page=0&page_size=1' -UseBasicParsing -TimeoutSec 15; if ($res[0].binaries[0].package.link -and $res[0].binaries[0].package.checksum) { Write-Output ('API_URL='+$res[0].binaries[0].package.link); Write-Output ('API_SHA256='+$res[0].binaries[0].package.checksum) } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
 goto Run_API_Query
 
 :Resolve_GraalVM
@@ -4175,9 +4265,15 @@ goto :FetchAndExtract
 
 :Resolve_Zulu
 set "DL_VENDOR=Zulu"
+set "ZULU_PKG_TYPE=jdk"
+if "!FLAG_JRE!"=="1" set "ZULU_PKG_TYPE=jre"
 echo.
-echo %cBLUE%[ ACTION ]%cRESET% Querying Azul Zulu API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $list = Invoke-RestMethod -Uri 'https://api.azul.com/metadata/v1/zulu/packages/?java_version=!DL_VERSION!&os=windows&arch=!ZULU_ARCH!&archive_type=zip&java_package_type=jdk&javafx_bundled=false&release_status=ga&availability_types=CA&latest=true&page=1&page_size=1' -UseBasicParsing -TimeoutSec 15; if (-not $list -or -not $list[0].download_url) { exit 1 }; Write-Output ('API_URL='+$list[0].download_url); $uuid = $list[0].package_uuid; if ($uuid) { try { $d = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/'+$uuid) -UseBasicParsing -TimeoutSec 15; if ($d.sha256_hash) { Write-Output ('API_SHA256='+$d.sha256_hash) } } catch { Write-Verbose $_.Exception.Message } } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+if "!FLAG_JRE!"=="1" (
+    echo %cBLUE%[ ACTION ]%cRESET% Querying Azul Zulu API for latest JRE !DL_VERSION! release...
+) else (
+    echo %cBLUE%[ ACTION ]%cRESET% Querying Azul Zulu API for latest JDK !DL_VERSION! release...
+)
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $list = Invoke-RestMethod -Uri 'https://api.azul.com/metadata/v1/zulu/packages/?java_version=!DL_VERSION!&os=windows&arch=!ZULU_ARCH!&archive_type=zip&java_package_type=!ZULU_PKG_TYPE!&javafx_bundled=false&release_status=ga&availability_types=CA&latest=true&page=1&page_size=1' -UseBasicParsing -TimeoutSec 15; if (-not $list -or -not $list[0].download_url) { exit 1 }; Write-Output ('API_URL='+$list[0].download_url); $uuid = $list[0].package_uuid; if ($uuid) { try { $d = Invoke-RestMethod -Uri ('https://api.azul.com/metadata/v1/zulu/packages/'+$uuid) -UseBasicParsing -TimeoutSec 15; if ($d.sha256_hash) { Write-Output ('API_SHA256='+$d.sha256_hash) } } catch { Write-Verbose $_.Exception.Message } } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
 goto Run_API_Query
 
 :Resolve_Microsoft
@@ -4194,9 +4290,15 @@ goto :FetchAndExtract
 set "DL_VENDOR=Liberica"
 rem BellSoft official REST API exclusively distributes SHA1 checksums.
 rem jvm verifies the provided SHA1 hash directly against the downloaded payload.
+set "LIB_BUNDLE_TYPE=jdk"
+if "!FLAG_JRE!"=="1" set "LIB_BUNDLE_TYPE=jre"
 echo.
-echo %cBLUE%[ ACTION ]%cRESET% Querying BellSoft Liberica API for latest JDK !DL_VERSION! release...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.bell-sw.com/v1/liberica/releases?version-feature=!DL_VERSION!&version-modifier=latest&bitness=64&os=windows&arch=!ZULU_ARCH!&package-type=zip&bundle-type=jdk' -UseBasicParsing -TimeoutSec 15; if (-not $res -or -not $res[0].downloadUrl) { exit 1 }; Write-Output ('API_URL='+$res[0].downloadUrl); if ($res[0].sha1) { Write-Output ('API_SHA1='+$res[0].sha1) } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%LOCALAPPDATA%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%USERPROFILE%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+if "!FLAG_JRE!"=="1" (
+    echo %cBLUE%[ ACTION ]%cRESET% Querying BellSoft Liberica API for latest JRE !DL_VERSION! release...
+) else (
+    echo %cBLUE%[ ACTION ]%cRESET% Querying BellSoft Liberica API for latest JDK !DL_VERSION! release...
+)
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = Invoke-RestMethod -Uri 'https://api.bell-sw.com/v1/liberica/releases?version-feature=!DL_VERSION!&version-modifier=latest&bitness=64&os=windows&arch=!ZULU_ARCH!&package-type=zip&bundle-type=!LIB_BUNDLE_TYPE!' -UseBasicParsing -TimeoutSec 15; if (-not $res -or -not $res[0].downloadUrl) { exit 1 }; Write-Output ('API_URL='+$res[0].downloadUrl); if ($res[0].sha1) { Write-Output ('API_SHA1='+$res[0].sha1) } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%LOCALAPPDATA%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%USERPROFILE%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
 goto Run_API_Query
 
 :Resolve_Semeru
@@ -4209,9 +4311,15 @@ if /i "!SYS_ARCH!" NEQ "x64" (
     set "JVM_EXIT_CODE=1"
     exit /b 1
 )
+set "SEMERU_PKG_PREFIX=ibm-semeru-open-jdk_"
+if "!FLAG_JRE!"=="1" set "SEMERU_PKG_PREFIX=ibm-semeru-open-jre_"
 echo.
-echo %cBLUE%[ ACTION ]%cRESET% Querying IBM Semeru release data for JDK !DL_VERSION!...
-set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = $null; $foundVer = !DL_VERSION!; $tag = $null; $searchVers = @($foundVer) + (27..8 | Where-Object { $_ -lt $foundVer }); foreach ($v in $searchVers) { try { $rel = Invoke-RestMethod -Uri ('https://api.github.com/repos/ibmruntimes/semeru' + $v + '-binaries/releases/latest') -UseBasicParsing -TimeoutSec 5; if ($rel.assets) { $res = $rel; $foundVer = $v; break } } catch { Write-Verbose $_.Exception.Message }; if (-not $res) { try { $req = [Net.HttpWebRequest]::Create('https://github.com/ibmruntimes/semeru' + $v + '-binaries/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000; $resp = $req.GetResponse(); try { if ($resp.Headers['Location'] -match '/releases/tag/([a-zA-Z0-9._+-]+)$') { $tag = $matches[1]; $foundVer = $v; break } } finally { $resp.Close() } } catch { Write-Verbose $_.Exception.Message } }; if ($res -or $tag) { break } }; if ($tag -and -not $res) { $tagEnc = [System.Uri]::EscapeDataString($tag); $html = (New-Object Net.WebClient).DownloadString('https://github.com/ibmruntimes/semeru' + $foundVer + '-binaries/releases/expanded_assets/' + $tagEnc); $m = [regex]::Match($html, 'ibm-semeru-open-jdk_x64_windows_[a-zA-Z0-9._+-]+\.zip'); if ($m.Success) { $u = 'https://github.com/ibmruntimes/semeru' + $foundVer + '-binaries/releases/download/' + $tagEnc + '/' + $m.Value; $s = $u + '.sha256.txt'; Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=' + $u); Write-Output ('API_SHA256_URL=' + $s); exit 0 } }; if (-not $res -or -not $res.assets) { exit 1 }; $u = $null; $s = $null; foreach ($a in $res.assets) { if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip$') { $u = $a.browser_download_url }; if ($a.name -match 'ibm-semeru-open-jdk_x64_windows_.*\.zip\.sha256\.txt$') { $s = $a.browser_download_url } }; if ($u) { Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=' + $u); if ($s) { Write-Output ('API_SHA256_URL=' + $s) } } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
+if "!FLAG_JRE!"=="1" (
+    echo %cBLUE%[ ACTION ]%cRESET% Querying IBM Semeru release data for JRE !DL_VERSION!...
+) else (
+    echo %cBLUE%[ ACTION ]%cRESET% Querying IBM Semeru release data for JDK !DL_VERSION!...
+)
+set "PS_CMD=$ProgressPreference = 'SilentlyContinue'; try { $res = $null; $foundVer = !DL_VERSION!; $tag = $null; $prefix = '!SEMERU_PKG_PREFIX!'; $searchVers = @($foundVer) + (27..8 | Where-Object { $_ -lt $foundVer }); foreach ($v in $searchVers) { try { $rel = Invoke-RestMethod -Uri ('https://api.github.com/repos/ibmruntimes/semeru' + $v + '-binaries/releases/latest') -UseBasicParsing -TimeoutSec 5; if ($rel.assets) { $res = $rel; $foundVer = $v; break } } catch { Write-Verbose $_.Exception.Message }; if (-not $res) { try { $req = [Net.HttpWebRequest]::Create('https://github.com/ibmruntimes/semeru' + $v + '-binaries/releases/latest'); $req.AllowAutoRedirect = $false; $req.UserAgent = 'Mozilla/5.0'; $req.Timeout = 5000; $resp = $req.GetResponse(); try { if ($resp.Headers['Location'] -match '/releases/tag/([a-zA-Z0-9._+-]+)$') { $tag = $matches[1]; $foundVer = $v; break } } finally { $resp.Close() } } catch { Write-Verbose $_.Exception.Message } }; if ($res -or $tag) { break } }; if ($tag -and -not $res) { $tagEnc = [System.Uri]::EscapeDataString($tag); $html = (New-Object Net.WebClient).DownloadString('https://github.com/ibmruntimes/semeru' + $foundVer + '-binaries/releases/expanded_assets/' + $tagEnc); $m = [regex]::Match($html, [regex]::Escape($prefix) + 'x64_windows_[a-zA-Z0-9._+-]+\.zip'); if ($m.Success) { $u = 'https://github.com/ibmruntimes/semeru' + $foundVer + '-binaries/releases/download/' + $tagEnc + '/' + $m.Value; $s = $u + '.sha256.txt'; Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=' + $u); Write-Output ('API_SHA256_URL=' + $s); exit 0 } }; if (-not $res -or -not $res.assets) { exit 1 }; $u = $null; $s = $null; foreach ($a in $res.assets) { if ($a.name -like ($prefix + 'x64_windows_*.zip')) { $u = $a.browser_download_url }; if ($a.name -like ($prefix + 'x64_windows_*.zip.sha256.txt')) { $s = $a.browser_download_url } }; if ($u) { Write-Output ('API_VERSION=' + $foundVer); Write-Output ('API_URL=' + $u); if ($s) { Write-Output ('API_SHA256_URL=' + $s) } } else { exit 1 } } catch { $m = ($_.Exception.Message -replace '[\r\n]+', ' '); if ($env:LOCALAPPDATA) { $m = $m.Replace($env:LOCALAPPDATA, '%%LOCALAPPDATA%%') }; if ($env:USERPROFILE) { $m = $m.Replace($env:USERPROFILE, '%%USERPROFILE%%') }; Write-Output ('API_ERROR='+$m); exit 1 }"
 goto Run_API_Query
 
 :Resolve_SapMachine
@@ -9068,8 +9176,10 @@ exit /b 0
     "        $v = [Environment]::GetEnvironmentVariable(('JDK_MAJOR_' + $k));" ^
     "        $n = [Environment]::GetEnvironmentVariable(('JDK_NAME_' + $k));" ^
     "        $vend = [Environment]::GetEnvironmentVariable(('JDK_VENDOR_' + $k));" ^
+    "        $type = [Environment]::GetEnvironmentVariable(('JDK_TYPE_' + $k));" ^
+    "        if (-not $type) { $type = 'JDK' };" ^
     "        $isAct = [bool]($res -and $p -and [string]::Equals($p, $res, [System.StringComparison]::OrdinalIgnoreCase));" ^
-    "        $jdks.Add([ordered]@{ index = $k; version = $v; name = $n; vendor = $vend; path = $p; active = $isAct });" ^
+    "        $jdks.Add([ordered]@{ index = $k; version = $v; name = $n; vendor = $vend; type = $type; path = $p; active = $isAct });" ^
     "    };" ^
     "    [ordered]@{ ok = $true; command = 'list'; candidate = 'java'; resolved = $res; changed = $false; installed_count = $count; installed_jdks = $jdks } | ConvertTo-Json -Compress;" ^
     "    exit 0;" ^
@@ -9218,6 +9328,14 @@ if "!FLAG_BIN!"=="1" (
     exit /b 0
 )
 
+set "ACTIVE_PKG_TYPE=JDK"
+if defined JAVA_HOME if not exist "!JAVA_HOME!\bin\javac.exe" set "ACTIVE_PKG_TYPE=JRE"
+if not defined JAVA_HOME if defined CURR_JAVA_BIN (
+    for %%P in ("!CURR_JAVA_BIN!") do (
+        if not exist "%%~dpPjavac.exe" set "ACTIVE_PKG_TYPE=JRE"
+    )
+)
+
 if "%OUTPUT_JSON%"=="1" (
     set "JSON_JH=!JAVA_HOME!"
     if defined JSON_JH set "JSON_JH=!JSON_JH:\=\\!"
@@ -9233,7 +9351,7 @@ if "%OUTPUT_JSON%"=="1" (
     set "JSON_RES_STR=null"
     if defined CURR_JAVA_VER set "JSON_RES_STR="!CURR_JAVA_VER!""
 
-    echo {"ok":!JSON_ACTIVE!,"command":"current","candidate":"java","resolved":!JSON_RES_STR!,"changed":false,"active":!JSON_ACTIVE!,"version":"!CURR_JAVA_VER!","vendor":"!CURR_JAVA_VENDOR!","java_home":"!JSON_JH!","binary":"!JSON_BIN!","mode":"!SWITCH_MODE!","channel":"!UPDATE_CHANNEL!","junction_target":"!JSON_JT!"}
+    echo {"ok":!JSON_ACTIVE!,"command":"current","candidate":"java","resolved":!JSON_RES_STR!,"changed":false,"active":!JSON_ACTIVE!,"version":"!CURR_JAVA_VER!","vendor":"!CURR_JAVA_VENDOR!","type":"!ACTIVE_PKG_TYPE!","java_home":"!JSON_JH!","binary":"!JSON_BIN!","mode":"!SWITCH_MODE!","channel":"!UPDATE_CHANNEL!","junction_target":"!JSON_JT!"}
     exit /b 0
 )
 
@@ -9243,10 +9361,12 @@ echo ============================================================
 
 echo  Java Configuration:
 if defined CURR_JAVA_VER (
+    set "TYPE_DISPLAY_TAG="
+    if /i "!ACTIVE_PKG_TYPE!"=="JRE" set "TYPE_DISPLAY_TAG= %cYELLOW%[JRE]%cRESET%"
     if defined CURR_JAVA_VENDOR (
-        echo    - Version:       !CURR_JAVA_VENDOR! !CURR_JAVA_VER!
+        echo    - Version:       !CURR_JAVA_VENDOR! !CURR_JAVA_VER!!TYPE_DISPLAY_TAG!
     ) else (
-        echo    - Version:       Java !CURR_JAVA_VER!
+        echo    - Version:       Java !CURR_JAVA_VER!!TYPE_DISPLAY_TAG!
     )
 ) else (
     echo    - Version:       Not Active / Not Found
@@ -9645,7 +9765,15 @@ rem 6. Hardware Architecture Match
 echo %cGREEN%[   OK   ]%cRESET% CPU Architecture:    !SYS_ARCH! ^(Native %PROCESSOR_ARCHITECTURE% detected^)
 
 rem 7. Installed JDK Inventory
-echo %cGREEN%[   OK   ]%cRESET% Discovered JDKs:     !JDK_COUNT! installed distributions detected
+echo %cGREEN%[   OK   ]%cRESET% Discovered Java:     !JDK_COUNT! installed distributions detected
+set "DOC_ACTIVE_TYPE=JDK"
+if defined JAVA_HOME if not exist "!JAVA_HOME!\bin\javac.exe" set "DOC_ACTIVE_TYPE=JRE"
+if not defined JAVA_HOME if defined FIRST_JAVA (
+    for %%P in ("!FIRST_JAVA!") do if not exist "%%~dpPjavac.exe" set "DOC_ACTIVE_TYPE=JRE"
+)
+if /i "!DOC_ACTIVE_TYPE!"=="JRE" (
+    echo %cYELLOW%[  INFO  ]%cRESET% Runtime Type:        Active Java runtime is a JRE ^(no compiler / javac.exe^)
+)
 
 rem 8. Corporate Proxy Configuration
 set "DOC_PROXY="
@@ -10411,6 +10539,16 @@ if /i "%~1"=="--symlink" (
     shift
     goto PARSE_JV_LOOP
 )
+if /i "%~1"=="--jre" (
+    set "FLAG_JRE=1"
+    shift
+    goto PARSE_JV_LOOP
+)
+if /i "%~1"=="--jdk" (
+    set "FLAG_JRE=0"
+    shift
+    goto PARSE_JV_LOOP
+)
 if /i "%~1"=="--legacy" (
     echo %cRED%[ ERROR  ]%cRESET% Security policy: --legacy / --registry is forbidden inside .java-version.
     set "CLI_TARGET="
@@ -10767,9 +10905,12 @@ if not defined LOCK_VER (
     if exist "%INVOCATION_DIR%\.java-version" (
         for /f "eol=# delims=" %%L in ('%FINDSTR_BIN% /r /v "^[ \t]*# ^ï»¿[ \t]*# ^[ \t]*$" "%INVOCATION_DIR%\.java-version" 2^>nul ^| %FINDSTR_BIN% /r "[0-9]"') do (
             if not defined LOCK_VER (
-                for /f "tokens=1,2,3" %%A in ("%%L") do (
+                for /f "tokens=1,2,3,4" %%A in ("%%L") do (
                     set "LOCK_VER=%%A"
                     if /i "%%B"=="--vendor" set "LOCK_VENDOR=%%C"
+                    if /i "%%B"=="--jre" set "FLAG_JRE=1"
+                    if /i "%%C"=="--jre" set "FLAG_JRE=1"
+                    if /i "%%D"=="--jre" set "FLAG_JRE=1"
                 )
             )
         )
@@ -10844,6 +10985,20 @@ if /i "!LOCK_VENDOR!"=="kona" set "LOCK_VENDOR=Kona"
 set "IS_LOCKING_ONLY=1"
 set "DL_VERSION=!LOCK_VER!"
 set "CLI_VENDOR=!LOCK_VENDOR!"
+
+if "!FLAG_JRE!"=="1" (
+    set "_IS_SUPPORTED_JRE=0"
+    if /i "!LOCK_VENDOR!"=="adoptium" set "_IS_SUPPORTED_JRE=1"
+    if /i "!LOCK_VENDOR!"=="zulu" set "_IS_SUPPORTED_JRE=1"
+    if /i "!LOCK_VENDOR!"=="liberica" set "_IS_SUPPORTED_JRE=1"
+    if /i "!LOCK_VENDOR!"=="semeru" set "_IS_SUPPORTED_JRE=1"
+    if "!_IS_SUPPORTED_JRE!"=="0" (
+        echo %cRED%[ ERROR  ]%cRESET% Vendor '!LOCK_VENDOR!' does not publish standalone Windows JRE packages.
+        echo            Supported JRE vendors: Adoptium, Zulu, Liberica, Semeru.
+        call :ReleaseStateLock
+        exit /b 1
+    )
+)
 
 if /i "!LOCK_VENDOR!"=="oracle" goto :Resolve_Oracle
 if /i "!LOCK_VENDOR!"=="adoptium" goto :Resolve_Adoptium
@@ -11034,6 +11189,8 @@ set "ENTRY_CANDIDATE=java"
 set "ENTRY_VENDOR=!LOCK_VENDOR!"
 set "ENTRY_VERSION=!API_RESOLVED_VER!"
 set "ENTRY_ARCH=!SYS_ARCH!"
+set "ENTRY_PACKAGE_TYPE=jdk"
+if "!FLAG_JRE!"=="1" set "ENTRY_PACKAGE_TYPE=jre"
 set "ENTRY_URL=!API_URL!"
 set "ENTRY_CHKSUM_TYPE=!FINAL_CHKSUM_TYPE!"
 set "ENTRY_CHKSUM=!FINAL_CHKSUM_VAL!"
@@ -11118,6 +11275,7 @@ set "LOCK_WRITER_PS1=%JVM_SECURE_TEMP%\jvm_lock_write_!LOCK_PS_RND!.ps1"
     echo     checksum_type = $cType
     echo     checksum = $cVal
     echo }
+    echo if ^($candidate -eq 'java' -and $env:ENTRY_PACKAGE_TYPE^) { $entry['package_type'] = $env:ENTRY_PACKAGE_TYPE }
     echo if ^($vendor^) { $entry['vendor'] = $vendor.ToLowerInvariant^(^) }
     echo $toolsDict[$candidate] = $entry
     echo $lockObj = [ordered]@{
@@ -11214,7 +11372,8 @@ set "LOCK_PARSER_PS1=%JVM_SECURE_TEMP%\jvm_lock_parse_!LOCK_RND!.ps1"
     echo         $url = if ^($t.url^) { $t.url } else { 'none' }
     echo         $chkType = if ^($t.checksum_type^) { $t.checksum_type } else { 'sha256' }
     echo         $chk = if ^($t.checksum^) { $t.checksum } else { 'none' }
-    echo         $line = @^('TOOL', $c, $vend, $v, $arch, $url, $chkType, $chk^) -join [char]124
+    echo         $pkgType = if ^($t.package_type^) { $t.package_type } else { 'jdk' }
+    echo         $line = @^('TOOL', $c, $vend, $v, $arch, $url, $chkType, $chk, $pkgType^) -join [char]124
     echo         Write-Output $line
     echo     }
     echo } catch {
@@ -11224,7 +11383,7 @@ set "LOCK_PARSER_PS1=%JVM_SECURE_TEMP%\jvm_lock_parse_!LOCK_RND!.ps1"
 
 set "LOCK_ERR="
 set "LOCKED_TOOL_COUNT=0"
-for /f "tokens=1-8 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!LOCK_PARSER_PS1!"') do (
+for /f "tokens=1-9 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -File "!LOCK_PARSER_PS1!"') do (
     if "%%A"=="ERROR" set "LOCK_ERR=%%B"
     if "%%A"=="TOOL" (
         set /a LOCKED_TOOL_COUNT+=1
@@ -11235,6 +11394,7 @@ for /f "tokens=1-8 delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypas
         set "L_URL_!LOCKED_TOOL_COUNT!=%%F"
         set "L_CHKTYPE_!LOCKED_TOOL_COUNT!=%%G"
         set "L_CHK_!LOCKED_TOOL_COUNT!=%%H"
+        set "L_PKGTYPE_!LOCKED_TOOL_COUNT!=%%I"
     )
 )
 if exist "!LOCK_PARSER_PS1!" del /f /q "!LOCK_PARSER_PS1!" >nul 2>&1
@@ -11283,6 +11443,7 @@ for /l %%i in (1,1,!LOCKED_TOOL_COUNT!) do (
         set "T_URL=!L_URL_%%i!"
         set "T_CHKTYPE=!L_CHKTYPE_%%i!"
         set "T_CHK=!L_CHK_%%i!"
+        set "T_PKGTYPE=!L_PKGTYPE_%%i!"
         call :InstallSingleLockedTool
         if errorlevel 1 (
             call :ReleaseStateLock
@@ -11312,7 +11473,9 @@ if not "%~1"=="" (
     set "T_URL=%~5"
     set "T_CHKTYPE=%~6"
     set "T_CHK=%~7"
+    set "T_PKGTYPE=%~8"
 )
+if /i "!T_PKGTYPE!"=="jre" ( set "FLAG_JRE=1" ) else ( set "FLAG_JRE=0" )
 if /i "!T_VEND!"=="none" set "T_VEND="
 if /i "!T_CHK!"=="none" set "T_CHK="
 
@@ -11423,8 +11586,13 @@ set "ALREADY_INST_PATH="
 for /l %%k in (1,1,!JDK_COUNT!) do (
     if not defined ALREADY_INST_PATH (
         if /i "!JDK_VENDOR_%%k!"=="!T_VEND!" (
-            if "!JDK_MAJOR_%%k!"=="!T_VER!" set "ALREADY_INST_PATH=!JDK_PATH_%%k!"
-            if /i "!JDK_NAME_%%k!"=="!T_VER!" set "ALREADY_INST_PATH=!JDK_PATH_%%k!"
+            set "TYPE_MATCH=1"
+            if "!FLAG_JRE!"=="1" if /i "!JDK_TYPE_%%k!" NEQ "JRE" set "TYPE_MATCH=0"
+            if "!FLAG_JRE!"=="0" if /i "!JDK_TYPE_%%k!"=="JRE" set "TYPE_MATCH=0"
+            if "!TYPE_MATCH!"=="1" (
+                if "!JDK_MAJOR_%%k!"=="!T_VER!" set "ALREADY_INST_PATH=!JDK_PATH_%%k!"
+                if /i "!JDK_NAME_%%k!"=="!T_VER!" set "ALREADY_INST_PATH=!JDK_PATH_%%k!"
+            )
         )
     )
 )
@@ -12738,6 +12906,13 @@ if "!CHECK_PATH:;!SYMLINK_PATH!\bin;=!"=="!CHECK_PATH!" (
 
 echo.
 echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! !TARGET_VER! is now active!
+
+rem Check if active Java runtime is a JRE and warn build tool users
+if defined JAVA_HOME if not exist "!JAVA_HOME!\bin\javac.exe" (
+    echo %cYELLOW%[ WARNING]%cRESET% Active Java runtime is a JRE ^(missing bin\javac.exe^).
+    echo            !CANDIDATE_PROPER_NAME! requires a Java compiler ^(JDK^) to compile code.
+)
+
 call :ReleaseStateLock
 exit /b 0
 
@@ -14905,6 +15080,13 @@ if exist "!GW_PROPS!" (
 
 if exist "%CD%\pom.xml" (
     "%PS_BIN%" -NoProfile -Command "$jv = [int]$env:ACT_MAJ; [xml]$pom = Get-Content -LiteralPath (Join-Path $env:CD 'pom.xml') -Raw -ErrorAction SilentlyContinue; if ($pom) { $tv = $pom.project.properties.'maven.compiler.target'; if (-not $tv) { $tv = $pom.project.properties.'java.version' }; if ($tv -and ($tv -match '^\d+$')) { $ti = [int]$tv; if ($ti -gt $jv) { Write-Host ('[ WARNING] Toolchain Conflict: Project targets Java ' + $tv + ', but active Java is ' + $jv + '. Run ''jvm ' + $tv + ''' to switch.') -ForegroundColor Yellow } } }"
+)
+
+rem Warn if executing build tools under a JRE (no javac.exe)
+if defined JAVA_HOME if not exist "!JAVA_HOME!\bin\javac.exe" (
+    echo %cYELLOW%[ WARNING]%cRESET% Toolchain Conflict: Active Java runtime is a JRE ^(missing bin\javac.exe^).
+    echo            Build tools ^(Maven, Gradle, Kotlin, Scala^) require a full JDK compiler.
+    echo            Run 'jvm use ^<version^> --jdk' or 'jvm install ^<version^>' to activate a JDK.
 )
 exit /b 0
 

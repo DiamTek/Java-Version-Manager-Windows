@@ -1,4 +1,4 @@
-# Java Version Manager
+﻿# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -6715,6 +6715,40 @@ allow_skip_checksum = false
                 Assert-Contains $out "Syntax:" "Must contain Syntax section"
             }
         } finally {
+            $ErrorActionPreference = $prevEAP
+        }
+    }
+
+    # Test 324: JRE mode validation rejects unsupported vendor standalone JRE downloads (CWE-20 / CWE-754)
+    Run-TestCase "Portability" "JRE mode validation rejects unsupported vendor standalone JRE downloads (CWE-20 / CWE-754)" {
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            $out = & cmd.exe /d /c "call `"$JvmBat`" install 21 --jre --vendor microsoft" 2>&1 | Out-String
+            Assert-Equals $LASTEXITCODE 1 "jvm install --jre on unsupported vendor must fail with exit code 1"
+            Assert-Contains $out "does not publish standalone Windows JRE packages" "Must notify user about unsupported JRE vendor"
+            Assert-Contains $out "Supported JRE vendors: Adoptium, Zulu, Liberica, Semeru." "Must suggest supported JRE vendors"
+        } finally {
+            $ErrorActionPreference = $prevEAP
+        }
+    }
+
+    # Test 325: jvm lock with --jre records package_type = 'jre' in .jvm.lock (CWE-20 / CWE-354)
+    Run-TestCase "Portability" "jvm lock with --jre records package_type = 'jre' in .jvm.lock (CWE-20 / CWE-354)" {
+        $testDir = Join-Path $userTemp ("jvm_test_325_" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+        $origDir = (Get-Location).Path
+        $prevEAP = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try {
+            Set-Location $testDir
+            $out = & cmd.exe /d /c "call `"$JvmBat`" lock 21 --jre --vendor adoptium" 2>&1 | Out-String
+            $lockPath = Join-Path $testDir ".jvm.lock"
+            Assert-True (Test-Path -LiteralPath $lockPath) "A .jvm.lock must be created in target directory"
+            $lockJson = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            Assert-True ($null -ne $lockJson.tools.java) ".jvm.lock must contain java tool definition"
+            Assert-Equals $lockJson.tools.java.package_type "jre" "Package type in .jvm.lock must be 'jre'"
+        } finally {
+            Set-Location $origDir
+            if (Test-Path -LiteralPath $testDir) { Remove-Item -LiteralPath $testDir -Recurse -Force -ErrorAction SilentlyContinue }
             $ErrorActionPreference = $prevEAP
         }
     }
