@@ -859,6 +859,13 @@ DiamTek JVM provides first-class native support for **12 upstream JDK distributi
 - **Enterprise ERP & Cloud Reliability:** Maintained by SAP's Java engineering group, providing ultra-stable OpenJDK builds with continuous long-term support for mission-critical enterprise architectures.
 - **Install command:** `jvm install 21 --vendor sapmachine`
 
+#### Standalone JRE Support
+For lightweight deployment environments that do not require the Java compiler (`javac.exe`), passing `--jre` allows you to download and manage standalone JRE runtimes. Standalone JRE packages are actively supported for **Adoptium**, **Azul Zulu**, **BellSoft Liberica**, and **IBM Semeru**:
+```cmd
+jvm install 21 --jre --vendor adoptium
+```
+Vendors that only distribute complete JDK suites (such as Oracle, Microsoft, and Amazon Corretto) fail-closed with clear remediation instructions when invoked with `--jre`.
+
 <a id="how-do-update-channels-work-and-how-do-i-switch-between-stable-and-nightly"></a>
 ### How do update channels work, and how do I switch between Stable and Nightly?
 DiamTek JVM features a **Dual Update Channel Engine** that gives developers complete control over update stability and release cadences.
@@ -1388,7 +1395,7 @@ The installer:
 
 <a id="how-can-i-run-the-automated-security-test-suite-locally"></a>
 ### How can I run the automated security test suite locally?
-DiamTek JVM includes an enterprise-grade automated security and adversarial fuzzing test suite located at `tests/Test-JvmSecurity.ps1`. **Our automated GitHub Actions CI pipeline continuously validates all 327 tests concurrently across both native Windows PowerShell 5.1 and modern PowerShell 7+ (Core)** to guarantee full cross-version compatibility. This suite validates all defensive boundaries, input sanitization routines, reparse point operations, and manifest schemas against real adversarial payloads.
+DiamTek JVM includes an enterprise-grade automated security and adversarial fuzzing test suite located at `tests/Test-JvmSecurity.ps1`. **Our automated GitHub Actions CI pipeline continuously validates all 329 tests concurrently across both native Windows PowerShell 5.1 and modern PowerShell 7+ (Core)** to guarantee full cross-version compatibility. This suite validates all defensive boundaries, input sanitization routines, reparse point operations, and manifest schemas against real adversarial payloads.
 
 #### 1. Running the Test Suite
 The security test suite can be run from either modern PowerShell 7+ (`pwsh`) or native Windows PowerShell 5.1:
@@ -1404,8 +1411,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1 -Detailed
 ```
 
-#### 2. What the 327 Automated Tests & 41 CWEs Cover
-The test suite executes **327 automated test cases across 16 defensive suites** and outputs both per-test `[CWE-XX]` badges and a numerically sorted **41-CWE Coverage Summary** table (`CWE-20`, `CWE-22`, `CWE-41`, `CWE-59`, `CWE-66`, `CWE-73`, `CWE-74`, `CWE-78`, `CWE-88`, `CWE-94`, `CWE-155`, `CWE-184`, `CWE-209`, `CWE-250`, `CWE-252`, `CWE-276`, `CWE-295`, `CWE-319`, `CWE-330`, `CWE-345`, `CWE-354`, `CWE-362`, `CWE-367`, `CWE-377`, `CWE-390`, `CWE-400`, `CWE-409`, `CWE-426`, `CWE-427`, `CWE-428`, `CWE-459`, `CWE-460`, `CWE-494`, `CWE-532`, `CWE-601`, `CWE-611`, `CWE-674`, `CWE-754`, `CWE-755`, `CWE-798`, `CWE-918`), achieving a 100% pass rate (`327 / 327 PASS`) and a verified **10.0 / 10.0** Error Management & Security Architecture scorecard:
+#### 2. What the 329 Automated Tests & 41 CWEs Cover
+The test suite executes **329 automated test cases across 16 defensive suites** and outputs both per-test `[CWE-XX]` badges and a numerically sorted **41-CWE Coverage Summary** table (`CWE-20`, `CWE-22`, `CWE-41`, `CWE-59`, `CWE-66`, `CWE-73`, `CWE-74`, `CWE-78`, `CWE-88`, `CWE-94`, `CWE-155`, `CWE-184`, `CWE-209`, `CWE-250`, `CWE-252`, `CWE-276`, `CWE-295`, `CWE-319`, `CWE-330`, `CWE-345`, `CWE-354`, `CWE-362`, `CWE-367`, `CWE-377`, `CWE-390`, `CWE-400`, `CWE-409`, `CWE-426`, `CWE-427`, `CWE-428`, `CWE-459`, `CWE-460`, `CWE-494`, `CWE-532`, `CWE-601`, `CWE-611`, `CWE-674`, `CWE-754`, `CWE-755`, `CWE-798`, `CWE-918`), achieving a 100% pass rate (`329 / 329 PASS`) and a verified **10.0 / 10.0** Error Management & Security Architecture scorecard:
 
 | Suite | Focus Area | Tests | Key Adversarial & Security Vectors Verified |
 |:---|:---|:---:|:---|
@@ -1424,8 +1431,8 @@ The test suite executes **327 automated test cases across 16 defensive suites** 
 | **Suite 13** | **Advanced Lockfile Lifecycle, Freezing & Signatures** | **13** | `.jvm.lock` v2 schema adherence, `jvm freeze` authentic upstream distribution archive URL & SHA-256/512 checksum resolution with metadata preservation (`CWE-354`), `jvm thaw` version unpinning, HMAC-SHA256 digital signature generation/verification (`.jvm.lock.sig`), hardcoded secret rejection (`CWE-798`), and 3-state signature tracking (`verified`, `failed`, `not_verified` — `CWE-345 / CWE-353 / CWE-494`). |
 | **Suite 14** | **Unified Status, Ergonomics & Multi-Shell Cross-Compatibility** | **10** | Unified multi-toolchain status card (`jvm status` / `jvm ecosystem`), context-aware dynamic PowerShell completions (`Register-ArgumentCompleter`), and CMD DOSKEY macro aliases (`jvm aliases` / `jvm hook cmd` / `CWE-20`). |
 | **Suite 15** | **Adversarial Robustness, Fuzzing & Mutation Resilience** | **13** | NTFS Alternate Data Stream (ADS) rejection, poison character fuzzing (`&`, `|`, `^`, `<`, `>`, `%`, `!`), 1024-character buffer boundary validation, AST zero empty catch enforcement (`CWE-390`), fault injection mutation testing, subcommand dedicated help card routing, centisecond execution timing breakdown (`--timings`) stderr isolation, and universal structured JSON API contract envelope validation. |
-| **Suite 16** | **Portability & Environment Toolchain Bundles** | **16** | Profile creation, listing, cloning, deletion, and atomic multi-tool activation rollback (`CWE-460`), profile path traversal, illegal identifier and NTFS Alternate Data Stream rejection (`CWE-22 / CWE-66`), profile reparse point / symlink traversal rejection (`CWE-59`), profile `--dry-run` immutability (`CWE-362`), snapshot point-in-time state capture, listing, atomic restore, and deletion (`CWE-460`), snapshot restore `--dry-run` immutability, snapshot reparse point rejection (`CWE-59`), portable bundle archive generation, header inspection, and validation, bundle magic byte validation (`0x50 0x4B` — `CWE-494`), bundle ZipSlip directory traversal containment (`CWE-22`), bundle reparse point rejection (`CWE-59`), air-gapped distro generation with cryptographic `distro-manifest.json` digest verification (`CWE-354 / CWE-494`), `install.ps1 -Offline -DistroDir` zero-network provisioning with pre-seeded cache and offline installer config (`CWE-754 / CWE-319`), universal structured JSON API contract envelopes across all portability subcommands (`CWE-20 / CWE-754`), and dedicated help cards for `profile`, `snapshot`, `bundle`, and `distro` (`CWE-20`). |
-| **Total** | **Comprehensive Full-System Security Suite (16 Suites)** | **327** | **100% Pass Rate (`327 / 327 PASS`) with Verified 10.0 / 10.0 Architecture Scorecard** |
+| **Suite 16** | **Portability & Environment Toolchain Bundles** | **18** | Profile creation, listing, cloning, deletion, and atomic multi-tool activation rollback (`CWE-460`), profile path traversal, illegal identifier and NTFS Alternate Data Stream rejection (`CWE-22 / CWE-66`), profile reparse point / symlink traversal rejection (`CWE-59`), profile `--dry-run` immutability (`CWE-362`), snapshot point-in-time state capture, listing, atomic restore, and deletion (`CWE-460`), snapshot restore `--dry-run` immutability, snapshot reparse point rejection (`CWE-59`), portable bundle archive generation, header inspection, and validation, bundle magic byte validation (`0x50 0x4B` — `CWE-494`), bundle ZipSlip directory traversal containment (`CWE-22`), bundle reparse point rejection (`CWE-59`), air-gapped distro generation with cryptographic `distro-manifest.json` digest verification (`CWE-354 / CWE-494`), `install.ps1 -Offline -DistroDir` zero-network provisioning with pre-seeded cache and offline installer config (`CWE-754 / CWE-319`), universal structured JSON API contract envelopes across all portability subcommands (`CWE-20 / CWE-754`), and dedicated help cards for `profile`, `snapshot`, `bundle`, and `distro` (`CWE-20`). |
+| **Total** | **Comprehensive Full-System Security Suite (16 Suites)** | **329** | **100% Pass Rate (`329 / 329 PASS`) with Verified 10.0 / 10.0 Architecture Scorecard** |
 
 #### 3. Complete Sandbox Isolation Guarantee
 The security test suite is 100% non-destructive and safe to run on any development or production workstation:

@@ -99,6 +99,7 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm --global` | Global | Forces directory-based auto-switching (`.java-version`) to write globally to registry. |
 | `jvm install` | Interactive | Opens the interactive JDK / tool installation wizard. |
 | `jvm install <ver> [--vendor <name>]` | Machine | Downloads and installs specified JDK (e.g., `jvm install 21 --vendor adoptium`). |
+| `jvm install <ver> --jre [--vendor <name>]` | Machine | Downloads and installs standalone JRE runtime only (supported: Adoptium, Zulu, Liberica, Semeru). |
 | `jvm install lts [--latest]` | Machine | Installs an LTS JDK (prompts for supported versions: 17, 21, 25; passing `--latest` locks onto newest). |
 | `jvm install <ver> -y` | Machine | Automated headless install with aggressive safety warning bypass for CI/CD. |
 | `jvm install <ver> --skip-checksum` | Machine | Bypasses checksum verification if vendor hash mirror is unreachable. |
@@ -204,7 +205,7 @@ When you install or activate the PowerShell profile hook (`jvm hook` or via `ins
 | `jvm use <Tab>` | Dynamically discovered installed versions | Scans `%LOCALAPPDATA%\JavaVersionManager\links` and `%USERPROFILE%\.jdks` in real-time |
 | `jvm pin <Tab>` | Dynamically discovered installed versions | Autocompletes installed JDK version tags for `.java-version` creation |
 | `jvm uninstall <Tab>` | Installed JDKs and candidates | Autocompletes installed version tags for targeted uninstallation |
-| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--offline`, `--json`, `--no-lock`, `--locked`, `-l`, `--check`, `--diff`, `--update`, `--fix`, `--dry-run`, `--quiet`, `-q`, `--verbose`, `--auto-switch`, `--channel`, `--nightly`, `--stable`, `--security`, `--bundle`, `--mirror`, `--version`, `--help`, `--short`, `--numeric`, `--bin`, `--stats`, `--rollback`, `--history`, `--report` |
+| `jvm --<Tab>` | CLI flag overrides | `--vendor`, `--jre`, `--jdk`, `--symlink`, `--registry`, `--legacy`, `--session`, `--global`, `--skip-checksum`, `--no-verify`, `--latest`, `--yes`, `-y`, `--no-color`, `--offline`, `--json`, `--no-lock`, `--locked`, `-l`, `--check`, `--diff`, `--update`, `--fix`, `--dry-run`, `--quiet`, `-q`, `--verbose`, `--auto-switch`, `--channel`, `--nightly`, `--stable`, `--security`, `--bundle`, `--mirror`, `--version`, `--help`, `--short`, `--numeric`, `--bin`, `--stats`, `--rollback`, `--history`, `--report` |
 
 ### Interactive Tab Session Examples
 

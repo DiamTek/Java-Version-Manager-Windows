@@ -33,12 +33,13 @@ This Java Version Manager (`jvm.bat`) solves this by operating directly on the W
 | **IDE Support** | Requires WSL bridges | **100% Native** (IntelliJ, Eclipse, VS Code) |
 | **Windows Services & GUI**| Inaccessible to Windows services | **Full System Visibility** (Jenkins, SonarQube, Task Scheduler, Start Menu) |
 | **Project File Support** | `.sdkmanrc` only | **Dual Support:** `.java-version` & Auto **`.sdkmanrc` Translation** |
-| **Local JDK Discovery** | Cannot scan Windows folders | **Automatic Local Discovery** (scans `Program Files` for existing JDKs) |
+| **Local JDK Discovery** | Cannot scan Windows folders | **Automatic Local Discovery** (scans `Program Files` for existing JDKs & JREs, tags `[JRE]`) |
+| **Standalone JRE Support** | None (forces full JDK install) | **Native JRE-Only Mode (`--jre` / `--jdk`)** (standalone runtime lifecycle for Adoptium, Zulu, Liberica, Semeru) |
 | **Offline Operation & CAS Cache** | Basic cache directory | **Content-Addressed Storage (`cache\sha256\`), Portable Bundling (`.jvmcache`), & Zero-Ping Local Switching** |
 | **Pre-Change Safety** | None (overwrites shell files) | **Automated Registry Backups** (exports `.reg` to `%LOCALAPPDATA%\DiamTek\JVM\backups\`) |
 | **User Interface** | CLI Only (Manual typing) | **Interactive TUI** & Headless CLI |
 | **Archive Extraction** | Requires external `zip` / `tar` binaries | **Native `.NET System.IO.Compression`** |
-| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **327-Test Adversarial Suite (`41 MITRE CWEs` across 16 Suites), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
+| **Security & Error Hardening** | Basic (`curl` downloads, silent script failures) | **329-Test Adversarial Suite (`41 MITRE CWEs` across 16 Suites), 10.0/10.0 Audit Scorecard, Atomic Rollback (`PREV_JUNCTION_TARGET`), & Deterministic Handle Lifecycle** |
 | **Multi-Tool Environment Profiles** | None (manual tool-by-tool switching) | **`jvm profile`** (Atomic multi-candidate switching, rollback on error `CWE-460`, and reparse point protection `CWE-59`) |
 | **State Snapshots & Rollback** | None | **`jvm snapshot`** (Point-in-time state capture into JSON manifests, validated restore, and `--dry-run` simulation) |
 | **Portable Toolchain Bundles** | None | **`jvm bundle`** (Standalone `.jvmbundle` archives with `0x50 0x4B` magic bytes & ZipSlip `CWE-22` containment) |

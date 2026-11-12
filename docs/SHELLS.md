@@ -111,7 +111,7 @@ Unlike static completion scripts that only suggest hardcoded commands, DiamTek J
 5. **Ecosystem Candidate Completion (`jvm ecosystem <TAB>`):**
    Suggests supported build tools: `maven`, `gradle`, `kotlin`, `scala`, `groovy`, `ant`, `sbt`, `jbang`, `quarkus`, `micronaut`, `spring`.
 6. **Execution Telemetry & Global Flags Completion (`jvm <TAB>`):**
-   Suggests global flags including `--timings`, `--json`, `--offline`, `--dry-run`, `--quiet`, `--verbose`, `--no-color`, `--no-lock`, `--desc`, `--out`, `--distro-dir`.
+   Suggests global flags including `--jre`, `--jdk`, `--timings`, `--json`, `--offline`, `--dry-run`, `--quiet`, `--verbose`, `--no-color`, `--no-lock`, `--desc`, `--out`, `--distro-dir`.
 7. **Channel Selection (`jvm --channel <TAB>`):**
    Suggests `stable` or `nightly`.
 8. **Profile Management & Dynamic Profile Names (`jvm profile <TAB>` & `jvm profile use <TAB>`):**

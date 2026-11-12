@@ -1,4 +1,4 @@
-# Java Version Manager
+﻿# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -1085,7 +1085,7 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
         $openTargets = @('home', 'dir', 'bin', 'config', 'cache', 'downloads', 'backup', 'backups', 'links', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn')
         $hookTargets = @('install', 'status', 'check', 'remove', 'uninstall', 'cmd')
         $flags = @(
-            '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
+            '--vendor', '--jre', '--jdk', '--symlink', '--registry', '--legacy', '--session', '--global',
             '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
             '--offline', '--json', '--no-lock', '--locked', '-l',
             '--check', '--diff', '--update', '--fix', '--dry-run',

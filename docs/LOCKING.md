@@ -72,8 +72,9 @@ DiamTek JVM uses a deterministic Schema v2 JSON lockfile format (UTF-8 No BOM) d
     "java": {
       "version": "21.0.6+7",
       "vendor": "adoptium",
+      "package_type": "jre",
       "arch": "x64",
-      "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_x64_windows_hotspot_21.0.6_7.zip",
+      "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jre_x64_windows_hotspot_21.0.6_7.zip",
       "checksum_type": "sha256",
       "checksum": "d489b03126f5546ca337c75628b05e04cb2c48bf5ba2ea72d73347c61775f0a1"
     },

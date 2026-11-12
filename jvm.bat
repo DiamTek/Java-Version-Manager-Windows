@@ -61,7 +61,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261112.169"
+set "JVM_BUILD=20261112.170"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -7125,7 +7125,7 @@ set "JVM_TOML_PARSE=                                $targetVer = ($l.Split('=')[
     echo(        $openTargets = @^('home', 'dir', 'bin', 'config', 'cache', 'downloads', 'backup', 'backups', 'links', 'maven', 'gradle', 'kotlin', 'scala', 'groovy', 'ant', 'sbt', 'jbang', 'quarkus', 'spring', 'micronaut', 'mn'^)
     echo(        $hookTargets = @^('install', 'status', 'check', 'remove', 'uninstall', 'cmd'^)
     echo(        $flags = @^(
-    echo(            '--vendor', '--symlink', '--registry', '--legacy', '--session', '--global',
+    echo(            '--vendor', '--jre', '--jdk', '--symlink', '--registry', '--legacy', '--session', '--global',
     echo(            '--skip-checksum', '--no-verify', '--latest', '--yes', '-y', '--no-color',
     echo(            '--offline', '--json', '--no-lock', '--locked', '-l',
     echo(            '--check', '--diff', '--update', '--fix', '--dry-run',
