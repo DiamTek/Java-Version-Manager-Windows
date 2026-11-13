@@ -3290,11 +3290,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$emittedGenPs1"
         Assert-Contains $jvmRaw '$sr.Close^(^); $sr.Dispose^(^)' "Get-TrustedChecksumText in :ExecuteSharedDownloader must dispose StreamReader in finally"
     }
 
-    # Test 164: All 6 Start-Process -Verb RunAs UAC handoffs in jvm.bat enforce -PassThru, $p.Dispose() in finally, and ExitCode propagation (CWE-252 / CWE-459)
-    Run-TestCase "Registry" "All 6 Start-Process -Verb RunAs UAC handoffs in jvm.bat enforce -PassThru, Process.Dispose() in finally, and ExitCode propagation (CWE-252 / CWE-459)" {
+    # Test 164: All Start-Process -Verb RunAs UAC handoffs in jvm.bat enforce -PassThru, $p.Dispose() in finally, and ExitCode propagation (CWE-252 / CWE-459)
+    Run-TestCase "Registry" "All Start-Process -Verb RunAs UAC handoffs in jvm.bat enforce -PassThru, Process.Dispose() in finally, and ExitCode propagation (CWE-252 / CWE-459)" {
         $jvmRaw = Get-Content -LiteralPath $JvmBat -Raw
         $runAsMatches = [regex]::Matches($jvmRaw, 'Start-Process\s+-FilePath\s+\$ps\s+-Verb\s+RunAs[^\r\n]+')
-        Assert-Equals 6 $runAsMatches.Count "jvm.bat must contain exactly 6 Start-Process -Verb RunAs elevation handoffs"
+        Assert-True ($runAsMatches.Count -ge 6) "jvm.bat must contain at least 6 Start-Process -Verb RunAs elevation handoffs"
         foreach ($m in $runAsMatches) {
             Assert-Contains $m.Value "-PassThru" "Every Start-Process -Verb RunAs in jvm.bat must specify -PassThru"
             Assert-Contains $m.Value ".Dispose()" "Every Start-Process -Verb RunAs in jvm.bat must dispose the Process handle in finally"

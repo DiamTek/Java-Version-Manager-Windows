@@ -61,7 +61,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261112.176"
+set "JVM_BUILD=20261113.177"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -865,17 +865,22 @@ if /i "%~1"=="list" (
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="uninstall" (
-    set "CLI_COMMAND=uninstall"
+    if not defined CLI_COMMAND set "CLI_COMMAND=uninstall"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="unisntall" (
+    if not defined CLI_COMMAND set "CLI_COMMAND=uninstall"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="rm" (
-    set "CLI_COMMAND=uninstall"
+    if not defined CLI_COMMAND set "CLI_COMMAND=uninstall"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
 ) else if /i "%~1"=="remove" (
-    set "CLI_COMMAND=uninstall"
+    if not defined CLI_COMMAND set "CLI_COMMAND=uninstall"
     set "SILENT_MODE=1"
     shift
     goto :PARSE_CLI_ARGS
@@ -2226,6 +2231,7 @@ rem Function to dynamically scan and display menu
 setlocal enabledelayedexpansion
 
 :RESCAN_MENU
+set "TARGET_CANDIDATE=java"
 set "NEEDS_RESCAN=0"
 if exist "%LOCALAPPDATA%\DiamTek\JVM\channel.txt" (
     for /f "usebackq tokens=* delims= " %%A in ("%LOCALAPPDATA%\DiamTek\JVM\channel.txt") do set "UPDATE_CHANNEL=%%A"
@@ -3341,9 +3347,13 @@ set "eco_main_choice=!errorlevel!"
 if !eco_main_choice!==3 goto :eof
 if !eco_main_choice!==1 (
     set "ECO_SUB_MODE=SWITCH"
-    goto :EcosystemSelectTool
+    call :EcosystemSelectTool
+    goto :EcosystemMenu
 )
-if !eco_main_choice!==2 goto :EcoVersionMenu
+if !eco_main_choice!==2 (
+    call :EcoVersionMenu
+    goto :EcosystemMenu
+)
 goto :EcosystemMenu
 
 :EcoVersionMenu
@@ -3360,18 +3370,20 @@ echo 4. Go back
 echo.
 "%CHOICE_BIN%" /C 1234 /N /M "Enter your choice (1-4): "
 set "sub_choice=!errorlevel!"
-if !sub_choice!==4 goto :EcosystemMenu
+if !sub_choice!==4 goto :eof
 if !sub_choice!==1 (
     call :UpdateEcosystemTools
     goto :EcoVersionMenu
 )
 if !sub_choice!==2 (
     set "ECO_SUB_MODE=INSTALL"
-    goto :EcosystemSelectTool
+    call :EcosystemSelectTool
+    goto :EcoVersionMenu
 )
 if !sub_choice!==3 (
     set "ECO_SUB_MODE=UNINSTALL"
-    goto :EcosystemSelectTool
+    call :EcosystemSelectTool
+    goto :EcoVersionMenu
 )
 goto :EcoVersionMenu
 
@@ -3791,14 +3803,8 @@ set "tool_choice="
 if defined CI set "tool_choice=!cancel_opt!"
 if defined GITHUB_ACTIONS set "tool_choice=!cancel_opt!"
 if not defined tool_choice set /p "tool_choice=Enter your choice (1-!cancel_opt!): "
-if not defined tool_choice (
-    if "!ECO_SUB_MODE!"=="SWITCH" goto :EcosystemMenu
-    goto :EcoVersionMenu
-)
-if "!tool_choice!"=="" (
-    if "!ECO_SUB_MODE!"=="SWITCH" goto :EcosystemMenu
-    goto :EcoVersionMenu
-)
+if not defined tool_choice goto :eof
+if "!tool_choice!"=="" goto :eof
 set "tool_choice=!tool_choice:"=!"
 set "tool_choice=!tool_choice: =!"
 if "!tool_choice!"=="" goto ECO_TOOL_PROMPT_MANUAL
@@ -3810,10 +3816,7 @@ if !tool_choice! LSS 1 goto ECO_TOOL_PROMPT_MANUAL
 if !tool_choice! GTR !cancel_opt! goto ECO_TOOL_PROMPT_MANUAL
 
 :PROCESS_TOOL_CHOICE
-if !tool_choice!==!cancel_opt! (
-    if "!ECO_SUB_MODE!"=="SWITCH" goto :EcosystemMenu
-    goto :EcoVersionMenu
-)
+if !tool_choice!==!cancel_opt! goto :eof
 if defined OPT_M if !tool_choice!==!OPT_M! set "TARGET_CANDIDATE=maven"
 if defined OPT_G if !tool_choice!==!OPT_G! set "TARGET_CANDIDATE=gradle"
 if defined OPT_K if !tool_choice!==!OPT_K! set "TARGET_CANDIDATE=kotlin"
@@ -3862,7 +3865,7 @@ if "!ECO_SUB_MODE!"=="INSTALL" (
     )
     set "CLI_TARGET=!CUSTOM_VER!"
     call :InstallCandidate
-    goto :EcoVersionMenu
+    goto :eof
 )
 
 if "!ECO_SUB_MODE!"=="UNINSTALL" (
@@ -3904,7 +3907,7 @@ if "!ECO_SUB_MODE!"=="UNINSTALL" (
     set "CLI_TARGET=!TARGET_VER!"
     call :UninstallCandidate
     pause
-    goto :EcoVersionMenu
+    goto :eof
 )
 
 :EcosystemToolMenu
@@ -3996,7 +3999,7 @@ if !user_choice! LSS 1 goto :ECO_CHOICE_MANUAL
 if !user_choice! GTR !total_opts! goto :ECO_CHOICE_MANUAL
 
 :PROCESS_ECO_CHOICE
-if !user_choice!==!cancel_opt! goto :EcosystemSelectTool
+if !user_choice!==!cancel_opt! goto :eof
 if !user_choice!==!clear_opt! (
     echo.
     echo %cBLUE%[ ACTION ]%cRESET% Clearing !CANDIDATE_PROPER_NAME! from environment...
@@ -9374,10 +9377,8 @@ set "CURR_JAVA_VENDOR="
 if defined JAVA_HOME (
     set "JAVA_HOME=!JAVA_HOME:"=!"
     if exist "!JAVA_HOME!\release" (
-        for /f "tokens=1,* delims==" %%A in ('type "!JAVA_HOME!\release" 2^>nul ^| %FINDSTR_BIN% /i "^JAVA_VERSION= ^IMPLEMENTOR="') do (
-            if /i "%%A"=="JAVA_VERSION" set "CURR_JAVA_VER=%%~B"
-            if /i "%%A"=="IMPLEMENTOR" set "CURR_JAVA_VENDOR=%%~B"
-        )
+        for /f "tokens=2 delims==" %%R in ('%FINDSTR_BIN% /b "JAVA_VERSION=" "!JAVA_HOME!\release" 2^>nul') do set "CURR_JAVA_VER=%%~R"
+        for /f "tokens=2 delims==" %%R in ('%FINDSTR_BIN% /b "IMPLEMENTOR=" "!JAVA_HOME!\release" 2^>nul') do set "CURR_JAVA_VENDOR=%%~R"
     )
     if exist "!JAVA_HOME!\bin\java.exe" (
         set "CURR_JAVA_BIN=!JAVA_HOME!\bin\java.exe"
@@ -13222,6 +13223,7 @@ exit /b 0
 :UninstallCandidate
 call :GetCandidateEnvVar
 set "TARGET_VER=!CLI_TARGET!"
+if /i "!TARGET_VER!"=="!TARGET_CANDIDATE!" set "TARGET_VER="
 if defined TARGET_VER if /i not "!TARGET_VER!"=="latest" (
     if not "!TARGET_VER!"=="!TARGET_VER:\=!" (
         echo %cRED%[ ERROR  ]%cRESET% Version identifier cannot contain path separators: !TARGET_VER!

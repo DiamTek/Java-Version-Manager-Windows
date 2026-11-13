@@ -1240,16 +1240,18 @@ try {
     $cmdHookContent = @'
 @echo off
 if not defined CMDCMDLINE exit /b 0
-set "_JVM_SYS32=%SystemRoot%\System32"
-if not exist "%_JVM_SYS32%" set "_JVM_SYS32=%WINDIR%\System32"
-
-if exist "%_JVM_SYS32%\find.exe" (
-    echo %CMDCMDLINE% | "%_JVM_SYS32%\find.exe" /i " /c " >nul && exit /b 0
-    echo %CMDCMDLINE% | "%_JVM_SYS32%\find.exe" /i " /c\"" >nul && exit /b 0
-)
+setlocal enabledelayedexpansion
+set "_CMD=!CMDCMDLINE!"
+if not "!_CMD: /c =!"=="!_CMD!" exit /b 0
+if not "!_CMD: /c"=!"=="!_CMD!" exit /b 0
+if not "!_CMD: /k =!"=="!_CMD!" exit /b 0
+endlocal
 
 if defined __JVM_CMD_HOOK_ACTIVE exit /b 0
 set "__JVM_CMD_HOOK_ACTIVE=1"
+
+set "_JVM_SYS32=%SystemRoot%\System32"
+if not exist "%_JVM_SYS32%" set "_JVM_SYS32=%WINDIR%\System32"
 
 if exist "%_JVM_SYS32%\doskey.exe" (
     "%_JVM_SYS32%\doskey.exe" cd=call "%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat" --session-cd $* >nul 2>&1
@@ -1261,7 +1263,10 @@ set "_JVM_SYS32="
         $cmdRegPath = "HKCU:\Software\Microsoft\Command Processor"
         if (-not (Test-Path -LiteralPath $cmdRegPath)) { New-Item -Path $cmdRegPath -Force | Out-Null }
         $existingAutoRun = (Get-ItemProperty -Path $cmdRegPath -Name "AutoRun" -ErrorAction SilentlyContinue).AutoRun
-        $safeHookCmd = "if exist `"$cmdHookPath`" call `"$cmdHookPath`""
+        $safeHookPath = if (Test-Path -LiteralPath $installDir) {
+            try { (New-Object -ComObject Scripting.FileSystemObject).GetFolder($installDir).ShortPath + "\cmd_hook.cmd" } catch { $cmdHookPath }
+        } else { $cmdHookPath }
+        $safeHookCmd = if ($safeHookPath -match '\s') { "if exist `"$safeHookPath`" call `"$safeHookPath`"" } else { "if exist $safeHookPath call $safeHookPath" }
         if (-not $existingAutoRun -or $existingAutoRun -notmatch '(?i)cmd_hook\.cmd') {
             $newAutoRun = if ($existingAutoRun) { "$existingAutoRun & $safeHookCmd" } else { $safeHookCmd }
             Set-ItemProperty -Path $cmdRegPath -Name "AutoRun" -Value $newAutoRun -Type String -Force
