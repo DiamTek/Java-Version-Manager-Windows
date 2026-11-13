@@ -12,9 +12,22 @@ All notable changes to the Java Version Manager for Windows will be documented i
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to Semantic Versioning.
 
-## [1.0.2] - 2026-09-23
+## [1.0.2] - 2026-11-13
 
 This release delivers an exhaustive defensive security hardening overhaul across the entire JVM runtime engine (`jvm.bat`), corporate PKI and proxy integration, hermetic lockfile cryptography, next-gen environment profiles, toolchain snapshots, portable bundles, air-gapped distro kits, multi-shell ergonomics, modular architecture documentation, ecosystem supply-chain verification, interactive UI ergonomics, UAC elevation boundaries, CI/CD pipelines, package manifests, micro-UX parameter consistency, stable machine-readable JSON contracts, execution timing telemetry, and an enterprise-grade error management and atomic rollback architecture. It introduces official support for **JRE Only Mode** (`#1`), automated GitHub Releases API asset digest extraction, multi-mirror download resilience, interactive unverified checksum prompt fallbacks, and comprehensive error visibility, accompanied by an expanded **329-test automated adversarial security and error-injection test suite** spanning **41 MITRE CWE classes** (`CWE-20` through `CWE-918`, including `CWE-798`) across **16 defensive suites** achieving a verified **10.0 / 10.0** audit scorecard (`329 / 329 PASS`).
+
+### Performance & Cold-Start Optimization
+- **Gated Enterprise Policy Inspection**: Bypassed PowerShell `policy.toml` parsing when neither `%JVM_POLICY_FILE%` nor `%ProgramData%\DiamTek\JVM\policy.toml` exists, cutting ~300 ms off cold start.
+- **Native Fast-Path Configuration Reader**: Replaced `powershell -Command ConvertFrom-Json` at startup with native batch `findstr` parsing for primary settings (`default_vendor`, `mode`, `channel`), eliminating ~390 ms of subshell overhead.
+- **Fast Junction Target Inspection**: Replaced per-candidate PowerShell `.Target` calls in `ShowCurrentStatus` and candidate tool scanning with native directory junction parsing (`dir /a:l` + `findstr`), saving up to 1.2 seconds on systems with ecosystem tools installed.
+- **Memoized Secure Temp Directory Verification**: Cached `EnsureSecureTemp` verification status (`JVM_SECURE_TEMP_READY`), eliminating redundant reparse point queries and `icacls` resets across successive script phases.
+- **Lazy External JDK Location Discovery**: Deferred `%USERPROFILE%\scoop\apps` scanning until candidate discovery or listing is explicitly invoked, eliminating directory enumeration on simple status and query operations.
+- **Gated CRLF Byte Verification**: Skipped self-repair byte scanning when running from the canonical installation location (`%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat`) or when pre-verified via `JVM_SKIP_CRLF`.
+
+### Ecosystem & Menu Ergonomics
+- **Menu Hierarchy & State Reset**: Explicitly reset `TARGET_CANDIDATE=java` on `:RESCAN_MENU` unwind, preventing active tool identifiers (e.g. `gradle`, `maven`) from leaking into the Main Menu and causing `Unknown command` errors. Fixed sub-menu return paths to navigate hierarchically to parent menus rather than unexpectedly terminating to shell.
+- **Command AutoRun & Hook Reliability**: Resolved `FIND: Parameter format not correct` in `cmd_hook.cmd` by quoting `/c:"%~1"` and using 8.3 short paths when resolving `doskey cd`.
+- **Command Argument Tolerance**: Added position and typo tolerance for candidate tool uninstall commands (e.g., `jvm unisntall gradle`).
 
 ### JRE Only Mode & Standalone Runtime Management (#1)
 - **Standalone JRE Execution & Switching**: Added `--jre` and `--jdk` CLI flags across `jvm install`, `jvm use`, `jvm default`, `jvm uninstall`, and `jvm lock`.

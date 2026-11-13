@@ -267,16 +267,8 @@ if errorlevel 1 (
 endlocal
 
 setlocal enabledelayedexpansion
-set "LOC_IDX=12"
-if exist "!SAFE_USERPROFILE!\scoop\apps" (
-    for /d %%A in ("!SAFE_USERPROFILE!\scoop\apps\*") do (
-        if exist "%%A\current\bin\java.exe" (
-            set "LOCATIONS[!LOC_IDX!]=%%A"
-            set /a LOC_IDX+=1
-        )
-    )
-)
-set /a MAX_LOC=LOC_IDX-1
+set "MAX_LOC=11"
+set "SCOOP_APPS_LOADED=0"
 
 rem Parse .java-version and establish mode BEFORE changing directories or checking UAC!
 set "SILENT_MODE=0"
@@ -1275,6 +1267,7 @@ if defined JDK_COUNT if !JDK_COUNT! GTR 0 (
         if /i "!JDK_NAME_%%k!"=="!PIN_CONTENT!" set "PIN_FOUND=1"
     )
 ) else (
+    call :EnsureScoopLocationsLoaded
     for /l %%i in (0,1,!MAX_LOC!) do (
         if exist "!LOCATIONS[%%i]!" (
             pushd "!LOCATIONS[%%i]!" 2>nul
@@ -2384,6 +2377,7 @@ if exist "!CACHE_FILE!" if "!NEEDS_RESCAN!"=="0" (
 if "!LOADED_FROM_CACHE!"=="0" (
 rem The LOCATIONS array is populated at the top of the script to prevent delayed expansion corruption
 
+call :EnsureScoopLocationsLoaded
 rem Find all JDK folders
 for /l %%i in (0,1,!MAX_LOC!) do (
     if exist "!LOCATIONS[%%i]!" (
@@ -12161,6 +12155,7 @@ if /i "!VERIFY_TARGET!"=="all" (
                 )
             )
         )
+call :EnsureScoopLocationsLoaded
         if not defined V_TARGET_PATH (
             for /l %%k in (0,1,!MAX_LOC!) do (
                 if not defined V_TARGET_PATH if exist "!LOCATIONS[%%k]!" (
@@ -12194,6 +12189,7 @@ if /i "!VERIFY_TARGET!"=="all" (
             )
         )
     )
+call :EnsureScoopLocationsLoaded
     if not defined V_TARGET_PATH (
         for /l %%k in (0,1,!MAX_LOC!) do (
             if not defined V_TARGET_PATH if exist "!LOCATIONS[%%k]!" (
@@ -14149,6 +14145,7 @@ shift
 goto :RejectExclamationArg
 
 :EnsureSecureTemp
+if defined JVM_SECURE_TEMP_READY if exist "%JVM_SECURE_TEMP%" exit /b 0
 "%FSUTIL_BIN%" reparsepoint query "%JVM_SECURE_TEMP%" >nul 2>&1
 if not errorlevel 1 (
     rmdir "%JVM_SECURE_TEMP%" >nul 2>&1
@@ -14174,6 +14171,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
+set "JVM_SECURE_TEMP_READY=1"
 exit /b 0
 
 :AcquireStateLock
@@ -18189,3 +18187,18 @@ exit /b !errorlevel!
 ::PS_DistroCreateBody::}
 
 rem END OF SCRIPT
+
+:EnsureScoopLocationsLoaded
+if "!SCOOP_APPS_LOADED!"=="1" exit /b 0
+set "SCOOP_APPS_LOADED=1"
+set "LOC_IDX=12"
+if exist "!SAFE_USERPROFILE!\scoop\apps" (
+    for /d %%A in ("!SAFE_USERPROFILE!\scoop\apps\*") do (
+        if exist "%%A\current\bin\java.exe" (
+            set "LOCATIONS[!LOC_IDX!]=%%A"
+            set /a LOC_IDX+=1
+        )
+    )
+)
+set /a MAX_LOC=LOC_IDX-1
+exit /b 0
