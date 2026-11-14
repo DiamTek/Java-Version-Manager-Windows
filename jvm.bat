@@ -63,7 +63,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261113.178"
+set "JVM_BUILD=20261114.179"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -18186,8 +18186,6 @@ exit /b !errorlevel!
 ::PS_DistroCreateBody::    if (Test-Path -LiteralPath $stageDir) { Remove-Item -LiteralPath $stageDir -Recurse -Force -ErrorAction SilentlyContinue };
 ::PS_DistroCreateBody::}
 
-rem END OF SCRIPT
-
 :EnsureScoopLocationsLoaded
 if "!SCOOP_APPS_LOADED!"=="1" exit /b 0
 set "SCOOP_APPS_LOADED=1"
@@ -18202,3 +18200,5 @@ if exist "!SAFE_USERPROFILE!\scoop\apps" (
 )
 set /a MAX_LOC=LOC_IDX-1
 exit /b 0
+
+rem END OF SCRIPT
