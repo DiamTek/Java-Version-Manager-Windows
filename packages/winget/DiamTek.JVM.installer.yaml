@@ -8,6 +8,8 @@ InstallModes:
   - interactive
   - silent
   - silentWithProgress
+Commands:
+  - jvm
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v1.0.1/jvm-windows-1.0.1-x64.msi

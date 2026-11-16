@@ -1096,7 +1096,7 @@ if (-not $global:__jvm_original_prompt) {
 }
 
 if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
-    Register-ArgumentCompleter -Native -CommandName @('jvm', 'jvm.bat', '.\jvm.bat') -ScriptBlock {
+    Register-ArgumentCompleter -Native -CommandName @('jvm', 'jvm.exe', '.\jvm.exe', 'jvm.bat', '.\jvm.bat') -ScriptBlock {
         param($wordToComplete, $commandAst, $cursorPosition)
         $subcommands = @(
             'list', 'ls', 'install', 'uninstall', 'rm', 'remove', 'use', 'default',
@@ -1433,7 +1433,8 @@ try {
     $wtCandidate = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\wt.exe"
     $hasWt = $wtProfileAdded -and (Test-Path -LiteralPath $wtCandidate) -and (-not (Test-HasReparsePointInLineage $wtCandidate))
     $targetPath = if ($hasWt) { $wtCandidate } else { $sysCmd }
-    $targetArgs = if ($hasWt) { "-p `"Java Version Manager`"" } else { "/c `"$batPath`"" }
+    $targetRunner = if (Test-Path -LiteralPath (Join-Path $installDir "jvm.exe")) { Join-Path $installDir "jvm.exe" } else { $batPath }
+    $targetArgs = if ($hasWt) { "-p `"Java Version Manager`"" } else { "/c `"$targetRunner`"" }
 
     # Start Menu Shortcuts
     $startMenuPrograms = [Environment]::GetFolderPath('Programs')

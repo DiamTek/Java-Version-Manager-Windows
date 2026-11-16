@@ -63,7 +63,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.0.1"
-set "JVM_BUILD=20261116.180"
+set "JVM_BUILD=20261116.181"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -5617,6 +5617,9 @@ if /i "%~1"=="nightly" (
         goto :eof
     )
     echo %cGREEN%[   OK   ]%cRESET% Switched update channel to %cPURPLE%[Nightly]%cRESET% ^(Cutting-edge main branch^).
+    echo %cYELLOW%[  NOTE  ]%cRESET% If you installed Java Version Manager via Windows Package Manager ^(winget^),
+    echo            switching to Nightly will untrack official release manifests. You will not
+    echo            receive automated updates via 'winget upgrade' until you switch back to Stable.
     goto :eof
 )
 echo %cRED%[ ERROR  ]%cRESET% Unknown channel '%~1'. Valid options are 'stable' or 'nightly'.
@@ -6841,6 +6844,10 @@ if !sub_choice!==4 (
     ) else (
         set "UPDATE_CHANNEL=!TARGET_CH!"
         echo %cGREEN%[   OK   ]%cRESET% Switched update channel to !CH_NAME!.
+        if /i "!TARGET_CH!"=="NIGHTLY" (
+            echo %cYELLOW%[  NOTE  ]%cRESET% WinGet installs will not receive 'winget upgrade' notifications
+            echo            for cutting-edge builds until switched back to [Stable].
+        )
     )
     "%TIMEOUT_BIN%" /t 2 >nul
     goto SettingsMenu

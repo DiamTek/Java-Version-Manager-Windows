@@ -422,7 +422,9 @@ try {
 $profileCode
 '@
 `$safeBatPath = `$batPath.Replace("'", "''")
-`$profileCode = `$profileCode.Replace('__FALLBACK_BAT__', `$safeBatPath)
+`$exePath = Join-Path `$binDir 'jvm.exe'
+`$safeExePath = `$exePath.Replace("'", "''")
+`$profileCode = `$profileCode.Replace('__FALLBACK_BAT__', `$safeBatPath).Replace('__FALLBACK_EXE__', `$safeExePath)
 
 `$userProfile = [Environment]::GetFolderPath('UserProfile')
 `$myDocs = [Environment]::GetFolderPath('MyDocuments')
@@ -847,7 +849,10 @@ exit 0
         if (-not (Test-Path -LiteralPath $srcJvmExe)) {
             Write-Host "  ${cYellow}[INFO]${cReset} Compiling native jvm.exe launcher for $TargetArch..." -ForegroundColor Yellow
             if (Test-Path -LiteralPath $launcherBuildScript) {
-                & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $launcherBuildScript
+                & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $launcherBuildScript -Arch $TargetArch
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Launcher compilation failed for target architecture '$TargetArch' with exit code $LASTEXITCODE"
+                }
             }
         }
         if (-not (Test-Path -LiteralPath $srcJvmExe)) {
@@ -897,7 +902,7 @@ exit 0
             </Component>
           </Directory>
           <Directory Id="INSTALLFOLDER" Name="bin">
-            <Component Id="JvmExeComponent" Guid="01a08571-06e0-7f19-a168-3e09b5dac718">
+            <Component Id="JvmExeComponent" Guid="*">
               <File Id="JvmExe" Source="$srcJvmExe" KeyPath="yes" />
               <File Id="JvmBat" Source="$srcJvmBat" />
               <Environment Id="UpdatePath" Name="PATH" Action="set" Part="last" System="no" Value="[INSTALLFOLDER]" />

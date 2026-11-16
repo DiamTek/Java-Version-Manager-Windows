@@ -1,4 +1,4 @@
-# Java Version Manager
+﻿# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -273,7 +273,8 @@ try {
     Report-Check -Title "Windows Installer execution completed cleanly" -Passed ($installExit -eq 0) -Details "ExitCode: $installExit"
 
     $jvmBatPath = "$env:LOCALAPPDATA\DiamTek\JVM\bin\jvm.bat"
-    Report-Check -Title "Core engine deployed to LocalAppData\DiamTek\JVM\bin" -Passed (Test-Path $jvmBatPath)
+    $jvmExePath = "$env:LOCALAPPDATA\DiamTek\JVM\bin\jvm.exe"
+    Report-Check -Title "Core engine deployed to LocalAppData\DiamTek\JVM\bin" -Passed ((Test-Path $jvmBatPath) -and (Test-Path $jvmExePath))
 
     $iconIcoPath = "$env:LOCALAPPDATA\DiamTek\JVM\assets\icon.ico"
     $iconPngPath = "$env:LOCALAPPDATA\DiamTek\JVM\assets\icon.png"

@@ -513,7 +513,7 @@ function Remove-ShortcutSafely([string]$Path) {
     try {
         $wshell = New-Object -ComObject WScript.Shell
         $sc = $wshell.CreateShortcut($Path)
-        if ($sc -and ($sc.TargetPath -match 'DiamTek[\\/]JVM' -or $sc.TargetPath -match 'jvm\.bat' -or $sc.TargetPath -match 'uninstall\.ps1' -or $sc.Description -match 'DiamTek|Java Version Manager')) {
+        if ($sc -and ($sc.TargetPath -match 'DiamTek[\\/]JVM' -or $sc.TargetPath -match 'jvm\.(bat|exe)' -or $sc.TargetPath -match 'uninstall\.ps1' -or $sc.Description -match 'DiamTek|Java Version Manager')) {
             $targetOk = $true
         }
     } catch {

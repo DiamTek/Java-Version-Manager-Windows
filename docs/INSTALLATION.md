@@ -196,7 +196,7 @@ Deploy silently fleet-wide via Microsoft Intune, Microsoft Endpoint Configuratio
 | **Install Behavior** | **User** (per-user context) |
 | **Device Restart** | **No specific action** (zero reboot required) |
 | **Detection Rule (Registry)** | Key: `HKCU\Software\DiamTek\JVM`<br/>Value: `installed`<br/>Data Type: `Integer (DWORD)`<br/>Operator: `Equals 1` |
-| **Detection Rule (File)** | Path: `%LOCALAPPDATA%\DiamTek\JVM\bin`<br/>File: `jvm.bat` |
+| **Detection Rule (File)** | Path: `%LOCALAPPDATA%\DiamTek\JVM\bin`<br/>File: `jvm.exe` (Primary KeyPath) or `jvm.bat` |
 | **Return Codes** | `0` (Success), `1602` (User Canceled), `1603` (Fatal Error), `3010` (Reboot - Handled gracefully) |
 
 ### Corporate Proxies, SSL Inspection & Internal Artifact Repositories
@@ -293,7 +293,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-JvmSecurity.ps1
 ```
 
 #### 2. Automated MSI Synthetic Verification Suite (`packages\msi\test-msi.ps1`)
-The MSI subsystem includes a fully autonomous, 21-point integration verification test suite (`packages\msi\test-msi.ps1`). It actively tests live operating system integration—including the Windows Installer service (`msiexec`), CLI `bin/` directory hygiene (guaranteeing internal hook scripts are isolated from `PATH`), Start Menu application and uninstaller shortcuts indexed by Windows Search, Windows Terminal `settings.json`, PowerShell `$PROFILE` hook & tab completer, update channel initialization (`channel.txt`), Windows Registry `PATH`, live CLI subshell process execution (`cmd.exe /c "jvm.bat --version"`), and full uninstallation with zero filesystem residuals. It features deterministic resource disposal and an emergency `msiexec.exe /x` rollback in its outer `finally` block if interrupted mid-test (`CWE-460`).
+The MSI subsystem includes a fully autonomous, 21-point integration verification test suite (`packages\msi\test-msi.ps1`). It actively tests live operating system integration—including the Windows Installer service (`msiexec`), CLI `bin/` directory hygiene (guaranteeing internal hook scripts are isolated from `PATH`), native PE launcher (`jvm.exe`) and companion engine (`jvm.bat`) deployment, Start Menu application and uninstaller shortcuts indexed by Windows Search, Windows Terminal `settings.json`, PowerShell `$PROFILE` hook & tab completer, update channel initialization (`channel.txt`), Windows Registry `PATH`, live CLI subshell process execution (`cmd.exe /c "jvm.bat --version"`), and full uninstallation with zero filesystem residuals. It features deterministic resource disposal and an emergency `msiexec.exe /x` rollback in its outer `finally` block if interrupted mid-test (`CWE-460`).
 
 ##### Autonomous 4-Tier Resolution Engine
 You can run `test-msi.ps1` from **any working directory** on any Windows machine (even on a clean machine with no prior source code, Git, .NET, or WiX installed). The test runner resolves packages using a 4-tier fallback hierarchy:
