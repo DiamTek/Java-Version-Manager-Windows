@@ -10,13 +10,13 @@
 
 ## Supported Versions
 
-Currently, only versions **`1.0.2` and newer** of the Java Version Manager for Windows are supported with active security patches and vulnerability mitigations. Versions `1.0.0` and `1.0.1` are **unsupported and deprecated** due to missing defensive guardrails, elevation boundary mitigations, and parser protections introduced in `1.0.2`.
+Currently, only versions **`1.1.0` and newer** of the Java Version Manager for Windows are supported with active security patches and vulnerability mitigations. Versions `1.0.0` and `1.0.1` are **unsupported and deprecated** due to missing defensive guardrails, elevation boundary mitigations, and parser protections introduced in `1.1.0`.
 
 | Version | Supported | Status |
 | :--- | :---: | :--- |
-| `>= 1.0.2` | ✅ | Supported (Active Security Maintenance) |
-| `1.0.1` | ❌ | Unsupported (End of Life — Immediate Upgrade to 1.0.2+ Required) |
-| `1.0.0` | ❌ | Unsupported (End of Life — Immediate Upgrade to 1.0.2+ Required) |
+| `>= 1.1.0` | ✅ | Supported (Active Security Maintenance) |
+| `1.0.1` | ❌ | Unsupported (End of Life — Immediate Upgrade to 1.1.0+ Required) |
+| `1.0.0` | ❌ | Unsupported (End of Life — Immediate Upgrade to 1.1.0+ Required) |
 | `< 1.0.0` | ❌ | Unsupported (End of Life) |
 
 ---
