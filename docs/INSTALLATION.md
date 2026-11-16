@@ -157,19 +157,19 @@ choco install jvm-windows
 
 Standalone, single-file Windows Installers are available for both **x64** (Intel/AMD) and **arm64** (Qualcomm Snapdragon / Windows on ARM):
 
-1. Download `jvm-windows-1.1.0-x64.msi` or `jvm-windows-1.1.0-arm64.msi` directly from the [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases) page.
+1. Download `jvm-windows-1.1.1-x64.msi` or `jvm-windows-1.1.1-arm64.msi` directly from the [Releases](https://github.com/DiamTek/Java-Version-Manager-Windows/releases) page.
 2. Double-click the `.msi` file to run the graphical setup wizard.
 
 #### Silent / Headless Installation (Command Line)
 For enterprise automation, scripts, or unattended CI environments:
 
 ```cmd
-msiexec /i jvm-windows-1.1.0-x64.msi /qn /norestart
+msiexec /i jvm-windows-1.1.1-x64.msi /qn /norestart
 ```
 
 To enable verbose installation logging for diagnostics:
 ```cmd
-msiexec /i jvm-windows-1.1.0-x64.msi /qn /norestart /l*v "%TEMP%\jvm-install.log"
+msiexec /i jvm-windows-1.1.1-x64.msi /qn /norestart /l*v "%TEMP%\jvm-install.log"
 ```
 
 <a id="enterprise--silent-it-deployment-intune--mecm--gpo"></a>
@@ -190,9 +190,9 @@ Deploy silently fleet-wide via Microsoft Intune, Microsoft Endpoint Configuratio
 
 | Setting | Configuration Value |
 |---------|---------------------|
-| **Install Command** | `msiexec /i "jvm-windows-1.1.0-x64.msi" /qn /norestart` |
-| **Uninstall Command** | `msiexec /x "jvm-windows-1.1.0-x64.msi" /qn /norestart` |
-| **Verbose Logging** | `msiexec /i "jvm-windows-1.1.0-x64.msi" /qn /norestart /l*v "%TEMP%\jvm-install.log"` |
+| **Install Command** | `msiexec /i "jvm-windows-1.1.1-x64.msi" /qn /norestart` |
+| **Uninstall Command** | `msiexec /x "jvm-windows-1.1.1-x64.msi" /qn /norestart` |
+| **Verbose Logging** | `msiexec /i "jvm-windows-1.1.1-x64.msi" /qn /norestart /l*v "%TEMP%\jvm-install.log"` |
 | **Install Behavior** | **User** (per-user context) |
 | **Device Restart** | **No specific action** (zero reboot required) |
 | **Detection Rule (Registry)** | Key: `HKCU\Software\DiamTek\JVM`<br/>Value: `installed`<br/>Data Type: `Integer (DWORD)`<br/>Operator: `Equals 1` |
@@ -324,9 +324,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\packages\msi\test-msi.ps1 
 ```
 
 > [!TIP]
-> **Interactive Graphical Setup Wizard**: By default, `test-msi.ps1` runs in silent mode (`/qn`) or progress dialog mode (`/qb` with `-ShowUI`). To open the traditional full Windows Installer wizard window with Next / Install / Finish buttons, double-click `packages\msi\jvm-windows-1.1.0-x64.msi` directly in File Explorer or run:
+> **Interactive Graphical Setup Wizard**: By default, `test-msi.ps1` runs in silent mode (`/qn`) or progress dialog mode (`/qb` with `-ShowUI`). To open the traditional full Windows Installer wizard window with Next / Install / Finish buttons, double-click `packages\msi\jvm-windows-1.1.1-x64.msi` directly in File Explorer or run:
 > ```cmd
-> msiexec /i .\packages\msi\jvm-windows-1.1.0-x64.msi
+> msiexec /i .\packages\msi\jvm-windows-1.1.1-x64.msi
 > ```
 
 #### Verifying GitHub Build Provenance & Attestation
@@ -340,12 +340,12 @@ This provides cryptographic, tamper-proof proof that:
 ##### How to Verify using GitHub CLI (`gh`):
 ```powershell
 # Verify the downloaded MSI installer:
-gh attestation verify jvm-windows-1.1.0-x64.msi --repo DiamTek/Java-Version-Manager-Windows
+gh attestation verify jvm-windows-1.1.1-x64.msi --repo DiamTek/Java-Version-Manager-Windows
 ```
 
 When verified, the GitHub CLI confirms certificate authority validity against the OIDC token:
 ```text
-Loaded digest sha256:... for jvm-windows-1.1.0-x64.msi
+Loaded digest sha256:... for jvm-windows-1.1.1-x64.msi
 Loaded 1 attestation from GitHub API with build provenance
 The following policy criteria will be validated:
 - Certificate issuer must match: https://token.actions.githubusercontent.com
@@ -392,7 +392,7 @@ You can uninstall JVM through any of the following methods:
    ```
 6. **Windows Installer (MSI) Silent Uninstallation:**
    ```cmd
-   msiexec /x jvm-windows-1.1.0-x64.msi /qn
+   msiexec /x jvm-windows-1.1.1-x64.msi /qn
    ```
 
 ---

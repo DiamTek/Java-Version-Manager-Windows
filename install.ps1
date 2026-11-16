@@ -1300,7 +1300,7 @@ try {
     $uninstallCommand = "`"$systemPowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
     $quietUninstallCommand = "`"$systemPowerShell`" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$uninstallScriptPath`" -Quiet"
     
-    $displayVer = "1.1.0"
+    $displayVer = "1.1.1"
     if (Test-Path -LiteralPath $batPath) {
         $batHead = Get-Content -LiteralPath $batPath -Raw -ErrorAction SilentlyContinue
         if ($batHead -match 'set\s+"JVM_VERSION=(.*?)"') {

@@ -10,11 +10,11 @@
 
 ## Supported Versions
 
-Currently, only versions **`1.1.0` and newer** of the Java Version Manager for Windows are supported with active security patches and vulnerability mitigations. Versions `1.0.0` and `1.0.1` are **unsupported and deprecated** due to missing defensive guardrails, elevation boundary mitigations, and parser protections introduced in `1.1.0`.
+Currently, only versions **`1.1.1` and newer** of the Java Version Manager for Windows are supported with active security patches and vulnerability mitigations. Versions `1.0.0` and `1.0.1` are **unsupported and deprecated** due to missing defensive guardrails, elevation boundary mitigations, and parser protections introduced in `1.1.1`.
 
 | Version | Supported | Status |
 | :--- | :---: | :--- |
-| `>= 1.1.0` | ✅ | Supported (Active Security Maintenance) |
+| `>= 1.1.1` | ✅ | Supported (Active Security Maintenance) |
 | `1.0.1` | ❌ | Unsupported (End of Life — Immediate Upgrade to 1.1.0+ Required) |
 | `1.0.0` | ❌ | Unsupported (End of Life — Immediate Upgrade to 1.1.0+ Required) |
 | `< 1.0.0` | ❌ | Unsupported (End of Life) |
@@ -70,7 +70,7 @@ DiamTek Java Version Manager (JVM) is engineered for enterprise developer workst
 - **Architectural Defense:** Official release binaries (standalone MSIs, portable ZIPs) are built in isolated GitHub Actions runners and cryptographically signed using GitHub's OIDC Sigstore attestation authority (`actions/attest-build-provenance`).
 - **Verification Command:**
   ```bash
-  gh attestation verify jvm-windows-1.1.0-x64.msi --owner DiamTek
+  gh attestation verify jvm-windows-1.1.1-x64.msi --owner DiamTek
   ```
 
 ### 6. Dual Update Channel Integrity, Unified Uninstaller Verification & Downgrade Prevention

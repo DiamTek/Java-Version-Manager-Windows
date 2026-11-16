@@ -23,7 +23,7 @@ try {
 }
 
 $packageName = 'jvm-windows'
-$packageVersion = '1.1.0'
+$packageVersion = '1.1.1'
 $url64 = "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v$packageVersion/jvm-windows-$packageVersion-x64.msi"
 $checksum64 = 'E2A9471E4738A4F0456284BBD80B419F8901DDA122BFF3D39FF0042DA080E0DA'
 $checksumType64 = 'sha256'
