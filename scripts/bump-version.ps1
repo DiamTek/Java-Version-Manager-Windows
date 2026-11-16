@@ -250,8 +250,10 @@ function Invoke-Git {
     $pinfo.WorkingDirectory = $Directory
     $pinfo.RedirectStandardOutput = $CaptureOutput.IsPresent
     $pinfo.RedirectStandardError = $CaptureOutput.IsPresent
-    $pinfo.StandardOutputEncoding = $Utf8NoBom
-    $pinfo.StandardErrorEncoding = $Utf8NoBom
+    if ($CaptureOutput.IsPresent) {
+        $pinfo.StandardOutputEncoding = $Utf8NoBom
+        $pinfo.StandardErrorEncoding = $Utf8NoBom
+    }
     $pinfo.UseShellExecute = $false
     $pinfo.CreateNoWindow = $CaptureOutput.IsPresent
 
