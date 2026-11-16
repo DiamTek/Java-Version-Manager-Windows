@@ -795,8 +795,8 @@ function Invoke-ScoopCoordinator {
                     if ($bucketPresent) {
                         $c = [System.IO.File]::ReadAllText($externalBucketManifest, $Utf8NoBom)
                         $c = [regex]::Replace($c, '("version":\s*")[^"]*(")', "`${1}$TargetVersion`${2}")
-                        $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $TargetVersion)
-                        $c = [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $TargetVersion)
+                        $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(?=/)', $TargetVersion)
+                        $c = [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(?=-)', $TargetVersion)
                         $c = [regex]::Replace($c, '("hash":\s*")[^"]*(")', "`${1}$portableZipHash`${2}")
                         [System.IO.File]::WriteAllText($externalBucketManifest, $c, $Utf8NoBom)
                         Write-Host "  ${cGreen}[OK]$cReset Updated ..\scoop-bucket\bucket\jvm.json"
@@ -1631,8 +1631,8 @@ if (Test-Path (Join-Path $RepoRoot "packages\msi\jvm.wxs")) {
 Update-FileContent "packages\scoop\jvm.json" {
     param($content)
     $c = [regex]::Replace($content, '("version":\s*")[^"]*(")', "`${1}$cleanVersion`${2}")
-    $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
-    $c = [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
+    $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(?=/)', $cleanVersion)
+    $c = [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(?=-)', $cleanVersion)
     if ($c -match '"url":\s*"([^"]+)"') { Assert-TrustedGitHubUri $matches[1] }
     if ($c -match '"hash":\s*"([^"]+)"') { Assert-ValidSha256Hex $matches[1] "Scoop jvm.json hash" }
     $c
@@ -1655,8 +1655,8 @@ Update-FileContent "packages\winget\DiamTek.JVM.installer.yaml" {
     param($content)
     $c = [regex]::Replace($content, '(?m)^(PackageVersion:\s*)\S+', "`${1}$cleanVersion")
     $c = [regex]::Replace($c, '(?m)^(ReleaseDate:\s*)\S+', "`${1}$todayDate")
-    $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
-    $c = [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?', $cleanVersion)
+    $c = [regex]::Replace($c, '(?<=releases/download/v)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(?=/)', $cleanVersion)
+    $c = [regex]::Replace($c, '(?<=jvm-windows-)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(?=-)', $cleanVersion)
     foreach ($m in [regex]::Matches($c, '(?m)^\s*InstallerUrl:\s*(\S+)')) { Assert-TrustedGitHubUri $m.Groups[1].Value }
     foreach ($m in [regex]::Matches($c, '(?m)^\s*InstallerSha256:\s*(\S+)')) { Assert-ValidSha256Hex $m.Groups[1].Value "Winget InstallerSha256" }
     foreach ($m in [regex]::Matches($c, '(?m)^\s*ProductCode:\s*[''"]?(\{[^''"\s]+\})[''"]?')) { Assert-ValidMsiProductCode $m.Groups[1].Value "Winget ProductCode" }
@@ -1777,7 +1777,8 @@ $entryContent$compareFooter
                 $escapedVer = [regex]::Escape($cleanVersion)
                 $secMatch = [regex]::Match($content, "(?ms)^##\s+\[v?${escapedVer}\][^\r\n]*\r?\n(.*?)(?=(^##\s+\[)|\z)")
                 if ($secMatch.Success) {
-                    $insertPoint = $secMatch.Groups[1].Index + $secMatch.Groups[1].Length
+                    $trimmedBody = $secMatch.Groups[1].Value.TrimEnd("`r", "`n")
+                    $insertPoint = $secMatch.Groups[1].Index + $trimmedBody.Length
                     $footerToInsert = "${nl}${nl}**Full Changelog**: $fullCompareUrl"
                     return $content.Insert($insertPoint, $footerToInsert)
                 }
@@ -1787,7 +1788,7 @@ $entryContent$compareFooter
     }
 } -StepName "Changelog Entry"
 
-# --- 8. README.md Version History ---
+# --- 8. README.md Version History & MSI Examples ---
 Update-FileContent "README.md" {
     param($content)
     $c = [regex]::Replace($content, '(?m)^\*\s+\*\*v\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?\s+\(Latest\):\*\*', {
@@ -1812,6 +1813,8 @@ Update-FileContent "README.md" {
             $c = $c.Insert($idx + $vhAnchor.Length, $newEntry)
         }
     }
+    # Update sample MSI commands in README
+    $c = [regex]::Replace($c, 'jvm-windows-\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?-(x64|arm64|portable)', "jvm-windows-$cleanVersion-`${2}")
     return $c
 } -StepName "README Version History"
 
