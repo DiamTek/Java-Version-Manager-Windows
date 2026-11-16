@@ -1917,7 +1917,8 @@ if (-not $activeBranch) {
 }
 
 if (-not $doCommit -and [Environment]::UserInteractive) {
-    :POST_BUMP_MENU while ($true) {
+    $menuRunning = $true
+    while ($menuRunning) {
         Write-Host "${cCyan}${cBold}Modified Repository Working Tree:${cReset}"
         $summary = Invoke-Git -Directory $RepoRoot -GitArgs @("status", "-s") -CaptureOutput
         if ([string]::IsNullOrWhiteSpace($summary)) {
@@ -1992,11 +1993,13 @@ if (-not $doCommit -and [Environment]::UserInteractive) {
                 if ($promptPush -match '^(y|yes)$') {
                     $doPush = $true
                 }
-                break :POST_BUMP_MENU
+                $menuRunning = $false
+                break
             }
             { $_ -in @('4', 'q', 'quit', 'exit', 'n', 'no') } {
                 Write-Host "Exiting without committing. Manifest changes are preserved on disk." -ForegroundColor Yellow
-                break :POST_BUMP_MENU
+                $menuRunning = $false
+                break
             }
             default {
                 Write-Host "Unknown option '$action'. Please choose [1-4, W, C, S, T, R]." -ForegroundColor DarkYellow
