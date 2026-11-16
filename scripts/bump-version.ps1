@@ -1427,7 +1427,7 @@ if ($remotes -match '(?m)^origin$') {
         }
 
         # Upstream Sync Check (check if local branch is behind origin)
-        Invoke-Git -Directory $RepoRoot -GitArgs @("fetch", "origin", "--", $activeBranch, "--quiet") | Out-Null
+        Invoke-Git -Directory $RepoRoot -GitArgs @("fetch", "origin", $activeBranch, "--quiet") | Out-Null
         $behindCount = (Invoke-Git -Directory $RepoRoot -GitArgs @("rev-list", "HEAD..origin/$activeBranch", "--count") -CaptureOutput).Trim()
         if ($behindCount -and [int]$behindCount -gt 0 -and -not $Force) {
             Write-Error "Local branch '$activeBranch' is $behindCount commit(s) behind origin/$activeBranch. Please run 'git pull' before releasing (use -Force to bypass)."
@@ -1683,11 +1683,19 @@ if (Test-Path (Join-Path $RepoRoot "launcher\build.rs")) {
 }
 
 
-# --- 6. GitHub Release Workflow ---
+# --- 6. GitHub Release & CI Workflows ---
 Update-FileContent ".github\workflows\release.yml" {
     param($content)
-    [regex]::Replace($content, '(default:\s*[''"])\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?([''"])', "`${1}$cleanVersion`${3}")
+    $c = [regex]::Replace($content, '(default:\s*[''"])\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?([''"])', "`${1}$cleanVersion`${3}")
+    [regex]::Replace($c, '(\(e\.g\.\s*)\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?(\))', "`${1}$cleanVersion`${3}")
 } -StepName "Release Workflow"
+
+if (Test-Path (Join-Path $RepoRoot ".github\workflows\ci.yml")) {
+    Update-FileContent ".github\workflows\ci.yml" {
+        param($content)
+        [regex]::Replace($content, '(\} else \{\s*")[^"]*("\s*\})', "`${1}$cleanVersion`${2}")
+    } -StepName "CI Workflow"
+}
 
 # --- 7. CHANGELOG.md Entry with Chronological Placement & Comparison Link ---
 Update-FileContent "docs\CHANGELOG.md" {
