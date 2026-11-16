@@ -1911,8 +1911,13 @@ Write-Host ""
 $doCommit = $Commit.IsPresent
 $doPush = $Push.IsPresent
 
+if (-not $activeBranch) {
+    $activeBranch = (Invoke-Git -Directory $RepoRoot -GitArgs @("rev-parse", "--abbrev-ref", "HEAD") -CaptureOutput).Trim()
+    if (-not $activeBranch) { $activeBranch = "main" }
+}
+
 if (-not $doCommit -and [Environment]::UserInteractive) {
-    while ($true) {
+    :POST_BUMP_MENU while ($true) {
         Write-Host "${cCyan}${cBold}Modified Repository Working Tree:${cReset}"
         $summary = Invoke-Git -Directory $RepoRoot -GitArgs @("status", "-s") -CaptureOutput
         if ([string]::IsNullOrWhiteSpace($summary)) {
@@ -1987,11 +1992,11 @@ if (-not $doCommit -and [Environment]::UserInteractive) {
                 if ($promptPush -match '^(y|yes)$') {
                     $doPush = $true
                 }
-                break
+                break :POST_BUMP_MENU
             }
             { $_ -in @('4', 'q', 'quit', 'exit', 'n', 'no') } {
                 Write-Host "Exiting without committing. Manifest changes are preserved on disk." -ForegroundColor Yellow
-                break
+                break :POST_BUMP_MENU
             }
             default {
                 Write-Host "Unknown option '$action'. Please choose [1-4, W, C, S, T, R]." -ForegroundColor DarkYellow
