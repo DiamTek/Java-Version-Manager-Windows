@@ -253,7 +253,7 @@ function Invoke-Git {
     $pinfo.StandardOutputEncoding = $Utf8NoBom
     $pinfo.StandardErrorEncoding = $Utf8NoBom
     $pinfo.UseShellExecute = $false
-    $pinfo.CreateNoWindow = $true
+    $pinfo.CreateNoWindow = $CaptureOutput.IsPresent
 
     # Build argument string using CommandLineToArgvW rules (double trailing backslashes before quotes)
     $argList = [System.Collections.Generic.List[string]]::new()
