@@ -240,7 +240,7 @@ DiamTek JVM is engineered for real-world enterprise IT environments, strict secu
    - **Silent Enterprise Distribution:** Shipped with pre-compiled, standalone WiX Toolset v4 MSIs (`x64` and `ARM64`) embedding all cabinet payloads.
    - **Unattended Rollout:** Deploys silently via standard system management tools:
      ```cmd
-     msiexec /i jvm-windows-1.0.1-x64.msi /qn /norestart
+     msiexec /i jvm-windows-1.1.0-x64.msi /qn /norestart
      ```
    - **Deterministic Fleet Telemetry:** Built with strict standard exit codes (`0` Success, `1` Abort/Error, `1602` Canceled, `1603` Fatal) and deterministic registry detection rules (`HKCU\Software\DiamTek\JVM`, DWORD `installed=1`) for Microsoft Intune / MECM application packaging.
 

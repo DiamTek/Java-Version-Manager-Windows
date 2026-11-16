@@ -37,7 +37,7 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
             $Version = $matches[1].Trim()
         }
     }
-    if (-not $Version) { $Version = "1.0.1" }
+    if (-not $Version) { $Version = "1.1.0" }
 }
 $Version = $Version.TrimStart('v')
 if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$' -or $Version -match '\.\.') {

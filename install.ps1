@@ -1,4 +1,4 @@
-﻿# Java Version Manager
+# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -1300,7 +1300,7 @@ try {
     $uninstallCommand = "`"$systemPowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScriptPath`""
     $quietUninstallCommand = "`"$systemPowerShell`" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$uninstallScriptPath`" -Quiet"
     
-    $displayVer = "1.0.1"
+    $displayVer = "1.1.0"
     if (Test-Path -LiteralPath $batPath) {
         $batHead = Get-Content -LiteralPath $batPath -Raw -ErrorAction SilentlyContinue
         if ($batHead -match 'set\s+"JVM_VERSION=(.*?)"') {

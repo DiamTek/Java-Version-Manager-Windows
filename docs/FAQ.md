@@ -290,7 +290,7 @@ DiamTek JVM provides a complete, UAC-elevated uninstaller (`uninstall.ps1`) that
 - **Terminal UI:** Launch `jvm`, navigate to **Settings** (`3`), and choose **Uninstall JVM Completely** (`6`).
 - **CLI:** Run `jvm self-uninstall`.
 - **PowerShell:** Execute `& "$env:LOCALAPPDATA\DiamTek\JVM\uninstall.ps1"`.
-- **Windows Installer (MSI):** Run `msiexec /x jvm-windows-1.0.1-x64.msi /qn`.
+- **Windows Installer (MSI):** Run `msiexec /x jvm-windows-1.1.0-x64.msi /qn`.
 
 <a id="why-does-windows-powershell-say-a-script-is-not-digitally-signed-or-blocked"></a>
 ### Why does Windows PowerShell say a script is not digitally signed or blocked?
@@ -322,7 +322,7 @@ This is standard Windows behavior for open-source software with newly compiled b
 
 All official DiamTek release artifacts are cryptographically attested via GitHub's Sigstore OIDC infrastructure using `actions/attest-build-provenance`. You can independently verify that your downloaded binary was compiled directly by GitHub Actions from the audited open-source repository:
 ```powershell
-gh attestation verify jvm-windows-1.0.1-x64.msi --repo DiamTek/Java-Version-Manager-Windows
+gh attestation verify jvm-windows-1.1.0-x64.msi --repo DiamTek/Java-Version-Manager-Windows
 ```
 
 <a id="does-the-msi-test-suite-test-real-system-integration-or-just-file-creation"></a>
@@ -343,11 +343,11 @@ All official release artifacts (`jvm-windows-*.msi`, `jvm-windows-*.zip`, `SHA25
 
 You can verify any downloaded artifact using the official [GitHub CLI (`gh`)](https://cli.github.com/):
 ```powershell
-gh attestation verify jvm-windows-1.0.1-x64.msi --repo DiamTek/Java-Version-Manager-Windows
+gh attestation verify jvm-windows-1.1.0-x64.msi --repo DiamTek/Java-Version-Manager-Windows
 ```
 Upon verification, the GitHub CLI outputs:
 ```text
-Loaded digest sha256:... for jvm-windows-1.0.1-x64.msi
+Loaded digest sha256:... for jvm-windows-1.1.0-x64.msi
 The following policy criteria will be enforced:
 - Predicate type: https://slsa.dev/provenance/v1
 - Source repository: DiamTek/Java-Version-Manager-Windows
@@ -408,7 +408,7 @@ This allows developers to remain productive and switch JDKs independently while 
 DiamTek JVM is packaged as a native, single-file Windows Installer (`.msi`) built with WiX Toolset v4 with a per-user installation scope (`Scope="perUser"`):
 - **Silent Distribution:** Enterprise IT administrators can silently deploy the MSI across thousands of endpoints without user interruption:
   ```cmd
-  msiexec /i jvm-windows-1.0.1-x64.msi /qn /norestart
+  msiexec /i jvm-windows-1.1.0-x64.msi /qn /norestart
   ```
 - **Registry-Based Intune Detection Rules:**
   - **Rule Type:** Registry
@@ -420,7 +420,7 @@ DiamTek JVM is packaged as a native, single-file Windows Installer (`.msi`) buil
   - **File or Folder:** `jvm.bat`
 - **Clean Fleet Uninstallation:**
   ```cmd
-  msiexec /x jvm-windows-1.0.1-x64.msi /qn /norestart
+  msiexec /x jvm-windows-1.1.0-x64.msi /qn /norestart
   ```
 - **Zero Reboot Footprint:** Installation, version switches, and uninstallation never require a workstation restart, preventing disruption to active corporate workflows.
 

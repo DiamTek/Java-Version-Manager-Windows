@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag to build and release (e.g. 1.0.1)'
+        description: 'Version tag to build and release (e.g. 1.1.0)'
         required: false
-        default: '1.0.1'
+        default: '1.1.0'
 
 permissions:
   contents: read

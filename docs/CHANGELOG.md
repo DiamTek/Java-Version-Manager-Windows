@@ -268,6 +268,8 @@ This release introduces official support for the native Windows binary launcher 
   14. *Unified Status, Ergonomics & Multi-Shell Cross-Compatibility (10 tests)*: Unified multi-tool status dashboard, script-friendly single-value flags (`--short`, `--numeric`, `--bin`), dynamic PowerShell argument completers, and CMD DOSKEY macro integration.
   15. *Adversarial Robustness, Fuzzing & Mutation Resilience (10 tests)*: Deep argument buffer fuzzing (1024+ characters), non-allowlisted vendor token rejection, live cyclic directory junction loop immunity, fault injection resilience, and repository-wide AST zero empty catch enforcement (`CWE-390`).
 
+**Full Changelog**: https://github.com/Diamond-Industries/Java-Version-Manager-Windows/compare/v1.0.1...v1.1.0
+
 ## [1.0.1] - 2026-09-16
 
 This release delivers critical stability and reliability enhancements for the installer pipeline, CLI channel switching, uninstallation handoff, and multi-architecture Winget package distribution.

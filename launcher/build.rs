@@ -23,8 +23,8 @@ fn main() {
         res.set("LegalCopyright", "Copyright (C) 2026 DiamTek / Alexéy Shishkin");
         res.set("Comments", "Java Version Manager (JVM) for Windows. Licensed under the GNU Affero General Public License v3.0 (https://www.gnu.org/licenses/).");
         res.set("OriginalFilename", "jvm.exe");
-        res.set("ProductVersion", "1.0.2");
-        res.set("FileVersion", "1.0.2");
+        res.set("ProductVersion", "1.1.0");
+        res.set("FileVersion", "1.1.0");
         let _ = res.compile();
     }
 }
