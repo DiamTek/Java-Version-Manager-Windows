@@ -953,11 +953,17 @@ $profileCode = @'
 # >>> jvm >>>
 function jvm {
     $bat = '__FALLBACK_BAT__'
+    $exe = '__FALLBACK_EXE__'
+    if (-not (Test-Path -LiteralPath $exe)) {
+        $exe = Get-Command jvm.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
+    }
     if (-not (Test-Path -LiteralPath $bat)) {
         $bat = Get-Command jvm.bat -CommandType Application -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
     }
 
-    if (-not $bat -or -not (Test-Path -LiteralPath $bat)) {
+    $targetRunner = if ($exe -and (Test-Path -LiteralPath $exe)) { $exe } else { $bat }
+
+    if (-not $targetRunner -or -not (Test-Path -LiteralPath $targetRunner)) {
         Write-Error "jvm: Java Version Manager is not installed or not in PATH. Please reinstall JVM or restart your terminal."
         return
     }
@@ -967,12 +973,12 @@ function jvm {
     if ($isUnc) {
         pushd -LiteralPath $pwd.Path
         try {
-            & $bat @args
+            & $targetRunner @args
         } finally {
             popd
         }
     } else {
-        & $bat @args
+        & $targetRunner @args
     }
 
     function Set-JvmVar {
@@ -1177,7 +1183,9 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
 '@
 
 $batPathEscaped = $batPath.Replace("'", "''")
-$profileCode = $profileCode.Replace('__FALLBACK_BAT__', $batPathEscaped)
+$exePath = Join-Path $installDir "jvm.exe"
+$exePathEscaped = $exePath.Replace("'", "''")
+$profileCode = $profileCode.Replace('__FALLBACK_BAT__', $batPathEscaped).Replace('__FALLBACK_EXE__', $exePathEscaped)
 
 $userProfile = [Environment]::GetFolderPath('UserProfile')
 $myDocs = [Environment]::GetFolderPath('MyDocuments')

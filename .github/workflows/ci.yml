@@ -65,6 +65,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Setup Rust Toolchain & Target Architecture
+        shell: pwsh
+        run: |
+          rustup target add aarch64-pc-windows-msvc
+
       - name: Install WiX Toolset v4
         shell: pwsh
         run: |
@@ -89,11 +94,23 @@ jobs:
         run: |
           .\packages\choco\build-choco.ps1
 
+      - name: Stage CI Artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "ci-artifacts" -Force | Out-Null
+          Copy-Item "packages\msi\jvm-windows-*.msi" -Destination "ci-artifacts\" -Force
+          if (Test-Path -LiteralPath "launcher\target\release\jvm.exe") {
+              Copy-Item -LiteralPath "launcher\target\release\jvm.exe" -Destination "ci-artifacts\jvm-windows-x64.exe" -Force
+          }
+          if (Test-Path -LiteralPath "launcher\target\aarch64-pc-windows-msvc\release\jvm.exe") {
+              Copy-Item -LiteralPath "launcher\target\aarch64-pc-windows-msvc\release\jvm.exe" -Destination "ci-artifacts\jvm-windows-arm64.exe" -Force
+          }
+
       - name: Upload CI Artifacts
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
-          name: msi-packages-ci
-          path: packages/msi/jvm-windows-*.msi
+          name: jvm-windows-ci-packages
+          path: ci-artifacts/*
           if-no-files-found: error
           retention-days: 7
 

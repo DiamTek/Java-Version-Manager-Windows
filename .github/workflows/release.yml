@@ -54,6 +54,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Setup Rust Toolchain & Target Architecture
+        shell: pwsh
+        run: |
+          rustup target add aarch64-pc-windows-msvc
+
       - name: Install WiX Toolset v4
         shell: pwsh
         run: |
@@ -154,6 +159,14 @@ jobs:
           Copy-Item "packages\msi\jvm-windows-*.zip" -Destination "dist\" -Force
           Copy-Item "packages\choco\jvm-windows.*.nupkg" -Destination "dist\" -Force
           
+          # Stage compiled native launchers into release distribution
+          if (Test-Path -LiteralPath "launcher\target\release\jvm.exe") {
+              Copy-Item -LiteralPath "launcher\target\release\jvm.exe" -Destination "dist\jvm-windows-x64.exe" -Force
+          }
+          if (Test-Path -LiteralPath "launcher\target\aarch64-pc-windows-msvc\release\jvm.exe") {
+              Copy-Item -LiteralPath "launcher\target\aarch64-pc-windows-msvc\release\jvm.exe" -Destination "dist\jvm-windows-arm64.exe" -Force
+          }
+
           # Safely copy only the files that actually exist to prevent step crashes
           @("jvm.bat", "install.ps1", "uninstall.ps1", "README.md", "LICENSE") | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object {
               Copy-Item -LiteralPath $_ -Destination "dist\" -Force

@@ -22,6 +22,7 @@ An enterprise build automation script supporting dual compilation pipelines:
 - **Strategy 1 (WiX v4/v5)**: Uses the modern `.NET` toolchain (`dotnet tool run wix build` or global `wix.exe`).
 - **Strategy 2 (WiX v3 Fallback)**: Automatically falls back to WiX v3 (`candle.exe` and `light.exe`) if WiX v4 is unavailable.
 - **Multi-Architecture**: Generates distinct, optimized packages for both `x64` (`x64` / `Win64="yes"`) and `arm64` (`arm64` / `Win64="yes"`).
+- **Native Binary Launcher Integration**: Automatically compiles and packages the high-performance native `jvm.exe` binary launcher (`launcher/`) alongside `jvm.bat`, making `jvm.exe` the primary application KeyPath and Start Menu target (satisfying Windows Package Manager WinGet script policies).
 - **Deterministic GUID Generation**: Dynamically derives reproducible UUIDv5 / SHA-1 component GUIDs based on stable repository namespaces, ensuring in-place upgrades without component collisions.
 - **Embedded PowerShell Custom Actions**: Emits deeply hardened custom action scripts embedded into the MSI table:
   - `msiInstallHook.ps1`: Registers JVM in the per-user or machine PATH (preserving `REG_EXPAND_SZ` and checking the 8191-character boundary), configures Windows Terminal profile integrations, and builds Start Menu shortcuts.
@@ -31,7 +32,7 @@ An enterprise build automation script supporting dual compilation pipelines:
 Automated regression test harness that verifies MSI lifecycle operations:
 - Validates the MSI file path against path traversal (`CWE-20`) and ensures file extension integrity.
 - Tests silent installation (`msiexec.exe /i ... /qn`).
-- Verifies binary staging in `%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.bat`.
+- Verifies binary staging in `%LOCALAPPDATA%\DiamTek\JVM\bin\jvm.exe` and `jvm.bat`.
 - Validates PATH entry persistence and terminal integration.
 - Tests silent maintenance/repair (`msiexec.exe /fa ... /qn`).
 - Tests silent uninstallation (`msiexec.exe /x ... /qn`) and asserts complete cleanup of staged binaries.

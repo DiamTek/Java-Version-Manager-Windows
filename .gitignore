@@ -24,3 +24,8 @@ $RECYCLE.BIN/
 *.tmp
 *.temp
 scratch/
+
+# Rust / Cargo Build Artifacts
+target/
+**/target/
+Cargo.lock

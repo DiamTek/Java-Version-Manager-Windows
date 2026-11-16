@@ -1,4 +1,4 @@
-# Java Version Manager
+﻿# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -838,6 +838,22 @@ exit 0
         $srcReadme = Escape-XmlAttr (Join-Path $RootDir "README.md")
         $srcUninstall = Escape-XmlAttr (Join-Path $RootDir "uninstall.ps1")
         $srcJvmBat = Escape-XmlAttr (Join-Path $RootDir "jvm.bat")
+        $launcherBuildScript = Join-Path $RootDir "scripts\build-launcher.ps1"
+        $srcJvmExe = if ($TargetArch -eq 'arm64') {
+            Join-Path $RootDir "launcher\target\aarch64-pc-windows-msvc\release\jvm.exe"
+        } else {
+            Join-Path $RootDir "launcher\target\release\jvm.exe"
+        }
+        if (-not (Test-Path -LiteralPath $srcJvmExe)) {
+            Write-Host "  ${cYellow}[INFO]${cReset} Compiling native jvm.exe launcher for $TargetArch..." -ForegroundColor Yellow
+            if (Test-Path -LiteralPath $launcherBuildScript) {
+                & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $launcherBuildScript
+            }
+        }
+        if (-not (Test-Path -LiteralPath $srcJvmExe)) {
+            throw "Native jvm.exe launcher binary not found for target architecture '$TargetArch' at '$srcJvmExe'"
+        }
+        $srcJvmExe = Escape-XmlAttr $srcJvmExe
         $srcIconIco = Escape-XmlAttr (Join-Path $RootDir "assets\icon.ico")
         $srcIconPng = Escape-XmlAttr (Join-Path $RootDir "assets\icon.png")
         $srcMsiInstallHook = Escape-XmlAttr (Join-Path $ScriptDir "msi-install-hook.ps1")
@@ -881,8 +897,9 @@ exit 0
             </Component>
           </Directory>
           <Directory Id="INSTALLFOLDER" Name="bin">
-            <Component Id="JvmBatComponent" Guid="01a08571-06e0-7f19-a168-3e09b5dac718">
-              <File Id="JvmBat" Source="$srcJvmBat" KeyPath="yes" />
+            <Component Id="JvmExeComponent" Guid="01a08571-06e0-7f19-a168-3e09b5dac718">
+              <File Id="JvmExe" Source="$srcJvmExe" KeyPath="yes" />
+              <File Id="JvmBat" Source="$srcJvmBat" />
               <Environment Id="UpdatePath" Name="PATH" Action="set" Part="last" System="no" Value="[INSTALLFOLDER]" />
               <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
             </Component>
@@ -897,7 +914,7 @@ exit 0
           <Shortcut Id="ApplicationStartMenuShortcut"
                     Name="Java Version Manager"
                     Description="DiamTek Java Version Manager"
-                    Target="[INSTALLFOLDER]jvm.bat"
+                    Target="[INSTALLFOLDER]jvm.exe"
                     WorkingDirectory="INSTALLFOLDER"
                     Icon="AppIcon" />
           <Shortcut Id="UninstallProductShortcut"
@@ -915,7 +932,7 @@ exit 0
     <Feature Id="MainFeature" Title="Java Version Manager" Level="1">
       <ComponentRef Id="DocumentationComponent" />
       <ComponentRef Id="AssetsComponent" />
-      <ComponentRef Id="JvmBatComponent" />
+      <ComponentRef Id="JvmExeComponent" />
       <ComponentRef Id="HookScriptsComponent" />
       <ComponentRef Id="ApplicationShortcut" />
     </Feature>

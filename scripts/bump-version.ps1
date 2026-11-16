@@ -1,4 +1,20 @@
-﻿<#
+﻿# Java Version Manager
+# Copyright (C) 2026 DiamTek / Alexéy Shishkin
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+<#
 .SYNOPSIS
     Automated version bumper and release coordinator for DiamTek Java Version Manager (Windows).
 
@@ -85,13 +101,13 @@ function Assert-TrustedGitHubUri([string]$UriString) {
 
 function Assert-ValidSha256Hex([string]$HashString, [string]$Context) {
     if ([string]::IsNullOrWhiteSpace($HashString) -or $HashString -notmatch '^[0-9A-Fa-f]{64}$') {
-        throw "Security validation failed (CWE-354): Invalid SHA-256 hex digest for $Context: '$HashString'."
+        throw "Security validation failed (CWE-354): Invalid SHA-256 hex digest for ${Context}: '$HashString'."
     }
 }
 
 function Assert-ValidMsiProductCode([string]$GuidString, [string]$Context) {
     if ([string]::IsNullOrWhiteSpace($GuidString) -or $GuidString -notmatch '^\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}$') {
-        throw "Security validation failed (CWE-20): Invalid MSI ProductCode GUID for $Context: '$GuidString'."
+        throw "Security validation failed (CWE-20): Invalid MSI ProductCode GUID for ${Context}: '$GuidString'."
     }
 }
 
@@ -1650,6 +1666,22 @@ Update-FileContent "packages\winget\DiamTek.JVM.installer.yaml" {
 Assert-ValidWingetManifest (Join-Path $RepoRoot "packages\winget\DiamTek.JVM.yaml")
 Assert-ValidWingetManifest (Join-Path $RepoRoot "packages\winget\DiamTek.JVM.locale.en-US.yaml")
 Assert-ValidWingetManifest (Join-Path $RepoRoot "packages\winget\DiamTek.JVM.installer.yaml")
+
+# --- 5b. Native Binary Launcher (Rust) ---
+if (Test-Path (Join-Path $RepoRoot "launcher\Cargo.toml")) {
+    Update-FileContent "launcher\Cargo.toml" {
+        param($content)
+        [regex]::Replace($content, '(?m)^(version\s*=\s*")[^"]*(")', "`${1}$cleanVersion`${2}")
+    } -StepName "Launcher Cargo"
+}
+if (Test-Path (Join-Path $RepoRoot "launcher\build.rs")) {
+    Update-FileContent "launcher\build.rs" {
+        param($content)
+        $c = [regex]::Replace($content, '(?m)(res\.set\("ProductVersion",\s*")[^"]*("\);)', "`${1}$cleanVersion`${2}")
+        [regex]::Replace($c, '(?m)(res\.set\("FileVersion",\s*")[^"]*("\);)', "`${1}$cleanVersion`${2}")
+    } -StepName "Launcher Metadata"
+}
+
 
 # --- 6. GitHub Release Workflow ---
 Update-FileContent ".github\workflows\release.yml" {

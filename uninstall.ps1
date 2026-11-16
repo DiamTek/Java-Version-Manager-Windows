@@ -1,4 +1,4 @@
-# Java Version Manager
+﻿# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -118,7 +118,9 @@ function Test-TrustedJvmInstallDirectory([string]$CandidateDir) {
         $normAppDataRoot = Join-Path $localAppData "DiamTek"
         $isInsideAppData = $resolvedSrc.StartsWith($normAppDataRoot, [StringComparison]::OrdinalIgnoreCase)
         $hasJvmMarker = (Test-Path -LiteralPath (Join-Path $resolvedSrc "jvm.bat")) -or
+                        (Test-Path -LiteralPath (Join-Path $resolvedSrc "jvm.exe")) -or
                         (Test-Path -LiteralPath (Join-Path $resolvedSrc "bin\jvm.bat")) -or
+                        (Test-Path -LiteralPath (Join-Path $resolvedSrc "bin\jvm.exe")) -or
                         (Test-Path -LiteralPath (Join-Path $resolvedSrc "uninstall.ps1"))
         if ($isInsideAppData -or $hasJvmMarker) {
             return $resolvedSrc
@@ -576,7 +578,7 @@ foreach ($wtSettings in $wtSettingsCandidates) {
             if ($wtJson.profiles -and $wtJson.profiles.list) {
                 $filtered = @($wtJson.profiles.list | Where-Object {
                     $isJvm = ($_.guid -eq '{b20650a4-4212-4d64-9edf-744e9285e2be}') -or
-                             ($_.name -eq 'Java Version Manager' -and $_.commandline -match '(?i)DiamTek.*jvm\.bat')
+                             ($_.name -eq 'Java Version Manager' -and ($_.commandline -match '(?i)DiamTek.*jvm\.(bat|exe)'))
                     -not $isJvm
                 })
                 if ($filtered.Count -ne $wtJson.profiles.list.Count) {
@@ -793,7 +795,9 @@ if ($targetFolder) {
     if (-not $targetFolder.StartsWith($normalizedAppData, [StringComparison]::OrdinalIgnoreCase) -and -not $targetFolder.StartsWith($env:TEMP, [StringComparison]::OrdinalIgnoreCase)) {
         # Strict marker verification: target folder MUST contain JVM installation markers
         $hasJvmMarker = (Test-Path -LiteralPath (Join-Path $targetFolder "jvm.bat")) -or
+                        (Test-Path -LiteralPath (Join-Path $targetFolder "jvm.exe")) -or
                         (Test-Path -LiteralPath (Join-Path $targetFolder "bin\jvm.bat")) -or
+                        (Test-Path -LiteralPath (Join-Path $targetFolder "bin\jvm.exe")) -or
                         (Test-Path -LiteralPath (Join-Path $targetFolder "uninstall.ps1"))
         if (-not $hasJvmMarker) {
             Write-Host "[ ERROR  ] Target directory '$targetFolder' does not contain JVM installation markers. Aborting deletion." -ForegroundColor Red

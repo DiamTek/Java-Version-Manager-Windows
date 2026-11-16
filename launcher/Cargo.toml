@@ -1,0 +1,16 @@
+[package]
+name = "jvm"
+version = "1.0.2"
+edition = "2021"
+authors = ["DiamTek", "Alexéy Shishkin"]
+description = "Java Version Manager (JVM) for Windows"
+
+[profile.release]
+opt-level = "z"     # Optimize for size
+lto = true          # Enable Link Time Optimization
+codegen-units = 1   # Maximize size reduction
+panic = "abort"     # Remove panic unwinding overhead
+strip = true        # Strip symbols from binary
+
+[build-dependencies]
+winres = "0.1.12"
