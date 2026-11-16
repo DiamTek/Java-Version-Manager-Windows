@@ -4,7 +4,7 @@
     "homepage": "https://diamtek.github.io/Java-Version-Manager-Windows",
     "license": "AGPL-3.0-or-later",
     "url": "https://github.com/DiamTek/Java-Version-Manager-Windows/releases/download/v1.1.1/jvm-windows-1.1.1-portable.zip",
-    "hash": "f1280688d5bebbf628313778680c5a24c9809c9a3fd3412284a29aa3eec3abad",
+    "hash": "3727967daf4332b848c3a8691e199b0601450f8a7aea3b4749fc7e9c4828170b",
     "bin": "jvm.bat",
     "pre_uninstall": "if (Test-Path \"$dir\\uninstall.ps1\") { & \"$dir\\uninstall.ps1\" -Quiet -SourceDir \"$dir\" }",
     "checkver": {
