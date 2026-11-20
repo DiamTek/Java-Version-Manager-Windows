@@ -1212,12 +1212,16 @@ Safely purges temporary installation archives, failed download caches, and orpha
 jvm clean
 ```
 * **What it cleans:**
+  * Incomplete downloads and partial artifacts: `%LOCALAPPDATA%\DiamTek\JVM\temp\*.part` and `%LOCALAPPDATA%\DiamTek\JVM\temp\jdk_*_download.*`.
+  * Content-Addressed Storage (CAS) cached installation archives: `%LOCALAPPDATA%\DiamTek\JVM\cache\sha256\*\*.zip`.
+  * Cached vendor inventory and tool catalogs: `%LOCALAPPDATA%\DiamTek\JVM\cache\*.cache`.
   * `%TEMP%\jdk_*_download.zip` and `.tar.gz` installer archives.
   * Stale `%TEMP%\jdk_*_extract` extraction workspaces.
   * Transient script artifacts: `%TEMP%\jvm_dl_*.ps1`, `%TEMP%\jvm_install_*.ps1`, `%TEMP%\jvm_updater_*.bat`, `%TEMP%\jvm_uninstall_*.bat`, and `%TEMP%\jvm_uninstall_*.ps1`.
   * Staged candidate temporary directories: `%LOCALAPPDATA%\DiamTek\JVM\candidates\*\temp_*`.
   * Temporary download staging files: `%LOCALAPPDATA%\DiamTek\JVM\downloads\*`.
   * Ephemeral session cache targets: `%LOCALAPPDATA%\DiamTek\JVM\temp\.jvm_session_target_*`.
+* **Automatic Temp Pruning:** In addition to manual cleaning, JVM automatically prunes stale temporary download artifacts, partial files (`.part`), and transient runner scripts older than 5 minutes whenever temporary directories are initialized or downloads finish.
 * **Safety Guarantee:** `jvm clean` is completely non-destructive. It never modifies your active JDKs, candidate tools, directory junctions, or Windows Registry settings.
 
 #### Environment Slate Wipe (`jvm clear`)

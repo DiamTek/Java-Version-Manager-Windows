@@ -63,7 +63,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.1.1"
-set "JVM_BUILD=20261116.184"
+set "JVM_BUILD=20261120.185"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -2343,35 +2343,42 @@ set "ORACLE_LATEST_LTS="
 set "CACHE_FILE=%LOCALAPPDATA%\DiamTek\JVM\cache\inventory.cache"
 set "LOADED_FROM_CACHE=0"
 if exist "!CACHE_FILE!" if "!NEEDS_RESCAN!"=="0" (
-    rem Fast-path: Load cached inventory
-    for /f "usebackq tokens=1-6 delims=|" %%1 in ("!CACHE_FILE!") do (
-        if "%%1"=="JDK" if exist "%%2\bin\java.exe" (
-            set /a JDK_COUNT+=1
-            set "JDK_PATH_!JDK_COUNT!=%%2"
-            set "JDK_MAJOR_!JDK_COUNT!=%%3"
-            set "JDK_NAME_!JDK_COUNT!=%%4"
-            set "JDK_VENDOR_!JDK_COUNT!=%%5"
-            set "JDK_TYPE_!JDK_COUNT!=%%6"
-            if %%3 GTR !LATEST_VER_NUM! (
-                set "LATEST_VER_NUM=%%3"
-                set "LATEST_JDK_PATH=%%2"
-                set "LATEST_JDK_NAME=%%4"
-            )
-            set "IS_LTS="
-            if %%3==8 set "IS_LTS=1"
-            if %%3==11 set "IS_LTS=1"
-            if %%3==17 set "IS_LTS=1"
-            if %%3==21 set "IS_LTS=1"
-            if %%3==25 set "IS_LTS=1"
-            if %%3==29 set "IS_LTS=1"
-            if defined IS_LTS (
-                if %%3 GTR !LATEST_LTS_NUM! (
-                    set "LATEST_LTS_NUM=%%3"
+    rem Validate cache freshness: check if any standard JDK root directory was modified after the cache
+    set "CACHE_IS_STALE="
+    for /f "delims=" %%S in ('"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$c = $env:CACHE_FILE; if (-not (Test-Path -LiteralPath $c)) { Write-Output 'STALE'; exit }; $ct = (Get-Item -LiteralPath $c).LastWriteTimeUtc; $locs = @($env:ProgramFiles + '\Java', ${env:ProgramFiles(x86)} + '\Java', $env:SystemDrive + '\Java', $env:USERPROFILE + '\.jdks', $env:ProgramFiles + '\Eclipse Adoptium', $env:ProgramFiles + '\Amazon Corretto', $env:ProgramFiles + '\Zulu', $env:ProgramFiles + '\BellSoft', $env:ProgramFiles + '\Semeru', $env:ProgramFiles + '\Microsoft'); foreach ($l in $locs) { if (Test-Path -LiteralPath $l) { if ((Get-Item -LiteralPath $l).LastWriteTimeUtc -gt $ct) { Write-Output 'STALE'; exit } } }; Write-Output 'FRESH'" 2^>nul') do (
+        if "%%S"=="STALE" set "CACHE_IS_STALE=1"
+    )
+    if not defined CACHE_IS_STALE (
+        rem Fast-path: Load cached inventory
+        for /f "usebackq tokens=1-6 delims=|" %%1 in ("!CACHE_FILE!") do (
+            if "%%1"=="JDK" if exist "%%2\bin\java.exe" (
+                set /a JDK_COUNT+=1
+                set "JDK_PATH_!JDK_COUNT!=%%2"
+                set "JDK_MAJOR_!JDK_COUNT!=%%3"
+                set "JDK_NAME_!JDK_COUNT!=%%4"
+                set "JDK_VENDOR_!JDK_COUNT!=%%5"
+                set "JDK_TYPE_!JDK_COUNT!=%%6"
+                if %%3 GTR !LATEST_VER_NUM! (
+                    set "LATEST_VER_NUM=%%3"
+                    set "LATEST_JDK_PATH=%%2"
+                    set "LATEST_JDK_NAME=%%4"
+                )
+                set "IS_LTS="
+                if %%3==8 set "IS_LTS=1"
+                if %%3==11 set "IS_LTS=1"
+                if %%3==17 set "IS_LTS=1"
+                if %%3==21 set "IS_LTS=1"
+                if %%3==25 set "IS_LTS=1"
+                if %%3==29 set "IS_LTS=1"
+                if defined IS_LTS (
+                    if %%3 GTR !LATEST_LTS_NUM! (
+                        set "LATEST_LTS_NUM=%%3"
+                    )
                 )
             )
         )
+        if !JDK_COUNT! GTR 0 set "LOADED_FROM_CACHE=1"
     )
-    if !JDK_COUNT! GTR 0 set "LOADED_FROM_CACHE=1"
 )
 
 if "!LOADED_FROM_CACHE!"=="0" (
@@ -2592,17 +2599,47 @@ if defined CLI_COMMAND (
             set "CMD_EXIT_CODE=!errorlevel!"
             goto :CLI_DONE
         )
-        echo. 
-        echo %cBLUE%[  INFO  ]%cRESET% Installed Java Runtimes:
-        echo ============================================================
+        set /a LIST_JDK_COUNT=0
+        set /a LIST_JRE_COUNT=0
         for /l %%k in (1,1,!JDK_COUNT!) do (
-            set "ACTIVE_TAG="
-            if /i "!JDK_PATH_%%k!"=="!RESOLVED_JAVA_HOME!" set "ACTIVE_TAG= %cGREEN%[ACTIVE]%cRESET%"
-            set "TYPE_TAG="
-            if /i "!JDK_TYPE_%%k!"=="JRE" set "TYPE_TAG= %cYELLOW%[JRE]%cRESET%"
-            echo  %%k. JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^) - !JDK_VENDOR_%%k!!TYPE_TAG!!ACTIVE_TAG!
-            echo     Path: !JDK_PATH_%%k!
-            echo.
+            if /i "!JDK_TYPE_%%k!"=="JRE" (
+                set /a LIST_JRE_COUNT+=1
+            ) else (
+                set /a LIST_JDK_COUNT+=1
+            )
+        )
+        echo. 
+        echo %cBLUE%[  INFO  ]%cRESET% Installed Java Development Kits ^(JDK^):
+        echo ============================================================
+        if !LIST_JDK_COUNT! EQU 0 (
+            echo   No JDKs installed. Run 'jvm install ^<version^>' to install a JDK.
+        ) else (
+            for /l %%k in (1,1,!JDK_COUNT!) do (
+                if /i "!JDK_TYPE_%%k!" NEQ "JRE" (
+                    set "ACTIVE_TAG="
+                    if /i "!JDK_PATH_%%k!"=="!RESOLVED_JAVA_HOME!" set "ACTIVE_TAG= %cGREEN%[ACTIVE]%cRESET%"
+                    echo  %%k. JDK !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^) - !JDK_VENDOR_%%k!!ACTIVE_TAG!
+                    echo     Path: !JDK_PATH_%%k!
+                    echo.
+                )
+            )
+        )
+        echo ============================================================
+        echo.
+        echo %cBLUE%[  INFO  ]%cRESET% Installed Java Runtime Environments ^(JRE^):
+        echo ============================================================
+        if !LIST_JRE_COUNT! EQU 0 (
+            echo   No standalone JREs installed.
+        ) else (
+            for /l %%k in (1,1,!JDK_COUNT!) do (
+                if /i "!JDK_TYPE_%%k!"=="JRE" (
+                    set "ACTIVE_TAG="
+                    if /i "!JDK_PATH_%%k!"=="!RESOLVED_JAVA_HOME!" set "ACTIVE_TAG= %cGREEN%[ACTIVE]%cRESET%"
+                    echo  %%k. JRE !JDK_MAJOR_%%k! ^(!JDK_NAME_%%k!^) - !JDK_VENDOR_%%k! %cYELLOW%[JRE]%cRESET%!ACTIVE_TAG!
+                    echo     Path: !JDK_PATH_%%k!
+                    echo.
+                )
+            )
         )
         echo ============================================================
         call :ListEcosystemCandidates
@@ -2838,19 +2875,64 @@ if defined CLI_COMMAND (
                 echo %cBLUE%[ ACTION ]%cRESET% Automatically updating all !CLI_VENDOR! JDKs...
                 echo.
                 for /l %%k in (1,1,!JDK_COUNT!) do (
-                    if /i "!JDK_VENDOR_%%k!"=="!CLI_VENDOR!" call :ProcessSingleUpdate %%k
+                    if /i "!JDK_VENDOR_%%k!"=="!CLI_VENDOR!" if /i "!JDK_TYPE_%%k!" NEQ "JRE" call :ProcessSingleUpdate %%k
                 )
             ) else (
-                echo %cBLUE%[ ACTION ]%cRESET% Automatically updating ALL JDKs and Ecosystem Tools...
-                for /l %%k in (1,1,!JDK_COUNT!) do call :ProcessSingleUpdate %%k
+                set /a UPD_JDK_CNT=0
+                set /a UPD_JRE_CNT=0
+                set /a UPD_ECO_CNT=0
+                for /l %%k in (1,1,!JDK_COUNT!) do (
+                    if /i "!JDK_TYPE_%%k!"=="JRE" (
+                        set /a UPD_JRE_CNT+=1
+                    ) else (
+                        set /a UPD_JDK_CNT+=1
+                    )
+                )
                 for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut) do (
-                    if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current" (
-                        set "act_ver=none"
-                        set "QUERY_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current"
-                        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do for %%X in ("%%A") do set "act_ver=%%~nxX"
-                        call :ValidateStrictIdentifier "!act_ver!" act_ver
-                        if errorlevel 1 set "act_ver=none"
-                        call :EcoPerformCheck %%T "!act_ver!"
+                    if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current" set /a UPD_ECO_CNT+=1
+                )
+                echo %cBLUE%[ ACTION ]%cRESET% Automatically updating ALL JDKs, JREs, and Ecosystem Tools...
+                echo.
+                echo ============================================================
+                echo %cBLUE%[  INFO  ]%cRESET% Java Development Kits ^(JDK^)
+                echo ============================================================
+                if !UPD_JDK_CNT! EQU 0 (
+                    echo   No JDKs installed to update.
+                ) else (
+                    set "IS_FIRST_UPDATE_ITEM=1"
+                    for /l %%k in (1,1,!JDK_COUNT!) do (
+                        if /i "!JDK_TYPE_%%k!" NEQ "JRE" call :ProcessSingleUpdate %%k
+                    )
+                )
+                echo.
+                echo ============================================================
+                echo %cBLUE%[  INFO  ]%cRESET% Java Runtime Environments ^(JRE^)
+                echo ============================================================
+                if !UPD_JRE_CNT! EQU 0 (
+                    echo   No standalone JREs installed to update.
+                ) else (
+                    set "IS_FIRST_UPDATE_ITEM=1"
+                    for /l %%k in (1,1,!JDK_COUNT!) do (
+                        if /i "!JDK_TYPE_%%k!"=="JRE" call :ProcessSingleUpdate %%k
+                    )
+                )
+                echo.
+                echo ============================================================
+                echo %cBLUE%[  INFO  ]%cRESET% Ecosystem Tools
+                echo ============================================================
+                if !UPD_ECO_CNT! EQU 0 (
+                    echo   No ecosystem candidates installed to update.
+                ) else (
+                    set "IS_FIRST_ECO_ITEM=1"
+                    for %%T in (maven gradle kotlin scala groovy ant sbt jbang quarkus spring micronaut) do (
+                        if exist "%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current" (
+                            set "act_ver=none"
+                            set "QUERY_PATH=%LOCALAPPDATA%\DiamTek\JVM\candidates\%%T\current"
+                            for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do for %%X in ("%%A") do set "act_ver=%%~nxX"
+                            call :ValidateStrictIdentifier "!act_ver!" act_ver
+                            if errorlevel 1 set "act_ver=none"
+                            call :EcoPerformCheck %%T "!act_ver!"
+                        )
                     )
                 )
             )
@@ -3584,7 +3666,11 @@ if errorlevel 1 set "CHK_ACT=none"
 set "TARGET_CANDIDATE=!CHK_T!"
 set "c_dir=%LOCALAPPDATA%\DiamTek\JVM\candidates\!CHK_T!"
 call :GetCandidateEnvVar
-echo ------------------------------------------------------------
+if "!IS_FIRST_ECO_ITEM!"=="1" (
+    set "IS_FIRST_ECO_ITEM=0"
+) else (
+    echo ------------------------------------------------------------
+)
 echo %cBLUE%[ ACTION ]%cRESET% Analyzing !CANDIDATE_PROPER_NAME!...
 echo %cBLUE%[  INFO  ]%cRESET% Checking vendor API for updates...
 echo %cBLUE%[  INFO  ]%cRESET% Active version: !CHK_ACT!
@@ -3634,21 +3720,16 @@ if "!LATEST_VER!"=="ERROR" (
             call :InstallCandidate
             set "IS_UPDATER="
             if exist "!c_dir!\!LATEST_VER!" (
-                call :SwitchCandidate "!LATEST_VER!"
-                if not errorlevel 1 (
-                    set /a ECO_UPDATE_SUCCESS+=1
-                    for /d %%V in ("!c_dir!\*") do (
-                        set "V_NAME=%%~nxV"
-                        call :ValidateStrictIdentifier "!V_NAME!" V_NAME
-                        if not errorlevel 1 (
-                            if /i not "!V_NAME!"=="current" if /i not "!V_NAME!"=="!LATEST_VER!" (
-                                set "OLD_CAND_DIR=%%~fV"
-                                "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:OLD_CAND_DIR; if (Test-Path -LiteralPath $d) { Get-ChildItem -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { [System.IO.File]::Delete($_.FullName) } }; Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue }" >nul 2>&1
-                            )
+                set /a ECO_UPDATE_SUCCESS+=1
+                for /d %%V in ("!c_dir!\*") do (
+                    set "V_NAME=%%~nxV"
+                    call :ValidateStrictIdentifier "!V_NAME!" V_NAME
+                    if not errorlevel 1 (
+                        if /i not "!V_NAME!"=="current" if /i not "!V_NAME!"=="!LATEST_VER!" (
+                            set "OLD_CAND_DIR=%%~fV"
+                            "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:OLD_CAND_DIR; if (Test-Path -LiteralPath $d) { Get-ChildItem -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { [System.IO.File]::Delete($_.FullName) } }; Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue }" >nul 2>&1
                         )
                     )
-                ) else (
-                    set /a ECO_UPDATE_ERRORS+=1
                 )
             ) else (
                 set /a ECO_UPDATE_ERRORS+=1
@@ -3663,16 +3744,7 @@ if "!LATEST_VER!"=="ERROR" (
                 call :InstallCandidate
                 set "IS_UPDATER="
                 if exist "!c_dir!\!LATEST_VER!" (
-                    echo.
-                    echo %cBLUE%[ ACTION ]%cRESET% Activating newly installed !CANDIDATE_PROPER_NAME! !LATEST_VER!...
-                    call :SwitchCandidate "!LATEST_VER!"
-                    if not errorlevel 1 (
-                        set /a ECO_UPDATE_SUCCESS+=1
-                        echo %cGREEN%[   OK   ]%cRESET% !CANDIDATE_PROPER_NAME! !LATEST_VER! is now active^^!
-                    ) else (
-                        set /a ECO_UPDATE_ERRORS+=1
-                        echo %cRED%[ ERROR  ]%cRESET% Failed to activate !CANDIDATE_PROPER_NAME! !LATEST_VER!.
-                    )
+                    set /a ECO_UPDATE_SUCCESS+=1
                 ) else (
                     set /a ECO_UPDATE_ERRORS+=1
                     echo.
@@ -4613,6 +4685,7 @@ if !errorlevel! NEQ 0 (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% The installation failed.
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
+    if exist "!ZIP_PATH!.part" del /f /q "!ZIP_PATH!.part" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
     call :RollbackTransaction
     if "!CLI_COMMAND!"=="" pause
@@ -5452,6 +5525,7 @@ if !ROOT_COUNT! EQU 0 (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% Could not locate the extracted JDK folder.
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
+    if exist "!ZIP_PATH!.part" del /f /q "!ZIP_PATH!.part" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
     call :RollbackTransaction
     if "!CLI_COMMAND!"=="" pause
@@ -5464,6 +5538,7 @@ if !ROOT_COUNT! GTR 1 (
     echo %cRED%[ ERROR  ]%cRESET% Invalid archive structure: Multiple root folders detected in the ZIP.
     echo %cYELLOW%[ DETAIL ]%cRESET% Expected exactly 1 root folder, but found !ROOT_COUNT!.
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
+    if exist "!ZIP_PATH!.part" del /f /q "!ZIP_PATH!.part" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
     call :RollbackTransaction
     if "!CLI_COMMAND!"=="" pause
@@ -5476,6 +5551,7 @@ if errorlevel 1 (
     echo.
     echo %cRED%[ ERROR  ]%cRESET% Security validation failed: Malformed folder name extracted from archive.
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
+    if exist "!ZIP_PATH!.part" del /f /q "!ZIP_PATH!.part" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
     call :RollbackTransaction
     if "!CLI_COMMAND!"=="" pause
@@ -5487,6 +5563,7 @@ echo.
 echo %cBLUE%[ ACTION ]%cRESET% Installing !NEW_FOLDER! to system directory...
 "%PS_BIN%" -NoProfile -Command "$d = $env:DEST_DIR; $f = $env:NEW_FOLDER; $e = $env:EXTRACT_DIR; $b64d = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($d)); $b64f = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($f)); $b64e = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($e)); $script = '$d = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64d + ''')); $f = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64f + ''')); $e = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64e + ''')); if (-not (Test-Path -LiteralPath $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }; $fullD = [System.IO.Path]::GetFullPath($d).TrimEnd(''\'') + ''\''; $t = [System.IO.Path]::GetFullPath((Join-Path $d $f)); if (-not $t.StartsWith($fullD, [System.StringComparison]::OrdinalIgnoreCase)) { throw ''Path traversal detected in destination folder'' }; $bak = $t + ''.jvm_bak_'' + [Guid]::NewGuid().ToString(''N''); if (Test-Path -LiteralPath $t) { Move-Item -LiteralPath $t -Destination $bak -Force }; try { Move-Item -LiteralPath (Join-Path $e $f) -Destination $d -Force; if (Test-Path -LiteralPath $bak) { Remove-Item -LiteralPath $bak -Recurse -Force -ErrorAction SilentlyContinue } } catch { if (Test-Path -LiteralPath $bak) { if (Test-Path -LiteralPath $t) { Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue }; Move-Item -LiteralPath $bak -Destination $t -Force -ErrorAction SilentlyContinue }; throw } finally { if (Test-Path -LiteralPath $e) { Remove-Item -LiteralPath $e -Recurse -Force -ErrorAction SilentlyContinue } }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; try { $p = Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -PassThru -ArgumentList @('-NoProfile', '-EncodedCommand', $enc); try { if ($p.ExitCode -ne 0) { exit $p.ExitCode } } finally { if ($null -ne $p) { $p.Dispose() } } } catch { exit 1 }" 2>nul
 if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
+if exist "!ZIP_PATH!.part" del /f /q "!ZIP_PATH!.part" >nul 2>&1
 if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
 
 call :ReleaseStateLock
@@ -5507,6 +5584,7 @@ if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
         )
         set "UPDATER_OLD_PATH="
     )
+    call :AutoCleanStaleTemp
     if "!FLAG_CREATE_LOCK!"=="1" (
         set "ENTRY_CANDIDATE=java"
         set "ENTRY_VENDOR=!DL_VENDOR!"
@@ -6270,7 +6348,11 @@ set "UP_MAJOR=!JDK_MAJOR_%UP_IDX%!"
 set "UP_NAME=!JDK_NAME_%UP_IDX%!"
 set "UP_VENDOR=!JDK_VENDOR_%UP_IDX%!"
 
-echo ------------------------------------------------------------
+if "!IS_FIRST_UPDATE_ITEM!"=="1" (
+    set "IS_FIRST_UPDATE_ITEM=0"
+) else (
+    echo ------------------------------------------------------------
+)
 echo %cBLUE%[ ACTION ]%cRESET% Analyzing !UP_NAME! ^(!UP_VENDOR!^)...
 
 set "VENDOR_SUPPORTED="
@@ -9573,7 +9655,7 @@ echo %cBLUE%[ ACTION ]%cRESET% Scanning temporary files, installer archives, and
 if exist "%LOCALAPPDATA%\DiamTek\JVM\cache\inventory.cache" del /f /q "%LOCALAPPDATA%\DiamTek\JVM\cache\inventory.cache" >nul 2>&1
 set "FREED_MB=0"
 set "FREED_COUNT=0"
-set "CLEAN_CMD=$temp = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM\temp'); $appdata = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM'); $patterns = @((Join-Path $temp 'jdk_*_download.*'), (Join-Path $temp 'jdk_*_extract'), (Join-Path $temp 'jvm_*_*.zip'), (Join-Path $temp 'jvm_*_*_temp'), (Join-Path $temp 'verify_*.txt'), (Join-Path $temp 'jvm_remote_build_*.txt'), (Join-Path $temp 'jvm_dl_*.ps1'), (Join-Path $temp 'jvm_updater_*.bat'), (Join-Path $temp 'jvm_install_*.ps1'), (Join-Path $temp 'jvm_uninstall_*.bat'), (Join-Path $temp 'jvm_uninstall_*.ps1'), (Join-Path $temp '.jvm_session_target*'), (Join-Path $appdata 'downloads\*'), (Join-Path $appdata 'candidates\*\temp_*')); $totalBytes = 0; $fileCount = 0; foreach ($p in $patterns) { Get-Item $p -Force -ErrorAction SilentlyContinue | ForEach-Object { if (($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { $fileCount++; if ($_.PSIsContainer) { try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { Write-Verbose $_.Exception.Message } } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } elseif ($_.PSIsContainer) { Get-ChildItem -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { Write-Verbose $_.Exception.Message } } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } }; $subFiles = Get-ChildItem -LiteralPath $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue; foreach ($sf in $subFiles) { $totalBytes += $sf.Length; $fileCount++ }; Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } else { $totalBytes += $_.Length; $fileCount++; Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }; $mb = [math]::Round($totalBytes / 1MB, 2); Write-Output ('FREED_MB=' + $mb); Write-Output ('FREED_COUNT=' + $fileCount)"
+set "CLEAN_CMD=$temp = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM\temp'); $appdata = [System.IO.Path]::Combine($env:LOCALAPPDATA, 'DiamTek\JVM'); $patterns = @((Join-Path $temp 'jdk_*_download.*'), (Join-Path $temp '*.part'), (Join-Path $temp 'jdk_*_extract'), (Join-Path $temp 'jvm_*_*.zip'), (Join-Path $temp 'jvm_*_*_temp'), (Join-Path $temp 'verify_*.txt'), (Join-Path $temp 'jvm_remote_build_*.txt'), (Join-Path $temp 'jvm_dl_*.ps1'), (Join-Path $temp 'jvm_cfg_*.ps1'), (Join-Path $temp 'jvm_exec_*.cmd'), (Join-Path $temp 'jvm_lock_parse_*.ps1'), (Join-Path $temp 'jvm_updater_*.bat'), (Join-Path $temp 'jvm_install_*.ps1'), (Join-Path $temp 'jvm_uninstall_*.bat'), (Join-Path $temp 'jvm_uninstall_*.ps1'), (Join-Path $temp '.jvm_session_target*'), (Join-Path $appdata 'downloads\*'), (Join-Path $appdata 'candidates\*\temp_*'), (Join-Path $appdata 'cache\sha256\*\*.zip')); $totalBytes = 0; $fileCount = 0; foreach ($p in $patterns) { Get-Item $p -Force -ErrorAction SilentlyContinue | ForEach-Object { if (($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { $fileCount++; if ($_.PSIsContainer) { try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { Write-Verbose $_.Exception.Message } } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } elseif ($_.PSIsContainer) { Get-ChildItem -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { try { [System.IO.Directory]::Delete($_.FullName, $false) } catch { Write-Verbose $_.Exception.Message } } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } }; $subFiles = Get-ChildItem -LiteralPath $_.FullName -Recurse -File -Force -ErrorAction SilentlyContinue; foreach ($sf in $subFiles) { $totalBytes += $sf.Length; $fileCount++ }; Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } else { $totalBytes += $_.Length; $fileCount++; Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }; $casDir = Join-Path $appdata 'cache\sha256'; if (Test-Path -LiteralPath $casDir) { Get-ChildItem -LiteralPath $casDir -Directory -ErrorAction SilentlyContinue | Where-Object { (Get-ChildItem -LiteralPath $_.FullName -Recurse -File -ErrorAction SilentlyContinue).Count -eq 0 } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }; $mb = [math]::Round($totalBytes / 1MB, 2); Write-Output ('FREED_MB=' + $mb); Write-Output ('FREED_COUNT=' + $fileCount)"
 for /f "tokens=1,2 delims==" %%A in ('%PS_BIN% -NoProfile -Command "!CLEAN_CMD!"') do (
     if "%%A"=="FREED_MB" set "FREED_MB=%%B"
     if "%%A"=="FREED_COUNT" set "FREED_COUNT=%%B"
@@ -11758,6 +11840,7 @@ call :ExecuteSharedDownloader
 if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Failed to download/verify locked JDK !T_VER! ^(!T_VEND!^).
     if exist "!ZIP_PATH!" del /f /q "!ZIP_PATH!" >nul 2>&1
+    if exist "!ZIP_PATH!.part" del /f /q "!ZIP_PATH!.part" >nul 2>&1
     if exist "!EXTRACT_DIR!" rmdir /s /q "!EXTRACT_DIR!" >nul 2>&1
     exit /b 1
 )
@@ -13156,6 +13239,7 @@ call :BeginTransaction "install" "!TARGET_CANDIDATE!-!TARGET_VER!" "!EXTRACT_DES
 call :ExecuteSharedDownloader
 if !errorlevel! NEQ 0 (
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
+    if exist "!ZIP_DEST!.part" del /f /q "!ZIP_DEST!.part" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
     call :RollbackTransaction
     call :ReleaseStateLock
@@ -13174,6 +13258,7 @@ if errorlevel 1 (
     echo %cRED%[ ERROR  ]%cRESET% Failed to move extracted !CANDIDATE_PROPER_NAME! into destination. Rolling back...
     if exist "!EXTRACT_DEST_OLD!" move /Y "!EXTRACT_DEST_OLD!" "!EXTRACT_DEST!" >nul 2>&1
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
+    if exist "!ZIP_DEST!.part" del /f /q "!ZIP_DEST!.part" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
     call :RollbackTransaction
     call :ReleaseStateLock
@@ -13184,6 +13269,7 @@ if not exist "!EXTRACT_DEST!" (
     echo %cRED%[ ERROR  ]%cRESET% Destination directory missing after move. Rolling back...
     if exist "!EXTRACT_DEST_OLD!" move /Y "!EXTRACT_DEST_OLD!" "!EXTRACT_DEST!" >nul 2>&1
     if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
+    if exist "!ZIP_DEST!.part" del /f /q "!ZIP_DEST!.part" >nul 2>&1
     if exist "!EXTRACT_DEST_TEMP!" rmdir /S /Q "!EXTRACT_DEST_TEMP!" >nul 2>&1
     call :RollbackTransaction
     call :ReleaseStateLock
@@ -13194,6 +13280,8 @@ if exist "!EXTRACT_DEST_OLD!" (
     "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:EXTRACT_DEST_OLD; if (Test-Path -LiteralPath $d) { Get-ChildItem -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [System.IO.FileAttributes]::ReparsePoint } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { [System.IO.File]::Delete($_.FullName) } }; Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 )
 if exist "!ZIP_DEST!" del /f /q "!ZIP_DEST!" >nul 2>&1
+if exist "!ZIP_DEST!.part" del /f /q "!ZIP_DEST!.part" >nul 2>&1
+call :AutoCleanStaleTemp
 echo.
 
 echo %cBLUE%[ ACTION ]%cRESET% Validating and activating candidate...
@@ -13437,31 +13525,38 @@ echo.
 echo %cBLUE%[  INFO  ]%cRESET% Installed Ecosystem Tools:
 echo ============================================================
 for /d %%K in ("%LOCALAPPDATA%\DiamTek\JVM\candidates\*") do (
-    set "TARGET_CANDIDATE=%%~nxK"
-    call :GetCandidateEnvVar
-    echo  - !CANDIDATE_PROPER_NAME!
-    
-    set "ACTIVE_TARGET="
-    for /f "tokens=2 delims=[]" %%X in ('dir /al "%%K" 2^>nul') do set "ACTIVE_TARGET=%%X"
-    if not defined ACTIVE_TARGET (
-        set "QUERY_PATH=%%K\current"
-        for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "ACTIVE_TARGET=%%A"
+    set "HAS_VERSIONS="
+    for /d %%D in ("%%K\*") do (
+        if /i not "%%~nxD"=="current" set "HAS_VERSIONS=1"
     )
-    if defined ACTIVE_TARGET (
-        set "ACTIVE_TARGET=!ACTIVE_TARGET:\??\=!"
-        set "ACTIVE_TARGET=!ACTIVE_TARGET:\\?\=!"
-        for /f "tokens=*" %%A in ("!ACTIVE_TARGET!") do set "ACTIVE_TARGET=%%A"
-    )
+    if defined HAS_VERSIONS (
+        set "TARGET_CANDIDATE=%%~nxK"
+        call :GetCandidateEnvVar
+        echo  - !CANDIDATE_PROPER_NAME!
+        
+        set "ACTIVE_TARGET="
+        for /f "tokens=2 delims=[]" %%X in ('dir /al "%%K" 2^>nul') do set "ACTIVE_TARGET=%%X"
+        if not defined ACTIVE_TARGET (
+            set "QUERY_PATH=%%K\current"
+            for /f "delims=" %%A in ('%PS_BIN% -NoProfile -Command "(Get-Item -LiteralPath $env:QUERY_PATH -ErrorAction SilentlyContinue).Target" 2^>nul') do set "ACTIVE_TARGET=%%A"
+        )
+        if defined ACTIVE_TARGET (
+            set "ACTIVE_TARGET=!ACTIVE_TARGET:\??\=!"
+            set "ACTIVE_TARGET=!ACTIVE_TARGET:\\?\=!"
+            for /f "tokens=*" %%A in ("!ACTIVE_TARGET!") do set "ACTIVE_TARGET=%%A"
+        )
 
-    for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -LiteralPath '%%K' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name"') do (
-        set "V_NAME=%%V"
-        set "IS_ACTIVE="
-        for /f "delims=" %%A in ("%%~fK\%%V") do set "TP=%%~fA"
-        if /i "!ACTIVE_TARGET!"=="!TP!" set "IS_ACTIVE= %cGREEN%[ACTIVE]%cRESET%"
-        echo      * !V_NAME!!IS_ACTIVE!
+        for /f "delims=" %%V in ('%PS_BIN% -NoProfile -Command "Get-ChildItem -LiteralPath '%%K' -Directory | Where-Object { $_.Name -ne 'current' } | Sort-Object { $r=($_.Name -replace '-.*','').Trim(); if ($r -match '^\d+$') { [version]\"$r.0\" } elseif ($r -match '^\d+(\.\d+)+$') { [version]$r } else { [version]'0.0' } } -Descending | Select-Object -ExpandProperty Name"') do (
+            set "V_NAME=%%V"
+            set "IS_ACTIVE="
+            for /f "delims=" %%A in ("%%~fK\%%V") do set "TP=%%~fA"
+            if /i "!ACTIVE_TARGET!"=="!TP!" set "IS_ACTIVE= %cGREEN%[ACTIVE]%cRESET%"
+            echo      * !V_NAME!!IS_ACTIVE!
+        )
+        echo.
     )
-    echo.
 )
+echo ============================================================
 exit /b 0
 
 :ListJdksJson
@@ -13982,6 +14077,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo                 Write-Host "           Expected: $expectedHash" -ForegroundColor Red
     echo                 Write-Host "           Actual:   $actualHash" -ForegroundColor Red
     echo                 if ^(Test-Path $out^) { Remove-Item $out -Force -ErrorAction SilentlyContinue }
+    echo                 if ^($partFile -and ^(Test-Path -LiteralPath $partFile^)^) { Remove-Item -LiteralPath $partFile -Force -ErrorAction SilentlyContinue }
     echo                 exit 1
     echo             }
     echo             Write-Host '[   OK   ] Checksum verified successfully.' -ForegroundColor Green
@@ -13990,6 +14086,13 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo             if ^(-not ^(Test-Path $subDir^)^) { New-Item -ItemType Directory -Path $subDir -Force ^| Out-Null }
     echo             $casZip = Join-Path $subDir ^($actualHash + '.zip'^)
     echo             Copy-Item -LiteralPath $out -Destination $casZip -Force -ErrorAction SilentlyContinue
+    echo             $allCas = Get-ChildItem -LiteralPath $casDir -Recurse -File -Filter '*.zip' -ErrorAction SilentlyContinue ^| Sort-Object LastWriteTime -Descending
+    echo             $casBytes = 0L
+    echo             foreach ^($cf in $allCas^) {
+    echo                 $casBytes += $cf.Length
+    echo                 if ^($casBytes -gt 1073741824L^) { Remove-Item -LiteralPath $cf.FullName -Force -ErrorAction SilentlyContinue }
+    echo             }
+    echo             Get-ChildItem -LiteralPath $casDir -Directory -ErrorAction SilentlyContinue ^| Where-Object { ^(Get-ChildItem -LiteralPath $_.FullName -Recurse -File -ErrorAction SilentlyContinue^).Count -eq 0 } ^| Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     echo             Write-Host ""
     echo         }
     echo     }
@@ -14078,6 +14181,7 @@ rem CWE-400 Downloader Range pattern: $req.AddRange([int64]$existingLen)
     echo     if ^($env:USERPROFILE^) { $errMsg = $errMsg.Replace^($env:USERPROFILE, '%%USERPROFILE%%'^) }
     echo     Write-Host ^('[ DETAIL ] ' + $errMsg^) -ForegroundColor Yellow
     echo     if ^(Test-Path -LiteralPath $out^) { Remove-Item -LiteralPath $out -Force -ErrorAction SilentlyContinue }
+    echo     if ^($partFile -and ^(Test-Path -LiteralPath $partFile^)^) { Remove-Item -LiteralPath $partFile -Force -ErrorAction SilentlyContinue }
     echo     if ^($env:DL_EXTRACT -and ^(Test-Path -LiteralPath $env:DL_EXTRACT^)^) {
     echo         Get-ChildItem -LiteralPath $env:DL_EXTRACT -Recurse -Force -ErrorAction SilentlyContinue ^| Where-Object { ^($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint^) -eq [System.IO.FileAttributes]::ReparsePoint } ^| ForEach-Object { if ^($_.PSIsContainer^) { [System.IO.Directory]::Delete^($_.FullName^) } else { [System.IO.File]::Delete^($_.FullName^) } }
     echo         Remove-Item -LiteralPath $env:DL_EXTRACT -Recurse -Force -ErrorAction SilentlyContinue
@@ -14095,6 +14199,11 @@ if not exist "!PS_SCRIPT!" (
 "%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
 set PS_EXIT_CODE=!errorlevel!
 if exist "!PS_SCRIPT!" del "!PS_SCRIPT!" >nul 2>&1
+if !PS_EXIT_CODE! NEQ 0 (
+    if exist "!DL_ZIP!" del /f /q "!DL_ZIP!" >nul 2>&1
+    if exist "!DL_ZIP!.part" del /f /q "!DL_ZIP!.part" >nul 2>&1
+)
+call :AutoCleanStaleTemp
 exit /b !PS_EXIT_CODE!
 
 :BackupRegistry
@@ -14179,6 +14288,13 @@ if errorlevel 1 (
 )
 
 set "JVM_SECURE_TEMP_READY=1"
+call :AutoCleanStaleTemp
+exit /b 0
+
+:AutoCleanStaleTemp
+set "_TEMP_DIR=%JVM_SECURE_TEMP%"
+if not exist "!_TEMP_DIR!" exit /b 0
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t = $env:_TEMP_DIR; if (Test-Path -LiteralPath $t) { $cutoff = (Get-Date).AddMinutes(-5); Get-ChildItem -LiteralPath $t -Force -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt $cutoff -and ($_.Name -like '*.part' -or $_.Name -like 'jdk_*_download.*' -or $_.Name -like 'jdk_*_extract' -or $_.Name -like 'jvm_dl_*.ps1' -or $_.Name -like 'jvm_cfg_*.ps1' -or $_.Name -like 'jvm_exec_*.cmd' -or $_.Name -like 'jvm_lock_parse_*.ps1' -or $_.Name -like '.jvm_session_target_*') } | ForEach-Object { if ($_.PSIsContainer) { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }" >nul 2>&1
 exit /b 0
 
 :AcquireStateLock
@@ -14490,7 +14606,7 @@ if "!FLAG_DRY_RUN!"=="1" (
 )
 echo.
 echo %cBLUE%[ ACTION ]%cRESET% Pruning cache according to TTL and maximum size policies...
-"%PS_BIN%" -NoProfile -Command "$root = $env:CACHE_ROOT; $cfgPath = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\config.json'; $maxAge = 30; if (Test-Path -LiteralPath $cfgPath) { try { $c = Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json; if ($c.cache_max_age) { $maxAge = [int]$c.cache_max_age } } catch { Write-Verbose $_.Exception.Message } }; $shaRoot = Join-Path $root 'sha256'; if (Test-Path $shaRoot) { Get-ChildItem -LiteralPath $shaRoot -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastAccessTime -lt (Get-Date).AddDays(-$maxAge) } | Remove-Item -Force -ErrorAction SilentlyContinue }; Write-Host '[   OK   ] Cache prune complete.'"
+"%PS_BIN%" -NoProfile -Command "$root = $env:CACHE_ROOT; $cfgPath = Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\config.json'; $maxAge = 30; $maxBytes = 2147483648L; if (Test-Path -LiteralPath $cfgPath) { try { $c = Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json; if ($c.cache_max_age) { $maxAge = [int]$c.cache_max_age }; if ($c.cache_max_size) { $ms = [string]$c.cache_max_size; if ($ms -match '^(\d+)\s*GB$') { $maxBytes = [int64]$Matches[1] * 1073741824L } elseif ($ms -match '^(\d+)\s*MB$') { $maxBytes = [int64]$Matches[1] * 1048576L } } } catch { Write-Verbose $_.Exception.Message } }; $shaRoot = Join-Path $root 'sha256'; if (Test-Path $shaRoot) { $all = Get-ChildItem -LiteralPath $shaRoot -Recurse -File -Filter '*.zip' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending; $tot = 0L; foreach ($f in $all) { $tot += $f.Length; if ($f.LastWriteTime -lt (Get-Date).AddDays(-$maxAge) -or $tot -gt $maxBytes) { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue } }; Get-ChildItem -LiteralPath $shaRoot -Directory -ErrorAction SilentlyContinue | Where-Object { (Get-ChildItem -LiteralPath $_.FullName -Recurse -File -ErrorAction SilentlyContinue).Count -eq 0 } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }; Write-Host '[   OK   ] Cache prune complete.'"
 exit /b 0
 
 :CacheExport

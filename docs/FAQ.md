@@ -477,12 +477,16 @@ jvm clean
 ```
 
 ##### Complete Artifact Purge Scope:
+* **Incomplete & Partial Downloads:** Cleans orphaned `.part` files and temporary download archives (`%LOCALAPPDATA%\DiamTek\JVM\temp\*.part`, `jdk_*_download.*`).
+* **Content-Addressed Storage (CAS) Archives:** Cleans cached `.zip` installer payloads in `%LOCALAPPDATA%\DiamTek\JVM\cache\sha256\*\*.zip`.
+* **Vendor Catalogs & Inventory:** Purges stale inventory files (`%LOCALAPPDATA%\DiamTek\JVM\cache\*.cache`).
 * **Temporary Installer Archives:** Purges all cached `.zip` and `.tar.gz` downloads in `%TEMP%\jdk_*_download.*`.
 * **Intermediate Extraction Workspaces:** Recursively removes orphaned `%TEMP%\jdk_*_extract` extraction directory trees left behind from completed or interrupted unpack operations.
 * **Transient Helper Scripts:** Sweeps temporary PowerShell download runners and handoff batch scripts (`%TEMP%\jvm_dl_*.ps1`, `%TEMP%\jvm_install_*.ps1`, `%TEMP%\jvm_updater_*.bat`, `%TEMP%\jvm_uninstall_*.bat`, `%TEMP%\jvm_uninstall_*.ps1`).
 * **Candidate Tool Download Cache:** Empties `%LOCALAPPDATA%\DiamTek\JVM\downloads\*` where candidate tool zip payloads are staged during installation.
 * **Candidate Staging Directories:** Cleans transient extraction workspaces in `%LOCALAPPDATA%\DiamTek\JVM\candidates\*\temp_*`.
 * **Process Communication Files:** Removes stale `%TEMP%\.jvm_session_target` process session exchange files.
+* **Automatic 5-Minute Temp Sweep:** Proactively sweeps stale download files and helper scripts older than 5 minutes during normal CLI runtime initialization.
 
 ##### Safety & Non-Destructive Guarantee:
 * **100% Non-Destructive:** `jvm clean` never deletes installed JDK runtimes (`C:\Program Files\Java`), never removes registered ecosystem tools (`%LOCALAPPDATA%\DiamTek\JVM\candidates`), never breaks active Directory Junctions (`%LOCALAPPDATA%\DiamTek\JVM\current`), and never alters your Windows Registry (`PATH`, `JAVA_HOME`).

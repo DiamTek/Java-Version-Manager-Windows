@@ -12,6 +12,18 @@ All notable changes to the Java Version Manager for Windows will be documented i
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to Semantic Versioning.
 
+## [1.1.2] - WIP Nightly
+
+This upcoming release is currently in active development on the Nightly channel.
+
+### Added
+- **Content-Addressed Storage Pruning & Size Policy**: Added disk quota enforcement for Content-Addressed Storage (CAS) caches (`cache\sha256\`), supporting `cache_max_size` in `config.json` with LRU eviction and automatic cleanup of `.zip` payloads in `jvm clean`.
+- **Automatic Stale Temp Directory Sweeper**: Implemented automatic 5-minute background sweeps (`:AutoCleanStaleTemp`) to purge orphaned `.part` download artifacts, transient helper scripts (`jvm_dl_*.ps1`, `jvm_exec_*.cmd`), and staging folders on initialization and download completion.
+- **Clean Output Sectioning**: Redesigned output layout for `jvm list` and `jvm update --all` with clean major section framing (`============================================================`), distinct item separators (`------------------------------------------------------------`), zero consecutive/double border lines, and suppression of empty ecosystem tool candidate directories.
+
+### Changed
+- **Inventory Cache Freshness Validation**: Added automatic directory timestamp freshness verification against known JDK roots to invalidate stale inventory caches when runtimes are added or updated externally.
+
 ## [1.1.1] - 2026-11-16
 
 This release introduces official support for the native Windows binary launcher (`jvm.exe`), resolving the Windows Package Manager (WinGet) Scripted-Application policy (`microsoft/winget-pkgs#436234`), alongside dual-architecture packaging (`x64` and `ARM64`), SLSA build provenance attestations, atomic GitHub Release publishing under Release Immutability policies, and an exhaustive defensive security hardening overhaul across the entire JVM runtime engine (`jvm.bat`), corporate PKI and proxy integration, hermetic lockfile cryptography, next-gen environment profiles, toolchain snapshots, portable bundles, air-gapped distro kits, multi-shell ergonomics, modular architecture documentation, ecosystem supply-chain verification, interactive UI ergonomics, UAC elevation boundaries, CI/CD pipelines, package manifests, micro-UX parameter consistency, stable machine-readable JSON contracts, execution timing telemetry, and an enterprise-grade error management and atomic rollback architecture. It introduces official support for **JRE Only Mode** (`#1`), automated GitHub Releases API asset digest extraction, multi-mirror download resilience, interactive unverified checksum prompt fallbacks, and comprehensive error visibility, accompanied by an expanded **329-test automated adversarial security and error-injection test suite** spanning **41 MITRE CWE classes** (`CWE-20` through `CWE-918`, including `CWE-798`) across **16 defensive suites** achieving a verified **10.0 / 10.0** audit scorecard (`329 / 329 PASS`).
