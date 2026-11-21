@@ -461,7 +461,7 @@ The utility uses native ANSI terminal color formatting to protect system stabili
 * **Red `[ ERROR  ]`** — Warns of network failures, blocked file permissions, or locked folders.
 * **Green `[ACTIVE]` / `[   OK   ]` / `[Stable]`** — Highlights the JDK entry currently actively powering your terminal environment, signifies a successful operation, or denotes the official **Stable** update channel.
 * **Purple `[Nightly]`** — Highlights the **Nightly** update channel receiving unreleased commits directly from the `main` branch.
-* ◽ **Gray** — Mutes absolute file paths to reduce terminal clutter.
+* **Gray** — Mutes absolute file paths to reduce terminal clutter.
 
 <a id="safety-defaults"></a>
 <a id="-safety-defaults"></a>

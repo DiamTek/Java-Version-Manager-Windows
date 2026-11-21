@@ -27,6 +27,7 @@
 - [How do I find the exact executable path of java or build tools for my IDE/scripts?](#how-do-i-find-the-exact-executable-path-of-java-or-build-tools-for-my-idescripts)
 - [How do I free up disk space from downloaded JDK installers? (jvm clean vs jvm clear)](#how-do-i-free-up-disk-space-from-downloaded-jdk-installers-jvm-clean-vs-jvm-clear)
 - [What is `jvm doctor` and how does it diagnose system conflicts?](#what-is-jvm-doctor-and-how-does-it-diagnose-system-conflicts)
+- [Why does `winget update` show false upgrades for my JDKs, and how does JVM fix it? (`jvm sync`)](#why-does-winget-update-show-false-upgrades-for-my-jdks-and-how-does-jvm-fix-it-jvm-sync)
 - [How do I pin or lock a Java version for my project? (`jvm pin` / `jvm local`)](#how-do-i-pin-or-lock-a-java-version-for-my-project-jvm-pin--jvm-local)
 - [What is `.jvm.lock` and how does it compare to `.java-version` or `mise.lock`?](#what-is-jvmlock-and-how-does-it-compare-to-java-version-or-miselock)
 - [How do I jump directly to active tool folders in File Explorer? (`jvm open` / `jvm home`)](#how-do-i-jump-directly-to-active-tool-folders-in-file-explorer-jvm-open--jvm-home)
@@ -555,7 +556,7 @@ If you ever need to restore your workstation's previous environment state after 
 
 <a id="what-is-jvm-doctor-and-how-does-it-diagnose-system-conflicts"></a>
 ### What is `jvm doctor` and how does it diagnose system conflicts?
-`jvm doctor` is an automated, all-in-one system diagnostic audit command. It performs a comprehensive 7-point health check to detect configuration errors, corrupted directory junctions, and environment shadowing before they cause build failures:
+`jvm doctor` is an automated, all-in-one system diagnostic audit command. It performs a comprehensive 11-point health check to detect configuration errors, corrupted directory junctions, environment shadowing, and registry drift before they cause build failures:
 
 ```cmd
 jvm doctor
@@ -569,10 +570,42 @@ It analyzes:
 5. **PowerShell Profile Hook:** Checks whether the `# >>> jvm >>>` function wrapper is present in `$PROFILE`.
 6. **CPU Architecture:** Confirms native architecture matches (`x64` or `ARM64`).
 7. **Discovered JDK Inventory:** Reports the total number of installed and recognized JDKs.
+8. **Auto-Switch Prompt Hook:** Validates directory environment auto-switching configuration.
+9. **Active Project Bounds:** Inspects project-local `.java-version` or `.jvm.toml` configuration files.
+10. **Content-Addressed Storage Cache:** Checks CAS integrity (`cache\sha256\`) and storage quotas.
+11. **Windows Uninstall Registry & WinGet Parity:** Audits Windows Uninstall registry entries to prevent false upgrade alerts in `winget update`.
 
-If any warnings or errors are found, `jvm doctor` returns process exit code `1` and offers actionable remediation steps (e.g. running `jvm clear`). If everything is clean, it returns exit code `0`.
+If any warnings or errors are found, `jvm doctor` returns process exit code `1` and offers actionable remediation steps. You can run `jvm doctor --fix` to execute automated self-healing across orphaned junctions, PATH shadowing, and WinGet registry drift.
 
 To generate a complete, shareable issue bundle for GitHub support, run `jvm doctor --report` to automatically run pre-flight health diagnostics and package all logs, configs, and environment reports into `jvm-issue-bundle.zip`.
+
+---
+
+<a id="why-does-winget-update-show-false-upgrades-for-my-jdks-and-how-does-jvm-fix-it-jvm-sync"></a>
+### Why does `winget update` show false upgrades for my JDKs, and how does JVM fix it? (`jvm sync`)
+When OpenJDK distributions (such as Eclipse Temurin or Microsoft OpenJDK) are originally installed via MSI or WinGet, Windows creates registry entries in `HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`. 
+
+WinGet upstream normalizes OpenJDK versioning by converting the `+` build metadata into a 4-part decimal revision:
+* `21.0.13.1+2` becomes `21.0.13.102`
+* `25.0.5.1+2` becomes `25.0.5.102`
+* `21.0.13+9` becomes `21.0.13.9`
+
+When an older JDK build is superseded by an update, or when a JDK's registry entry still references an older build number (e.g., `21.0.13.9` instead of `21.0.13.102`), `winget update` erroneously assumes the installed package is outdated and flags it for upgrade:
+
+```text
+Eclipse Temurin JDK with Hotspot 21.0.13+9 (x64) EclipseAdoptium.Temurin.21.JDK 21.0.13.9 21.0.13.102 winget
+```
+
+#### How JVM Fixes It
+1. **On-Demand Synchronization (`jvm sync`)**:
+   Running `jvm sync` (or `jvm winget-sync`) audits all installed JDK distributions against the Windows Uninstall registry, detects version and path drift, and updates `DisplayVersion`, `InstallLocation`, `DisplayName`, and `InstallDate` to achieve exact WinGet parity:
+   ```cmd
+   jvm sync
+   ```
+2. **Diagnostic Check & Self-Healing (`jvm doctor` & `jvm doctor --fix`)**:
+   Check 11 in `jvm doctor` automatically checks for registry drift, and `jvm doctor --fix` repairs it automatically alongside other system issues.
+3. **Automated Updaters**:
+   Whenever `jvm update`, `jvm upgrade`, or `jvm install` runs, JVM automatically retires outdated predecessor builds and aligns the Windows registry entries in the background (`:SyncWingetParity --auto`), ensuring `winget update` never reports false upgrade notices.
 
 <a id="how-do-i-pin-or-lock-a-java-version-for-my-project-jvm-pin--jvm-local"></a>
 ### How do I pin or lock a Java version for my project? (`jvm pin` / `jvm local`)

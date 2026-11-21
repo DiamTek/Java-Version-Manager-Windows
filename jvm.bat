@@ -63,7 +63,7 @@ if defined CI set "JVM_NONINTERACTIVE=1"
 if defined GITHUB_ACTIONS set "JVM_NONINTERACTIVE=1"
 
 set "JVM_VERSION=1.1.1"
-set "JVM_BUILD=20261120.185"
+set "JVM_BUILD=20261120.186"
 
 rem Allow help queries to display without initializing host directories
 if /i "%~1"=="help" (
@@ -661,6 +661,17 @@ if /i "%~1"=="--dry-run" (
     shift
     goto :PARSE_CLI_ARGS
 )
+if /i "%~1"=="--auto" (
+    set "FLAG_AUTO=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
+if /i "%~1"=="--silent" (
+    set "FLAG_SILENT=1"
+    set "SILENT_MODE=1"
+    shift
+    goto :PARSE_CLI_ARGS
+)
 if /i "%~1"=="--verbose" (
     set "FLAG_VERBOSE=1"
     shift
@@ -1042,6 +1053,20 @@ if /i "%~1"=="list" (
 ) else if /i "%~1"=="list-remote" (
     if not defined CLI_COMMAND (
         set "CLI_COMMAND=list-remote"
+        set "SILENT_MODE=1"
+    )
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="sync" (
+    if not defined CLI_COMMAND (
+        set "CLI_COMMAND=sync"
+        set "SILENT_MODE=1"
+    )
+    shift
+    goto :PARSE_CLI_ARGS
+) else if /i "%~1"=="winget-sync" (
+    if not defined CLI_COMMAND (
+        set "CLI_COMMAND=sync"
         set "SILENT_MODE=1"
     )
     shift
@@ -1494,6 +1519,7 @@ if /i "%CLI_COMMAND%"=="outdated" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="cache" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="search" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="compare" set "WANT_UTF8=1"
+if /i "%CLI_COMMAND%"=="sync" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="info" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="why" set "WANT_UTF8=1"
 if /i "%CLI_COMMAND%"=="explain" set "WANT_UTF8=1"
@@ -2695,6 +2721,11 @@ if defined CLI_COMMAND (
         ) else (
             call :DoctorDiagnostics
         )
+        set "CMD_EXIT_CODE=!errorlevel!"
+        goto :CLI_DONE
+    )
+    if /i "!CLI_COMMAND!"=="sync" (
+        call :SyncWingetParity "!CLI_TARGET!" "!CLI_EXTRA!"
         set "CMD_EXIT_CODE=!errorlevel!"
         goto :CLI_DONE
     )
@@ -5482,6 +5513,11 @@ if defined REG_JH (
     )
 )
 
+rem 5. WinGet and Windows Registry Parity Repair
+call :SyncWingetParity
+if "!SYNC_FIXED!"=="1" set /a DOC_FIXED+=!SYNC_DRIFT_COUNT!
+if !SYNC_DRIFT_COUNT! GTR 0 set /a DOC_DETECTED+=!SYNC_DRIFT_COUNT!
+
 echo ============================================================
 if !DOC_DETECTED! EQU 0 (
     echo %cGREEN%[   OK   ]%cRESET% Self-healing audit complete. System is healthy, zero issues detected.
@@ -5491,6 +5527,232 @@ if !DOC_DETECTED! EQU 0 (
     echo %cGREEN%[   OK   ]%cRESET% Self-healing repairs completed: !DOC_FIXED! of !DOC_DETECTED! issues fixed.
 )
 exit /b 0
+
+rem ============================================================
+rem WINGET AND WINDOWS REGISTRY PARITY SYNCHRONIZATION
+rem ============================================================
+:SyncWingetParity
+if "%HELP_REQUESTED%"=="1" (
+    call :ShowSubcommandHelp sync
+    exit /b 0
+)
+
+set "SYNC_IS_AUTO=0"
+if "!FLAG_AUTO!"=="1" ( set "SYNC_IS_AUTO=1" & set "FORCE_YES=1" )
+if "!FLAG_SILENT!"=="1" ( set "SYNC_IS_AUTO=1" & set "FORCE_YES=1" )
+if /i "%~1"=="--auto" ( set "SYNC_IS_AUTO=1" & set "FORCE_YES=1" )
+if /i "%~1"=="--silent" ( set "SYNC_IS_AUTO=1" & set "FORCE_YES=1" )
+if /i "%~2"=="--auto" ( set "SYNC_IS_AUTO=1" & set "FORCE_YES=1" )
+if /i "%~2"=="--silent" ( set "SYNC_IS_AUTO=1" & set "FORCE_YES=1" )
+if /i "!CLI_TARGET!"=="--auto" ( set "SYNC_IS_AUTO=1" & set "FORCE_YES=1" )
+if /i "!CLI_TARGET!"=="--silent" ( set "SYNC_IS_AUTO=1" & set "FORCE_YES=1" )
+
+if "!SYNC_IS_AUTO!"=="0" if not "%OUTPUT_JSON%"=="1" (
+    echo.
+    echo %cBLUE%[ ACTION ]%cRESET% Auditing Windows Uninstall Registry ^& WinGet Parity...
+    echo ============================================================
+)
+
+set "SYNC_DRIFT_COUNT=0"
+set "SYNC_FIXED=0"
+
+for /f "delims=" %%R in ('%PS_BIN% -NoProfile -Command "[System.IO.Path]::GetRandomFileName().Replace('.', '')"') do set "SYNC_RND=%%R"
+set "SYNC_ITEMS_FILE=%JVM_SECURE_TEMP%\jvm_sync_!SYNC_RND!.txt"
+
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_SyncScanBody::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))" > "!SYNC_ITEMS_FILE!" 2>nul
+
+if "%OUTPUT_JSON%"=="1" (
+    if exist "!SYNC_ITEMS_FILE!" (
+        type "!SYNC_ITEMS_FILE!"
+        del /f /q "!SYNC_ITEMS_FILE!" >nul 2>&1
+    )
+    exit /b 0
+)
+
+set "SYNC_STATUS="
+if exist "!SYNC_ITEMS_FILE!" (
+    for /f "tokens=1,* delims=|" %%A in (!SYNC_ITEMS_FILE!) do (
+        if "%%A"=="CLEAN" set "SYNC_STATUS=CLEAN"
+        if "%%A"=="COUNT" set "SYNC_DRIFT_COUNT=%%B"
+    )
+)
+
+if "!SYNC_STATUS!"=="CLEAN" (
+    if exist "!SYNC_ITEMS_FILE!" del /f /q "!SYNC_ITEMS_FILE!" >nul 2>&1
+    if "!SYNC_IS_AUTO!"=="0" echo %cGREEN%[   OK   ]%cRESET% WinGet registry parity is clean. Zero desynchronized entries found.
+    exit /b 0
+)
+
+if !SYNC_DRIFT_COUNT! EQU 0 (
+    if exist "!SYNC_ITEMS_FILE!" del /f /q "!SYNC_ITEMS_FILE!" >nul 2>&1
+    if "!SYNC_IS_AUTO!"=="0" echo %cGREEN%[   OK   ]%cRESET% WinGet registry parity is clean. Zero desynchronized entries found.
+    exit /b 0
+)
+
+for /f "tokens=1,2,3,4,5,6,7,8,9 delims=|" %%A in (!SYNC_ITEMS_FILE!) do (
+    if "%%A"=="ITEM" (
+        set "ITEM_KEY=%%B"
+        set "ITEM_NAME=%%C"
+        set "ITEM_CURVER=%%D"
+        set "ITEM_TGTVER=%%E"
+        set "ITEM_RAWVER=%%F"
+        set "ITEM_CURPATH=%%G"
+        set "ITEM_TGTPATH=%%H"
+        set "ITEM_PSPATH=%%I"
+        echo %cYELLOW%[ DRIFT  ]%cRESET% !ITEM_NAME!
+        echo            Registry Version : !ITEM_CURVER! -^> Target: %cGREEN%!ITEM_TGTVER!%cRESET% ^(WinGet Parity^)
+        echo            Install Location : !ITEM_CURPATH! -^> %cCYAN%!ITEM_TGTPATH!%cRESET%
+    )
+)
+
+echo ============================================================
+if "!FLAG_DRY_RUN!"=="1" (
+    if exist "!SYNC_ITEMS_FILE!" del /f /q "!SYNC_ITEMS_FILE!" >nul 2>&1
+    echo %cBLUE%[ DRY-RUN ]%cRESET% Parity audit complete: !SYNC_DRIFT_COUNT! desynchronized registry entries evaluated.
+    exit /b 0
+)
+
+if not "!FORCE_YES!"=="1" if not defined JVM_NONINTERACTIVE (
+    "%CHOICE_BIN%" /C yn /N /M "Synchronize Windows registry entries to match WinGet parity? (y/N): "
+    if errorlevel 2 (
+        if exist "!SYNC_ITEMS_FILE!" del /f /q "!SYNC_ITEMS_FILE!" >nul 2>&1
+        echo %cYELLOW%[ CANCEL ]%cRESET% Registry synchronization aborted by user.
+        exit /b 0
+    )
+)
+
+echo %cBLUE%[ ACTION ]%cRESET% Synchronizing registry entries ^(elevated UAC if required^)...
+"%PS_BIN%" -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_SyncApplyBody::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))" 2>nul
+set "SYNC_APPLY_EXIT=!errorlevel!"
+if exist "!SYNC_ITEMS_FILE!" del /f /q "!SYNC_ITEMS_FILE!" >nul 2>&1
+
+if !SYNC_APPLY_EXIT! NEQ 0 (
+    echo %cRED%[ ERROR  ]%cRESET% Failed to synchronize registry entries. UAC elevation was cancelled or denied.
+    exit /b 1
+)
+
+echo %cGREEN%[   OK   ]%cRESET% Windows Uninstall registry synchronized successfully: !SYNC_DRIFT_COUNT! entries updated.
+echo            'winget update' parity restored.
+set "SYNC_FIXED=1"
+exit /b 0
+
+::PS_SyncScanBody::$ErrorActionPreference = 'SilentlyContinue';
+::PS_SyncScanBody::$outputJson = ($env:OUTPUT_JSON -eq '1');
+::PS_SyncScanBody::$jdks = @();
+::PS_SyncScanBody::$searchDirs = @('C:\Program Files\Java', 'C:\Program Files\Eclipse Adoptium', 'C:\Program Files\Microsoft', 'C:\Program Files\Amazon Corretto', 'C:\Program Files\BellSoft', 'C:\Program Files\Zulu', (Join-Path $env:LOCALAPPDATA 'DiamTek\JVM\candidates\java'));
+::PS_SyncScanBody::foreach ($sd in $searchDirs) {
+::PS_SyncScanBody::    if (Test-Path -LiteralPath $sd) {
+::PS_SyncScanBody::        Get-ChildItem -LiteralPath $sd -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+::PS_SyncScanBody::            $rel = Join-Path $_.FullName 'release';
+::PS_SyncScanBody::            if (Test-Path -LiteralPath $rel) {
+::PS_SyncScanBody::                $props = @{};
+::PS_SyncScanBody::                Get-Content -LiteralPath $rel | ForEach-Object {
+::PS_SyncScanBody::                    if ($_ -match '^([^=]+)="?(.*?)"?$') { $props[$matches[1].Trim()] = $matches[2].Trim() }
+::PS_SyncScanBody::                };
+::PS_SyncScanBody::                $vendor = if ($props['IMPLEMENTOR']) { $props['IMPLEMENTOR'] } else { '' };
+::PS_SyncScanBody::                $rawVer = '';
+::PS_SyncScanBody::                if ($vendor -match 'Oracle') {
+::PS_SyncScanBody::                    $rawVer = if ($props['JAVA_VERSION']) { $props['JAVA_VERSION'] } else { $props['SEMANTIC_VERSION'] };
+::PS_SyncScanBody::                } else {
+::PS_SyncScanBody::                    $rawVer = if ($props['SEMANTIC_VERSION']) { $props['SEMANTIC_VERSION'] } elseif ($props['JAVA_RUNTIME_VERSION']) { $props['JAVA_RUNTIME_VERSION'] } else { $props['JAVA_VERSION'] };
+::PS_SyncScanBody::                };
+::PS_SyncScanBody::                if ($rawVer) { $rawVer = $rawVer -replace '-LTS.*$', '' };
+::PS_SyncScanBody::                $major = 0;
+::PS_SyncScanBody::                if ($rawVer -match '^(\d+)') { $major = [int]$matches[1] };
+::PS_SyncScanBody::                $jdks += [PSCustomObject]@{ Path = $_.FullName; Vendor = $vendor; Version = $rawVer; Major = $major };
+::PS_SyncScanBody::            }
+::PS_SyncScanBody::        }
+::PS_SyncScanBody::    }
+::PS_SyncScanBody::};
+::PS_SyncScanBody::function ConvertTo-WingetVersion($v) {
+::PS_SyncScanBody::    if ($v -match '^(\d+\.\d+\.\d+)\.(\d+)\+(\d+)$') {
+::PS_SyncScanBody::        return $matches[1] + '.' + ([int]$matches[2] * 100 + [int]$matches[3]);
+::PS_SyncScanBody::    } elseif ($v -match '^(\d+\.\d+\.\d+)\+(\d+)$') {
+::PS_SyncScanBody::        return $matches[1] + '.' + $matches[2];
+::PS_SyncScanBody::    } elseif ($v -match '^(\d+\.\d+)\+(\d+)$') {
+::PS_SyncScanBody::        return $matches[1] + '.0.' + $matches[2];
+::PS_SyncScanBody::    } elseif ($v -match '^(\d+)\+(\d+)$') {
+::PS_SyncScanBody::        return $matches[1] + '.0.0.' + $matches[2];
+::PS_SyncScanBody::    } elseif ($v.Contains('+')) {
+::PS_SyncScanBody::        return $v.Replace('+', '.');
+::PS_SyncScanBody::    };
+::PS_SyncScanBody::    return $v;
+::PS_SyncScanBody::};
+::PS_SyncScanBody::$roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall', 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall');
+::PS_SyncScanBody::$drift = @();
+::PS_SyncScanBody::foreach ($r in $roots) {
+::PS_SyncScanBody::    if (Test-Path -LiteralPath $r) {
+::PS_SyncScanBody::        Get-ChildItem -LiteralPath $r -ErrorAction SilentlyContinue | ForEach-Object {
+::PS_SyncScanBody::            $p = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue;
+::PS_SyncScanBody::            if ($p.DisplayName -and ($p.DisplayName -match 'Java|JDK|JRE|Temurin|Adoptium|Semeru|Corretto|Zulu|Liberica|Kona|SapMachine|GraalVM')) {
+::PS_SyncScanBody::                $matched = $null;
+::PS_SyncScanBody::                foreach ($j in $jdks) {
+::PS_SyncScanBody::                    if ($p.InstallLocation -and (Test-Path -LiteralPath $p.InstallLocation)) {
+::PS_SyncScanBody::                        if ([System.IO.Path]::GetFullPath($p.InstallLocation).TrimEnd('\') -eq [System.IO.Path]::GetFullPath($j.Path).TrimEnd('\')) { $matched = $j; break };
+::PS_SyncScanBody::                    }
+::PS_SyncScanBody::                };
+::PS_SyncScanBody::                if (-not $matched) {
+::PS_SyncScanBody::                    $regMajor = $null;
+::PS_SyncScanBody::                    if ($p.DisplayVersion -match '^(\d+)') { $regMajor = [int]$matches[1] }
+::PS_SyncScanBody::                    elseif ($p.DisplayName -match '\b(8|11|17|21|22|23|24|25|26|27)\b') { $regMajor = [int]$matches[1] };
+::PS_SyncScanBody::                    $regVendor = '';
+::PS_SyncScanBody::                    if ($p.DisplayName -match 'Temurin|Adoptium' -or $p.Publisher -match 'Adoptium') { $regVendor = 'Adoptium' }
+::PS_SyncScanBody::                    elseif ($p.DisplayName -match 'Oracle' -or $p.Publisher -match 'Oracle') { $regVendor = 'Oracle' }
+::PS_SyncScanBody::                    elseif ($p.DisplayName -match 'Microsoft' -or $p.Publisher -match 'Microsoft') { $regVendor = 'Microsoft' }
+::PS_SyncScanBody::                    elseif ($p.DisplayName -match 'Corretto' -or $p.Publisher -match 'Amazon') { $regVendor = 'Amazon' }
+::PS_SyncScanBody::                    elseif ($p.DisplayName -match 'Zulu|Azul' -or $p.Publisher -match 'Azul') { $regVendor = 'Azul' }
+::PS_SyncScanBody::                    elseif ($p.DisplayName -match 'Liberica|BellSoft' -or $p.Publisher -match 'BellSoft') { $regVendor = 'BellSoft' }
+::PS_SyncScanBody::                    elseif ($p.DisplayName -match 'Semeru' -or $p.Publisher -match 'IBM') { $regVendor = 'IBM' };
+::PS_SyncScanBody::                    foreach ($j in $jdks) {
+::PS_SyncScanBody::                        $jVendor = '';
+::PS_SyncScanBody::                        if ($j.Vendor -match 'Adoptium') { $jVendor = 'Adoptium' }
+::PS_SyncScanBody::                        elseif ($j.Vendor -match 'Oracle') { $jVendor = 'Oracle' }
+::PS_SyncScanBody::                        elseif ($j.Vendor -match 'Microsoft') { $jVendor = 'Microsoft' }
+::PS_SyncScanBody::                        elseif ($j.Vendor -match 'Amazon') { $jVendor = 'Amazon' }
+::PS_SyncScanBody::                        elseif ($j.Vendor -match 'Azul') { $jVendor = 'Azul' }
+::PS_SyncScanBody::                        elseif ($j.Vendor -match 'BellSoft') { $jVendor = 'BellSoft' }
+::PS_SyncScanBody::                        elseif ($j.Vendor -match 'IBM') { $jVendor = 'IBM' };
+::PS_SyncScanBody::                        if ($j.Major -eq $regMajor -and ($regVendor -eq '' -or $jVendor -eq $regVendor)) { $matched = $j; break };
+::PS_SyncScanBody::                    }
+::PS_SyncScanBody::                };
+::PS_SyncScanBody::                if ($matched) {
+::PS_SyncScanBody::                    $wVer = ConvertTo-WingetVersion $matched.Version;
+::PS_SyncScanBody::                    $pChanged = $false;
+::PS_SyncScanBody::                    $regLoc = if ($p.InstallLocation) { [System.IO.Path]::GetFullPath($p.InstallLocation).TrimEnd('\') } else { '' };
+::PS_SyncScanBody::                    $tgtLoc = [System.IO.Path]::GetFullPath($matched.Path).TrimEnd('\');
+::PS_SyncScanBody::                    if ($regLoc -ne $tgtLoc) { $pChanged = $true };
+::PS_SyncScanBody::                    if ($p.DisplayVersion -ne $wVer -or $pChanged) {
+::PS_SyncScanBody::                        $drift += [PSCustomObject]@{ Key = $_.PSChildName; Name = $p.DisplayName; CurVer = $p.DisplayVersion; TgtVer = $wVer; RawVer = $matched.Version; CurPath = $p.InstallLocation; TgtPath = $matched.Path; PSPath = $_.PSPath };
+::PS_SyncScanBody::                    }
+::PS_SyncScanBody::                }
+::PS_SyncScanBody::            }
+::PS_SyncScanBody::        }
+::PS_SyncScanBody::    }
+::PS_SyncScanBody::};
+::PS_SyncScanBody::if ($outputJson) {
+::PS_SyncScanBody::    [PSCustomObject]@{ ok = $true; command = 'sync'; drift_detected = ($drift.Count -gt 0); drift_count = $drift.Count; items = $drift; applied = $false } | ConvertTo-Json;
+::PS_SyncScanBody::    exit 0;
+::PS_SyncScanBody::};
+::PS_SyncScanBody::if ($drift.Count -eq 0) {
+::PS_SyncScanBody::    Write-Output 'CLEAN';
+::PS_SyncScanBody::    exit 0;
+::PS_SyncScanBody::};
+::PS_SyncScanBody::Write-Output ('COUNT|' + $drift.Count);
+::PS_SyncScanBody::foreach ($d in $drift) {
+::PS_SyncScanBody::    Write-Output ('ITEM|' + $d.Key + '|' + $d.Name + '|' + $d.CurVer + '|' + $d.TgtVer + '|' + $d.RawVer + '|' + $d.CurPath + '|' + $d.TgtPath + '|' + $d.PSPath);
+::PS_SyncScanBody::};
+::PS_SyncApplyBody::$itemsFile = $env:SYNC_ITEMS_FILE;
+::PS_SyncApplyBody::$script = '$lines = Get-Content -LiteralPath ''' + $itemsFile + '''; foreach ($line in $lines) { $parts = $line.Split(''|''); if ($parts[0] -eq ''ITEM'') { $tgtVer = $parts[4]; $rawVer = $parts[5]; $tgtPath = $parts[7]; $psPath = $parts[8]; Set-ItemProperty -LiteralPath $psPath -Name ''InstallLocation'' -Value ([System.IO.Path]::GetFullPath($tgtPath).TrimEnd(''\'') + ''\'') -Force; Set-ItemProperty -LiteralPath $psPath -Name ''DisplayVersion'' -Value $tgtVer -Force; $oldDn = (Get-ItemProperty -LiteralPath $psPath -ErrorAction SilentlyContinue).DisplayName; if ($oldDn) { $newDn = $oldDn -replace ''\b\d+(\.\d+)*(\+\d+)?\b'', $rawVer; Set-ItemProperty -LiteralPath $psPath -Name ''DisplayName'' -Value $newDn -Force }; Set-ItemProperty -LiteralPath $psPath -Name ''InstallDate'' -Value (Get-Date -Format ''yyyyMMdd'') -Force } }; Remove-Item -LiteralPath ''' + $itemsFile + ''' -Force -ErrorAction SilentlyContinue;';
+::PS_SyncApplyBody::$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);
+::PS_SyncApplyBody::if ($isAdmin) { Invoke-Expression $script } else {
+::PS_SyncApplyBody::    $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script));
+::PS_SyncApplyBody::    $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System);
+::PS_SyncApplyBody::    $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe';
+::PS_SyncApplyBody::    try {
+::PS_SyncApplyBody::        $p = Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -PassThru -ArgumentList @('-NoProfile', '-EncodedCommand', $b64);
+::PS_SyncApplyBody::        try { if ($p.ExitCode -ne 0) { exit $p.ExitCode } } finally { if ($null -ne $p) { $p.Dispose() } }
+::PS_SyncApplyBody::    } catch { exit 1 }
+::PS_SyncApplyBody::};
 
 rem ============================================================
 rem CONTEXTUAL ACTIONABLE ERRORS
@@ -5576,15 +5838,20 @@ if exist "!DEST_DIR!\!NEW_FOLDER!\bin\java.exe" (
         for %%O in ("!UPDATER_OLD_PATH!") do set "NORM_OLD=%%~fO"
         for %%N in ("!DEST_DIR!\!NEW_FOLDER!") do set "NORM_NEW=%%~fN"
         if /i not "!NORM_OLD!"=="!NORM_NEW!" (
+            set "SYNC_NEW_DEST=!DEST_DIR!\!NEW_FOLDER!"
+            set "SYNC_NEW_VER=!DL_VERSION!"
             echo %cBLUE%[ ACTION ]%cRESET% Cleaning up outdated predecessor build: !UPDATER_OLD_PATH!...
-            "%PS_BIN%" -NoProfile -Command "$old = $env:UPDATER_OLD_PATH; $b64 = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($old)); $script = '$old = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64 + ''')); if (Test-Path -LiteralPath $old) { Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($old, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; $it = Get-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue; if ($it -and (($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { [System.IO.Directory]::Delete($it.FullName, $false) } else { Get-ChildItem -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } }; Remove-Item -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue } }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; try { $p = Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -PassThru -ArgumentList @('-NoProfile', '-EncodedCommand', $enc); try { if ($p.ExitCode -ne 0) { exit $p.ExitCode } } finally { if ($null -ne $p) { $p.Dispose() } } } catch { exit 1 }" 2>nul
+            "%PS_BIN%" -NoProfile -Command "$old = $env:UPDATER_OLD_PATH; $new = $env:SYNC_NEW_DEST; $newVer = $env:SYNC_NEW_VER; $b64old = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($old)); $b64new = if ($new) { [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($new)) } else { '' }; $b64ver = if ($newVer) { [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($newVer)) } else { '' }; $script = '$old = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64old + ''')); $new = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64new + ''')); $newVer = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $b64ver + ''')); if (Test-Path -LiteralPath $old) { Get-Process java,javaw -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($old, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue; $it = Get-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue; if ($it -and (($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) { [System.IO.Directory]::Delete($it.FullName, $false) } else { Get-ChildItem -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } | Sort-Object { $_.FullName.Length } -Descending | ForEach-Object { if ($_.PSIsContainer) { [System.IO.Directory]::Delete($_.FullName, $false) } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } }; Remove-Item -LiteralPath $old -Recurse -Force -ErrorAction SilentlyContinue } }; $roots = @(''HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'', ''HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'', ''HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall''); foreach ($r in $roots) { if (Test-Path -LiteralPath $r) { Get-ChildItem -LiteralPath $r -ErrorAction SilentlyContinue | ForEach-Object { $p = Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue; if ($p -and $p.InstallLocation) { try { $il = [System.IO.Path]::GetFullPath($p.InstallLocation).TrimEnd(''\''); $on = [System.IO.Path]::GetFullPath($old).TrimEnd(''\''); if ($il -eq $on -and $new -and (Test-Path -LiteralPath $new)) { $wVer = $newVer; if ($wVer -match ''^(\d+\.\d+\.\d+)\.(\d+)\+(\d+)$'') { $wVer = $Matches[1] + ''.'' + ([int]$Matches[2] * 100 + [int]$Matches[3]) } elseif ($wVer -match ''^(\d+\.\d+\.\d+)\+(\d+)$'') { $wVer = $Matches[1] + ''.'' + $Matches[2] } elseif ($wVer -match ''^(\d+\.\d+)\+(\d+)$'') { $wVer = $Matches[1] + ''.0.'' + $Matches[2] } elseif ($wVer -match ''^(\d+)\+(\d+)$'') { $wVer = $Matches[1] + ''.0.0.'' + $Matches[2] } elseif ($wVer.Contains(''+'')) { $wVer = $wVer.Replace(''+'', ''.'') }; Set-ItemProperty -LiteralPath $_.PSPath -Name ''InstallLocation'' -Value ([System.IO.Path]::GetFullPath($new).TrimEnd(''\'') + ''\'') -Force; Set-ItemProperty -LiteralPath $_.PSPath -Name ''DisplayVersion'' -Value $wVer -Force; if ($p.DisplayName) { $newDn = $p.DisplayName -replace ''\b\d+(\.\d+)*(\+\d+)?\b'', $newVer; Set-ItemProperty -LiteralPath $_.PSPath -Name ''DisplayName'' -Value $newDn -Force }; Set-ItemProperty -LiteralPath $_.PSPath -Name ''InstallDate'' -Value (Get-Date -Format ''yyyyMMdd'') -Force } } catch { Write-Verbose $_.Exception.Message } } } } }'; $enc = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($script)); $s = [Environment]::GetFolderPath([Environment+SpecialFolder]::System); $ps = Join-Path $s 'WindowsPowerShell\v1.0\powershell.exe'; try { $p = Start-Process -FilePath $ps -Verb RunAs -WorkingDirectory $s -WindowStyle Hidden -Wait -PassThru -ArgumentList @('-NoProfile', '-EncodedCommand', $enc); try { if ($p.ExitCode -ne 0) { exit $p.ExitCode } } finally { if ($null -ne $p) { $p.Dispose() } } } catch { exit 1 }" 2>nul
             if not exist "!UPDATER_OLD_PATH!" (
-                echo %cGREEN%[   OK   ]%cRESET% Outdated predecessor build cleaned up successfully.
+                echo %cGREEN%[   OK   ]%cRESET% Outdated predecessor build cleaned up and WinGet registry synchronized.
             )
         )
         set "UPDATER_OLD_PATH="
+        set "SYNC_NEW_DEST="
+        set "SYNC_NEW_VER="
     )
     call :AutoCleanStaleTemp
+    call :SyncWingetParity --auto
     if "!FLAG_CREATE_LOCK!"=="1" (
         set "ENTRY_CANDIDATE=java"
         set "ENTRY_VENDOR=!DL_VENDOR!"
@@ -6333,6 +6600,7 @@ if "!TARGET_VENDOR!"=="ALL" (
 )
 
 :FINISH_UPDATE
+call :SyncWingetParity --auto
 echo ------------------------------------------------------------
 echo.
 echo %cGREEN%[   OK   ]%cRESET% All update checks complete!
@@ -7310,10 +7578,10 @@ set "JVM_TOML_PARSE=                                $targetVer = ($l.Split('=')[
     echo(Enable-JvmAutoSwitch
     echo(
     echo(if ^(Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue^) {
-    echo(    Register-ArgumentCompleter -Native -CommandName @^('jvm', 'jvm.bat', '.\jvm.bat'^) -ScriptBlock {
+    echo(    Register-ArgumentCompleter -Native -CommandName @^('jvm', 'jvm.exe', '.\jvm.exe', 'jvm.bat', '.\jvm.bat'^) -ScriptBlock {
     echo(        param^($wordToComplete, $commandAst, $cursorPosition^)
     echo(        $subcommands = @^(
-    echo(            'init', 'setup', 'outdated', 'upgrade',
+    echo(            'init', 'setup', 'outdated', 'upgrade', 'sync', 'winget-sync',
     echo(            'list', 'ls', 'install', 'uninstall', 'rm', 'remove', 'use', 'default',
     echo(            'pin', 'local', 'current', 'status', 'info', 'whoami', 'which', 'path',
     echo(            'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
@@ -7372,15 +7640,31 @@ set "JVM_TOML_PARSE=                                $targetVer = ($l.Split('=')[
     echo(            $completions = $subcommands
     echo(        } elseif ^($prev -in @^('lock'^)^) {
     echo(            $completions = @^('check', 'diff', 'update', 'sign', 'verify', 'freeze', 'thaw'^)
+    echo(        } elseif ^($prev -in @^('sync', 'winget-sync'^)^) {
+    echo(            $completions = @^('--dry-run', '--yes', '--json'^)
+    echo(        } elseif ^($prev -in @^('doctor', 'check'^)^) {
+    echo(            $completions = @^('--fix', '--json', '--quiet'^)
+    echo(        } elseif ^($prev -in @^('clean', 'prune'^)^) {
+    echo(            $completions = @^('--dry-run', '--all', '--json'^)
     echo(        } elseif ^($prev -in @^('use', 'default', 'pin', 'local', 'uninstall', 'rm', 'remove', 'which', 'path'^)^) {
     echo(            $installed = @^(^)
+    echo(            $javaDir = if ^(Test-Path "C:\Program Files\Java"^) { "C:\Program Files\Java" } elseif ^($env:ProgramFiles -and ^(Test-Path "$env:ProgramFiles\Java"^)^) { "$env:ProgramFiles\Java" } else { $null }
+    echo(            if ^($javaDir^) {
+    echo(                Get-ChildItem -LiteralPath $javaDir -Directory -ErrorAction SilentlyContinue ^| ForEach-Object {
+    echo(                    $installed += $_.Name
+    echo(                    if ^($_.Name -match '^(?:jdk^|jre^)-?(\d+)'^) { $installed += $matches[1] }
+    echo(                }
+    echo(            }
     echo(            $linksDir = "$env:LOCALAPPDATA\JavaVersionManager\links"
     echo(            if ^(Test-Path -LiteralPath $linksDir^) {
     echo(                $installed += @^(Get-ChildItem -LiteralPath $linksDir -ErrorAction SilentlyContinue ^| Select-Object -ExpandProperty Name^)
     echo(            }
     echo(            $jdksDir = "$env:USERPROFILE\.jdks"
     echo(            if ^(Test-Path -LiteralPath $jdksDir^) {
-    echo(                $installed += @^(Get-ChildItem -LiteralPath $jdksDir -ErrorAction SilentlyContinue ^| Select-Object -ExpandProperty Name^)
+    echo(                Get-ChildItem -LiteralPath $jdksDir -Directory -ErrorAction SilentlyContinue ^| ForEach-Object {
+    echo(                    $installed += $_.Name
+    echo(                    if ^($_.Name -match '^(?:jdk^|jre^)-?(\d+)'^) { $installed += $matches[1] }
+    echo(                }
     echo(            }
     echo(            $completions = @^($installed ^| Select-Object -Unique^) + $candidates
     echo(        } elseif ^($wordToComplete -like '-*'^) {
@@ -8008,6 +8292,7 @@ echo   jvm unlink ^<name^>              Unregister an external JDK directory
 echo.
 echo System ^& Maintenance Commands:
 echo   jvm doctor, check              Deep diagnostic health audit and conflict scanner ^(--fix, --report^)
+echo   jvm sync, winget-sync          Synchronize Windows Uninstall registry and WinGet package parity ^(--dry-run^)
 echo   jvm hook [install^|status^|remove] Enable or remove PowerShell profile hooks ^& dynamic completions
 echo   jvm aliases, hook cmd [--install] Generate or install Command Prompt DOSKEY macros
 echo   jvm channel [stable^|nightly]   View or switch JVM update channel ^(Stable or Nightly^)
@@ -8139,6 +8424,8 @@ if /i "!_TOPIC!"=="report" goto :Card_report
 if /i "!_TOPIC!"=="support" goto :Card_support
 if /i "!_TOPIC!"=="link" goto :Card_link
 if /i "!_TOPIC!"=="unlink" goto :Card_unlink
+if /i "!_TOPIC!"=="sync" goto :Card_sync
+if /i "!_TOPIC!"=="winget-sync" goto :Card_sync
 if /i "!_TOPIC!"=="doctor" goto :Card_doctor
 if /i "!_TOPIC!"=="hook" goto :Card_hook
 if /i "!_TOPIC!"=="channel" goto :Card_channel
@@ -9059,6 +9346,32 @@ echo     jvm unlink CustomJDK
 echo %cCYAN%================================================================================%cRESET%
 exit /b 0
 
+:Card_sync
+echo.
+echo %cCYAN%================================================================================%cRESET%
+echo   %cWHITE%jvm sync, winget-sync - WinGet and Windows Registry Parity%cRESET%
+echo %cCYAN%================================================================================%cRESET%
+echo.
+echo   Description:
+echo     Scan Windows Uninstall registry for desynchronized JDK entries, update DisplayVersion
+echo     to match WinGet package versioning, and prevent false upgrade prompts in 'winget update'.
+echo.
+echo   Syntax:
+echo     %cGREEN%jvm sync%cRESET% [--dry-run] [--yes] [--json]
+echo.
+echo   Flags:
+echo     --dry-run    Preview registry modifications without applying changes
+echo     --yes, -y    Apply synchronization without confirmation prompt
+echo     --json       Emit structured JSON telemetry of registry drift
+echo     --help, -h   Display this help card
+echo.
+echo   Examples:
+echo     jvm sync
+echo     jvm sync --dry-run
+echo     jvm sync --yes
+echo %cCYAN%================================================================================%cRESET%
+exit /b 0
+
 :Card_doctor
 echo.
 echo %cCYAN%================================================================================%cRESET%
@@ -9066,7 +9379,7 @@ echo   %cWHITE%jvm doctor - Command Line Reference%cRESET%
 echo %cCYAN%================================================================================%cRESET%
 echo.
 echo   Description:
-echo     Perform 10-point diagnostic health audit, check permissions, detect path shadowing, and self-heal.
+echo     Perform 11-point diagnostic health audit, check permissions, detect path shadowing, and self-heal.
 echo.
 echo   Syntax:
 echo     %cGREEN%jvm doctor%cRESET% [--fix^|--report^|--json] [flags]
@@ -10009,6 +10322,22 @@ if "!POLICY_ACTIVE!"=="1" (
     echo %cGREEN%[   OK   ]%cRESET% Enterprise Policy:   Enforced ^(!POLICY_FILE_PATH!^)
 ) else (
     echo %cBLUE%[  INFO  ]%cRESET% Enterprise Policy:   Developer Mode ^(Unrestricted, no policy.toml^)
+)
+
+rem 11. Windows Uninstall Registry & WinGet Parity
+set "DOC_WINGET_DRIFT=0"
+for /f "tokens=1,* delims=|" %%A in ('%PS_BIN% -NoProfile -ExecutionPolicy Bypass -Command "$t='::PS_SyncScanBody::'; $c = [IO.File]::ReadAllLines($env:SCRIPT_PATH, [Text.Encoding]::UTF8) | Where-Object { $_.StartsWith($t) } | ForEach-Object { $_.Substring($t.Length) }; & ([scriptblock]::Create(($c -join [Environment]::NewLine)))" 2^>nul') do (
+    if "%%A"=="COUNT" set "DOC_WINGET_DRIFT=%%B"
+)
+
+if "!DOC_WINGET_DRIFT!"=="0" (
+    echo %cGREEN%[   OK   ]%cRESET% WinGet Registry Parity: In Sync ^(Zero desynchronized entries^)
+) else (
+    echo %cYELLOW%[ WARNING]%cRESET% WinGet Registry Parity: Desynchronized entries detected ^(!DOC_WINGET_DRIFT! entries^)
+    echo            Impact:        'winget update' prompts false upgrades for already managed JDKs.
+    echo            Evidence:      Uninstall registry points to predecessor build or outdated DisplayVersion.
+    echo            Suggested Fix: Run 'jvm sync' or 'jvm doctor --fix'
+    set /a DOC_ISSUES+=1
 )
 
 echo ============================================================

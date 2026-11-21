@@ -1099,6 +1099,7 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
     Register-ArgumentCompleter -Native -CommandName @('jvm', 'jvm.exe', '.\jvm.exe', 'jvm.bat', '.\jvm.bat') -ScriptBlock {
         param($wordToComplete, $commandAst, $cursorPosition)
         $subcommands = @(
+            'init', 'setup', 'outdated', 'upgrade', 'sync', 'winget-sync',
             'list', 'ls', 'install', 'uninstall', 'rm', 'remove', 'use', 'default',
             'pin', 'local', 'current', 'status', 'info', 'whoami', 'which', 'path',
             'doctor', 'check', 'clean', 'prune', 'clear', 'update', 'self-update',
@@ -1157,15 +1158,31 @@ if (Get-Command Register-ArgumentCompleter -ErrorAction SilentlyContinue) {
             $completions = @('create')
         } elseif ($prev -in @('lock')) {
             $completions = @('check', 'diff', 'update', 'sign', 'verify', 'freeze', 'thaw')
+        } elseif ($prev -in @('sync', 'winget-sync')) {
+            $completions = @('--dry-run', '--yes', '--json')
+        } elseif ($prev -in @('doctor', 'check')) {
+            $completions = @('--fix', '--json', '--quiet')
+        } elseif ($prev -in @('clean', 'prune')) {
+            $completions = @('--dry-run', '--all', '--json')
         } elseif ($prev -in @('use', 'default', 'pin', 'local', 'uninstall', 'rm', 'remove', 'which', 'path')) {
             $installed = @()
+            $javaDir = if (Test-Path "C:\Program Files\Java") { "C:\Program Files\Java" } elseif ($env:ProgramFiles -and (Test-Path "$env:ProgramFiles\Java")) { "$env:ProgramFiles\Java" } else { $null }
+            if ($javaDir) {
+                Get-ChildItem -LiteralPath $javaDir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+                    $installed += $_.Name
+                    if ($_.Name -match '(?:jdk|jre)-?(\d+)') { $installed += $matches[1] }
+                }
+            }
             $linksDir = "$env:LOCALAPPDATA\JavaVersionManager\links"
             if (Test-Path -LiteralPath $linksDir) {
                 $installed += @(Get-ChildItem -LiteralPath $linksDir -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)
             }
             $jdksDir = "$env:USERPROFILE\.jdks"
             if (Test-Path -LiteralPath $jdksDir) {
-                $installed += @(Get-ChildItem -LiteralPath $jdksDir -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)
+                Get-ChildItem -LiteralPath $jdksDir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+                    $installed += $_.Name
+                    if ($_.Name -match '(?:jdk|jre)-?(\d+)') { $installed += $matches[1] }
+                }
             }
             $completions = @($installed | Select-Object -Unique) + $candidates
         } elseif ($wordToComplete -like '-*') {
@@ -1319,6 +1336,7 @@ try {
     if (-not (Test-Path -LiteralPath $iconPath)) { $iconPath = Join-Path $sys32Dir "shell32.dll,27" }
 
     Set-ItemProperty -Path $uninstallRegPath -Name "DisplayIcon" -Value $iconPath
+    Set-ItemProperty -Path $uninstallRegPath -Name "InstallDate" -Value (Get-Date -Format "yyyyMMdd")
     Set-ItemProperty -Path $uninstallRegPath -Name "URLInfoAbout" -Value "https://diamtek.github.io/Java-Version-Manager-Windows"
     Set-ItemProperty -Path $uninstallRegPath -Name "HelpLink" -Value "https://github.com/DiamTek/Java-Version-Manager-Windows/issues"
     Set-ItemProperty -Path $uninstallRegPath -Name "NoModify" -Value 1 -Type DWord
@@ -1496,6 +1514,16 @@ try {
     if ($env:USERPROFILE)  { $safeErr = $safeErr.Replace($env:USERPROFILE, '%USERPROFILE%') }
     Write-Host ""
     Write-Host "           [WARN] Could not register uninstaller shortcut: $safeErr" -ForegroundColor Yellow
+}
+
+# 6. WinGet Parity Auto-Sync
+if (Test-Path -LiteralPath $batPath) {
+    try {
+        $syncArgs = if ($Quiet) { @('sync', '--auto', '--silent') } else { @('sync', '--auto') }
+        & $batPath @syncArgs 2>$null | Out-Null
+    } catch {
+        Write-Verbose "WinGet parity sync skipped: $($_.Exception.Message)"
+    }
 }
 
 Update-Progress -Percent 100 -Activity "Finalizing setup..."

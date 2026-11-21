@@ -1,4 +1,4 @@
-﻿<h1 align="center">Usage Guide</h1>
+<h1 align="center">Usage Guide</h1>
 
 <div align="center" markdown="1">
 
@@ -142,6 +142,7 @@ If you have just downloaded the script manually, navigate to **Settings (Global 
 | `jvm list` | Inspection | Lists all installed JDKs, vendors, paths, and ecosystem build tools (alias: `jvm ls`). |
 | `jvm current` | Inspection | Displays comprehensive status card: active JDK, mode, junction target, and tools (aliases: `jvm status`, `jvm info`, `jvm whoami`, `jvm env`). |
 | `jvm which [candidate]` | Inspection | Prints absolute filesystem path to active `java.exe` or ecosystem binary (alias: `jvm path`). |
+| `jvm sync [--dry-run] [--yes]` | Maintenance | Synchronize Windows Uninstall registry entries to match WinGet package version parity and prevent false upgrade prompts (alias: `jvm winget-sync`). |
 | `jvm doctor` | Diagnostic | Deep system health audit: permissions, junctions, registry sync, PATH shadowing, and hooks (alias: `jvm check`). |
 | `jvm hook [install/remove/status]` | Shell | Manage PowerShell profile auto-sync wrapper hook (`install`, `setup`, `status`, `check`, `remove`). |
 | `jvm open [candidate]` | Navigation | Opens active candidate, JDK, or storage root in Windows File Explorer (alias: `jvm home`). |
@@ -1058,6 +1059,47 @@ jvm doctor --fix
 ### Repair Actions Performed
 1. **Orphaned Directory Junctions:** If `%LOCALAPPDATA%\DiamTek\JVM\current` points to a missing JDK directory, `--fix` removes the broken reparse point.
 2. **PATH Shadow Remediation:** If legacy Oracle `javapath` entries precede JVM in your PATH, `--fix` purges them.
+3. **WinGet Registry Parity:** Synchronizes desynchronized Windows Uninstall registry entries to prevent false upgrade prompts from `winget update`.
+
+---
+
+<a id="winget-registry-parity"></a>
+## WinGet & Windows Uninstall Registry Parity (`jvm sync`, `jvm winget-sync`)
+
+When JDK distributions (such as Eclipse Temurin or Microsoft OpenJDK) are originally installed via MSI or WinGet, Windows creates registry entries in `HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`. 
+
+WinGet normalizes the OpenJDK build metadata `+` character into a 4-part numeric revision format:
+* `21.0.13.1+2` -> `21.0.13.102`
+* `25.0.5.1+2` -> `25.0.5.102`
+* `21.0.13+9` -> `21.0.13.9`
+
+When JVM updates a JDK to a newer patch release, predecessor directories may be removed while the Windows Uninstall registry key still references the obsolete build. This causes `winget update` to report a false pending upgrade:
+
+```
+Eclipse Temurin JDK with Hotspot 21.0.13+9 (x64) EclipseAdoptium.Temurin.21.JDK 21.0.13.9 21.0.13.102 winget
+```
+
+### Synchronizing Parity
+Use `jvm sync` (or `jvm winget-sync`) to audit and align registry entries:
+
+```cmd
+# Preview pending registry alignments without making changes
+jvm sync --dry-run
+
+# Synchronize registry entries with WinGet parity (prompts UAC if modifying HKLM)
+jvm sync
+
+# Non-interactive synchronization
+jvm sync --yes
+
+# Output structured drift analysis in JSON
+jvm sync --json
+```
+
+### Automatic Synchronization in Updaters
+Starting in v1.1.2, you do not need to run `jvm sync` manually after updating runtimes:
+* **`jvm update` & `jvm upgrade`**: When updating existing JDK distributions to newer builds, JVM automatically cleans up outdated predecessor directories and synchronizes corresponding Windows registry entries (`InstallLocation`, `DisplayVersion`, `DisplayName`, and `InstallDate`). Once all updates complete, JVM runs a headless parity audit (`:SyncWingetParity --auto`) in the background.
+* **`jvm install`**: When installing a new runtime or updating an existing installation directly, JVM automatically reconciles existing Windows Uninstall registry entries to prevent duplicate or drifted package metadata.
 
 ---
 

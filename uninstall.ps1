@@ -1,4 +1,4 @@
-﻿# Java Version Manager
+# Java Version Manager
 # Copyright (C) 2026 DiamTek / Alexéy Shishkin
 #
 # This program is free software: you can redistribute it and/or modify
@@ -344,14 +344,22 @@ foreach ($p in $profiles) {
 # Unload in-memory wrapper functions if executing in an interactive PowerShell session
 Remove-Item -Path "Function:\jvm" -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "Function:\Set-JvmVar" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "Function:\Enable-JvmAutoSwitch" -Force -ErrorAction SilentlyContinue
 
 # Restore original prompt function and purge auto-switch session state
 if ($global:__jvm_original_prompt) {
     Set-Item -Path "Function:\prompt" -Value $global:__jvm_original_prompt -Force -ErrorAction SilentlyContinue
     Remove-Variable -Name '__jvm_original_prompt' -Scope Global -Force -ErrorAction SilentlyContinue
-    Remove-Variable -Name '__jvm_prev_pwd' -Scope Global -Force -ErrorAction SilentlyContinue
-    Remove-Variable -Name '__jvm_host_state' -Scope Global -Force -ErrorAction SilentlyContinue
 }
+if ($global:__jvm_orig_prompt) {
+    Set-Item -Path "Function:\prompt" -Value $global:__jvm_orig_prompt -Force -ErrorAction SilentlyContinue
+    Remove-Variable -Name '__jvm_orig_prompt' -Scope Global -Force -ErrorAction SilentlyContinue
+}
+Remove-Variable -Name '__jvm_prev_pwd' -Scope Global -Force -ErrorAction SilentlyContinue
+Remove-Variable -Name '__jvm_host_state' -Scope Global -Force -ErrorAction SilentlyContinue
+Remove-Variable -Name '__jvm_prompt_installed' -Scope Global -Force -ErrorAction SilentlyContinue
+Remove-Variable -Name '__jvm_last_dir' -Scope Global -Force -ErrorAction SilentlyContinue
+Remove-Variable -Name '__jvm_active_project_ver' -Scope Global -Force -ErrorAction SilentlyContinue
 
 # Clean CMD Command Processor AutoRun registration
 try {
@@ -409,8 +417,10 @@ Write-Host "[   OK   ] Removed $removedVars environment variables." -ForegroundC
 Write-Host "`n[ ACTION ] Removing Windows Uninstall Registry & Shortcuts..." -ForegroundColor Cyan
 Remove-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue
 try { Remove-Item -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue } catch { Write-Verbose "HKLM Uninstall key removal skipped: $($_.Exception.Message)" }
+try { Remove-Item -Path "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\DiamTek.JVM" -Recurse -Force -ErrorAction SilentlyContinue } catch { Write-Verbose "HKLM WOW6432Node Uninstall key removal skipped: $($_.Exception.Message)" }
 Remove-Item -Path "HKCU:\Software\DiamTek\JVM" -Recurse -Force -ErrorAction SilentlyContinue
 try { Remove-Item -Path "HKLM:\Software\DiamTek\JVM" -Recurse -Force -ErrorAction SilentlyContinue } catch { Write-Verbose "HKLM DiamTek\JVM key removal skipped: $($_.Exception.Message)" }
+try { Remove-Item -Path "HKLM:\Software\WOW6432Node\DiamTek\JVM" -Recurse -Force -ErrorAction SilentlyContinue } catch { Write-Verbose "HKLM WOW6432Node DiamTek\JVM key removal skipped: $($_.Exception.Message)" }
 
 # Only prune parent DiamTek registry key if it has no remaining subkeys or values
 try {
@@ -721,6 +731,23 @@ if ($javaDir) {
         try {
             Remove-Item -LiteralPath $javaDir -Recurse -Force -ErrorAction Stop
             $deleted = $true
+            $roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall', 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall')
+            foreach ($r in $roots) {
+                if (Test-Path -LiteralPath $r) {
+                    Get-ChildItem -LiteralPath $r -ErrorAction SilentlyContinue | ForEach-Object {
+                        $p = Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction SilentlyContinue
+                        if ($p -and $p.InstallLocation) {
+                            try {
+                                $il = [System.IO.Path]::GetFullPath($p.InstallLocation).TrimEnd('\')
+                                $tg = [System.IO.Path]::GetFullPath($javaDir).TrimEnd('\')
+                                if ($il.StartsWith($tg, [StringComparison]::OrdinalIgnoreCase)) {
+                                    Remove-Item -LiteralPath $_.PSPath -Recurse -Force -ErrorAction SilentlyContinue
+                                }
+                            } catch { Write-Verbose $_.Exception.Message }
+                        }
+                    }
+                }
+            }
         } catch {
             Write-Host "[ ACTION ] Requesting Administrator privileges to delete '$javaDir'..." -ForegroundColor Cyan
             $proc = $null
@@ -730,6 +757,23 @@ if ($javaDir) {
 `$target = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('$delB64'))
 if (Test-Path -LiteralPath `$target) {
     Remove-Item -LiteralPath `$target -Recurse -Force -ErrorAction SilentlyContinue
+}
+`$roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall', 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall')
+foreach (`$r in `$roots) {
+    if (Test-Path -LiteralPath `$r) {
+        Get-ChildItem -LiteralPath `$r -ErrorAction SilentlyContinue | ForEach-Object {
+            `$p = Get-ItemProperty -LiteralPath `$_.PSPath -ErrorAction SilentlyContinue
+            if (`$p -and `$p.InstallLocation) {
+                try {
+                    `$il = [System.IO.Path]::GetFullPath(`$p.InstallLocation).TrimEnd('\')
+                    `$tg = [System.IO.Path]::GetFullPath(`$target).TrimEnd('\')
+                    if (`$il.StartsWith(`$tg, [StringComparison]::OrdinalIgnoreCase)) {
+                        Remove-Item -LiteralPath `$_.PSPath -Recurse -Force -ErrorAction SilentlyContinue
+                    }
+                } catch { Write-Verbose `$_.Exception.Message }
+            }
+        }
+    }
 }
 "@
                 $encDel = [System.Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($delScript))
